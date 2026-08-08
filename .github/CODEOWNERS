@@ -1,0 +1,10 @@
+# Only control-plane files require owner review. Routine docs/templates not listed here remain zero-approval.
+/.github/workflows/ @kgsmith19
+/.github/CODEOWNERS @kgsmith19
+/policy/ @kgsmith19
+/scripts/ @kgsmith19
+/AGENTS.md @kgsmith19
+/AGENT_RULES.md @kgsmith19
+/QUALITY_RULES.md @kgsmith19
+/SECURITY_RISK_AUTONOMY.md @kgsmith19
+/DELIVERY_GITHUB.md @kgsmith19
