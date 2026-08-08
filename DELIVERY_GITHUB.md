@@ -14,6 +14,8 @@ Prefer:
 
 Do not make PRs artificially large to save CI minutes. Save minutes by verifying slices locally, pushing less often, canceling superseded runs, caching, and reserving expensive assurance for changes that justify it.
 
+Name short-lived branches `<type>/<issue-number>-<short-description>` so each branch traces directly to its Issue (for example `feat/42-optional-sections`, `fix/81-router-timeout`, `chore/105-ci-cache`).
+
 ## 2. Required PR Gate
 
 Every managed repository exposes one stable required status context named **`PR Gate`**.

@@ -26,15 +26,17 @@ Refactor only after required evidence is green.
 
 Typical evidence:
 
-- pure/local logic → unit + property/invariant
-- bug → reproduction + regression
-- API/schema → contract + integration
-- user journey → acceptance/E2E
-- hostile/untrusted input → security/fuzz
-- data migration → data invariants + recovery proof
+- pure/local logic → unit + property/invariant (T-U-NNN / T-P-NNN)
+- bug → reproduction + regression (T-R-NNN)
+- API/schema → contract + integration (T-C-NNN / T-I-NNN)
+- user journey → acceptance/E2E (T-A-NNN / T-E-NNN)
+- hostile/untrusted input → security/fuzz (T-S-NNN)
+- data migration → data invariants (T-P-NNN) + recovery proof
 - risky release → runtime smoke/black-box proof
 
 Do not run every test category for every change.
+
+Use `T-*-NNN` identifiers (unit, property/invariant, integration, contract, end-to-end, security, regression, acceptance) as the durable reference for a piece of test evidence when a slice or spec cites it. `T-M-NNN` records mutation-test evidence for a specific test — proof that the test actually kills an injected mutant — independent of which category the mutated test belongs to.
 
 ## 4. Independent evaluation
 
