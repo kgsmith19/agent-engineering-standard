@@ -45,6 +45,7 @@ Copy-Item (Join-Path $standardRoot 'templates/PRD.md') (Join-Path $target 'PRD.m
 Copy-Item (Join-Path $standardRoot 'templates/ISSUE.md') (Join-Path $target '.github/ISSUE_TEMPLATE/work-item.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/PULL_REQUEST.md') (Join-Path $target '.github/PULL_REQUEST_TEMPLATE.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/PR_GATE.yml') (Join-Path $target '.github/workflows/pr-gate.yml') -Force
+Copy-Item (Join-Path $standardRoot 'templates/AI_REVIEW.yml') (Join-Path $target '.github/workflows/ai-review.yml') -Force
 Copy-Item (Join-Path $standardRoot 'templates/CODEOWNERS') (Join-Path $target '.github/CODEOWNERS') -Force
 
 @"
@@ -67,11 +68,12 @@ work_tracking:
 
 ci:
   required_check: "PR Gate"
+  ai_review_check: "AI Review"
   gate_profile: bootstrap-only
 
-# Before product code lands, replace the bootstrap-only gate with the cheapest
+# Before product code lands, replace the bootstrap-only PR Gate with the cheapest
 # repo-specific objective build/test/acceptance evidence for the detected stack.
-# Add only commands and risk paths that have actually been verified.
+# Keep the shared AI Review caller intact unless the control-plane design changes.
 "@ | Set-Content (Join-Path $target '.agent/project.yaml') -Encoding utf8
 
 '@AGENTS.md' | Set-Content (Join-Path $target 'CLAUDE.md') -Encoding utf8
@@ -95,6 +97,7 @@ Replace the bootstrap-only PR Gate with the smallest objective gate appropriate 
 ## Acceptance
 - Detect and record verified build/test/type/lint/E2E commands in `.agent/project.yaml`.
 - Replace `.github/workflows/pr-gate.yml` so `PR Gate` executes the cheapest sufficient independent evidence.
+- Preserve `.github/workflows/ai-review.yml` so the required exact-head `AI Review` context continues to run.
 - Extend `.github/CODEOWNERS` with the small repo-specific gate entrypoints whose weakening could make `PR Gate` falsely green; keep the canonical control-plane ownership rules as the final non-comment rules.
 - Keep draft iteration local; ready PR and `merge_group` must produce the real `PR Gate`.
 - Add only tests/tools justified by actual product risk; do not invent a framework just for conformity.

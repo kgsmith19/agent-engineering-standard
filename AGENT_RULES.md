@@ -42,40 +42,55 @@ Do not repeat the same failing strategy indefinitely. Escalate consequential amb
 
 ## 6. Independent review and merge
 
-Keep a PR draft while implementation is still changing. Run the repo's local/fast verification during slices, then mark the coherent PR ready so the independent `PR Gate` runs.
+Keep a PR draft while implementation is changing. Run fast local verification during slices, then mark the coherent PR ready.
 
-**The implementing agent must request a different review agent after the final substantive push.** Do not leave reviewer selection as a human reminder. Use the shared review router when available; otherwise perform the equivalent bounded handoff and record the reviewer provider.
+Every automated merge requires two GitHub integration gates on the **latest head SHA**:
 
-Every auto-merged PR needs a current-head independent AI review. Independence means the reviewer provider did not implement the PR and the reviewer did not inherit the implementation session/context.
+1. `PR Gate` — deterministic repo-specific evidence
+2. `AI Review` — required provider-specific semantic evidence for the exact head
 
-Default routing:
+A later push creates a new head SHA and invalidates the prior semantic authorization. Auto-merge may remain armed, but GitHub cannot merge until the new head receives a successful `AI Review` check.
 
-- Claude implementation → Codex GitHub review
-- Copilot implementation → Codex GitHub review
-- Codex implementation → one Copilot review; use a fresh Claude session/model/context only if Copilot is unavailable
-- human/unknown implementation → Codex by default
+Agent provenance is mechanical, not trusted from editable PR prose:
 
-The default reviewer performs **one batched multi-lens pass** rather than spawning several paid reviewers:
+- ChatGPT work: `agent/chatgpt/<work>`
+- Codex work: `agent/codex/<work>`
+- Claude work: `agent/claude/<work>` or recognized legacy Claude cloud branch
+- Copilot work: `agent/copilot/<work>` or recognized Copilot branch/author
+- ordinary/user-authored branches are ambiguous for independence and therefore need both connected reviewer providers for unattended merge
+
+Default required reviewer routing:
+
+- ChatGPT implementation → Copilot
+- Claude implementation → Codex
+- Copilot implementation → Codex
+- Codex implementation → Copilot
+- ambiguous/user-authored provenance → Codex + Copilot
+
+Do not claim a fresh-Claude fallback until a mechanical Claude review adapter exists.
+
+The default semantic reviewer performs **one batched multi-lens pass**:
 
 1. software correctness/security
 2. business/product outcome and ROI
 3. business systems/operational optimization
 4. leanness/complexity/dead-code/manual-toil review
 
-A second semantic reviewer is justified only when the first review finds material ambiguity, the risk model requires stronger independence, or the primary reviewer is unavailable.
+A second semantic pass is justified only after substantive fixes, unresolved ambiguity, or when ambiguous provenance requires the second connected provider.
 
 Cost rules:
 
-- deterministic checks run before LLM review
-- Codex is primary; local deep review defaults to `gpt-5.4-mini`
-- at most 2 Codex reviews per PR: initial + one post-fix re-review
-- Copilot is fallback-only, low effort, at most 1 review per PR
-- do not enable Copilot review-on-push or draft review by default
-- do not repeatedly pay for a reviewer because implementation was pushed in noisy micro-commits; keep active work draft and request review after the final substantive push
+- deterministic checks before LLM review
+- Codex primary for Claude/Copilot/ambiguous work; local deep review defaults to `gpt-5.4-mini`
+- max 2 Codex response passes per PR: initial + one post-fix re-review
+- max 1 Copilot response pass per PR, low effort
+- no default draft review or unlimited review-on-push spending
+- per-head request markers prevent duplicate requests
+- active implementation stays draft so noisy micro-pushes do not consume semantic review budget
 
-R0–R3 may auto-merge only after the current head has an independent AI review, required `PR Gate` is live/enforced, and review threads are resolved. Control-plane changes are at least R3; they are not forced through a human approval merely because they are important.
+R0–R3 may auto-merge only when both required gates are enforced, review threads are resolved, and no justified manual authority gate applies. Control-plane changes remain manually merged while they can alter the evaluator that judges themselves.
 
-R4 never auto-merges. The manual gate is authorization for destructive/financial/privileged/irreversible consequence, not a substitute for technical review.
+R4 never auto-merges. Its manual step authorizes destructive/financial/privileged/irreversible consequence; it is not a substitute for technical review.
 
 ## 7. Manual gates must earn their existence
 
@@ -83,21 +98,19 @@ Never add or preserve a manual gate merely because work is "important", "sensiti
 
 Every manual gate must state all four:
 
-1. **failure class prevented** — the concrete bad outcome
-2. **why automation is insufficient today** — the missing signal/capability, not a vague trust claim
-3. **decision owner** — who has the authority the machine lacks
-4. **gate removal condition** — the measurable condition that lets us automate/delete the gate
+1. **failure class prevented** — concrete bad outcome
+2. **why automation is insufficient today** — missing signal/capability, not vague trust
+3. **decision owner** — who has authority the machine lacks
+4. **gate removal condition** — measurable condition that lets us automate/delete it
 
 If any field is missing, the gate is unjustified and should be removed or replaced with objective automation.
 
-Manual review is not automatically required for R3. Prefer independent AI review + deterministic controls. Use a manual gate only when a real authority/intent decision cannot yet be safely derived or bounded.
-
 ## 8. Turn manual toil into system improvement
 
-When an agent or human performs a manual workaround, ask whether the same work could recur.
+When an agent or human performs a manual workaround, ask whether it can recur.
 
-- If the automation is small, safe, and in scope: automate it now.
-- Otherwise record one concise automation/research candidate with the observed problem, evidence/frequency, current human cost, research needed, smallest experiment, expected payoff, and deletion/expiry condition.
-- Do not create idea landfill. A candidate without evidence, plausible ROI, or a next experiment is discarded.
+- If automation is small, safe, and in scope: automate it now.
+- Otherwise record one concise automation/research candidate with problem, evidence/frequency, human cost, research needed, smallest experiment, expected payoff, and deletion/expiry condition.
+- Discard candidates without evidence, plausible ROI, or a next experiment.
 
 Repeated manual work must not become normal merely because an agent can keep doing it.

@@ -3,6 +3,7 @@
   "project_title": "Agentic Portfolio",
   "ruleset_name": "Lean PR Gate",
   "required_status_context": "PR Gate",
+  "required_ai_review_context": "AI Review",
   "strict_required_status_checks_policy": false,
   "required_approving_review_count": 0,
   "require_code_owner_review": false,
@@ -33,13 +34,17 @@
   "manual_gates": {
     "control_plane": {
       "required": true,
-      "reason": "A control-plane PR can modify the evaluator or authority that judges its own merge.",
-      "removal_condition": "Move the governing evaluator and merge authority to an immutable external or organization-required workflow that the PR cannot modify."
+      "failure_class_prevented": "A pull request changes the evaluator or merge authority and then uses that changed control to approve itself.",
+      "why_automation_is_insufficient": "The standard repository still contains the governing policy and evaluator code, so a control-plane PR is not independent of its own enforcement.",
+      "decision_owner": "repository owner",
+      "gate_removal_condition": "Move the governing evaluator and merge authority to an immutable external or organization-required workflow that the PR cannot modify."
     },
     "R4": {
       "required": true,
-      "reason": "The decision authorizes destructive, financial, privileged, or irreversible consequence; review quality alone cannot grant that authority.",
-      "removal_condition": "Replace the irreversible action with a bounded reversible mechanism whose blast radius and rollback are mechanically enforced and reclassify the operation below R4."
+      "failure_class_prevented": "An automated action causes destructive, financial, privileged, or practically irreversible real-world consequence without explicit authority.",
+      "why_automation_is_insufficient": "Repository evidence can validate implementation quality but cannot infer the human intent or authority to accept an irreversible consequence.",
+      "decision_owner": "authorized human owner",
+      "gate_removal_condition": "Replace the irreversible action with a mechanically bounded reversible mechanism with independently verified rollback, then reclassify it below R4."
     }
   },
   "org_hardening": {
