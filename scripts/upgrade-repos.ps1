@@ -61,9 +61,7 @@ pinned_by: upgrade-repos.ps1
       $project = '.agent/project.yaml'
       if ((Test-Path $project) -and $previousStandardSha) {
         $p = Get-Content $project -Raw
-        $escapedPreviousSha = [regex]::Escape($previousStandardSha)
-        $pattern = "(?m)^(\s*(?:sha|standard_sha|standard_commit|commit):\s*)$escapedPreviousSha(\s*(?:#.*)?)$"
-        $p = [regex]::Replace($p, $pattern, "`$1$StandardSha`$2")
+        $p = Update-StandardProjectContent -Content $p -PreviousStandardSha $previousStandardSha -StandardSha $StandardSha
         Set-Content $project $p -Encoding utf8 -NoNewline
       }
 
