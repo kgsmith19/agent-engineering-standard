@@ -10,46 +10,50 @@ GitHub Issues are the durable work-item source. A PR is the smallest coherent in
 
 Prefer:
 
-`Issue → SPEC only if needed → thin local slices → draft PR while iterating → ready PR → PR Gate → auto-merge/queue → release`
+`Issue → SPEC only if needed → thin local slices → draft PR while iterating → ready PR → PR Gate + AI Review → auto-merge/queue → release`
 
 Do not make PRs artificially large to save CI minutes. Save minutes by verifying slices locally, pushing less often, canceling superseded runs, caching, and reserving expensive assurance for changes that justify it.
 
-Name short-lived branches `<type>/<issue-number>-<short-description>` so each branch traces directly to its Issue (for example `feat/42-optional-sections`, `fix/81-router-timeout`, `chore/105-ci-cache`).
+Name ordinary short-lived branches `<type>/<issue-number>-<short-description>`. Controlled local agent runs may use `agent/<provider>/<issue-or-work>` so GitHub Actions can attest implementation provenance without trusting editable PR prose.
 
-## 2. Required PR Gate
+## 2. Required integration gates
 
-Every managed repository exposes one stable required status context named **`PR Gate`**.
+Every managed repository exposes two stable required contexts on the latest PR head:
 
-Draft pushes should not consume the full required gate. If a workflow emits a skipped job for draft events, that skipped job must use a different check name; a skipped job named `PR Gate` must never be allowed to satisfy the required context.
+- **`PR Gate`** — cheapest sufficient deterministic build/test/security evidence.
+- **`AI Review`** — current-head semantic review from a provider independent of the attested implementer.
 
-`PR Gate` runs the cheapest independent evidence sufficient to block a bad merge for that repository. It should normally finish in about 10 minutes or less and may contain or aggregate repo-specific build/type/lint, unit/property/regression, changed-file/architecture, critical integration/contract/acceptance, and lightweight security/dependency evidence.
+Both contexts are bound to the GitHub Actions App. A later push creates a new SHA, so an `AI Review` success from an earlier head cannot satisfy the latest commit.
 
-Do not require every available test category on every change.
+Draft pushes should not spend semantic-review budget. Keep active work draft, request review when coherent, and allow at most the bounded re-review budget after substantive fixes.
 
-Bind the required `PR Gate` context to the GitHub Actions App integration, not only to a status name.
+`PR Gate` should normally finish in about 10 minutes or less and may contain repo-specific build/type/lint, unit/property/regression, changed-file/architecture, critical integration/contract/acceptance, and lightweight security/dependency evidence. Do not require every available test category on every change.
 
-CODEOWNERS should map the required workflow plus the small repo-specific entrypoints that determine what it executes (for example test scripts/config, coverage-gate code, or locked acceptance evaluators). Do not CODEOWN all product tests merely to satisfy this rule.
+`AI Review` uses GitHub-Actions-attested implementation provenance plus recognized review providers. Unknown provenance fails closed. Review-thread resolution remains separately required so material inline findings cannot be ignored.
 
-For today's single-developer, user-owned repositories, CODEOWNERS is **advisory**, not a required approval gate: a pull-request author cannot approve their own PR, so requiring Code Owner approval would deadlock the normal solo workflow. R3/R4/control-plane changes instead require fresh external semantic review and are excluded from automatic merge. Once repositories move to an organization with an independent reviewer/team, enable required Code Owner review and prefer an organization-required workflow sourced from this standards repo.
+For today's single-developer, user-owned repositories, CODEOWNERS is advisory and human approval count is 0. Required Code Owner review would deadlock a solo personal-repo workflow. Organization-owned repos may harden CODEOWNERS through the shared policy.
 
-Use **loose** required status checks (`strict_required_status_checks_policy: false`) by default so a PR does not rebuild merely because `main` moved. A merge queue, when available, provides the final combined-head integration check.
+Use loose required status checks (`strict_required_status_checks_policy: false`) by default so a PR does not rebuild merely because `main` moved. A merge queue, when available, provides final combined-head integration checking.
 
 ## 3. Expensive assurance
 
-Keep expensive or environment-specific checks outside the universal PR Gate unless risk makes them necessary blockers: full OS/browser matrices, mutation campaigns, extended fuzzing, load/performance, broad security scans, and slow production-like E2E.
+Keep expensive/environment-specific checks outside the universal gates unless risk makes them necessary blockers: full OS/browser matrices, mutation campaigns, extended fuzzing, load/performance, broad security scans, and slow production-like E2E.
 
-Run them through risk/path-triggered jobs, explicit escalation, main/release validation, or scheduled/manual workflows. A correctness-critical or security-critical check stays blocking even when expensive.
+Run them through risk/path triggers, explicit escalation, main/release validation, or scheduled/manual workflows. A correctness/security-critical check stays blocking even when expensive.
 
-## 4. Actions efficiency
+## 4. Actions and model efficiency
 
-- Keep PRs draft during active iteration; run fast local evidence per slice.
-- Cancel superseded ready-PR runs with workflow concurrency.
-- Prefer one setup/install per required lane when extra parallel jobs mostly duplicate setup cost.
-- Cache dependencies when safe/useful.
-- Avoid redundant push+PR execution for the same evidence.
-- Remove/demote expensive checks that rarely change a decision.
+- Keep PRs draft during active iteration.
+- Cancel superseded deterministic runs.
+- Prefer one setup/install per required lane when parallel jobs mostly duplicate setup cost.
+- Cache dependencies when useful/safe.
+- Avoid redundant push+PR execution.
+- Run deterministic checks before semantic LLM review.
+- Prefer one batched semantic review over several specialist calls.
+- Codex is the primary reviewer lane; Copilot is bounded fallback, not an every-push tax.
+- Remove/demote checks or model calls that rarely change a decision.
 
-Optimize for **fast trustworthy feedback per compute-minute**, not minimum Actions usage in isolation.
+Optimize for **fast trustworthy feedback per human minute, compute-minute, and model cost**.
 
 ## 5. Merge and protection defaults
 
@@ -57,32 +61,22 @@ For the default branch:
 
 - require a PR
 - require GitHub-Actions-produced `PR Gate`
+- require GitHub-Actions-produced exact-head `AI Review`
 - require resolution of review threads
-- require 0 human approvals by default for routine work
+- require 0 human approvals by default on personal repos
 - disallow force-push and branch deletion
-- use squash merge as the normal merge method
+- squash only
 - allow auto-merge
 - automatically delete merged head branches
-- define no silent bypass actors
+- no silent bypass actors
 
-R0–R2 may use risk-aware auto-merge after the PR is ready. R3/R4 and control-plane changes require a fresh independent semantic review after the final substantive push and must not auto-merge while a material finding is unresolved.
+R0–R3 may use auto-merge when both required gates are green and no justified authority gate applies. R4 never auto-merges.
 
-Today, repo-local workflow files are still editable by a control-plane PR, so this R3 review requirement is an extra trust boundary rather than a claim that the local evaluator is immutable. Organization-required workflows are the stronger future boundary.
+Control-plane changes remain manually merged **only** while the PR can modify the evaluator/merge authority judging itself. Remove that gate once governing enforcement lives in an immutable external or organization-required workflow the PR cannot edit.
 
 ## 6. Merge queue
 
-Use a merge queue when GitHub supports it and concurrent agent PR volume justifies it. Required-check workflows must trigger on `merge_group` or queued PRs can deadlock.
-
-Default queue posture:
-
-- squash merge
-- `HEADGREEN` grouping
-- build concurrency 3
-- merge groups up to 5 PRs
-- 1-minute maximum grouping wait
-- 10-minute required-check response timeout
-
-User-owned repositories remain queue-ready but cannot enable the queue until moved to a supported organization.
+Use a merge queue when GitHub supports it and concurrent agent PR volume justifies it. Required-check workflows must support `merge_group` before enabling the queue. User-owned repositories remain queue-ready but do not enable it until the exact-head semantic-review behavior for merge groups is explicitly implemented and verified.
 
 ## 7. Release
 
@@ -92,10 +86,12 @@ For higher-risk releases, build once, identify the immutable artifact/commit, pr
 
 ## 8. Shared control plane
 
-`policy/github-defaults.json` is the machine-readable portfolio default.
+`policy/github-defaults.json` is the machine-readable portfolio policy.
 
-- `scripts/apply-github-standard.ps1` applies repository settings, Actions, labels, and default-branch rules. After the canonical ruleset succeeds, it removes only a stale legacy required-status-check block so retired check names cannot keep a branch unmergeable; all other legacy protections remain untouched.
-- `scripts/auto-merge.ps1` is the risk-aware R0–R2 happy path and refuses R3/R4/control-plane PRs.
-- `scripts/doctor.ps1 -Remote` verifies effective remote policy, including the absence of noncanonical legacy required-check contexts, and exits nonzero on drift.
+- `scripts/apply-github-standard.ps1` applies repository settings, labels, Actions, and default-branch rules.
+- `.github/workflows/ai-review-reusable.yml` is the shared exact-head semantic-review evaluator; product repos use the thin caller template.
+- `scripts/request-independent-review.ps1` routes bounded review requests from GitHub-Actions-attested implementation provenance.
+- `scripts/auto-merge.ps1` validates the live integration plane and then arms GitHub auto-merge; it does not substitute its own call-time semantic judgment for the required `AI Review` context.
+- `scripts/doctor.ps1 -Remote` verifies effective remote policy and exits nonzero on drift.
 
-Prefer centrally maintained policy and stable check naming; keep stack-specific test commands inside each product repo.
+Prefer centrally maintained policy and stable check names; keep stack-specific deterministic commands inside each product repo.
