@@ -28,7 +28,7 @@ if ($LASTEXITCODE -ne 0) {
   try { & gh @args | Out-Host } finally { Pop-Location }
   if ($LASTEXITCODE -ne 0) { throw "Could not create $repo" }
 }
-elif (-not (Test-Path $target)) {
+elseif (-not (Test-Path $target)) {
   Push-Location $Destination
   try { & gh repo clone $repo | Out-Host } finally { Pop-Location }
   if ($LASTEXITCODE -ne 0) { throw "Could not clone $repo" }
