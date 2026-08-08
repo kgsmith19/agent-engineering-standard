@@ -95,6 +95,13 @@ foreach ($name in $config.repositories) {
   if ($meta.allow_merge_commit) { $problems.Add('merge commits enabled') }
   if ($meta.allow_rebase_merge) { $problems.Add('rebase enabled') }
 
+  $actionsRaw = & gh api "repos/$repo/actions/permissions" 2>&1
+  if ($LASTEXITCODE -ne 0) { $problems.Add('cannot read Actions permissions') }
+  else {
+    $actions = ($actionsRaw -join "`n") | ConvertFrom-Json
+    if (-not [bool]$actions.enabled) { $problems.Add('Actions disabled') }
+  }
+
   $codeownersRaw = & gh api -H 'Accept: application/vnd.github.raw+json' "repos/$repo/contents/.github/CODEOWNERS?ref=$($meta.default_branch)" 2>&1
   if ($LASTEXITCODE -ne 0) { $problems.Add('CODEOWNERS missing') } else {
     $expectedTail = if ($name -eq 'agent-engineering-standard') { $standardTail } else { $appTail }
