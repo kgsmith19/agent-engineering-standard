@@ -5,12 +5,16 @@
   "required_status_context": "PR Gate",
   "strict_required_status_checks_policy": false,
   "required_approving_review_count": 0,
-  "require_code_owner_review": true,
+  "require_code_owner_review": false,
   "required_review_thread_resolution": true,
   "merge_method": "squash",
   "allow_auto_merge": true,
   "auto_merge_max_risk": "R2",
   "control_plane_requires_fresh_external_review": true,
+  "org_hardening": {
+    "require_code_owner_review": true,
+    "prefer_required_workflow_from_standard_repo": true
+  },
   "delete_branch_on_merge": true,
   "allow_merge_commit": false,
   "allow_rebase_merge": false,
