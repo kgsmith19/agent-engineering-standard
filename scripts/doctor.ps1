@@ -110,6 +110,14 @@ foreach ($name in $config.repositories) {
 
   $aiWorkflowRaw = & gh api "repos/$repo/contents/.github/workflows/ai-review.yml?ref=$($meta.default_branch)" 2>&1
   if ($LASTEXITCODE -ne 0) { $problems.Add('AI Review caller workflow missing') }
+  else {
+    $workflowStateRaw = & gh api "repos/$repo/actions/workflows/ai-review.yml" 2>&1
+    if ($LASTEXITCODE -ne 0) { $problems.Add('cannot read AI Review workflow state') }
+    else {
+      $workflowState = ($workflowStateRaw -join "`n") | ConvertFrom-Json
+      if ($workflowState.state -ne 'active') { $problems.Add("AI Review workflow not active: $($workflowState.state)") }
+    }
+  }
 
   $rulesetsRaw = & gh api "repos/$repo/rulesets" 2>&1
   if ($LASTEXITCODE -ne 0) { $problems.Add('cannot read rulesets') } else {
