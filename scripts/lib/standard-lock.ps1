@@ -1,7 +1,7 @@
 function Get-StandardLockRevisionMatch {
   param([Parameter(Mandatory)][string]$Content)
 
-  $revisionPattern = '(?m)^(?<prefix>[ \t]*(?:sha|commit|standard_commit):[ \t]*)(?<value>[0-9a-fA-F]{40})(?<suffix>[ \t]*(?:#.*)?)$'
+  $revisionPattern = '(?m)^(?<prefix>[ \t]*(?:sha|commit|standard_commit):[ \t]*)(?<value>[0-9a-fA-F]{40})(?<suffix>[ \t]*(?:#.*)?\r?)$'
   $revisionMatches = [regex]::Matches($Content, $revisionPattern)
   if ($revisionMatches.Count -ne 1) {
     throw "standard.lock must contain exactly one sha, commit, or standard_commit field; found $($revisionMatches.Count)."
@@ -33,7 +33,7 @@ function Update-StandardLockContent {
   $revisionReplacement = $revision.Groups['prefix'].Value + $StandardSha + $revision.Groups['suffix'].Value
   $updated = $Content.Substring(0, $revision.Index) + $revisionReplacement + $Content.Substring($revision.Index + $revision.Length)
 
-  $pinnedAtPattern = '(?m)^(?<prefix>[ \t]*pinned_at:[ \t]*)(?<value>[^#\r\n]*?)(?<suffix>[ \t]*(?:#.*)?)$'
+  $pinnedAtPattern = '(?m)^(?<prefix>[ \t]*pinned_at:[ \t]*)(?<value>[^#\r\n]*?)(?<suffix>[ \t]*(?:#.*)?\r?)$'
   $pinnedAtMatches = [regex]::Matches($updated, $pinnedAtPattern)
   if ($pinnedAtMatches.Count -ne 1) {
     throw "standard.lock must contain exactly one pinned_at field; found $($pinnedAtMatches.Count)."
@@ -58,7 +58,7 @@ function Update-StandardProjectContent {
   }
 
   $escapedPreviousSha = [regex]::Escape($PreviousStandardSha)
-  $pattern = "(?m)^(?<prefix>\s*(?:sha|standard_sha|standard_commit|commit):\s*)$escapedPreviousSha(?<suffix>\s*(?:#.*)?)$"
+  $pattern = "(?m)^(?<prefix>\s*(?:sha|standard_sha|standard_commit|commit):\s*)$escapedPreviousSha(?<suffix>\s*(?:#.*)?\r?)$"
   $matches = [regex]::Matches($Content, $pattern)
   if ($matches.Count -gt 1) {
     throw "project.yaml contains more than one reference to the previous standard revision; found $($matches.Count)."
