@@ -19,34 +19,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - name: Validate standard layout and JSON
+      - name: Validate standard
         shell: pwsh
-        run: |
-          $required = @(
-            'README.md',
-            'LIFECYCLE.md',
-            'AGENT_RULES.md',
-            'QUALITY_RULES.md',
-            'SECURITY_RISK_AUTONOMY.md',
-            'DELIVERY_GITHUB.md',
-            'EVIDENCE_LEARNING.md',
-            'policy/github-defaults.json',
-            'scripts/apply-github-standard.ps1',
-            'scripts/sync-agentic-project.ps1'
-          )
-          foreach ($path in $required) {
-            if (-not (Test-Path $path)) { throw "Missing required standard file: $path" }
-          }
-          Get-Content policy/github-defaults.json -Raw | ConvertFrom-Json | Out-Null
-      - name: Parse PowerShell automation
-        shell: pwsh
-        run: |
-          foreach ($path in @('scripts/apply-github-standard.ps1','scripts/sync-agentic-project.ps1')) {
-            $tokens = $null
-            $errors = $null
-            [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors) | Out-Null
-            if ($errors.Count -gt 0) {
-              $errors | ForEach-Object { Write-Error $_.Message }
-              throw "PowerShell parse failed: $path"
-            }
-          }
+        run: ./scripts/doctor.ps1
