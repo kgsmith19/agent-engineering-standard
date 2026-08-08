@@ -22,9 +22,10 @@ if ($prInfo.state -ne 'OPEN') { throw "PR #$Pr is not open." }
 if ($prInfo.isDraft) { throw "PR #$Pr is draft. Keep implementation churn in draft; request independent review only when ready." }
 
 if ($Implementer -eq 'auto') {
-  $match = [regex]::Match([string]$prInfo.body, '(?im)^\s*Implementer:\s*(claude|copilot|codex|human|unknown)\s*$')
+  $match = [regex]::Match([string]$prInfo.body, '(?im)^\s*Implementer:\s*(claude|copilot|codex|human)\s*$')
   $Implementer = if ($match.Success) { $match.Groups[1].Value.ToLowerInvariant() } else { 'unknown' }
 }
+if ($Implementer -eq 'unknown') { throw "Independent review routing requires a concrete Implementer: claude|copilot|codex|human line in the PR body (or -Implementer explicitly)." }
 
 $reviewsRaw = & gh api --paginate --slurp "repos/$Repo/pulls/$Pr/reviews?per_page=100" 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($reviewsRaw -join "`n") }
@@ -33,10 +34,10 @@ $reviews = @($reviewPages | ForEach-Object { $_ })
 
 $currentIndependent = @($reviews | Where-Object {
   $provider = Get-ReviewProviderFromLogin -Login $_.user.login
-  $_.commit_id -eq $prInfo.headRefOid -and $provider -and (Test-IndependentReview -Implementer $Implementer -ReviewerProvider $provider)
+  $_.commit_id -eq $prInfo.headRefOid -and $_.state -ne 'DISMISSED' -and $provider -and (Test-IndependentReview -Implementer $Implementer -ReviewerProvider $provider)
 })
 if ($currentIndependent.Count -gt 0) {
-  Write-Host "CURRENT-HEAD INDEPENDENT REVIEW ALREADY EXISTS: $($currentIndependent[0].user.login)" -ForegroundColor Green
+  Write-Host "CURRENT-HEAD INDEPENDENT REVIEW ALREADY EXISTS: $($currentIndependent[-1].user.login)" -ForegroundColor Green
   exit 0
 }
 
@@ -61,15 +62,14 @@ if (-not (Test-IndependentReview -Implementer $Implementer -ReviewerProvider $Pr
 
 switch ($Provider) {
   'codex' {
-    if ($codexReviews -ge [int]$reviewPolicy.max_codex_reviews_per_pr -or $codexRequests -ge [int]$reviewPolicy.max_codex_reviews_per_pr) {
-      throw "Codex review budget exhausted for PR #$Pr. Use one bounded fallback reviewer instead of repeatedly re-requesting Codex."
-    }
+    if ($codexReviews -ge [int]$reviewPolicy.max_codex_reviews_per_pr -or $codexRequests -ge [int]$reviewPolicy.max_codex_reviews_per_pr) { throw "Codex review budget exhausted for PR #$Pr." }
     & gh pr comment $Pr --repo $Repo --body '@codex review' | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Could not request Codex review for $Repo PR #$Pr." }
     Write-Host "REVIEW REQUESTED: Codex GitHub ($($codexRequests + 1)/$($reviewPolicy.max_codex_reviews_per_pr)); implementer=$Implementer." -ForegroundColor Green
   }
   'copilot' {
     if ($copilotReviews -ge [int]$reviewPolicy.max_copilot_reviews_per_pr) { throw "Copilot review budget exhausted for PR #$Pr." }
+    # @copilot is GitHub's documented reviewer alias; the submitted review is authored by copilot-pull-request-reviewer[bot].
     & gh pr edit $Pr --repo $Repo --add-reviewer '@copilot' | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Could not request Copilot review for $Repo PR #$Pr." }
     Write-Host "REVIEW REQUESTED: Copilot fallback ($($copilotReviews + 1)/$($reviewPolicy.max_copilot_reviews_per_pr)); implementer=$Implementer; review-on-push remains disabled." -ForegroundColor Yellow
