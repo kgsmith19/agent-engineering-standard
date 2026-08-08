@@ -9,39 +9,30 @@ function Get-ReviewProviderFromLogin {
 
 function Get-PreferredIndependentReviewer {
   param(
-    [ValidateSet('claude','copilot','codex','human','unknown')][string]$Implementer = 'unknown',
+    [ValidateSet('claude','copilot','codex','human')][string]$Implementer,
     [bool]$CodexAvailable = $true,
-    [bool]$CopilotAvailable = $true,
-    [bool]$ClaudeAvailable = $true
+    [bool]$CopilotAvailable = $true
   )
 
   if ($Implementer -ne 'codex' -and $CodexAvailable) { return 'codex' }
   if ($Implementer -ne 'copilot' -and $CopilotAvailable) { return 'copilot' }
-  if ($Implementer -ne 'claude' -and $ClaudeAvailable) { return 'claude' }
-  throw "No independent AI reviewer is available for implementer '$Implementer'."
+  throw "No mechanically connected independent reviewer is available for implementer '$Implementer'."
 }
 
 function Test-IndependentReview {
   param(
-    [Parameter(Mandatory)][string]$Implementer,
-    [Parameter(Mandatory)][string]$ReviewerProvider
+    [Parameter(Mandatory)][ValidateSet('claude','copilot','codex','human')][string]$Implementer,
+    [Parameter(Mandatory)][ValidateSet('copilot','codex')][string]$ReviewerProvider
   )
 
-  if ($Implementer -in @('human','unknown')) { return $true }
+  if ($Implementer -eq 'human') { return $true }
   return $Implementer -ne $ReviewerProvider
 }
 
 function Assert-ManualGateJustification {
   param([Parameter(Mandatory)]$Justification)
 
-  $required = @(
-    'failure_class_prevented',
-    'why_automation_is_insufficient',
-    'decision_owner',
-    'gate_removal_condition'
-  )
-
-  foreach ($field in $required) {
+  foreach ($field in @('failure_class_prevented','why_automation_is_insufficient','decision_owner','gate_removal_condition')) {
     $property = $Justification.PSObject.Properties[$field]
     if (-not $property -or [string]::IsNullOrWhiteSpace([string]$property.Value)) {
       throw "Manual gate is not justified: missing '$field'."
