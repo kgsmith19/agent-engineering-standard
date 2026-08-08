@@ -43,3 +43,29 @@ function Update-StandardLockContent {
   $pinnedAtReplacement = $pinnedAtMatch.Groups['prefix'].Value + '"' + $PinnedAt + '"' + $pinnedAtMatch.Groups['suffix'].Value
   return $updated.Substring(0, $pinnedAtMatch.Index) + $pinnedAtReplacement + $updated.Substring($pinnedAtMatch.Index + $pinnedAtMatch.Length)
 }
+
+function Update-StandardProjectContent {
+  param(
+    [Parameter(Mandatory)][string]$Content,
+    [Parameter(Mandatory)][string]$PreviousStandardSha,
+    [Parameter(Mandatory)][string]$StandardSha
+  )
+
+  foreach ($candidate in @($PreviousStandardSha, $StandardSha)) {
+    if ($candidate -notmatch '^[0-9a-fA-F]{40}$') {
+      throw 'Project standard revisions must be full 40-character commit SHAs.'
+    }
+  }
+
+  $escapedPreviousSha = [regex]::Escape($PreviousStandardSha)
+  $pattern = "(?m)^(?<prefix>\s*(?:sha|standard_sha|standard_commit|commit):\s*)$escapedPreviousSha(?<suffix>\s*(?:#.*)?)$"
+  $matches = [regex]::Matches($Content, $pattern)
+  if ($matches.Count -gt 1) {
+    throw "project.yaml contains more than one reference to the previous standard revision; found $($matches.Count)."
+  }
+  if ($matches.Count -eq 0) { return $Content }
+
+  $match = $matches[0]
+  $replacement = $match.Groups['prefix'].Value + $StandardSha + $match.Groups['suffix'].Value
+  return $Content.Substring(0, $match.Index) + $replacement + $Content.Substring($match.Index + $match.Length)
+}
