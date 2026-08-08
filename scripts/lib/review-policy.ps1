@@ -7,25 +7,38 @@ function Get-ReviewProviderFromLogin {
   return $null
 }
 
+function Get-RequiredReviewProviders {
+  param([Parameter(Mandatory)][ValidateSet('claude','copilot','codex','human','unknown')][string]$Implementer)
+
+  switch ($Implementer) {
+    'codex' { return @('copilot') }
+    'copilot' { return @('codex') }
+    'claude' { return @('codex') }
+    default { return @('codex','copilot') }
+  }
+}
+
 function Get-PreferredIndependentReviewer {
   param(
-    [Parameter(Mandatory)][ValidateSet('claude','copilot','codex','human')][string]$Implementer,
+    [Parameter(Mandatory)][ValidateSet('claude','copilot','codex','human','unknown')][string]$Implementer,
     [bool]$CodexAvailable = $true,
     [bool]$CopilotAvailable = $true
   )
 
-  if ($Implementer -ne 'codex' -and $CodexAvailable) { return 'codex' }
-  if ($Implementer -ne 'copilot' -and $CopilotAvailable) { return 'copilot' }
-  throw "No mechanically connected independent reviewer is available for implementer '$Implementer'."
+  foreach ($provider in @(Get-RequiredReviewProviders -Implementer $Implementer)) {
+    if ($provider -eq 'codex' -and $CodexAvailable) { return 'codex' }
+    if ($provider -eq 'copilot' -and $CopilotAvailable) { return 'copilot' }
+  }
+  throw "No required connected reviewer is available for implementer '$Implementer'."
 }
 
 function Test-IndependentReview {
   param(
-    [Parameter(Mandatory)][ValidateSet('claude','copilot','codex','human')][string]$Implementer,
+    [Parameter(Mandatory)][ValidateSet('claude','copilot','codex','human','unknown')][string]$Implementer,
     [Parameter(Mandatory)][ValidateSet('copilot','codex')][string]$ReviewerProvider
   )
 
-  if ($Implementer -eq 'human') { return $true }
+  if ($Implementer -in @('human','unknown')) { return $false }
   return $Implementer -ne $ReviewerProvider
 }
 
