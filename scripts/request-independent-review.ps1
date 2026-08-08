@@ -21,15 +21,17 @@ $prInfo = ($prRaw -join "`n") | ConvertFrom-Json
 if ($prInfo.state -ne 'OPEN') { throw "PR #$Pr is not open." }
 if ($prInfo.isDraft) { throw "PR #$Pr is draft. Keep implementation churn in draft; request independent review only when ready." }
 
-$reviewsRaw = & gh api --paginate "repos/$Repo/pulls/$Pr/reviews?per_page=100" 2>&1
+$reviewsRaw = & gh api --paginate --slurp "repos/$Repo/pulls/$Pr/reviews?per_page=100" 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($reviewsRaw -join "`n") }
-$reviews = @(($reviewsRaw -join "`n") | ConvertFrom-Json)
+$reviewPages = ($reviewsRaw -join "`n") | ConvertFrom-Json
+$reviews = @($reviewPages | ForEach-Object { $_ })
 
 $currentIndependent = @(
   $reviews | Where-Object {
+    $provider = Get-ReviewProviderFromLogin -Login $_.user.login
     $_.commit_id -eq $prInfo.headRefOid -and
-    (Get-ReviewProviderFromLogin -Login $_.user.login) -and
-    (Test-IndependentReview -Implementer $Implementer -ReviewerProvider (Get-ReviewProviderFromLogin -Login $_.user.login))
+    $provider -and
+    (Test-IndependentReview -Implementer $Implementer -ReviewerProvider $provider)
   }
 )
 if ($currentIndependent.Count -gt 0) {
@@ -40,9 +42,10 @@ if ($currentIndependent.Count -gt 0) {
 $codexReviews = @($reviews | Where-Object { (Get-ReviewProviderFromLogin -Login $_.user.login) -eq 'codex' }).Count
 $copilotReviews = @($reviews | Where-Object { (Get-ReviewProviderFromLogin -Login $_.user.login) -eq 'copilot' }).Count
 
-$commentsRaw = & gh api --paginate "repos/$Repo/issues/$Pr/comments?per_page=100" 2>&1
+$commentsRaw = & gh api --paginate --slurp "repos/$Repo/issues/$Pr/comments?per_page=100" 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($commentsRaw -join "`n") }
-$comments = @(($commentsRaw -join "`n") | ConvertFrom-Json)
+$commentPages = ($commentsRaw -join "`n") | ConvertFrom-Json
+$comments = @($commentPages | ForEach-Object { $_ })
 $codexRequests = @($comments | Where-Object { $_.body -match '(?i)@codex\s+review' }).Count
 
 if ($Provider -eq 'auto') {
