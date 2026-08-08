@@ -3,13 +3,13 @@ function Get-ReviewProviderFromLogin {
 
   $normalized = $Login.ToLowerInvariant()
   if ($normalized -in @('chatgpt-codex-connector', 'chatgpt-codex-connector[bot]')) { return 'codex' }
-  if ($normalized -in @('copilot-pull-request-reviewer', 'copilot-pull-request-reviewer[bot]')) { return 'copilot' }
+  if ($normalized -in @('copilot-pull-request-reviewer', 'copilot-pull-request-reviewer[bot]', 'copilot', 'copilot-swe-agent[bot]')) { return 'copilot' }
   return $null
 }
 
 function Get-PreferredIndependentReviewer {
   param(
-    [ValidateSet('claude','copilot','codex','human')][string]$Implementer,
+    [Parameter(Mandatory)][ValidateSet('claude','copilot','codex','human')][string]$Implementer,
     [bool]$CodexAvailable = $true,
     [bool]$CopilotAvailable = $true
   )
