@@ -81,10 +81,10 @@ foreach ($name in $targets) {
       parameters = @{
         allowed_merge_methods             = @("squash")
         dismiss_stale_reviews_on_push     = $false
-        require_code_owner_review         = $false
+        require_code_owner_review         = [bool]$config.require_code_owner_review
         require_last_push_approval        = $false
         required_approving_review_count   = [int]$config.required_approving_review_count
-        required_review_thread_resolution = $true
+        required_review_thread_resolution = [bool]$config.required_review_thread_resolution
       }
     },
     @{
