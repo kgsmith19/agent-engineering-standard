@@ -57,19 +57,24 @@ if (-not $config.control_plane_requires_fresh_external_review) { throw "Control-
 
 $review = $config.independent_review
 if (-not $review -or -not [bool]$review.required_for_auto_merge) { throw "Independent AI review must be required before auto-merge." }
-if ($review.primary_provider -ne 'codex-github') { throw "Codex GitHub must remain the default independent reviewer unless the cost/quality evidence changes." }
-if ($review.codex_local_model -ne 'gpt-5.4-mini') { throw "Local Codex review must default to gpt-5.4-mini for the current cost/quality lane." }
-if ([int]$review.max_codex_reviews_per_pr -ne 2) { throw "Codex review budget must remain capped at 2 per PR." }
+if ($review.preferred_provider -ne 'codex') { throw "Codex must remain the preferred independent reviewer unless cost/quality evidence changes." }
+if ($review.local_codex_model -ne 'gpt-5.4-mini') { throw "Local Codex review must default to gpt-5.4-mini for the current cost/quality lane." }
+if ([int]$review.max_codex_reviews_per_pr -ne 2) { throw "Codex review budget must remain capped at 2 per PR (initial + one re-review)." }
 if (-not [bool]$review.copilot_fallback) { throw "Copilot must remain available as a bounded fallback reviewer." }
 if ([int]$review.max_copilot_reviews_per_pr -ne 1) { throw "Copilot review budget must remain capped at 1 per PR." }
 if ([bool]$review.copilot_review_on_push -or [bool]$review.copilot_review_drafts) { throw "Copilot automatic draft/push re-review must remain off to avoid unnecessary AI credits and Actions minutes." }
-if ($review.copilot_effort -ne 'low') { throw "Copilot fallback effort must remain low unless a concrete high-risk review justifies escalation." }
+if ($review.copilot_effort -ne 'low') { throw "Copilot fallback effort must remain low unless a concrete review justifies escalation." }
+if ([bool]$review.same_provider_counts_as_independent) { throw "The implementation provider cannot count as its own independent reviewer." }
 
-$manualGate = $config.manual_gate
-if (-not $manualGate -or $manualGate.default_risk -ne 'R4') { throw "The default manual authorization boundary must remain R4." }
 $requiredGateFields = @('failure_class_prevented','why_automation_is_insufficient','decision_owner','gate_removal_condition')
 foreach ($field in $requiredGateFields) {
-  if (@($manualGate.required_fields) -notcontains $field) { throw "manual_gate.required_fields is missing '$field'." }
+  if (@($config.manual_gate_required_fields) -notcontains $field) { throw "manual_gate_required_fields is missing '$field'." }
+}
+foreach ($gateName in @('control_plane','R4')) {
+  $gate = $config.manual_gates.PSObject.Properties[$gateName].Value
+  if (-not $gate -or -not [bool]$gate.required) { throw "Manual gate '$gateName' must be explicitly configured." }
+  if ([string]::IsNullOrWhiteSpace([string]$gate.reason)) { throw "Manual gate '$gateName' lacks a concrete reason." }
+  if ([string]::IsNullOrWhiteSpace([string]$gate.removal_condition)) { throw "Manual gate '$gateName' lacks a removal condition." }
 }
 
 $ownerToken = "@$($config.owner)"
