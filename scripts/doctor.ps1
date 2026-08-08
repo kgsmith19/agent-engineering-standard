@@ -50,7 +50,7 @@ foreach ($name in $config.repositories) {
 
   $metaRaw = & gh api "repos/$repo" 2>&1
   if ($LASTEXITCODE -ne 0) {
-    $remoteFailures.Add("$repo: cannot read repository")
+    $remoteFailures.Add("${repo}: cannot read repository")
     continue
   }
   $meta = ($metaRaw -join "`n") | ConvertFrom-Json
@@ -111,10 +111,10 @@ foreach ($name in $config.repositories) {
     }
   }
 
-  if ($problems.Count -eq 0) { Write-Host "$repo : READY" -ForegroundColor Green }
+  if ($problems.Count -eq 0) { Write-Host "${repo} : READY" -ForegroundColor Green }
   else {
-    Write-Host "$repo : $($problems -join ', ')" -ForegroundColor Yellow
-    foreach ($problem in $problems) { $remoteFailures.Add("$repo: $problem") }
+    Write-Host "${repo} : $($problems -join ', ')" -ForegroundColor Yellow
+    foreach ($problem in $problems) { $remoteFailures.Add("${repo}: $problem") }
   }
 
   if ($config.merge_queue.desired -and $meta.owner.type -ne "Organization") {
