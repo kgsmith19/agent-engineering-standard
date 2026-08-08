@@ -10,7 +10,7 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh
 if ($LASTEXITCODE -ne 0) { throw 'gh is not authenticated.' }
 
 $config = Get-Content (Join-Path $PSScriptRoot '..\policy\github-defaults.json') -Raw | ConvertFrom-Json
-$prRaw = & gh pr view $Pr --repo $Repo --json isDraft,state,labels 2>&1
+$prRaw = & gh pr view $Pr --repo $Repo --json isDraft,state,labels,baseRefName 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
 $pr = ($prRaw -join "`n") | ConvertFrom-Json
 if ($pr.state -ne 'OPEN') { throw "PR #$Pr is not open." }
@@ -38,6 +38,7 @@ if ($controlPlane -and [bool]$config.manual_gates.control_plane.required) {
 $metaRaw = & gh api "repos/$Repo" 2>&1
 if ($LASTEXITCODE -ne 0) { throw "Cannot inspect live repository settings for $Repo." }
 $meta = ($metaRaw -join "`n") | ConvertFrom-Json
+if ($pr.baseRefName -ne $meta.default_branch) { throw "Auto-merge refused: PR #$Pr targets '$($pr.baseRefName)', not protected default branch '$($meta.default_branch)'." }
 if (-not $meta.allow_auto_merge) { throw 'Live GitHub setting drift: auto-merge is off.' }
 if (-not $meta.allow_squash_merge -or $meta.allow_merge_commit -or $meta.allow_rebase_merge) { throw 'Live GitHub merge policy is not squash-only.' }
 $isOrgOwned = $meta.owner.type -eq 'Organization'
