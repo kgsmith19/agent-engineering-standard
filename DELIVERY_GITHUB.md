@@ -94,8 +94,8 @@ For higher-risk releases, build once, identify the immutable artifact/commit, pr
 
 `policy/github-defaults.json` is the machine-readable portfolio default.
 
-- `scripts/apply-github-standard.ps1` applies repository settings, Actions, labels, and default-branch rules.
+- `scripts/apply-github-standard.ps1` applies repository settings, Actions, labels, and default-branch rules. After the canonical ruleset succeeds, it removes only a stale legacy required-status-check block so retired check names cannot keep a branch unmergeable; all other legacy protections remain untouched.
 - `scripts/auto-merge.ps1` is the risk-aware R0–R2 happy path and refuses R3/R4/control-plane PRs.
-- `scripts/doctor.ps1 -Remote` verifies effective remote policy and exits nonzero on drift.
+- `scripts/doctor.ps1 -Remote` verifies effective remote policy, including the absence of noncanonical legacy required-check contexts, and exits nonzero on drift.
 
 Prefer centrally maintained policy and stable check naming; keep stack-specific test commands inside each product repo.
