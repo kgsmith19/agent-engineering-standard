@@ -23,7 +23,7 @@ jobs:
       - name: Test legacy branch-protection logic
         shell: pwsh
         run: ./tests/legacy-protection.tests.ps1
-      - name: Test standard-lock upgrade logic
+      - name: Test standard-lock upgrades
         shell: pwsh
         run: ./tests/standard-lock.tests.ps1
       - name: Validate standard

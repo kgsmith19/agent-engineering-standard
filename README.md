@@ -71,6 +71,8 @@ pwsh -File scripts/sync-agentic-project.ps1
 pwsh -File scripts/doctor.ps1 -Remote
 ```
 
+`upgrade-repos.ps1` preserves each existing `.agent/standard.lock` revision key and supports the three live schemas: `sha`, `commit`, and `standard_commit`. It refuses a missing or ambiguous revision field rather than guessing.
+
 `policy/github-defaults.json` is the machine-readable portfolio policy.
 
 ## GitHub default
