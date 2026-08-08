@@ -13,9 +13,10 @@
   "auto_merge_max_risk": "R3",
   "control_plane_requires_fresh_external_review": true,
   "independent_review": {
+    "required_for_auto_merge": true,
     "preferred_provider": "codex",
     "local_codex_model": "gpt-5.4-mini",
-    "max_codex_reviews_per_pr": 1,
+    "max_codex_reviews_per_pr": 2,
     "copilot_fallback": true,
     "copilot_effort": "low",
     "copilot_review_drafts": false,
@@ -23,6 +24,12 @@
     "max_copilot_reviews_per_pr": 1,
     "same_provider_counts_as_independent": false
   },
+  "manual_gate_required_fields": [
+    "failure_class_prevented",
+    "why_automation_is_insufficient",
+    "decision_owner",
+    "gate_removal_condition"
+  ],
   "manual_gates": {
     "control_plane": {
       "required": true,
