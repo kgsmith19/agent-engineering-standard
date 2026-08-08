@@ -31,9 +31,10 @@ $required = @(
   "SECURITY_RISK_AUTONOMY.md", "DELIVERY_GITHUB.md", "EVIDENCE_LEARNING.md",
   "AGENTS.md", ".github/CODEOWNERS", "policy/github-defaults.json",
   "scripts/setup-portfolio.ps1", "scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1",
-  "scripts/codex-review.ps1", "scripts/auto-merge.ps1",
-  "scripts/bootstrap-repo.ps1", "scripts/upgrade-repos.ps1", "scripts/lib/legacy-protection.ps1",
-  "scripts/lib/standard-lock.ps1", "tests/legacy-protection.tests.ps1", "tests/standard-lock.tests.ps1",
+  "scripts/codex-review.ps1", "scripts/request-independent-review.ps1", "scripts/auto-merge.ps1",
+  "scripts/bootstrap-repo.ps1", "scripts/upgrade-repos.ps1",
+  "scripts/lib/legacy-protection.ps1", "scripts/lib/standard-lock.ps1", "scripts/lib/review-policy.ps1",
+  "tests/legacy-protection.tests.ps1", "tests/standard-lock.tests.ps1", "tests/review-policy.tests.ps1",
   ".github/workflows/ci.yml", "templates/AGENTS.md", "templates/CODEOWNERS", "templates/PR_GATE.yml",
   "templates/PRD.md", "templates/SPEC.md", "templates/ADR.md",
   "templates/ISSUE.md", "templates/PULL_REQUEST.md"
@@ -44,15 +45,32 @@ foreach ($relative in $required) {
 
 $config = Get-Content (Join-Path $root "policy/github-defaults.json") -Raw | ConvertFrom-Json
 if ($config.required_status_context -ne "PR Gate") { throw "required_status_context must be 'PR Gate'" }
-if ($config.required_approving_review_count -ne 0) { throw "Default approval count must remain 0; review is risk-driven." }
+if ($config.required_approving_review_count -ne 0) { throw "Default human approval count must remain 0; independent AI review is not a human-approval gate." }
 if ($config.require_code_owner_review) { throw "Personal-account default must not require Code Owner approval; the PR author cannot approve their own PR." }
 if (-not $config.org_hardening -or -not [bool]$config.org_hardening.require_code_owner_review) { throw "Organization hardening must retain Code Owner review." }
-if (-not [bool]$config.allow_auto_merge) { throw "allow_auto_merge must remain true for the safe R0-R2 lane." }
+if (-not [bool]$config.allow_auto_merge) { throw "allow_auto_merge must remain true for the reviewed R0-R3 lane." }
 if (-not [bool]$config.allow_update_branch) { throw "allow_update_branch must remain true so stale safe PRs can be updated before merge." }
 if ([bool]$config.allow_merge_commit -or [bool]$config.allow_rebase_merge -or -not [bool]$config.allow_squash_merge) { throw "Repository merge policy must remain squash-only." }
 if ($config.merge_method -ne 'squash') { throw "merge_method must remain squash." }
-if ($config.auto_merge_max_risk -ne 'R2') { throw "auto_merge_max_risk must remain R2 unless the risk model is explicitly redesigned." }
-if (-not $config.control_plane_requires_fresh_external_review) { throw "Control-plane changes must require fresh external review." }
+if ($config.auto_merge_max_risk -ne 'R3') { throw "auto_merge_max_risk must remain R3; R4 requires explicit authority justification." }
+if (-not $config.control_plane_requires_fresh_external_review) { throw "Control-plane changes must require fresh independent review." }
+
+$review = $config.independent_review
+if (-not $review -or -not [bool]$review.required_for_auto_merge) { throw "Independent AI review must be required before auto-merge." }
+if ($review.primary_provider -ne 'codex-github') { throw "Codex GitHub must remain the default independent reviewer unless the cost/quality evidence changes." }
+if ($review.codex_local_model -ne 'gpt-5.4-mini') { throw "Local Codex review must default to gpt-5.4-mini for the current cost/quality lane." }
+if ([int]$review.max_codex_reviews_per_pr -ne 2) { throw "Codex review budget must remain capped at 2 per PR." }
+if (-not [bool]$review.copilot_fallback) { throw "Copilot must remain available as a bounded fallback reviewer." }
+if ([int]$review.max_copilot_reviews_per_pr -ne 1) { throw "Copilot review budget must remain capped at 1 per PR." }
+if ([bool]$review.copilot_review_on_push -or [bool]$review.copilot_review_drafts) { throw "Copilot automatic draft/push re-review must remain off to avoid unnecessary AI credits and Actions minutes." }
+if ($review.copilot_effort -ne 'low') { throw "Copilot fallback effort must remain low unless a concrete high-risk review justifies escalation." }
+
+$manualGate = $config.manual_gate
+if (-not $manualGate -or $manualGate.default_risk -ne 'R4') { throw "The default manual authorization boundary must remain R4." }
+$requiredGateFields = @('failure_class_prevented','why_automation_is_insufficient','decision_owner','gate_removal_condition')
+foreach ($field in $requiredGateFields) {
+  if (@($manualGate.required_fields) -notcontains $field) { throw "manual_gate.required_fields is missing '$field'." }
+}
 
 $ownerToken = "@$($config.owner)"
 $appCodeownersTail = @(
@@ -84,10 +102,10 @@ if (-not (Test-CodeownersTail -Content $localTemplateCodeowners -ExpectedTail $a
 
 $psScripts = @(
   "scripts/setup-portfolio.ps1", "scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1",
-  "scripts/codex-review.ps1", "scripts/auto-merge.ps1",
+  "scripts/codex-review.ps1", "scripts/request-independent-review.ps1", "scripts/auto-merge.ps1",
   "scripts/bootstrap-repo.ps1", "scripts/upgrade-repos.ps1", "scripts/doctor.ps1",
-  "scripts/lib/legacy-protection.ps1", "scripts/lib/standard-lock.ps1",
-  "tests/legacy-protection.tests.ps1", "tests/standard-lock.tests.ps1"
+  "scripts/lib/legacy-protection.ps1", "scripts/lib/standard-lock.ps1", "scripts/lib/review-policy.ps1",
+  "tests/legacy-protection.tests.ps1", "tests/standard-lock.tests.ps1", "tests/review-policy.tests.ps1"
 )
 foreach ($relative in $psScripts) {
   $tokens = $null
@@ -167,7 +185,7 @@ foreach ($name in $config.repositories) {
 
         $prRule = $detail.rules | Where-Object { $_.type -eq 'pull_request' } | Select-Object -First 1
         if ($prRule) {
-          if ([int]$prRule.parameters.required_approving_review_count -ne [int]$config.required_approving_review_count) { $problems.Add("approval-count drift") }
+          if ([int]$prRule.parameters.required_approving_review_count -ne 0) { $problems.Add("human approval requirement is not zero") }
           if ([bool]$prRule.parameters.require_code_owner_review -ne $expectedCodeOwnerReview) { $problems.Add("CODEOWNERS review policy drift") }
           if (-not $prRule.parameters.required_review_thread_resolution) { $problems.Add("review-thread resolution not required") }
           $allowedMethods = @($prRule.parameters.allowed_merge_methods)
