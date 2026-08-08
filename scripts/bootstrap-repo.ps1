@@ -45,6 +45,7 @@ Copy-Item (Join-Path $standardRoot 'templates/PRD.md') (Join-Path $target 'PRD.m
 Copy-Item (Join-Path $standardRoot 'templates/ISSUE.md') (Join-Path $target '.github/ISSUE_TEMPLATE/work-item.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/PULL_REQUEST.md') (Join-Path $target '.github/PULL_REQUEST_TEMPLATE.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/PR_GATE.yml') (Join-Path $target '.github/workflows/pr-gate.yml') -Force
+Copy-Item (Join-Path $standardRoot 'templates/CODEOWNERS') (Join-Path $target '.github/CODEOWNERS') -Force
 
 @"
 standard: $owner/agent-engineering-standard
