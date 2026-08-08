@@ -39,17 +39,40 @@ Prefer autonomy when the change is:
 - reversible
 - low blast radius
 
-Require stronger authorization when uncertainty or consequences rise.
+Routine low-risk work should not require human babysitting. R3 is not automatically a human gate: a reversible sensitive change may integrate automatically after deterministic verification plus a current-head independent semantic review from a provider that did not implement it.
 
-Routine low-risk work should not require human babysitting.
+## 4. Manual gates require written justification
 
-## 4. Protect the control plane
+A manual gate is an exception, not a default. Every manual gate must state:
 
-The implementing agent must not modify the evaluator, risk policy, required checks, deployment authority, or other controls governing its current run.
+1. the concrete failure/consequence it prevents
+2. why deterministic checks plus independent agent review cannot safely decide it today
+3. who/what owns the authorization decision
+4. the exact removal condition that lets the gate be automated or deleted
 
-Changes to those controls use a separate authorized path.
+Never keep a gate merely because a change is “important” or “high risk.”
 
-## 5. Security baseline
+Current justified defaults:
+
+- **Control plane:** manual because a PR can modify the evaluator/merge authority judging itself. Remove this gate when enforcement is an immutable external or organization-required workflow the PR cannot edit.
+- **R4 action authorization:** manual because the decision grants destructive, financial, privileged, or irreversible authority. Agent review may still be fully automated; the manual step is authorization, not code review. Remove/reclassify only when the action becomes mechanically bounded and reversible.
+
+## 5. Protect the control plane
+
+The implementing agent must not modify the evaluator, risk policy, required checks, deployment authority, or other controls governing its current run and then use those modified controls to approve itself.
+
+Changes to those controls use a separate authorized path and fresh cross-provider review.
+
+## 6. Independent review
+
+Use the cheapest independent reviewer that satisfies the risk after deterministic checks have run.
+
+- Prefer subscription-backed Codex review; local Codex defaults to a small capable model.
+- Copilot is a bounded fallback, not a review-on-every-push tax.
+- The reviewer provider must differ from the implementation provider to count as independent.
+- Re-review only after a substantive fix that changes the evidence, not for unchanged failures.
+
+## 7. Security baseline
 
 Automate applicable:
 
