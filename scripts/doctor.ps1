@@ -11,7 +11,8 @@ $required = @(
   "SECURITY_RISK_AUTONOMY.md", "DELIVERY_GITHUB.md", "EVIDENCE_LEARNING.md",
   "AGENTS.md", "policy/github-defaults.json",
   "scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1",
-  "scripts/codex-review.ps1", "scripts/bootstrap-repo.ps1", "scripts/upgrade-repos.ps1",
+  "scripts/codex-review.ps1", "scripts/auto-merge.ps1",
+  "scripts/bootstrap-repo.ps1", "scripts/upgrade-repos.ps1",
   ".github/workflows/ci.yml", "templates/AGENTS.md", "templates/PRD.md",
   "templates/SPEC.md", "templates/ADR.md", "templates/ISSUE.md", "templates/PULL_REQUEST.md"
 )
@@ -22,11 +23,13 @@ foreach ($relative in $required) {
 $config = Get-Content (Join-Path $root "policy/github-defaults.json") -Raw | ConvertFrom-Json
 if ($config.required_status_context -ne "PR Gate") { throw "required_status_context must be 'PR Gate'" }
 if ($config.required_approving_review_count -ne 0) { throw "Default approval count must remain 0; R3/R4 review is risk-driven, not universal." }
+if ($config.auto_merge_max_risk -ne 'R2') { throw "auto_merge_max_risk must remain R2 unless the risk model is explicitly redesigned." }
+if (-not $config.control_plane_requires_fresh_external_review) { throw "Control-plane changes must require fresh external review." }
 
 $psScripts = @(
   "scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1",
-  "scripts/codex-review.ps1", "scripts/bootstrap-repo.ps1",
-  "scripts/upgrade-repos.ps1", "scripts/doctor.ps1"
+  "scripts/codex-review.ps1", "scripts/auto-merge.ps1",
+  "scripts/bootstrap-repo.ps1", "scripts/upgrade-repos.ps1", "scripts/doctor.ps1"
 )
 foreach ($relative in $psScripts) {
   $tokens = $null
@@ -49,10 +52,7 @@ foreach ($name in $config.repositories) {
   $problems = New-Object System.Collections.Generic.List[string]
 
   $metaRaw = & gh api "repos/$repo" 2>&1
-  if ($LASTEXITCODE -ne 0) {
-    $remoteFailures.Add("${repo}: cannot read repository")
-    continue
-  }
+  if ($LASTEXITCODE -ne 0) { $remoteFailures.Add("${repo}: cannot read repository"); continue }
   $meta = ($metaRaw -join "`n") | ConvertFrom-Json
 
   if (-not $meta.has_issues) { $problems.Add("Issues disabled") }
@@ -104,9 +104,7 @@ foreach ($name in $config.repositories) {
           elseif ([int]$requiredCheck.integration_id -ne $actionsAppId) { $problems.Add("PR Gate not bound to GitHub Actions") }
         }
 
-        if ($config.merge_queue.desired -and $meta.owner.type -eq 'Organization' -and $types -notcontains 'merge_queue') {
-          $problems.Add("merge queue missing on eligible repo")
-        }
+        if ($config.merge_queue.desired -and $meta.owner.type -eq 'Organization' -and $types -notcontains 'merge_queue') { $problems.Add("merge queue missing on eligible repo") }
       }
     }
   }
@@ -122,7 +120,5 @@ foreach ($name in $config.repositories) {
   }
 }
 
-if ($remoteFailures.Count -gt 0) {
-  throw "REMOTE: DRIFT DETECTED`n$($remoteFailures -join "`n")"
-}
+if ($remoteFailures.Count -gt 0) { throw "REMOTE: DRIFT DETECTED`n$($remoteFailures -join "`n")" }
 Write-Host "REMOTE: READY" -ForegroundColor Green
