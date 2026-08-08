@@ -19,8 +19,9 @@ Idea
 → Risk / Authority
 → RED → Minimum GREEN
 → Verification
-→ PR / PR Gate
-→ Auto-merge / merge queue when supported
+→ PR
+→ required `PR Gate` + exact-head `AI Review`
+→ auto-merge / merge queue when supported
 → Release / Runtime Proof
 → Observe / Learn
 → next idea or slice
@@ -42,61 +43,71 @@ Every artifact, rule, gate, and CI run must reduce meaningful uncertainty, preve
 
 ## One-time portfolio setup
 
-After cloning this repo and authenticating GitHub CLI:
+After product repos contain the thin `AI Review` caller and GitHub CLI is authenticated:
 
 ```powershell
 pwsh -File scripts/setup-portfolio.ps1
 ```
 
-That applies repo settings/rules, enables Actions, creates the risk/status labels, syncs the optional `Agentic Portfolio` GitHub Project, and runs the remote doctor. If GitHub CLI lacks Project scope, run `gh auth refresh -s project` once and rerun.
+That applies repository settings/rules, enables Actions, creates the lean risk/status labels, syncs the optional `Agentic Portfolio` Project, and runs the remote doctor. Do not call the portfolio ready until the remote doctor reports READY.
 
 ## Other automation
 
 ```powershell
-# Bootstrap a brand-new GitHub repo with an immediately safe bootstrap gate.
+# Bootstrap a new repo with the shared engineering contract.
 pwsh -File scripts/bootstrap-repo.ps1 -Name my-app
 
-# Fan a newly approved standards commit out as reviewable pin-bump PRs.
+# Fan an approved standards commit out as reviewable pin PRs.
 pwsh -File scripts/upgrade-repos.ps1
 
-# Fresh independent semantic review of the current branch.
+# One cheap batched local semantic review.
 pwsh -File scripts/codex-review.ps1
 
-# Enable auto-merge only for an eligible R0-R2 PR.
+# Request a bounded cross-provider review using GitHub-Actions-attested provenance.
+pwsh -File scripts/request-independent-review.ps1 -Repo kgsmith19/my-app -Pr 12
+
+# Arm GitHub auto-merge only after live policy requires exact-head PR Gate + AI Review.
 pwsh -File scripts/auto-merge.ps1 -Repo kgsmith19/my-app -Pr 12 -Risk R2
 
-# Direct lower-level maintenance when needed.
+# Lower-level maintenance.
 pwsh -File scripts/apply-github-standard.ps1
 pwsh -File scripts/sync-agentic-project.ps1
 pwsh -File scripts/doctor.ps1 -Remote
 ```
 
-`upgrade-repos.ps1` preserves each existing `.agent/standard.lock` revision key and supports the three live schemas: `sha`, `commit`, and `standard_commit`. It refuses a missing or ambiguous revision field rather than guessing.
+`upgrade-repos.ps1` preserves each existing `.agent/standard.lock` revision key and supports `sha`, `commit`, and `standard_commit` without guessing.
 
 `policy/github-defaults.json` is the machine-readable portfolio policy.
 
 ## GitHub default
 
-Managed repos use GitHub Issues for durable work, one stable GitHub-Actions-produced required `PR Gate`, draft PRs while agents iterate, squash merge, risk-aware auto-merge, merged-branch cleanup, protected `main`, and resolved review threads.
+Managed repos use GitHub Issues for durable work, draft PRs while agents iterate, squash merge, branch cleanup, protected `main`, and resolved review threads. Integration requires two GitHub-Actions-bound contexts on the latest head:
 
-Current user-owned repos keep CODEOWNERS advisory so a solo PR author is not deadlocked by self-approval rules. R3/R4 and control-plane changes instead require fresh independent semantic review and do not use the R0-R2 auto-merge helper. Organization-owned repos can automatically harden to required Code Owner review and merge queues where the GitHub plan supports them.
+- `PR Gate` for deterministic evidence
+- `AI Review` for cross-provider semantic review freshness
+
+A new push invalidates the previous head's semantic authorization automatically. Human approval count stays 0 on personal repos. R0-R3 may auto-merge after both required gates and review-thread resolution when no justified authority gate applies. R4 never auto-merges.
+
+Control-plane PRs remain manually merged only while they can modify the evaluator/merge authority that judges them. That gate is removed when enforcement becomes immutable/external to the PR.
 
 The optional cross-repo GitHub Project is a portfolio view only; it is never a competing task database.
 
 ## Repo-specific truth
 
-Each product repo owns only what is specific to that product: PRD, active specs, important ADRs, source code, tests, commands, and deployment details. Do not copy the universal standard into every repo.
+Each product repo owns only product-specific PRD, active specs, important ADRs, source, tests, commands, and deployment details. Do not copy the universal standard into every repo.
 
 ## ACC target
 
-ACC should eventually wrap these proven scripts as:
+ACC should eventually wrap the proven scripts and run the recurring portfolio loops automatically:
 
 ```text
 acc repo init <name>
 acc standard upgrade
 acc doctor
 acc review
+acc resolve-ready
+acc cleanup
 acc merge
 ```
 
-Until then, the PowerShell scripts are the executable reference implementation.
+Until those adapters are proven, the scripts are the executable reference implementation.
