@@ -42,7 +42,36 @@ Critical acceptance/security/policy checks must be protected from the agent impl
 
 The implementer may execute them, but may not modify or bypass them.
 
-## 5. Architecture quality
+For semantic review, use a fresh reviewer with no implementation-session context. The default lightweight path is an ephemeral, read-only Codex review that inspects the PR diff plus the relevant PRD, active SPEC, tests, and nearby code.
+
+Reviewer priorities:
+
+1. requirement/spec mismatch
+2. false-green or missing test evidence
+3. correctness/regression risk
+4. security/authority boundary violations
+5. unnecessary complexity or scope
+
+Do not spend reviewer budget on formatting or style that deterministic tooling can enforce.
+
+Fresh semantic review is advisory for routine R0-R2 work unless repository policy elevates it. It is required for R3/R4 changes and changes to the engineering control plane before merge.
+
+## 5. UI end-to-end evidence
+
+For repositories with a real UI, Playwright should exercise actual user interactions in a browser: navigation, clicks, form entry, and visible outcomes tied to important PRD requirements or acceptance criteria.
+
+Keep E2E broad in **journey coverage**, not browser-matrix size:
+
+- ready PR: critical changed/affected journeys on one primary browser; retain screenshot + trace on failure
+- merge queue: same critical gate against the combined queue head
+- main/release/nightly: broader critical-user-journey sweep; retain HTML report and selected successful end-state screenshots as durable proof
+- extra browsers/devices only when the product requirement or a real defect justifies them
+
+Prefer deterministic fixtures/test accounts and controlled APIs over flaky uncontrolled dependencies. Do not mock away the boundary the E2E test is specifically intended to prove.
+
+Every important user-facing requirement should eventually map to at least one acceptance/E2E journey or an explicitly documented reason why a lower-level oracle is stronger.
+
+## 6. Architecture quality
 
 Prefer explicit, mechanically enforceable boundaries over prose.
 
