@@ -43,6 +43,9 @@ standard: kgsmith19/agent-engineering-standard
 sha: $new
 pinned_at: "$date"
 "@
+Assert-Equal -Name 'reads sha schema revision' `
+  -Actual (Get-StandardLockRevision -Content $shaLock) `
+  -Expected $old
 Assert-Equal -Name 'updates sha schema' `
   -Actual (Update-StandardLockContent -Content $shaLock -StandardSha $new -PinnedAt $date) `
   -Expected $shaExpected
@@ -57,6 +60,9 @@ repo: https://github.com/kgsmith19/agent-engineering-standard
 commit: $new
 pinned_at: "$date"
 "@
+Assert-Equal -Name 'reads commit schema revision' `
+  -Actual (Get-StandardLockRevision -Content $commitLock) `
+  -Expected $old
 Assert-Equal -Name 'updates commit schema' `
   -Actual (Update-StandardLockContent -Content $commitLock -StandardSha $new -PinnedAt $date) `
   -Expected $commitExpected
@@ -73,6 +79,9 @@ standard_commit: $new
 pinned_at: "$date"
 pinned_by: lean PR Gate conformance
 "@
+Assert-Equal -Name 'reads standard_commit schema revision' `
+  -Actual (Get-StandardLockRevision -Content $standardCommitLock) `
+  -Expected $old
 Assert-Equal -Name 'updates standard_commit schema' `
   -Actual (Update-StandardLockContent -Content $standardCommitLock -StandardSha $new -PinnedAt $date) `
   -Expected $standardCommitExpected
@@ -82,7 +91,7 @@ Assert-Throws -Name 'refuses missing revision field' -Action {
 }
 
 Assert-Throws -Name 'refuses ambiguous revision fields' -Action {
-  Update-StandardLockContent -Content "sha: $old`ncommit: $old`npinned_at: 2026-08-08" -StandardSha $new -PinnedAt $date
+  Get-StandardLockRevision -Content "sha: $old`ncommit: $old`npinned_at: 2026-08-08"
 }
 
 Assert-Throws -Name 'refuses missing pinned_at field' -Action {
