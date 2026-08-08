@@ -44,7 +44,9 @@ Do not repeat the same failing strategy indefinitely. Escalate consequential amb
 
 Keep a PR draft while implementation is still changing. Run the repo's local/fast verification during slices, then mark the coherent PR ready so the independent `PR Gate` runs.
 
-Every auto-merged PR needs a current-head independent AI review. Independence means the reviewer provider did not implement the PR.
+**The implementing agent must request a different review agent after the final substantive push.** Do not leave reviewer selection as a human reminder. Use the shared review router when available; otherwise perform the equivalent bounded handoff and record the reviewer provider.
+
+Every auto-merged PR needs a current-head independent AI review. Independence means the reviewer provider did not implement the PR and the reviewer did not inherit the implementation session/context.
 
 Default routing:
 
@@ -53,11 +55,20 @@ Default routing:
 - Codex implementation → one Copilot review; use a fresh Claude session/model/context only if Copilot is unavailable
 - human/unknown implementation → Codex by default
 
+The default reviewer performs **one batched multi-lens pass** rather than spawning several paid reviewers:
+
+1. software correctness/security
+2. business/product outcome and ROI
+3. business systems/operational optimization
+4. leanness/complexity/dead-code/manual-toil review
+
+A second semantic reviewer is justified only when the first review finds material ambiguity, the risk model requires stronger independence, or the primary reviewer is unavailable.
+
 Cost rules:
 
 - deterministic checks run before LLM review
 - Codex is primary; local deep review defaults to `gpt-5.4-mini`
-- at most 2 Codex reviews per PR
+- at most 2 Codex reviews per PR: initial + one post-fix re-review
 - Copilot is fallback-only, low effort, at most 1 review per PR
 - do not enable Copilot review-on-push or draft review by default
 - do not repeatedly pay for a reviewer because implementation was pushed in noisy micro-commits; keep active work draft and request review after the final substantive push
