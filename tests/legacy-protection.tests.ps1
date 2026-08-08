@@ -16,6 +16,15 @@ function Assert-Sequence {
   }
 }
 
+function Assert-True {
+  param(
+    [Parameter(Mandatory)][string]$Name,
+    [Parameter(Mandatory)][bool]$Condition
+  )
+
+  if (-not $Condition) { throw "$Name failed." }
+}
+
 $mixed = [pscustomobject]@{
   required_status_checks = [pscustomobject]@{
     contexts = @('PR Gate', 'test')
@@ -48,5 +57,11 @@ Assert-Sequence -Name 'accepts canonical context alone' `
 Assert-Sequence -Name 'accepts absent legacy protection' `
   -Actual @(Get-StaleLegacyRequiredCheckContexts -Protection $null -RequiredContext 'PR Gate') `
   -Expected @()
+
+Assert-True -Name 'recognizes branch-not-protected 404' `
+  -Condition (Test-GitHubBranchProtectionAbsent -ErrorText 'gh: Branch not protected (HTTP 404)')
+
+Assert-True -Name 'does not hide an authorization failure' `
+  -Condition (-not (Test-GitHubBranchProtectionAbsent -ErrorText 'gh: Resource not accessible (HTTP 403)'))
 
 Write-Host 'legacy-protection tests: PASS' -ForegroundColor Green
