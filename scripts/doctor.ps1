@@ -18,6 +18,7 @@ $required = @(
   "policy/github-defaults.json",
   "scripts/apply-github-standard.ps1",
   "scripts/sync-agentic-project.ps1",
+  "scripts/codex-review.ps1",
   ".github/workflows/ci.yml",
   "templates/PRD.md",
   "templates/SPEC.md",
@@ -35,7 +36,7 @@ $config = Get-Content (Join-Path $root "policy/github-defaults.json") -Raw | Con
 if ($config.required_status_context -ne "PR Gate") { throw "required_status_context must be 'PR Gate'" }
 if ($config.required_approving_review_count -ne 0) { throw "Default approval count must remain 0; R3/R4 review is risk-driven, not universal." }
 
-foreach ($relative in @("scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1", "scripts/doctor.ps1")) {
+foreach ($relative in @("scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1", "scripts/codex-review.ps1", "scripts/doctor.ps1")) {
   $tokens = $null
   $errors = $null
   [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root $relative), [ref]$tokens, [ref]$errors) | Out-Null
@@ -58,6 +59,9 @@ foreach ($name in $config.repositories) {
   if (-not $meta.allow_squash_merge) { $problems += "squash off" }
   if ($meta.allow_merge_commit) { $problems += "merge commits enabled" }
   if ($meta.allow_rebase_merge) { $problems += "rebase enabled" }
+
+  $actions = ((& gh api "repos/$repo/actions/permissions") -join "`n") | ConvertFrom-Json
+  if (-not $actions.enabled) { $problems += "actions disabled" }
 
   $rulesets = ((& gh api "repos/$repo/rulesets") -join "`n") | ConvertFrom-Json
   $ruleset = $rulesets | Where-Object { $_.name -eq $config.ruleset_name } | Select-Object -First 1
