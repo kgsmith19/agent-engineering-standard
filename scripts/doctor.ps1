@@ -9,11 +9,11 @@ $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $required = @(
   "README.md", "LIFECYCLE.md", "AGENT_RULES.md", "QUALITY_RULES.md",
   "SECURITY_RISK_AUTONOMY.md", "DELIVERY_GITHUB.md", "EVIDENCE_LEARNING.md",
-  "AGENTS.md", "policy/github-defaults.json",
+  "AGENTS.md", ".github/CODEOWNERS", "policy/github-defaults.json",
   "scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1",
   "scripts/codex-review.ps1", "scripts/auto-merge.ps1",
   "scripts/bootstrap-repo.ps1", "scripts/upgrade-repos.ps1",
-  ".github/workflows/ci.yml", "templates/AGENTS.md", "templates/PR_GATE.yml",
+  ".github/workflows/ci.yml", "templates/AGENTS.md", "templates/CODEOWNERS", "templates/PR_GATE.yml",
   "templates/PRD.md", "templates/SPEC.md", "templates/ADR.md",
   "templates/ISSUE.md", "templates/PULL_REQUEST.md"
 )
@@ -23,7 +23,8 @@ foreach ($relative in $required) {
 
 $config = Get-Content (Join-Path $root "policy/github-defaults.json") -Raw | ConvertFrom-Json
 if ($config.required_status_context -ne "PR Gate") { throw "required_status_context must be 'PR Gate'" }
-if ($config.required_approving_review_count -ne 0) { throw "Default approval count must remain 0; R3/R4 review is risk-driven, not universal." }
+if ($config.required_approving_review_count -ne 0) { throw "Default approval count must remain 0; control-plane review is CODEOWNERS/risk-driven." }
+if (-not $config.require_code_owner_review) { throw "Control-plane CODEOWNERS review must remain enabled." }
 if ($config.auto_merge_max_risk -ne 'R2') { throw "auto_merge_max_risk must remain R2 unless the risk model is explicitly redesigned." }
 if (-not $config.control_plane_requires_fresh_external_review) { throw "Control-plane changes must require fresh external review." }
 
@@ -70,6 +71,25 @@ foreach ($name in $config.repositories) {
     if (-not $actions.enabled) { $problems.Add("Actions disabled") }
   }
 
+  $codeownersRaw = & gh api -H "Accept: application/vnd.github.raw+json" "repos/$repo/contents/.github/CODEOWNERS?ref=$($meta.default_branch)" 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    $problems.Add("CODEOWNERS missing on default branch")
+  }
+  else {
+    $codeowners = $codeownersRaw -join "`n"
+    $ownerToken = "@$($config.owner)"
+    $requiredOwnedPaths = if ($name -eq 'agent-engineering-standard') {
+      @('/.github/workflows/', '/policy/', '/scripts/', '/AGENTS.md')
+    }
+    else {
+      @('/.github/workflows/', '/.agent/', '/AGENTS.md')
+    }
+    foreach ($ownedPath in $requiredOwnedPaths) {
+      $pattern = '(?m)^' + [regex]::Escape($ownedPath) + '\s+' + [regex]::Escape($ownerToken) + '\s*$'
+      if ($codeowners -notmatch $pattern) { $problems.Add("CODEOWNERS missing ${ownedPath} -> ${ownerToken}") }
+    }
+  }
+
   $rulesetsRaw = & gh api "repos/$repo/rulesets" 2>&1
   if ($LASTEXITCODE -ne 0) { $problems.Add("cannot read rulesets") }
   else {
@@ -93,6 +113,7 @@ foreach ($name in $config.repositories) {
         $prRule = $detail.rules | Where-Object { $_.type -eq 'pull_request' } | Select-Object -First 1
         if ($prRule) {
           if ([int]$prRule.parameters.required_approving_review_count -ne [int]$config.required_approving_review_count) { $problems.Add("approval-count drift") }
+          if ([bool]$prRule.parameters.require_code_owner_review -ne [bool]$config.require_code_owner_review) { $problems.Add("CODEOWNERS review policy drift") }
           if (-not $prRule.parameters.required_review_thread_resolution) { $problems.Add("review-thread resolution not required") }
           if (@($prRule.parameters.allowed_merge_methods) -notcontains 'squash') { $problems.Add("squash not allowed by PR rule") }
         }
