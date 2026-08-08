@@ -6,7 +6,6 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-
 foreach ($cmd in @('gh','git')) {
   if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) { throw "$cmd is required." }
 }
@@ -20,7 +19,7 @@ $owner = ((Get-Content (Join-Path $standardRoot 'policy/github-defaults.json') -
 $repo = "$owner/$Name"
 $target = Join-Path $Destination $Name
 
-$exists = & gh repo view $repo --json nameWithOwner 2>$null
+& gh repo view $repo --json nameWithOwner 1>$null 2>$null
 if ($LASTEXITCODE -ne 0) {
   $visibilityFlag = if ($Visibility -eq 'public') { '--public' } else { '--private' }
   $args = @('repo','create',$repo,$visibilityFlag,'--clone')
@@ -28,7 +27,8 @@ if ($LASTEXITCODE -ne 0) {
   Push-Location $Destination
   try { & gh @args | Out-Host } finally { Pop-Location }
   if ($LASTEXITCODE -ne 0) { throw "Could not create $repo" }
-} elseif (-not (Test-Path $target)) {
+}
+elif (-not (Test-Path $target)) {
   Push-Location $Destination
   try { & gh repo clone $repo | Out-Host } finally { Pop-Location }
   if ($LASTEXITCODE -ne 0) { throw "Could not clone $repo" }
@@ -38,11 +38,13 @@ New-Item -ItemType Directory -Force (Join-Path $target '.agent') | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $target 'specs') | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $target 'docs/adr') | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $target '.github/ISSUE_TEMPLATE') | Out-Null
+New-Item -ItemType Directory -Force (Join-Path $target '.github/workflows') | Out-Null
 
 Copy-Item (Join-Path $standardRoot 'templates/AGENTS.md') (Join-Path $target 'AGENTS.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/PRD.md') (Join-Path $target 'PRD.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/ISSUE.md') (Join-Path $target '.github/ISSUE_TEMPLATE/work-item.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/PULL_REQUEST.md') (Join-Path $target '.github/PULL_REQUEST_TEMPLATE.md') -Force
+Copy-Item (Join-Path $standardRoot 'templates/PR_GATE.yml') (Join-Path $target '.github/workflows/pr-gate.yml') -Force
 
 @"
 standard: $owner/agent-engineering-standard
@@ -64,13 +66,14 @@ work_tracking:
 
 ci:
   required_check: "PR Gate"
+  gate_profile: bootstrap-only
 
-# Add only verified repo-specific commands/risk paths after the initial scaffold exists.
+# Before product code lands, replace the bootstrap-only gate with the cheapest
+# repo-specific objective build/test/acceptance evidence for the detected stack.
+# Add only commands and risk paths that have actually been verified.
 "@ | Set-Content (Join-Path $target '.agent/project.yaml') -Encoding utf8
 
-@"
-@AGENTS.md
-"@ | Set-Content (Join-Path $target 'CLAUDE.md') -Encoding utf8
+'@AGENTS.md' | Set-Content (Join-Path $target 'CLAUDE.md') -Encoding utf8
 
 Push-Location $target
 try {
@@ -84,5 +87,22 @@ try {
 & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'apply-github-standard.ps1') -Repositories $Name
 if ($LASTEXITCODE -ne 0) { throw 'GitHub policy bootstrap failed.' }
 
+$issueBody = @"
+## Outcome
+Replace the bootstrap-only PR Gate with the smallest objective gate appropriate to this repository's real stack before product code lands.
+
+## Acceptance
+- Detect and record verified build/test/type/lint/E2E commands in `.agent/project.yaml`.
+- Replace `.github/workflows/pr-gate.yml` so `PR Gate` executes the cheapest sufficient independent evidence.
+- Keep draft iteration local; ready PR and `merge_group` must produce the real `PR Gate`.
+- Add only tests/tools justified by actual product risk; do not invent a framework just for conformity.
+- Update `ci.gate_profile` away from `bootstrap-only`.
+
+## Risk
+R3 — initial control-plane finalization.
+"@
+& gh issue create --repo $repo --title 'Finalize repo-specific objective PR Gate before product code' --body $issueBody | Out-Host
+if ($LASTEXITCODE -ne 0) { throw 'Could not create initial control-plane Issue.' }
+
 Write-Host "`nBOOTSTRAPPED: $repo" -ForegroundColor Green
-Write-Host 'Next: have the first coding agent inspect the scaffold, fill only verified project commands/risk paths, create the first GitHub Issue, and add the repo-specific PR Gate before feature work.'
+Write-Host 'The repo is protected immediately. Complete the generated PR-Gate Issue before adding product code.'
