@@ -13,8 +13,9 @@ $required = @(
   "scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1",
   "scripts/codex-review.ps1", "scripts/auto-merge.ps1",
   "scripts/bootstrap-repo.ps1", "scripts/upgrade-repos.ps1",
-  ".github/workflows/ci.yml", "templates/AGENTS.md", "templates/PRD.md",
-  "templates/SPEC.md", "templates/ADR.md", "templates/ISSUE.md", "templates/PULL_REQUEST.md"
+  ".github/workflows/ci.yml", "templates/AGENTS.md", "templates/PR_GATE.yml",
+  "templates/PRD.md", "templates/SPEC.md", "templates/ADR.md",
+  "templates/ISSUE.md", "templates/PULL_REQUEST.md"
 )
 foreach ($relative in $required) {
   if (-not (Test-Path (Join-Path $root $relative))) { throw "Missing required file: $relative" }
