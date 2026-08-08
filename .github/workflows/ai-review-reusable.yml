@@ -37,7 +37,7 @@ jobs:
           function Get-ProviderFromReviewer([string]$Login) {
             $value = $Login.ToLowerInvariant()
             if ($value -in @('chatgpt-codex-connector','chatgpt-codex-connector[bot]')) { return 'codex' }
-            if ($value -in @('copilot-pull-request-reviewer','copilot-pull-request-reviewer[bot]')) { return 'copilot' }
+            if ($value -in @('copilot-pull-request-reviewer','copilot-pull-request-reviewer[bot]','copilot','copilot-swe-agent[bot]')) { return 'copilot' }
             return $null
           }
 
@@ -87,20 +87,40 @@ jobs:
           $reviewsRaw = & gh api "repos/$repo/pulls/$prNumber/reviews?per_page=100" 2>&1
           if ($LASTEXITCODE -ne 0) { throw ($reviewsRaw -join "`n") }
           $reviews = @(($reviewsRaw -join "`n") | ConvertFrom-Json)
-          $current = @($reviews | Where-Object {
+          $currentReviews = @($reviews | Where-Object {
             $provider = Get-ProviderFromReviewer ([string]$_.user.login)
             $_.commit_id -eq $headSha -and $_.state -notin @('DISMISSED','PENDING') -and $provider -and ($implementer -eq 'human' -or $provider -ne $implementer)
           } | Sort-Object submitted_at)
 
-          if ($current.Count -eq 0) {
-            Set-AiReviewCheck $headSha failure "No current-head independent AI review exists for $headSha (implementer: $implementer)."
+          if ($currentReviews.Count -gt 0) {
+            $latest = $currentReviews[-1]
+            if ($latest.state -eq 'CHANGES_REQUESTED') {
+              Set-AiReviewCheck $headSha failure "Latest current-head independent review by $($latest.user.login) requests changes."
+              exit 0
+            }
+            Set-AiReviewCheck $headSha success "Current head $headSha has an independent formal review by $($latest.user.login); implementer: $implementer."
             exit 0
           }
 
-          $latest = $current[-1]
-          if ($latest.state -eq 'CHANGES_REQUESTED') {
-            Set-AiReviewCheck $headSha failure "Latest current-head independent review by $($latest.user.login) requests changes."
+          # Copilot coding-agent fallback: accept only a structured response from a recognized Copilot bot,
+          # containing the exact current SHA. User-authored or stale comments can never satisfy this gate.
+          $commentsRaw = & gh api "repos/$repo/issues/$prNumber/comments?per_page=100" 2>&1
+          if ($LASTEXITCODE -ne 0) { throw ($commentsRaw -join "`n") }
+          $comments = @(($commentsRaw -join "`n") | ConvertFrom-Json)
+          $structured = @($comments | Where-Object {
+            $provider = Get-ProviderFromReviewer ([string]$_.user.login)
+            $provider -eq 'copilot' -and ($implementer -eq 'human' -or $implementer -ne 'copilot') -and
+            $_.body -match '(?im)^\s*AI-REVIEW\s+(PASS|FAIL)\b' -and $_.body -match [regex]::Escape($headSha)
+          } | Sort-Object created_at)
+
+          if ($structured.Count -gt 0) {
+            $latestComment = $structured[-1]
+            if ($latestComment.body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') {
+              Set-AiReviewCheck $headSha failure "Structured current-head Copilot fallback review reported material findings."
+              exit 0
+            }
+            Set-AiReviewCheck $headSha success "Current head $headSha has a structured independent Copilot fallback review; implementer: $implementer."
             exit 0
           }
 
-          Set-AiReviewCheck $headSha success "Current head $headSha has an independent review by $($latest.user.login); implementer: $implementer. Review-thread resolution is separately required by the branch ruleset."
+          Set-AiReviewCheck $headSha failure "No current-head independent AI review exists for $headSha (implementer: $implementer)."
