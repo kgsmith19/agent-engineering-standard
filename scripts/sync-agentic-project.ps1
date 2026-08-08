@@ -33,7 +33,7 @@ if (-not $project) {
 
 if (-not $project) { throw "Project '$title' could not be resolved after creation." }
 $number = $project.number
-Write-Host "Using project #$number: $title"
+Write-Host "Using project #${number}: $title"
 
 foreach ($name in $config.repositories) {
   $repo = "$owner/$name"
