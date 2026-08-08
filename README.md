@@ -40,18 +40,19 @@ Every artifact, rule, gate, and CI run must reduce meaningful uncertainty, preve
 
 `AGENTS.md` is the operating map for agents working on this control-plane repo.
 
-## Automation today
+## One-time portfolio setup
+
+After cloning this repo and authenticating GitHub CLI:
 
 ```powershell
-# Configure active repos: Issues, Actions, labels, merge settings, branch rules.
-pwsh -File scripts/apply-github-standard.ps1
+pwsh -File scripts/setup-portfolio.ps1
+```
 
-# Create/sync the optional cross-repo Project view. Issues remain truth.
-pwsh -File scripts/sync-agentic-project.ps1
+That applies repo settings/rules, enables Actions, creates the risk/status labels, syncs the optional `Agentic Portfolio` GitHub Project, and runs the remote doctor. If GitHub CLI lacks Project scope, run `gh auth refresh -s project` once and rerun.
 
-# Verify local + remote control-plane state; exits nonzero on drift.
-pwsh -File scripts/doctor.ps1 -Remote
+## Other automation
 
+```powershell
 # Bootstrap a brand-new GitHub repo with an immediately safe bootstrap gate.
 pwsh -File scripts/bootstrap-repo.ps1 -Name my-app
 
@@ -63,17 +64,22 @@ pwsh -File scripts/codex-review.ps1
 
 # Enable auto-merge only for an eligible R0-R2 PR.
 pwsh -File scripts/auto-merge.ps1 -Repo kgsmith19/my-app -Pr 12 -Risk R2
+
+# Direct lower-level maintenance when needed.
+pwsh -File scripts/apply-github-standard.ps1
+pwsh -File scripts/sync-agentic-project.ps1
+pwsh -File scripts/doctor.ps1 -Remote
 ```
 
 `policy/github-defaults.json` is the machine-readable portfolio policy.
 
 ## GitHub default
 
-Managed repos use GitHub Issues for durable work, one stable GitHub-Actions-produced required `PR Gate`, draft PRs while agents iterate, squash merge, risk-aware auto-merge, merged-branch cleanup, protected `main`, resolved review threads, and merge queues when GitHub supports them.
+Managed repos use GitHub Issues for durable work, one stable GitHub-Actions-produced required `PR Gate`, draft PRs while agents iterate, squash merge, risk-aware auto-merge, merged-branch cleanup, protected `main`, and resolved review threads.
+
+Current user-owned repos keep CODEOWNERS advisory so a solo PR author is not deadlocked by self-approval rules. R3/R4 and control-plane changes instead require fresh independent semantic review and do not use the R0-R2 auto-merge helper. Organization-owned repos can automatically harden to required Code Owner review and merge queues where the GitHub plan supports them.
 
 The optional cross-repo GitHub Project is a portfolio view only; it is never a competing task database.
-
-R3/R4 and control-plane changes require fresh independent semantic review after the final substantive push. They do not use the automatic R0-R2 merge helper.
 
 ## Repo-specific truth
 

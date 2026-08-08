@@ -26,6 +26,10 @@ Do not require every available test category on every change.
 
 Bind the required `PR Gate` context to the GitHub Actions App integration, not only to a status name.
 
+CODEOWNERS should map the required workflow plus the small repo-specific entrypoints that determine what it executes (for example test scripts/config, coverage-gate code, or locked acceptance evaluators). Do not CODEOWN all product tests merely to satisfy this rule.
+
+For today's single-developer, user-owned repositories, CODEOWNERS is **advisory**, not a required approval gate: a pull-request author cannot approve their own PR, so requiring Code Owner approval would deadlock the normal solo workflow. R3/R4/control-plane changes instead require fresh external semantic review and are excluded from automatic merge. Once repositories move to an organization with an independent reviewer/team, enable required Code Owner review and prefer an organization-required workflow sourced from this standards repo.
+
 Use **loose** required status checks (`strict_required_status_checks_policy: false`) by default so a PR does not rebuild merely because `main` moved. A merge queue, when available, provides the final combined-head integration check.
 
 ## 3. Expensive assurance
@@ -61,7 +65,7 @@ For the default branch:
 
 R0–R2 may use risk-aware auto-merge after the PR is ready. R3/R4 and control-plane changes require a fresh independent semantic review after the final substantive push and must not auto-merge while a material finding is unresolved.
 
-Today, repo-local workflow files are still editable by a control-plane PR, so this R3 review requirement is a deliberate extra trust boundary rather than a claim that the local evaluator is immutable. Once repositories live in an eligible organization, prefer an organization-required workflow sourced from the standards repo so application PRs cannot rewrite their own top-level evaluator.
+Today, repo-local workflow files are still editable by a control-plane PR, so this R3 review requirement is an extra trust boundary rather than a claim that the local evaluator is immutable. Organization-required workflows are the stronger future boundary.
 
 ## 6. Merge queue
 
@@ -76,7 +80,7 @@ Default queue posture:
 - 1-minute maximum grouping wait
 - 10-minute required-check response timeout
 
-GitHub currently limits merge queues to organization-owned repositories: public organization repositories, or private organization repositories on Enterprise Cloud. User-owned repositories remain queue-ready but cannot enable the queue until moved to a supported organization.
+User-owned repositories remain queue-ready but cannot enable the queue until moved to a supported organization.
 
 ## 7. Release
 

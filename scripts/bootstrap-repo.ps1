@@ -95,6 +95,7 @@ Replace the bootstrap-only PR Gate with the smallest objective gate appropriate 
 ## Acceptance
 - Detect and record verified build/test/type/lint/E2E commands in `.agent/project.yaml`.
 - Replace `.github/workflows/pr-gate.yml` so `PR Gate` executes the cheapest sufficient independent evidence.
+- Extend `.github/CODEOWNERS` with the small repo-specific gate entrypoints whose weakening could make `PR Gate` falsely green; keep the canonical control-plane ownership rules as the final non-comment rules.
 - Keep draft iteration local; ready PR and `merge_group` must produce the real `PR Gate`.
 - Add only tests/tools justified by actual product risk; do not invent a framework just for conformity.
 - Update `ci.gate_profile` away from `bootstrap-only`.
