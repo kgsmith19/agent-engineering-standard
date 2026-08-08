@@ -9,6 +9,7 @@
   "required_review_thread_resolution": true,
   "merge_method": "squash",
   "allow_auto_merge": true,
+  "allow_update_branch": true,
   "auto_merge_max_risk": "R2",
   "control_plane_requires_fresh_external_review": true,
   "org_hardening": {
