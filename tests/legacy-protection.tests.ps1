@@ -61,6 +61,9 @@ Assert-Sequence -Name 'accepts absent legacy protection' `
 Assert-True -Name 'recognizes branch-not-protected 404' `
   -Condition (Test-GitHubBranchProtectionAbsent -ErrorText 'gh: Branch not protected (HTTP 404)')
 
+Assert-True -Name 'does not hide an unrelated not-found response' `
+  -Condition (-not (Test-GitHubBranchProtectionAbsent -ErrorText 'gh: Not Found (HTTP 404)'))
+
 Assert-True -Name 'does not hide an authorization failure' `
   -Condition (-not (Test-GitHubBranchProtectionAbsent -ErrorText 'gh: Resource not accessible (HTTP 403)'))
 
