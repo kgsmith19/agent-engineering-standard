@@ -41,6 +41,7 @@ foreach ($name in $config.repositories) {
       if ($LASTEXITCODE -ne 0) { throw 'branch creation failed' }
 
       $lock = '.agent/standard.lock'
+      $previousStandardSha = $null
       if (-not (Test-Path $lock)) {
         New-Item -ItemType Directory -Force '.agent' | Out-Null
         @"
@@ -48,19 +49,20 @@ standard: $owner/agent-engineering-standard
 commit: $StandardSha
 pinned_at: "$pinnedAt"
 pinned_by: upgrade-repos.ps1
-"@ | Set-Content $lock -Encoding utf8
+"@ | Set-Content $lock -Encoding utf8 -NoNewline
       }
       else {
         $text = Get-Content $lock -Raw
-        $text = Update-StandardLockText -Text $text -StandardSha $StandardSha -PinnedAt $pinnedAt
-        Set-Content $lock $text -Encoding utf8
+        $previousStandardSha = Get-StandardLockRevision -Content $text
+        $text = Update-StandardLockContent -Content $text -StandardSha $StandardSha -PinnedAt $pinnedAt
+        Set-Content $lock $text -Encoding utf8 -NoNewline
       }
 
       $project = '.agent/project.yaml'
-      if (Test-Path $project) {
+      if ((Test-Path $project) -and $previousStandardSha) {
         $p = Get-Content $project -Raw
-        $p = [regex]::Replace($p, '(?m)^(\s*(?:sha|standard_sha|commit):\s*)[0-9a-fA-F]{40}(\s*(?:#.*)?)$', "`$1$StandardSha`$2")
-        Set-Content $project $p -Encoding utf8
+        $p = Update-StandardProjectContent -Content $p -PreviousStandardSha $previousStandardSha -StandardSha $StandardSha
+        Set-Content $project $p -Encoding utf8 -NoNewline
       }
 
       $paths = @($lock)
