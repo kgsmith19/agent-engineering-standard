@@ -4,9 +4,9 @@
 Issue:
 Spec:
 Slice(s):
-Implementer: claude / copilot / codex / human
+Implementer: chatgpt / claude / copilot / codex / human
 
-> Agent-created PRs must use a recognized provider author/prefix or `agent/<provider>/...`; `AI Review` fails closed on unknown implementation provenance.
+> The Implementer line is descriptive, not trusted agent identity. Controlled agent work should use `agent/<provider>/...` (for example `agent/chatgpt/42-fix`). Ordinary/user-authored branches are treated as ambiguous and require both Codex + Copilot for unattended merge.
 
 ## What Changed
 -
