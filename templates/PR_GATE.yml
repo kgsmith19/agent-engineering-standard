@@ -1,0 +1,36 @@
+name: PR Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bootstrap-gate:
+    name: ${{ github.event.pull_request.draft && 'Draft CI (local only)' || 'PR Gate' }}
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Verify bootstrap control files
+        shell: bash
+        run: |
+          test -s AGENTS.md
+          test -s PRD.md
+          test -s .agent/standard.lock
+          test -s .agent/project.yaml
+          if grep -Eq '^  gate_profile: bootstrap-only$' .agent/project.yaml; then
+            PRODUCT_FILES=$(git ls-files | grep -Ev '^(AGENTS\.md|CLAUDE\.md|PRD\.md|README\.md|LICENSE|\.gitignore|\.agent/|\.github/|docs/|specs/)$' || true)
+            if [ -n "$PRODUCT_FILES" ]; then
+              echo '::error::Product files exist while PR Gate is still bootstrap-only. Configure the real stack-specific objective gate first.'
+              printf '%s\n' "$PRODUCT_FILES"
+              exit 1
+            fi
+          fi
