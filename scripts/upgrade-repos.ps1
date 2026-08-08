@@ -15,6 +15,7 @@ if (-not $StandardSha) {
   $StandardSha = (& git -C $standardRoot rev-parse HEAD).Trim()
   if ($LASTEXITCODE -ne 0) { throw 'Could not resolve standards commit.' }
 }
+if ($StandardSha -notmatch '^[0-9a-fA-F]{40}$') { throw 'StandardSha must be a full 40-character commit SHA.' }
 
 $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $owner = $config.owner
@@ -28,12 +29,13 @@ foreach ($name in $config.repositories) {
 
   try {
     & gh repo clone $repo $temp -- --quiet
-    if ($LASTEXITCODE -ne 0) { throw "clone failed" }
+    if ($LASTEXITCODE -ne 0) { throw 'clone failed' }
 
     Push-Location $temp
     try {
       $branch = "chore/standard-$short"
       & git switch -c $branch | Out-Host
+      if ($LASTEXITCODE -ne 0) { throw 'branch creation failed' }
 
       $lock = '.agent/standard.lock'
       if (-not (Test-Path $lock)) {
@@ -44,13 +46,13 @@ commit: $StandardSha
 pinned_at: "$(Get-Date -Format yyyy-MM-dd)"
 pinned_by: upgrade-repos.ps1
 "@ | Set-Content $lock -Encoding utf8
-      } else {
+      }
+      else {
         $text = Get-Content $lock -Raw
-        if ($text -match '(?m)^commit:\s*[0-9a-fA-F]{40}\s*$') {
-          $text = [regex]::Replace($text, '(?m)^commit:\s*[0-9a-fA-F]{40}\s*$', "commit: $StandardSha")
-        } else {
-          throw "Unrecognized standard.lock format; refusing to guess."
+        if ($text -notmatch '(?m)^commit:\s*[0-9a-fA-F]{40}\s*$') {
+          throw 'Unrecognized standard.lock format; refusing to guess.'
         }
+        $text = [regex]::Replace($text, '(?m)^commit:\s*[0-9a-fA-F]{40}\s*$', "commit: $StandardSha")
         $text = [regex]::Replace($text, '(?m)^pinned_at:.*$', "pinned_at: `"$(Get-Date -Format yyyy-MM-dd)`"")
         Set-Content $lock $text -Encoding utf8
       }
@@ -62,15 +64,27 @@ pinned_by: upgrade-repos.ps1
         Set-Content $project $p -Encoding utf8
       }
 
-      & git add .agent/standard.lock .agent/project.yaml 2>$null
-      if (-not (& git diff --cached --quiet; $LASTEXITCODE -eq 0)) {
+      $paths = @($lock)
+      if (Test-Path $project) { $paths += $project }
+      & git add -- $paths
+      if ($LASTEXITCODE -ne 0) { throw 'git add failed' }
+
+      & git diff --cached --quiet
+      $hasChanges = $LASTEXITCODE -ne 0
+      if ($hasChanges) {
         & git commit -m "chore: upgrade agent engineering standard to $short" | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw 'commit failed' }
         & git push -u origin $branch | Out-Host
-        & gh pr create --repo $repo --base main --head $branch --title "Upgrade agent engineering standard to $short" --body "Pins the shared engineering standard to `$StandardSha`. No product behavior change. Review as an R3 control-plane dependency update; existing repo-specific quality gates remain authoritative." | Out-Host
-      } else {
+        if ($LASTEXITCODE -ne 0) { throw 'push failed' }
+        $body = "Pins the shared engineering standard to $StandardSha. No product behavior change. Review as an R3 control-plane dependency update; existing repo-specific quality gates remain authoritative."
+        & gh pr create --repo $repo --base main --head $branch --title "Upgrade agent engineering standard to $short" --body $body | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw 'PR creation failed' }
+      }
+      else {
         Write-Host 'already pinned; no PR needed'
       }
-    } finally { Pop-Location }
+    }
+    finally { Pop-Location }
   }
   catch {
     Write-Warning "$repo : $($_.Exception.Message)"
