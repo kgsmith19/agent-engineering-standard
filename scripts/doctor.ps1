@@ -29,7 +29,7 @@ $required = @(
   "README.md", "LIFECYCLE.md", "AGENT_RULES.md", "QUALITY_RULES.md",
   "SECURITY_RISK_AUTONOMY.md", "DELIVERY_GITHUB.md", "EVIDENCE_LEARNING.md",
   "AGENTS.md", ".github/CODEOWNERS", "policy/github-defaults.json",
-  "scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1",
+  "scripts/setup-portfolio.ps1", "scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1",
   "scripts/codex-review.ps1", "scripts/auto-merge.ps1",
   "scripts/bootstrap-repo.ps1", "scripts/upgrade-repos.ps1",
   ".github/workflows/ci.yml", "templates/AGENTS.md", "templates/CODEOWNERS", "templates/PR_GATE.yml",
@@ -77,7 +77,7 @@ if (-not (Test-CodeownersTail -Content $localTemplateCodeowners -ExpectedTail $a
 }
 
 $psScripts = @(
-  "scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1",
+  "scripts/setup-portfolio.ps1", "scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1",
   "scripts/codex-review.ps1", "scripts/auto-merge.ps1",
   "scripts/bootstrap-repo.ps1", "scripts/upgrade-repos.ps1", "scripts/doctor.ps1"
 )
