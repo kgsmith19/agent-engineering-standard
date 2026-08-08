@@ -170,7 +170,7 @@ foreach ($name in $targets) {
     if ($staleContexts.Count -gt 0) {
       $deleteRaw = & gh api --method DELETE "repos/$repo/branches/$($meta.default_branch)/protection/required_status_checks" 2>&1
       if ($LASTEXITCODE -ne 0) {
-        throw "Could not remove stale legacy required checks from $repo: $($deleteRaw -join ' ')"
+        throw "Could not remove stale legacy required checks from ${repo}: $($deleteRaw -join ' ')"
       }
       Write-Host "legacy required checks: removed $($staleContexts -join ', ')" -ForegroundColor Yellow
     }
@@ -184,7 +184,7 @@ foreach ($name in $targets) {
       Write-Host "legacy branch protection: absent"
     }
     else {
-      throw "Could not inspect legacy branch protection for $repo: $legacyError"
+      throw "Could not inspect legacy branch protection for ${repo}: $legacyError"
     }
   }
 }
