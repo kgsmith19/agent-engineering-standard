@@ -12,6 +12,9 @@ function Assert-Throws {
   throw "$Name failed: expected an exception."
 }
 
+Assert-Throws 'review routing requires an explicit implementer' {
+  Get-PreferredIndependentReviewer
+}
 Assert-Equal 'Claude implementation routes to Codex' (Get-PreferredIndependentReviewer -Implementer claude) 'codex'
 Assert-Equal 'Copilot implementation routes to Codex' (Get-PreferredIndependentReviewer -Implementer copilot) 'codex'
 Assert-Equal 'Codex implementation routes to Copilot' (Get-PreferredIndependentReviewer -Implementer codex) 'copilot'
@@ -24,6 +27,7 @@ Assert-Throws 'Codex cannot review Codex when it is the only provider' {
 
 Assert-Equal 'Codex bot login recognized' (Get-ReviewProviderFromLogin -Login 'chatgpt-codex-connector[bot]') 'codex'
 Assert-Equal 'Copilot bot login recognized' (Get-ReviewProviderFromLogin -Login 'copilot-pull-request-reviewer[bot]') 'copilot'
+Assert-Equal 'Copilot coding-agent login recognized' (Get-ReviewProviderFromLogin -Login 'copilot-swe-agent[bot]') 'copilot'
 Assert-Equal 'unknown reviewer ignored' (Get-ReviewProviderFromLogin -Login 'random-bot[bot]') $null
 Assert-Equal 'different provider is independent' (Test-IndependentReview -Implementer claude -ReviewerProvider codex) $true
 Assert-Equal 'same provider is not independent' (Test-IndependentReview -Implementer codex -ReviewerProvider codex) $false
