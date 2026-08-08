@@ -10,6 +10,7 @@ commands:
   bootstrap_repo: pwsh -NoProfile -File scripts/bootstrap-repo.ps1 -Name <repo>
   upgrade_repos: pwsh -NoProfile -File scripts/upgrade-repos.ps1
   codex_review: pwsh -NoProfile -File scripts/codex-review.ps1
+  auto_merge_r0_r2: pwsh -NoProfile -File scripts/auto-merge.ps1 -Repo <owner/repo> -Pr <number> -Risk <R0|R1|R2>
 
 risk:
   default: R3
