@@ -5,6 +5,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+. (Join-Path $PSScriptRoot 'lib/legacy-protection.ps1')
 
 function Test-CodeownersTail {
   param(
@@ -31,7 +32,8 @@ $required = @(
   "AGENTS.md", ".github/CODEOWNERS", "policy/github-defaults.json",
   "scripts/setup-portfolio.ps1", "scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1",
   "scripts/codex-review.ps1", "scripts/auto-merge.ps1",
-  "scripts/bootstrap-repo.ps1", "scripts/upgrade-repos.ps1",
+  "scripts/bootstrap-repo.ps1", "scripts/upgrade-repos.ps1", "scripts/lib/legacy-protection.ps1",
+  "tests/legacy-protection.tests.ps1",
   ".github/workflows/ci.yml", "templates/AGENTS.md", "templates/CODEOWNERS", "templates/PR_GATE.yml",
   "templates/PRD.md", "templates/SPEC.md", "templates/ADR.md",
   "templates/ISSUE.md", "templates/PULL_REQUEST.md"
@@ -79,7 +81,8 @@ if (-not (Test-CodeownersTail -Content $localTemplateCodeowners -ExpectedTail $a
 $psScripts = @(
   "scripts/setup-portfolio.ps1", "scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1",
   "scripts/codex-review.ps1", "scripts/auto-merge.ps1",
-  "scripts/bootstrap-repo.ps1", "scripts/upgrade-repos.ps1", "scripts/doctor.ps1"
+  "scripts/bootstrap-repo.ps1", "scripts/upgrade-repos.ps1", "scripts/doctor.ps1",
+  "scripts/lib/legacy-protection.ps1", "tests/legacy-protection.tests.ps1"
 )
 foreach ($relative in $psScripts) {
   $tokens = $null
@@ -174,6 +177,20 @@ foreach ($name in $config.repositories) {
 
         if ($config.merge_queue.desired -and $isOrgOwned -and $types -notcontains 'merge_queue') { $problems.Add("merge queue missing on eligible repo") }
       }
+    }
+  }
+
+  $legacyRaw = & gh api "repos/$repo/branches/$($meta.default_branch)/protection" 2>&1
+  if ($LASTEXITCODE -eq 0) {
+    $legacy = ($legacyRaw -join "`n") | ConvertFrom-Json
+    foreach ($context in @(Get-StaleLegacyRequiredCheckContexts -Protection $legacy -RequiredContext $config.required_status_context)) {
+      $problems.Add("stale legacy required check: $context")
+    }
+  }
+  else {
+    $legacyError = $legacyRaw -join "`n"
+    if (-not (Test-GitHubBranchProtectionAbsent -ErrorText $legacyError)) {
+      $problems.Add("cannot read legacy branch protection")
     }
   }
 
