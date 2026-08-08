@@ -12,51 +12,36 @@ Prefer:
 
 `Issue → SPEC only if needed → thin local slices → draft PR while iterating → ready PR → PR Gate → auto-merge/queue → release`
 
-Do not make PRs artificially large to save CI minutes. Save minutes by verifying slices locally, pushing less often, canceling superseded runs, caching, and reserving expensive assurance for the changes that justify it.
-
-Agents should keep a PR in **draft** while they are still iterating. The required paid `PR Gate` should run when the PR is ready for review, on the merge queue's combined head, and on `main` as appropriate. Draft pushes should not consume a full required CI run unless a repo has a demonstrated reason to need that feedback remotely.
+Do not make PRs artificially large to save CI minutes. Save minutes by verifying slices locally, pushing less often, canceling superseded runs, caching, and reserving expensive assurance for changes that justify it.
 
 ## 2. Required PR Gate
 
 Every managed repository exposes one stable required status context named **`PR Gate`**.
 
-`PR Gate` runs the cheapest independent evidence sufficient to block a bad merge for that repository. It should normally finish in about 10 minutes or less and may contain or aggregate repo-specific checks such as:
+Draft pushes should not consume the full required gate. If a workflow emits a skipped job for draft events, that skipped job must use a different check name; a skipped job named `PR Gate` must never be allowed to satisfy the required context.
 
-- build/types/lint
-- unit/property/regression tests
-- changed-file or architecture gates
-- critical integration/contract/acceptance tests
-- lightweight security/dependency checks
+`PR Gate` runs the cheapest independent evidence sufficient to block a bad merge for that repository. It should normally finish in about 10 minutes or less and may contain or aggregate repo-specific build/type/lint, unit/property/regression, changed-file/architecture, critical integration/contract/acceptance, and lightweight security/dependency evidence.
 
 Do not require every available test category on every change.
 
-The default required-status policy is **loose** (`strict_required_status_checks_policy: false`): do not force a branch update and duplicate CI merely because `main` moved. A merge queue, when available, provides the final combined-head integration check instead.
+Bind the required `PR Gate` context to the GitHub Actions App integration, not only to a status name.
+
+Use **loose** required status checks (`strict_required_status_checks_policy: false`) by default so a PR does not rebuild merely because `main` moved. A merge queue, when available, provides the final combined-head integration check.
 
 ## 3. Expensive assurance
 
-Keep expensive or environment-specific checks out of the universal PR Gate unless the change's risk makes them necessary blockers.
+Keep expensive or environment-specific checks outside the universal PR Gate unless risk makes them necessary blockers: full OS/browser matrices, mutation campaigns, extended fuzzing, load/performance, broad security scans, and slow production-like E2E.
 
-Examples:
-
-- full OS/browser matrices
-- mutation campaigns
-- extended fuzzing
-- load/performance suites
-- broad security scans
-- slow production-like E2E
-
-Run them through path/risk-triggered jobs, explicit pre-merge escalation, main/release validation, or scheduled/manual workflows as appropriate.
-
-A correctness-critical or security-critical check stays blocking even when expensive.
+Run them through risk/path-triggered jobs, explicit escalation, main/release validation, or scheduled/manual workflows. A correctness-critical or security-critical check stays blocking even when expensive.
 
 ## 4. Actions efficiency
 
-- Do not run the full required gate for draft-PR iteration by default.
+- Keep PRs draft during active iteration; run fast local evidence per slice.
 - Cancel superseded ready-PR runs with workflow concurrency.
-- Prefer one setup/install per required lane over duplicate jobs when parallelism does not materially shorten feedback.
-- Cache dependencies when it is safe and useful.
-- Avoid redundant push+PR execution for the same evidence where repo behavior permits it.
-- Track expensive checks that rarely change a decision and remove/demote them when evidence shows low value.
+- Prefer one setup/install per required lane when extra parallel jobs mostly duplicate setup cost.
+- Cache dependencies when safe/useful.
+- Avoid redundant push+PR execution for the same evidence.
+- Remove/demote expensive checks that rarely change a decision.
 
 Optimize for **fast trustworthy feedback per compute-minute**, not minimum Actions usage in isolation.
 
@@ -65,50 +50,46 @@ Optimize for **fast trustworthy feedback per compute-minute**, not minimum Actio
 For the default branch:
 
 - require a PR
-- require `PR Gate`
+- require GitHub-Actions-produced `PR Gate`
+- require resolution of review threads
 - require 0 human approvals by default for routine work
 - disallow force-push and branch deletion
 - use squash merge as the normal merge method
-- enable auto-merge
+- allow auto-merge
 - automatically delete merged head branches
-- no silent bypass by the implementing agent
+- define no silent bypass actors
 
-R3/R4 work and control-plane changes still require the independent review/authority defined by the security/risk standard even though the repository-wide approval count is zero.
+R0–R2 may use risk-aware auto-merge after the PR is ready. R3/R4 and control-plane changes require a fresh independent semantic review after the final substantive push and must not auto-merge while a material finding is unresolved.
+
+Today, repo-local workflow files are still editable by a control-plane PR, so this R3 review requirement is a deliberate extra trust boundary rather than a claim that the local evaluator is immutable. Once repositories live in an eligible organization, prefer an organization-required workflow sourced from the standards repo so application PRs cannot rewrite their own top-level evaluator.
 
 ## 6. Merge queue
 
-Use a merge queue when GitHub supports it and concurrent agent PR volume justifies it.
-
-All queue-enabled workflows that provide required checks must also trigger on `merge_group`; otherwise queued PRs can deadlock waiting for checks that never run.
+Use a merge queue when GitHub supports it and concurrent agent PR volume justifies it. Required-check workflows must trigger on `merge_group` or queued PRs can deadlock.
 
 Default queue posture:
 
 - squash merge
-- `HEADGREEN` grouping to minimize redundant builds while testing the combined queue head
+- `HEADGREEN` grouping
 - build concurrency 3
 - merge groups up to 5 PRs
-- 1-minute maximum wait to opportunistically group ready PRs
+- 1-minute maximum grouping wait
 - 10-minute required-check response timeout
 
-GitHub currently limits merge queues to organization-owned repositories (public organization repositories, or private organization repositories on Enterprise Cloud). User-owned repositories remain queue-ready but cannot enable the queue until moved to a supported organization.
+GitHub currently limits merge queues to organization-owned repositories: public organization repositories, or private organization repositories on Enterprise Cloud. User-owned repositories remain queue-ready but cannot enable the queue until moved to a supported organization.
 
 ## 7. Release
 
-Keep low-risk releases simple:
+Keep low-risk releases simple: `merge → deploy → smoke`.
 
-`merge → deploy → smoke`
-
-For higher-risk releases:
-
-- build once
-- identify the immutable artifact/commit
-- promote the same artifact
-- use staging/canary/feature flags when they meaningfully reduce risk
-- verify after deployment
-- preserve rollback/recovery
+For higher-risk releases, build once, identify the immutable artifact/commit, promote that same artifact, use staging/canary/feature flags only when they materially reduce risk, verify after deployment, and preserve rollback/recovery.
 
 ## 8. Shared control plane
 
-`policy/github-defaults.json` is the machine-readable portfolio default. `scripts/apply-github-standard.ps1` applies repository settings and default-branch rules through GitHub CLI admin access.
+`policy/github-defaults.json` is the machine-readable portfolio default.
+
+- `scripts/apply-github-standard.ps1` applies repository settings, Actions, labels, and default-branch rules.
+- `scripts/auto-merge.ps1` is the risk-aware R0–R2 happy path and refuses R3/R4/control-plane PRs.
+- `scripts/doctor.ps1 -Remote` verifies effective remote policy and exits nonzero on drift.
 
 Prefer centrally maintained policy and stable check naming; keep stack-specific test commands inside each product repo.
