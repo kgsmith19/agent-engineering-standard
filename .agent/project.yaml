@@ -1,0 +1,25 @@
+project:
+  name: agent-engineering-standard
+  type: engineering-control-plane
+
+commands:
+  fast_verify: pwsh -NoProfile -File scripts/doctor.ps1
+  remote_verify: pwsh -NoProfile -File scripts/doctor.ps1 -Remote
+  apply_github: pwsh -NoProfile -File scripts/apply-github-standard.ps1
+  sync_project: pwsh -NoProfile -File scripts/sync-agentic-project.ps1
+
+risk:
+  default: R3
+  protected_paths:
+    - QUALITY_RULES.md
+    - SECURITY_RISK_AUTONOMY.md
+    - DELIVERY_GITHUB.md
+    - policy/**
+    - scripts/**
+    - .github/workflows/**
+
+work_tracking:
+  system: github-issues
+
+ci:
+  required_check: PR Gate
