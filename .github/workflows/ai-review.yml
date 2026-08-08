@@ -11,7 +11,6 @@ jobs:
     permissions:
       checks: write
       contents: read
-      issues: write
       pull-requests: read
     uses: ./.github/workflows/ai-review-reusable.yml
     with:
