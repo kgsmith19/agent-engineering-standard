@@ -8,10 +8,11 @@ function Get-ReviewProviderFromLogin {
 }
 
 function Get-RequiredReviewProviders {
-  param([Parameter(Mandatory)][ValidateSet('claude','copilot','codex','human','unknown')][string]$Implementer)
+  param([Parameter(Mandatory)][ValidateSet('chatgpt','claude','copilot','codex','human','unknown')][string]$Implementer)
 
   switch ($Implementer) {
     'codex' { return @('copilot') }
+    'chatgpt' { return @('copilot') }
     'copilot' { return @('codex') }
     'claude' { return @('codex') }
     default { return @('codex','copilot') }
@@ -20,7 +21,7 @@ function Get-RequiredReviewProviders {
 
 function Get-PreferredIndependentReviewer {
   param(
-    [Parameter(Mandatory)][ValidateSet('claude','copilot','codex','human','unknown')][string]$Implementer,
+    [Parameter(Mandatory)][ValidateSet('chatgpt','claude','copilot','codex','human','unknown')][string]$Implementer,
     [bool]$CodexAvailable = $true,
     [bool]$CopilotAvailable = $true
   )
@@ -34,12 +35,11 @@ function Get-PreferredIndependentReviewer {
 
 function Test-IndependentReview {
   param(
-    [Parameter(Mandatory)][ValidateSet('claude','copilot','codex','human','unknown')][string]$Implementer,
+    [Parameter(Mandatory)][ValidateSet('chatgpt','claude','copilot','codex','human','unknown')][string]$Implementer,
     [Parameter(Mandatory)][ValidateSet('copilot','codex')][string]$ReviewerProvider
   )
 
-  if ($Implementer -in @('human','unknown')) { return $false }
-  return $Implementer -ne $ReviewerProvider
+  return @((Get-RequiredReviewProviders -Implementer $Implementer)) -contains $ReviewerProvider
 }
 
 function Assert-ManualGateJustification {
