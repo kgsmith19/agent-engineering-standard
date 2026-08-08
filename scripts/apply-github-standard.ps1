@@ -4,6 +4,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'lib/legacy-protection.ps1')
 
 function Invoke-GhJson {
   param(
@@ -157,6 +158,34 @@ foreach ($name in $targets) {
       Write-Host "ruleset: applied without queue; retry after organization transfer/plan eligibility" -ForegroundColor Yellow
     }
     else { throw }
+  }
+
+  # The canonical ruleset is now active. Remove only a stale legacy required-check
+  # block so retired contexts cannot silently keep the default branch unmergeable.
+  # Other legacy protections (reviews, force-push, deletion, etc.) are untouched.
+  $legacyRaw = & gh api "repos/$repo/branches/$($meta.default_branch)/protection" 2>&1
+  if ($LASTEXITCODE -eq 0) {
+    $legacy = ($legacyRaw -join "`n") | ConvertFrom-Json
+    $staleContexts = @(Get-StaleLegacyRequiredCheckContexts -Protection $legacy -RequiredContext $config.required_status_context)
+    if ($staleContexts.Count -gt 0) {
+      $deleteRaw = & gh api --method DELETE "repos/$repo/branches/$($meta.default_branch)/protection/required_status_checks" 2>&1
+      if ($LASTEXITCODE -ne 0) {
+        throw "Could not remove stale legacy required checks from $repo: $($deleteRaw -join ' ')"
+      }
+      Write-Host "legacy required checks: removed $($staleContexts -join ', ')" -ForegroundColor Yellow
+    }
+    else {
+      Write-Host "legacy required checks: clean"
+    }
+  }
+  else {
+    $legacyError = $legacyRaw -join "`n"
+    if (Test-GitHubBranchProtectionAbsent -ErrorText $legacyError) {
+      Write-Host "legacy branch protection: absent"
+    }
+    else {
+      throw "Could not inspect legacy branch protection for $repo: $legacyError"
+    }
   }
 }
 
