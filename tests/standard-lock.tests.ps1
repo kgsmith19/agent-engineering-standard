@@ -86,6 +86,52 @@ Assert-Equal -Name 'updates standard_commit schema' `
   -Actual (Update-StandardLockContent -Content $standardCommitLock -StandardSha $new -PinnedAt $date) `
   -Expected $standardCommitExpected
 
+$projectStandardSha = @"
+project:
+  name: app
+  standard_sha: $old
+other:
+  commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+"@
+$projectStandardShaExpected = @"
+project:
+  name: app
+  standard_sha: $new
+other:
+  commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+"@
+Assert-Equal -Name 'updates only matching standard_sha project metadata' `
+  -Actual (Update-StandardProjectContent -Content $projectStandardSha -PreviousStandardSha $old -StandardSha $new) `
+  -Expected $projectStandardShaExpected
+
+$projectNestedSha = @"
+standard:
+  repo: kgsmith19/agent-engineering-standard
+  sha: $old
+runtime:
+  image_sha: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+"@
+$projectNestedShaExpected = @"
+standard:
+  repo: kgsmith19/agent-engineering-standard
+  sha: $new
+runtime:
+  image_sha: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+"@
+Assert-Equal -Name 'updates matching nested sha project metadata' `
+  -Actual (Update-StandardProjectContent -Content $projectNestedSha -PreviousStandardSha $old -StandardSha $new) `
+  -Expected $projectNestedShaExpected
+
+$projectUnrelated = @"
+standard:
+  repo: kgsmith19/agent-engineering-standard
+other:
+  commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+"@
+Assert-Equal -Name 'leaves unrelated project commit unchanged' `
+  -Actual (Update-StandardProjectContent -Content $projectUnrelated -PreviousStandardSha $old -StandardSha $new) `
+  -Expected $projectUnrelated
+
 Assert-Throws -Name 'refuses missing revision field' -Action {
   Update-StandardLockContent -Content "revision: $old`npinned_at: 2026-08-08" -StandardSha $new -PinnedAt $date
 }
@@ -100,6 +146,10 @@ Assert-Throws -Name 'refuses missing pinned_at field' -Action {
 
 Assert-Throws -Name 'refuses invalid target SHA' -Action {
   Update-StandardLockContent -Content $commitLock -StandardSha 'not-a-sha' -PinnedAt $date
+}
+
+Assert-Throws -Name 'refuses ambiguous project references' -Action {
+  Update-StandardProjectContent -Content "sha: $old`nstandard_sha: $old" -PreviousStandardSha $old -StandardSha $new
 }
 
 Write-Host 'standard-lock tests: PASS' -ForegroundColor Green
