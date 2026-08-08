@@ -54,6 +54,17 @@ foreach ($name in $config.repositories) {
   Invoke-GhJson -Method PATCH -Endpoint "repos/$repo" -Body $settings | Out-Null
   Write-Host "repo settings: auto-merge/squash/delete-branch configured"
 
+  # Keep Actions available as the independent enforcement plane. Do not require
+  # global SHA pinning yet because several existing trusted workflows still use
+  # version tags; pin those incrementally rather than breaking CI portfolio-wide.
+  $actionsSettings = @{
+    enabled              = $true
+    allowed_actions      = "all"
+    sha_pinning_required = $false
+  }
+  Invoke-GhJson -Method PUT -Endpoint "repos/$repo/actions/permissions" -Body $actionsSettings | Out-Null
+  Write-Host "actions: enabled"
+
   $rules = @(
     @{ type = "deletion" },
     @{ type = "non_fast_forward" },
@@ -71,8 +82,8 @@ foreach ($name in $config.repositories) {
     @{
       type = "required_status_checks"
       parameters = @{
-        do_not_enforce_on_create                = $true
-        strict_required_status_checks_policy    = [bool]$config.strict_required_status_checks_policy
+        do_not_enforce_on_create             = $true
+        strict_required_status_checks_policy = [bool]$config.strict_required_status_checks_policy
         required_status_checks = @(
           @{ context = $config.required_status_context }
         )
@@ -112,7 +123,7 @@ foreach ($name in $config.repositories) {
 
   $existingRaw = & gh api "repos/$repo/rulesets" 2>&1
   if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Cannot inspect rulesets for $repo; repo settings were still applied."
+    Write-Warning "Cannot inspect rulesets for $repo; repo settings and Actions were still applied."
     continue
   }
   $existing = (($existingRaw -join "`n") | ConvertFrom-Json) | Where-Object { $_.name -eq $config.ruleset_name } | Select-Object -First 1
