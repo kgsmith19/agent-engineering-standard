@@ -1,7 +1,6 @@
 param(
   [Parameter(Mandatory)][string]$Repo,
   [Parameter(Mandatory)][int]$Pr,
-  [ValidateSet('auto','claude','copilot','codex','human','unknown')][string]$Implementer = 'auto',
   [ValidateSet('auto','codex','copilot')][string]$Provider = 'auto'
 )
 
@@ -14,27 +13,28 @@ if ($LASTEXITCODE -ne 0) { throw 'gh is not authenticated.' }
 
 $config = Get-Content (Join-Path $PSScriptRoot '..\policy\github-defaults.json') -Raw | ConvertFrom-Json
 $reviewPolicy = $config.independent_review
-
-$prRaw = & gh pr view $Pr --repo $Repo --json isDraft,state,headRefOid,body 2>&1
+$prRaw = & gh pr view $Pr --repo $Repo --json isDraft,state,headRefOid 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
-$prInfo = ($prRaw -join "`n") | ConvertFrom-Json
-if ($prInfo.state -ne 'OPEN') { throw "PR #$Pr is not open." }
-if ($prInfo.isDraft) { throw "PR #$Pr is draft. Keep implementation churn in draft; request independent review only when ready." }
+$pr = ($prRaw -join "`n") | ConvertFrom-Json
+if ($pr.state -ne 'OPEN') { throw "PR #$Pr is not open." }
+if ($pr.isDraft) { throw "PR #$Pr is draft; semantic review is intentionally deferred." }
 
-if ($Implementer -eq 'auto') {
-  $match = [regex]::Match([string]$prInfo.body, '(?im)^\s*Implementer:\s*(claude|copilot|codex|human)\s*$')
-  $Implementer = if ($match.Success) { $match.Groups[1].Value.ToLowerInvariant() } else { 'unknown' }
+$commentsRaw = & gh api "repos/$Repo/issues/$Pr/comments?per_page=100" 2>&1
+if ($LASTEXITCODE -ne 0) { throw ($commentsRaw -join "`n") }
+$comments = @(($commentsRaw -join "`n") | ConvertFrom-Json)
+$marker = '<!-- agent-engineering:implementer-attestation -->'
+$attestation = $comments | Where-Object { $_.user.login -eq 'github-actions[bot]' -and $_.body -like "*$marker*" } | Select-Object -First 1
+if (-not $attestation -or $attestation.body -notmatch '(?im)^Implementation provider:\s*`(claude|copilot|codex|human)`\s*$') {
+  throw "No trusted GitHub Actions implementer attestation exists yet. Let the AI Review Gate run first."
 }
-if ($Implementer -eq 'unknown') { throw "Independent review routing requires a concrete Implementer: claude|copilot|codex|human line in the PR body (or -Implementer explicitly)." }
+$implementer = $Matches[1].ToLowerInvariant()
 
-$reviewsRaw = & gh api --paginate --slurp "repos/$Repo/pulls/$Pr/reviews?per_page=100" 2>&1
+$reviewsRaw = & gh api "repos/$Repo/pulls/$Pr/reviews?per_page=100" 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($reviewsRaw -join "`n") }
-$reviewPages = ($reviewsRaw -join "`n") | ConvertFrom-Json
-$reviews = @($reviewPages | ForEach-Object { $_ })
-
+$reviews = @(($reviewsRaw -join "`n") | ConvertFrom-Json)
 $currentIndependent = @($reviews | Where-Object {
-  $provider = Get-ReviewProviderFromLogin -Login $_.user.login
-  $_.commit_id -eq $prInfo.headRefOid -and $_.state -ne 'DISMISSED' -and $provider -and (Test-IndependentReview -Implementer $Implementer -ReviewerProvider $provider)
+  $reviewerProvider = Get-ReviewProviderFromLogin -Login $_.user.login
+  $_.commit_id -eq $pr.headRefOid -and $_.state -notin @('DISMISSED','PENDING') -and $reviewerProvider -and (Test-IndependentReview -Implementer $implementer -ReviewerProvider $reviewerProvider)
 })
 if ($currentIndependent.Count -gt 0) {
   Write-Host "CURRENT-HEAD INDEPENDENT REVIEW ALREADY EXISTS: $($currentIndependent[-1].user.login)" -ForegroundColor Green
@@ -43,35 +43,27 @@ if ($currentIndependent.Count -gt 0) {
 
 $codexReviews = @($reviews | Where-Object { (Get-ReviewProviderFromLogin -Login $_.user.login) -eq 'codex' }).Count
 $copilotReviews = @($reviews | Where-Object { (Get-ReviewProviderFromLogin -Login $_.user.login) -eq 'copilot' }).Count
-
-$commentsRaw = & gh api --paginate --slurp "repos/$Repo/issues/$Pr/comments?per_page=100" 2>&1
-if ($LASTEXITCODE -ne 0) { throw ($commentsRaw -join "`n") }
-$commentPages = ($commentsRaw -join "`n") | ConvertFrom-Json
-$comments = @($commentPages | ForEach-Object { $_ })
 $codexRequests = @($comments | Where-Object { $_.body -match '(?i)@codex\s+review' }).Count
 
 if ($Provider -eq 'auto') {
   $Provider = Get-PreferredIndependentReviewer `
-    -Implementer $Implementer `
+    -Implementer $implementer `
     -CodexAvailable (($codexReviews -lt [int]$reviewPolicy.max_codex_reviews_per_pr) -and ($codexRequests -lt [int]$reviewPolicy.max_codex_reviews_per_pr)) `
-    -CopilotAvailable ([bool]$reviewPolicy.copilot_fallback -and $copilotReviews -lt [int]$reviewPolicy.max_copilot_reviews_per_pr) `
-    -ClaudeAvailable $false
+    -CopilotAvailable ([bool]$reviewPolicy.copilot_fallback -and $copilotReviews -lt [int]$reviewPolicy.max_copilot_reviews_per_pr)
 }
-
-if (-not (Test-IndependentReview -Implementer $Implementer -ReviewerProvider $Provider)) { throw "Reviewer '$Provider' is not independent from implementer '$Implementer'." }
+if (-not (Test-IndependentReview -Implementer $implementer -ReviewerProvider $Provider)) { throw "Reviewer '$Provider' is not independent from attested implementer '$implementer'." }
 
 switch ($Provider) {
   'codex' {
     if ($codexReviews -ge [int]$reviewPolicy.max_codex_reviews_per_pr -or $codexRequests -ge [int]$reviewPolicy.max_codex_reviews_per_pr) { throw "Codex review budget exhausted for PR #$Pr." }
     & gh pr comment $Pr --repo $Repo --body '@codex review' | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Could not request Codex review for $Repo PR #$Pr." }
-    Write-Host "REVIEW REQUESTED: Codex GitHub ($($codexRequests + 1)/$($reviewPolicy.max_codex_reviews_per_pr)); implementer=$Implementer." -ForegroundColor Green
+    Write-Host "REVIEW REQUESTED: Codex ($($codexRequests + 1)/$($reviewPolicy.max_codex_reviews_per_pr)); attested implementer=$implementer." -ForegroundColor Green
   }
   'copilot' {
     if ($copilotReviews -ge [int]$reviewPolicy.max_copilot_reviews_per_pr) { throw "Copilot review budget exhausted for PR #$Pr." }
-    # @copilot is GitHub's documented reviewer alias; the submitted review is authored by copilot-pull-request-reviewer[bot].
     & gh pr edit $Pr --repo $Repo --add-reviewer '@copilot' | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Could not request Copilot review for $Repo PR #$Pr." }
-    Write-Host "REVIEW REQUESTED: Copilot fallback ($($copilotReviews + 1)/$($reviewPolicy.max_copilot_reviews_per_pr)); implementer=$Implementer; review-on-push remains disabled." -ForegroundColor Yellow
+    Write-Host "REVIEW REQUESTED: Copilot fallback ($($copilotReviews + 1)/$($reviewPolicy.max_copilot_reviews_per_pr)); attested implementer=$implementer." -ForegroundColor Yellow
   }
 }
