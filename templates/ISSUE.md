@@ -14,6 +14,7 @@ R0 / R1 / R2 / R3 / R4
 
 ## Spec / Slices
 Spec needed: Yes / No
+Properties (if a SPEC exists): PROP-NNN, ...
 
 - [ ] SL-001:
 
