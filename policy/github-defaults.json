@@ -5,6 +5,7 @@
   "required_status_context": "PR Gate",
   "strict_required_status_checks_policy": false,
   "required_approving_review_count": 0,
+  "require_code_owner_review": true,
   "required_review_thread_resolution": true,
   "merge_method": "squash",
   "allow_auto_merge": true,
