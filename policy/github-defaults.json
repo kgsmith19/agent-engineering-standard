@@ -1,0 +1,37 @@
+{
+  "owner": "kgsmith19",
+  "project_title": "Agentic Portfolio",
+  "ruleset_name": "Lean PR Gate",
+  "required_status_context": "PR Gate",
+  "strict_required_status_checks_policy": false,
+  "required_approving_review_count": 0,
+  "require_code_owner_review": true,
+  "required_review_thread_resolution": true,
+  "merge_method": "squash",
+  "allow_auto_merge": true,
+  "auto_merge_max_risk": "R2",
+  "control_plane_requires_fresh_external_review": true,
+  "delete_branch_on_merge": true,
+  "allow_merge_commit": false,
+  "allow_rebase_merge": false,
+  "allow_squash_merge": true,
+  "merge_queue": {
+    "desired": true,
+    "grouping_strategy": "HEADGREEN",
+    "check_response_timeout_minutes": 10,
+    "max_entries_to_build": 3,
+    "min_entries_to_merge": 1,
+    "max_entries_to_merge": 5,
+    "min_entries_to_merge_wait_minutes": 1
+  },
+  "repositories": [
+    "agent-engineering-standard",
+    "agentic-command-center",
+    "agentic-command-center-ui",
+    "prompt-organizer",
+    "toolbelt",
+    "lifeos",
+    "lifeos-ui",
+    "network-checker"
+  ]
+}

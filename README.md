@@ -1,20 +1,10 @@
 # Lean Agent Engineering Standard
 
-This repo is the shared engineering standard for agent-driven software projects.
+This repo is the authoritative shared engineering standard for Kyle's agent-driven software projects.
 
 ## Goal
 
-Maximize:
-
-**accepted useful outcomes per human active minute and total cost**
-
-while protecting:
-
-- correctness
-- security
-- reliability
-- recoverability
-- maintainability
+Maximize **accepted useful outcomes per human active minute and total cost** while protecting correctness, security, reliability, recoverability, and maintainability.
 
 ## Lifecycle
 
@@ -22,27 +12,22 @@ Idea
 → Shape / Research
 → Outcome / Bet
 → Product Truth
-→ Issue
+→ GitHub Issue
 → Spec if needed
 → Thin Slice
 → Evidence
 → Risk / Authority
 → RED → Minimum GREEN
 → Verification
-→ PR / CI
+→ PR / PR Gate
+→ Auto-merge / merge queue when supported
 → Release / Runtime Proof
 → Observe / Learn
 → next idea or slice
 
 ## Governing rule
 
-Every artifact, rule, and gate must do at least one:
-
-1. Reduce meaningful uncertainty.
-2. Prevent a known or high-consequence failure.
-3. Provide independent evidence.
-
-Otherwise remove it.
+Every artifact, rule, gate, and CI run must reduce meaningful uncertainty, prevent a real/high-consequence failure, or provide useful independent evidence. Otherwise remove it.
 
 ## Shared standards
 
@@ -53,28 +38,57 @@ Otherwise remove it.
 - [Delivery & GitHub](DELIVERY_GITHUB.md)
 - [Evidence & Learning](EVIDENCE_LEARNING.md)
 
+`AGENTS.md` is the operating map for agents working on this control-plane repo.
+
+## Automation today
+
+```powershell
+# Configure active repos: Issues, Actions, labels, merge settings, branch rules.
+pwsh -File scripts/apply-github-standard.ps1
+
+# Create/sync the optional cross-repo Project view. Issues remain truth.
+pwsh -File scripts/sync-agentic-project.ps1
+
+# Verify local + remote control-plane state; exits nonzero on drift.
+pwsh -File scripts/doctor.ps1 -Remote
+
+# Bootstrap a brand-new GitHub repo with an immediately safe bootstrap gate.
+pwsh -File scripts/bootstrap-repo.ps1 -Name my-app
+
+# Fan a newly approved standards commit out as reviewable pin-bump PRs.
+pwsh -File scripts/upgrade-repos.ps1
+
+# Fresh independent semantic review of the current branch.
+pwsh -File scripts/codex-review.ps1
+
+# Enable auto-merge only for an eligible R0-R2 PR.
+pwsh -File scripts/auto-merge.ps1 -Repo kgsmith19/my-app -Pr 12 -Risk R2
+```
+
+`policy/github-defaults.json` is the machine-readable portfolio policy.
+
+## GitHub default
+
+Managed repos use GitHub Issues for durable work, one stable GitHub-Actions-produced required `PR Gate`, draft PRs while agents iterate, squash merge, risk-aware auto-merge, merged-branch cleanup, protected `main`, resolved review threads, and merge queues when GitHub supports them.
+
+The optional cross-repo GitHub Project is a portfolio view only; it is never a competing task database.
+
+R3/R4 and control-plane changes require fresh independent semantic review after the final substantive push. They do not use the automatic R0-R2 merge helper.
+
 ## Repo-specific truth
 
-Each product repo owns only what is specific to that product:
+Each product repo owns only what is specific to that product: PRD, active specs, important ADRs, source code, tests, commands, and deployment details. Do not copy the universal standard into every repo.
 
-- PRD
-- active specs
-- important ADRs
-- source code
-- tests
-- commands
-- deployment details
+## ACC target
 
-Do not copy large amounts of universal guidance into each repo.
+ACC should eventually wrap these proven scripts as:
 
-## Bootstrap target
+```text
+acc repo init <name>
+acc standard upgrade
+acc doctor
+acc review
+acc merge
+```
 
-A new project should become compliant with one command:
-
-`acc repo init <name>`
-
-A health check should be available as:
-
-`acc doctor`
-
-The resulting repository must remain understandable and usable from a clean clone without hidden local dependencies.
+Until then, the PowerShell scripts are the executable reference implementation.
