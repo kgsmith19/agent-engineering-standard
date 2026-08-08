@@ -41,5 +41,5 @@ function Get-StaleLegacyRequiredCheckContexts {
 function Test-GitHubBranchProtectionAbsent {
   param([AllowEmptyString()][string]$ErrorText)
 
-  return $ErrorText -match '(?i)(\b404\b|branch not protected)'
+  return ($ErrorText -match '(?i)branch not protected') -and ($ErrorText -match '\b404\b')
 }
