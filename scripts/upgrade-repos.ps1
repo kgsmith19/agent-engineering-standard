@@ -4,6 +4,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib/standard-lock.ps1')
+
 foreach ($cmd in @('gh','git')) {
   if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) { throw "$cmd is required." }
 }
@@ -20,6 +22,7 @@ if ($StandardSha -notmatch '^[0-9a-fA-F]{40}$') { throw 'StandardSha must be a f
 $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $owner = $config.owner
 $short = $StandardSha.Substring(0,8)
+$pinnedAt = Get-Date -Format yyyy-MM-dd
 
 foreach ($name in $config.repositories) {
   if ($name -eq 'agent-engineering-standard') { continue }
@@ -43,17 +46,13 @@ foreach ($name in $config.repositories) {
         @"
 standard: $owner/agent-engineering-standard
 commit: $StandardSha
-pinned_at: "$(Get-Date -Format yyyy-MM-dd)"
+pinned_at: "$pinnedAt"
 pinned_by: upgrade-repos.ps1
 "@ | Set-Content $lock -Encoding utf8
       }
       else {
         $text = Get-Content $lock -Raw
-        if ($text -notmatch '(?m)^commit:\s*[0-9a-fA-F]{40}\s*$') {
-          throw 'Unrecognized standard.lock format; refusing to guess.'
-        }
-        $text = [regex]::Replace($text, '(?m)^commit:\s*[0-9a-fA-F]{40}\s*$', "commit: $StandardSha")
-        $text = [regex]::Replace($text, '(?m)^pinned_at:.*$', "pinned_at: `"$(Get-Date -Format yyyy-MM-dd)`"")
+        $text = Update-StandardLockText -Text $text -StandardSha $StandardSha -PinnedAt $pinnedAt
         Set-Content $lock $text -Encoding utf8
       }
 
