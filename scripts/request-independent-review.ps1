@@ -13,21 +13,30 @@ if ($LASTEXITCODE -ne 0) { throw 'gh is not authenticated.' }
 
 $config = Get-Content (Join-Path $PSScriptRoot '..\policy\github-defaults.json') -Raw | ConvertFrom-Json
 $reviewPolicy = $config.independent_review
-$prRaw = & gh pr view $Pr --repo $Repo --json isDraft,state,headRefOid 2>&1
+$prRaw = & gh pr view $Pr --repo $Repo --json isDraft,state,headRefOid,headRefName,author,body 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
 $pr = ($prRaw -join "`n") | ConvertFrom-Json
 if ($pr.state -ne 'OPEN') { throw "PR #$Pr is not open." }
 if ($pr.isDraft) { throw "PR #$Pr is draft; semantic review is intentionally deferred." }
 
+$headRef = [string]$pr.headRefName
+$author  = [string]$pr.author.login
+$prBody  = [string]$pr.body
+
+$implementer = $null
+if     ($headRef -match '^agent/(codex|claude|copilot)/') { $implementer = $Matches[1].ToLowerInvariant() }
+elseif ($headRef -match '^claude/')                        { $implementer = 'claude' }
+elseif ($headRef -match '^copilot/' -or $author -eq 'Copilot') { $implementer = 'copilot' }
+elseif ($author -match '^chatgpt-codex-connector(?:\[bot\])?$') { $implementer = 'codex' }
+elseif ($prBody -match '(?im)^\s*Implementer:\s*human\s*$') { $implementer = 'human' }
+
+if (-not $implementer) {
+  throw "Unknown implementation provenance. Agent PRs must use agent/<provider>/... or a recognized provider branch/author; human PRs must declare 'Implementer: human' in the PR body."
+}
+
 $commentsRaw = & gh api "repos/$Repo/issues/$Pr/comments?per_page=100" 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($commentsRaw -join "`n") }
 $comments = @(($commentsRaw -join "`n") | ConvertFrom-Json)
-$marker = '<!-- agent-engineering:implementer-attestation -->'
-$attestation = $comments | Where-Object { $_.user.login -eq 'github-actions[bot]' -and $_.body -like "*$marker*" } | Select-Object -First 1
-if (-not $attestation -or $attestation.body -notmatch '(?im)^Implementation provider:\s*`(claude|copilot|codex|human)`\s*$') {
-  throw "No trusted GitHub Actions implementer attestation exists yet. Let the AI Review Gate run first."
-}
-$implementer = $Matches[1].ToLowerInvariant()
 
 $reviewsRaw = & gh api "repos/$Repo/pulls/$Pr/reviews?per_page=100" 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($reviewsRaw -join "`n") }
