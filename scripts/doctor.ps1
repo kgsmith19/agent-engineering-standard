@@ -71,6 +71,25 @@ foreach ($name in $config.repositories) {
     if (-not $actions.enabled) { $problems.Add("Actions disabled") }
   }
 
+  $codeownersRaw = & gh api -H "Accept: application/vnd.github.raw+json" "repos/$repo/contents/.github/CODEOWNERS?ref=$($meta.default_branch)" 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    $problems.Add("CODEOWNERS missing on default branch")
+  }
+  else {
+    $codeowners = $codeownersRaw -join "`n"
+    $ownerToken = "@$($config.owner)"
+    $requiredOwnedPaths = if ($name -eq 'agent-engineering-standard') {
+      @('/.github/workflows/', '/policy/', '/scripts/', '/AGENTS.md')
+    }
+    else {
+      @('/.github/workflows/', '/.agent/', '/AGENTS.md')
+    }
+    foreach ($ownedPath in $requiredOwnedPaths) {
+      $pattern = '(?m)^' + [regex]::Escape($ownedPath) + '\s+' + [regex]::Escape($ownerToken) + '\s*$'
+      if ($codeowners -notmatch $pattern) { $problems.Add("CODEOWNERS missing ${ownedPath} -> ${ownerToken}") }
+    }
+  }
+
   $rulesetsRaw = & gh api "repos/$repo/rulesets" 2>&1
   if ($LASTEXITCODE -ne 0) { $problems.Add("cannot read rulesets") }
   else {
