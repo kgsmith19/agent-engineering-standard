@@ -13,29 +13,27 @@
   "auto_merge_max_risk": "R3",
   "control_plane_requires_fresh_external_review": true,
   "independent_review": {
-    "required_for_auto_merge": true,
-    "primary_provider": "codex-github",
-    "codex_local_model": "gpt-5.4-mini",
-    "max_codex_reviews_per_pr": 2,
+    "preferred_provider": "codex",
+    "local_codex_model": "gpt-5.4-mini",
+    "max_codex_reviews_per_pr": 1,
     "copilot_fallback": true,
-    "max_copilot_reviews_per_pr": 1,
-    "copilot_review_on_push": false,
-    "copilot_review_drafts": false,
     "copilot_effort": "low",
-    "claude_fallback": "fresh-session-different-model-or-context",
-    "recognized_github_reviewers": [
-      "chatgpt-codex-connector[bot]",
-      "copilot-pull-request-reviewer[bot]"
-    ]
+    "copilot_review_drafts": false,
+    "copilot_review_on_push": false,
+    "max_copilot_reviews_per_pr": 1,
+    "same_provider_counts_as_independent": false
   },
-  "manual_gate": {
-    "default_risk": "R4",
-    "required_fields": [
-      "failure_class_prevented",
-      "why_automation_is_insufficient",
-      "decision_owner",
-      "gate_removal_condition"
-    ]
+  "manual_gates": {
+    "control_plane": {
+      "required": true,
+      "reason": "A control-plane PR can modify the evaluator or authority that judges its own merge.",
+      "removal_condition": "Move the governing evaluator and merge authority to an immutable external or organization-required workflow that the PR cannot modify."
+    },
+    "R4": {
+      "required": true,
+      "reason": "The decision authorizes destructive, financial, privileged, or irreversible consequence; review quality alone cannot grant that authority.",
+      "removal_condition": "Replace the irreversible action with a bounded reversible mechanism whose blast radius and rollback are mechanically enforced and reclassify the operation below R4."
+    }
   },
   "org_hardening": {
     "require_code_owner_review": true,
