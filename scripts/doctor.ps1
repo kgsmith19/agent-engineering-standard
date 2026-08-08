@@ -6,6 +6,25 @@ param(
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
+function Test-CodeownersTail {
+  param(
+    [Parameter(Mandatory)][string]$Content,
+    [Parameter(Mandatory)][string[]]$ExpectedTail
+  )
+
+  $rules = @(
+    $Content -split "`r?`n" |
+      ForEach-Object { $_.Trim() } |
+      Where-Object { $_ -and -not $_.StartsWith('#') }
+  )
+  if ($rules.Count -lt $ExpectedTail.Count) { return $false }
+  $start = $rules.Count - $ExpectedTail.Count
+  for ($i = 0; $i -lt $ExpectedTail.Count; $i++) {
+    if ($rules[$start + $i] -ne $ExpectedTail[$i]) { return $false }
+  }
+  return $true
+}
+
 $required = @(
   "README.md", "LIFECYCLE.md", "AGENT_RULES.md", "QUALITY_RULES.md",
   "SECURITY_RISK_AUTONOMY.md", "DELIVERY_GITHUB.md", "EVIDENCE_LEARNING.md",
@@ -27,6 +46,34 @@ if ($config.required_approving_review_count -ne 0) { throw "Default approval cou
 if (-not $config.require_code_owner_review) { throw "Control-plane CODEOWNERS review must remain enabled." }
 if ($config.auto_merge_max_risk -ne 'R2') { throw "auto_merge_max_risk must remain R2 unless the risk model is explicitly redesigned." }
 if (-not $config.control_plane_requires_fresh_external_review) { throw "Control-plane changes must require fresh external review." }
+
+$ownerToken = "@$($config.owner)"
+$appCodeownersTail = @(
+  "/.github/workflows/ $ownerToken",
+  "/.github/CODEOWNERS $ownerToken",
+  "/.agent/ $ownerToken",
+  "/AGENTS.md $ownerToken"
+)
+$standardCodeownersTail = @(
+  "/.github/workflows/ $ownerToken",
+  "/.github/CODEOWNERS $ownerToken",
+  "/policy/ $ownerToken",
+  "/scripts/ $ownerToken",
+  "/AGENTS.md $ownerToken",
+  "/AGENT_RULES.md $ownerToken",
+  "/QUALITY_RULES.md $ownerToken",
+  "/SECURITY_RISK_AUTONOMY.md $ownerToken",
+  "/DELIVERY_GITHUB.md $ownerToken"
+)
+
+$localStandardCodeowners = Get-Content (Join-Path $root '.github/CODEOWNERS') -Raw
+if (-not (Test-CodeownersTail -Content $localStandardCodeowners -ExpectedTail $standardCodeownersTail)) {
+  throw "Local .github/CODEOWNERS does not end with the canonical standards control-plane ownership rules."
+}
+$localTemplateCodeowners = Get-Content (Join-Path $root 'templates/CODEOWNERS') -Raw
+if (-not (Test-CodeownersTail -Content $localTemplateCodeowners -ExpectedTail $appCodeownersTail)) {
+  throw "templates/CODEOWNERS does not end with the canonical app control-plane ownership rules."
+}
 
 $psScripts = @(
   "scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1",
@@ -77,16 +124,9 @@ foreach ($name in $config.repositories) {
   }
   else {
     $codeowners = $codeownersRaw -join "`n"
-    $ownerToken = "@$($config.owner)"
-    $requiredOwnedPaths = if ($name -eq 'agent-engineering-standard') {
-      @('/.github/workflows/', '/policy/', '/scripts/', '/AGENTS.md')
-    }
-    else {
-      @('/.github/workflows/', '/.agent/', '/AGENTS.md')
-    }
-    foreach ($ownedPath in $requiredOwnedPaths) {
-      $pattern = '(?m)^' + [regex]::Escape($ownedPath) + '\s+' + [regex]::Escape($ownerToken) + '\s*$'
-      if ($codeowners -notmatch $pattern) { $problems.Add("CODEOWNERS missing ${ownedPath} -> ${ownerToken}") }
+    $expectedTail = if ($name -eq 'agent-engineering-standard') { $standardCodeownersTail } else { $appCodeownersTail }
+    if (-not (Test-CodeownersTail -Content $codeowners -ExpectedTail $expectedTail)) {
+      $problems.Add("CODEOWNERS effective tail does not match canonical protected ownership")
     }
   }
 
