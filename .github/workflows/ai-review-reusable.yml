@@ -22,7 +22,6 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $repo = $env:GITHUB_REPOSITORY
           $prNumber = [int]$env:PR_NUMBER
-          $marker = '<!-- agent-engineering:implementer-attestation -->'
 
           function Invoke-GhJson {
             param([string]$Method, [string]$Endpoint, $Body)
@@ -32,8 +31,7 @@ jobs:
               $raw = & gh api --method $Method $Endpoint --input $tmp 2>&1
               if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
               if ($raw) { return (($raw -join "`n") | ConvertFrom-Json) }
-            }
-            finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
+            } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
           }
 
           function Get-ProviderFromReviewer([string]$Login) {
@@ -49,17 +47,13 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
             $runs = (($raw -join "`n") | ConvertFrom-Json).check_runs
             $existing = @($runs | Where-Object { $_.name -eq 'AI Review' -and $_.app.slug -eq 'github-actions' } | Sort-Object id | Select-Object -Last 1)
-            $body = @{
-              status = 'completed'
-              conclusion = $Conclusion
-              output = @{ title = 'AI Review'; summary = $Summary }
-            }
+            $checkBody = @{ status = 'completed'; conclusion = $Conclusion; output = @{ title = 'AI Review'; summary = $Summary } }
             if ($existing.Count -gt 0) {
-              Invoke-GhJson -Method PATCH -Endpoint "repos/$repo/check-runs/$($existing[0].id)" -Body $body | Out-Null
+              Invoke-GhJson -Method PATCH -Endpoint "repos/$repo/check-runs/$($existing[0].id)" -Body $checkBody | Out-Null
             } else {
-              $body.name = 'AI Review'
-              $body.head_sha = $HeadSha
-              Invoke-GhJson -Method POST -Endpoint "repos/$repo/check-runs" -Body $body | Out-Null
+              $checkBody.name = 'AI Review'
+              $checkBody.head_sha = $HeadSha
+              Invoke-GhJson -Method POST -Endpoint "repos/$repo/check-runs" -Body $checkBody | Out-Null
             }
           }
 
@@ -69,39 +63,24 @@ jobs:
           $headSha = [string]$pr.head.sha
           $headRef = [string]$pr.head.ref
           $author = [string]$pr.user.login
-          $body = [string]$pr.body
+          $prBody = [string]$pr.body
 
           if ($pr.draft) {
-            Set-AiReviewCheck -HeadSha $headSha -Conclusion failure -Summary 'Draft PR: semantic review is intentionally deferred.'
+            Set-AiReviewCheck $headSha failure 'Draft PR: semantic review is intentionally deferred.'
             exit 0
           }
 
-          $commentsRaw = & gh api "repos/$repo/issues/$prNumber/comments?per_page=100" 2>&1
-          if ($LASTEXITCODE -ne 0) { throw ($commentsRaw -join "`n") }
-          $comments = @(($commentsRaw -join "`n") | ConvertFrom-Json)
-          $attestation = $comments | Where-Object { $_.user.login -eq 'github-actions[bot]' -and $_.body -like "*$marker*" } | Select-Object -First 1
-
+          # LLM identity is accepted only from controlled branch namespaces or recognized bot authors.
+          # Editable PR prose may identify a human implementation, but cannot self-attest an LLM provider.
           $implementer = $null
-          if ($attestation -and $attestation.body -match '(?im)^Implementation provider:\s*`(claude|copilot|codex|human)`\s*$') {
-            $implementer = $Matches[1].ToLowerInvariant()
-          }
+          if ($headRef -match '^agent/(codex|claude|copilot)/') { $implementer = $Matches[1].ToLowerInvariant() }
+          elseif ($headRef -match '^claude/') { $implementer = 'claude' }
+          elseif ($headRef -match '^copilot/' -or $author -eq 'Copilot') { $implementer = 'copilot' }
+          elseif ($author -match '^chatgpt-codex-connector(?:\[bot\])?$') { $implementer = 'codex' }
+          elseif ($prBody -match '(?im)^\s*Implementer:\s*human\s*$') { $implementer = 'human' }
 
           if (-not $implementer) {
-            if ($headRef -match '^agent/(codex|claude|copilot)/') { $implementer = $Matches[1].ToLowerInvariant() }
-            elseif ($headRef -match '^claude/') { $implementer = 'claude' }
-            elseif ($headRef -match '^copilot/' -or $author -eq 'Copilot') { $implementer = 'copilot' }
-            elseif ($author -match '^chatgpt-codex-connector(?:\[bot\])?$') { $implementer = 'codex' }
-            elseif ($body -match '(?im)^\s*Implementer:\s*human\s*$') { $implementer = 'human' }
-
-            if ($implementer) {
-              $attestationBody = "$marker`nImplementation provider: ``$implementer```nAttested by GitHub Actions for branch ``$headRef``. This provider is immutable for this PR; start a new PR if implementation ownership changes."
-              $post = @{ body = $attestationBody }
-              Invoke-GhJson -Method POST -Endpoint "repos/$repo/issues/$prNumber/comments" -Body $post | Out-Null
-            }
-          }
-
-          if (-not $implementer) {
-            Set-AiReviewCheck -HeadSha $headSha -Conclusion failure -Summary 'Implementation provenance is not trusted. Agent-created PRs must use agent/<provider>/... (or recognized provider branch/author); human PRs must declare Implementer: human.'
+            Set-AiReviewCheck $headSha failure 'Unknown implementation provenance. Agent PRs must use agent/<provider>/... or a recognized provider branch/author; human PRs must declare Implementer: human.'
             exit 0
           }
 
@@ -114,14 +93,14 @@ jobs:
           } | Sort-Object submitted_at)
 
           if ($current.Count -eq 0) {
-            Set-AiReviewCheck -HeadSha $headSha -Conclusion failure -Summary "No current-head independent AI review exists for $headSha (implementer: $implementer)."
+            Set-AiReviewCheck $headSha failure "No current-head independent AI review exists for $headSha (implementer: $implementer)."
             exit 0
           }
 
           $latest = $current[-1]
           if ($latest.state -eq 'CHANGES_REQUESTED') {
-            Set-AiReviewCheck -HeadSha $headSha -Conclusion failure -Summary "Latest current-head independent review by $($latest.user.login) requests changes."
+            Set-AiReviewCheck $headSha failure "Latest current-head independent review by $($latest.user.login) requests changes."
             exit 0
           }
 
-          Set-AiReviewCheck -HeadSha $headSha -Conclusion success -Summary "Current head $headSha has an independent review by $($latest.user.login); implementer attestation: $implementer. Review-thread resolution remains separately required by the branch ruleset."
+          Set-AiReviewCheck $headSha success "Current head $headSha has an independent review by $($latest.user.login); implementer: $implementer. Review-thread resolution is separately required by the branch ruleset."
