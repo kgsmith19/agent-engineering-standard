@@ -19,7 +19,10 @@ $required = @(
   "scripts/apply-github-standard.ps1",
   "scripts/sync-agentic-project.ps1",
   "scripts/codex-review.ps1",
+  "scripts/bootstrap-repo.ps1",
+  "scripts/upgrade-repos.ps1",
   ".github/workflows/ci.yml",
+  "templates/AGENTS.md",
   "templates/PRD.md",
   "templates/SPEC.md",
   "templates/ADR.md",
@@ -36,7 +39,15 @@ $config = Get-Content (Join-Path $root "policy/github-defaults.json") -Raw | Con
 if ($config.required_status_context -ne "PR Gate") { throw "required_status_context must be 'PR Gate'" }
 if ($config.required_approving_review_count -ne 0) { throw "Default approval count must remain 0; R3/R4 review is risk-driven, not universal." }
 
-foreach ($relative in @("scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1", "scripts/codex-review.ps1", "scripts/doctor.ps1")) {
+$psScripts = @(
+  "scripts/apply-github-standard.ps1",
+  "scripts/sync-agentic-project.ps1",
+  "scripts/codex-review.ps1",
+  "scripts/bootstrap-repo.ps1",
+  "scripts/upgrade-repos.ps1",
+  "scripts/doctor.ps1"
+)
+foreach ($relative in $psScripts) {
   $tokens = $null
   $errors = $null
   [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root $relative), [ref]$tokens, [ref]$errors) | Out-Null
