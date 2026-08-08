@@ -33,7 +33,7 @@ $required = @(
   "scripts/setup-portfolio.ps1", "scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1",
   "scripts/codex-review.ps1", "scripts/auto-merge.ps1",
   "scripts/bootstrap-repo.ps1", "scripts/upgrade-repos.ps1", "scripts/lib/legacy-protection.ps1",
-  "tests/legacy-protection.tests.ps1",
+  "scripts/lib/standard-lock.ps1", "tests/legacy-protection.tests.ps1", "tests/standard-lock.tests.ps1",
   ".github/workflows/ci.yml", "templates/AGENTS.md", "templates/CODEOWNERS", "templates/PR_GATE.yml",
   "templates/PRD.md", "templates/SPEC.md", "templates/ADR.md",
   "templates/ISSUE.md", "templates/PULL_REQUEST.md"
@@ -47,6 +47,10 @@ if ($config.required_status_context -ne "PR Gate") { throw "required_status_cont
 if ($config.required_approving_review_count -ne 0) { throw "Default approval count must remain 0; review is risk-driven." }
 if ($config.require_code_owner_review) { throw "Personal-account default must not require Code Owner approval; the PR author cannot approve their own PR." }
 if (-not $config.org_hardening -or -not [bool]$config.org_hardening.require_code_owner_review) { throw "Organization hardening must retain Code Owner review." }
+if (-not [bool]$config.allow_auto_merge) { throw "allow_auto_merge must remain true for the safe R0-R2 lane." }
+if (-not [bool]$config.allow_update_branch) { throw "allow_update_branch must remain true so stale safe PRs can be updated before merge." }
+if ([bool]$config.allow_merge_commit -or [bool]$config.allow_rebase_merge -or -not [bool]$config.allow_squash_merge) { throw "Repository merge policy must remain squash-only." }
+if ($config.merge_method -ne 'squash') { throw "merge_method must remain squash." }
 if ($config.auto_merge_max_risk -ne 'R2') { throw "auto_merge_max_risk must remain R2 unless the risk model is explicitly redesigned." }
 if (-not $config.control_plane_requires_fresh_external_review) { throw "Control-plane changes must require fresh external review." }
 
@@ -82,7 +86,8 @@ $psScripts = @(
   "scripts/setup-portfolio.ps1", "scripts/apply-github-standard.ps1", "scripts/sync-agentic-project.ps1",
   "scripts/codex-review.ps1", "scripts/auto-merge.ps1",
   "scripts/bootstrap-repo.ps1", "scripts/upgrade-repos.ps1", "scripts/doctor.ps1",
-  "scripts/lib/legacy-protection.ps1", "tests/legacy-protection.tests.ps1"
+  "scripts/lib/legacy-protection.ps1", "scripts/lib/standard-lock.ps1",
+  "tests/legacy-protection.tests.ps1", "tests/standard-lock.tests.ps1"
 )
 foreach ($relative in $psScripts) {
   $tokens = $null
@@ -115,6 +120,7 @@ foreach ($name in $config.repositories) {
 
   if (-not $meta.has_issues) { $problems.Add("Issues disabled") }
   if (-not $meta.allow_auto_merge) { $problems.Add("auto-merge off") }
+  if (-not $meta.allow_update_branch) { $problems.Add("update-branch off") }
   if (-not $meta.delete_branch_on_merge) { $problems.Add("delete-branch off") }
   if (-not $meta.allow_squash_merge) { $problems.Add("squash off") }
   if ($meta.allow_merge_commit) { $problems.Add("merge commits enabled") }
@@ -164,7 +170,8 @@ foreach ($name in $config.repositories) {
           if ([int]$prRule.parameters.required_approving_review_count -ne [int]$config.required_approving_review_count) { $problems.Add("approval-count drift") }
           if ([bool]$prRule.parameters.require_code_owner_review -ne $expectedCodeOwnerReview) { $problems.Add("CODEOWNERS review policy drift") }
           if (-not $prRule.parameters.required_review_thread_resolution) { $problems.Add("review-thread resolution not required") }
-          if (@($prRule.parameters.allowed_merge_methods) -notcontains 'squash') { $problems.Add("squash not allowed by PR rule") }
+          $allowedMethods = @($prRule.parameters.allowed_merge_methods)
+          if ($allowedMethods.Count -ne 1 -or $allowedMethods[0] -ne 'squash') { $problems.Add("ruleset merge methods not squash-only") }
         }
 
         $statusRule = $detail.rules | Where-Object { $_.type -eq 'required_status_checks' } | Select-Object -First 1
