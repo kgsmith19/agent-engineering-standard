@@ -21,6 +21,7 @@ if ($pr.state -ne 'open') { throw "PR #$Pr is not open." }
 if ($pr.draft) { throw "PR #$Pr is draft. Keep implementation churn in draft; request semantic review only when ready." }
 
 $headRef = [string]$pr.head.ref
+$headSha = [string]$pr.head.sha
 $author = [string]$pr.user.login
 $prBody = [string]$pr.body
 $implementer = $null
@@ -36,7 +37,7 @@ if ($LASTEXITCODE -ne 0) { throw ($reviewsRaw -join "`n") }
 $reviews = @(($reviewsRaw -join "`n") | ConvertFrom-Json)
 $currentIndependent = @($reviews | Where-Object {
   $reviewerProvider = Get-ReviewProviderFromLogin -Login $_.user.login
-  $_.commit_id -eq $pr.head.sha -and $_.state -notin @('DISMISSED','PENDING') -and $reviewerProvider -and (Test-IndependentReview -Implementer $implementer -ReviewerProvider $reviewerProvider)
+  $_.commit_id -eq $headSha -and $_.state -notin @('DISMISSED','PENDING') -and $reviewerProvider -and (Test-IndependentReview -Implementer $implementer -ReviewerProvider $reviewerProvider)
 })
 if ($currentIndependent.Count -gt 0) {
   Write-Host "CURRENT-HEAD INDEPENDENT REVIEW ALREADY EXISTS: $($currentIndependent[-1].user.login)" -ForegroundColor Green
@@ -48,29 +49,33 @@ if ($LASTEXITCODE -ne 0) { throw ($commentsRaw -join "`n") }
 $comments = @(($commentsRaw -join "`n") | ConvertFrom-Json)
 $codexReviews = @($reviews | Where-Object { (Get-ReviewProviderFromLogin -Login $_.user.login) -eq 'codex' }).Count
 $copilotReviews = @($reviews | Where-Object { (Get-ReviewProviderFromLogin -Login $_.user.login) -eq 'copilot' }).Count
-$codexRequests = @($comments | Where-Object { $_.body -match '(?i)^\s*@codex\s+review\b' }).Count
-$copilotRequests = @($comments | Where-Object { $_.body -match '(?i)^\s*@copilot\b.*\breview\b' }).Count
+$codexMarker = "<!-- ai-review-request:codex:$headSha -->"
+$copilotMarker = "<!-- ai-review-request:copilot:$headSha -->"
+$codexOutstanding = @($comments | Where-Object { $_.body -like "*$codexMarker*" }).Count -gt 0
+$copilotOutstanding = @($comments | Where-Object { $_.body -like "*$copilotMarker*" }).Count -gt 0
 
 if ($Provider -eq 'auto') {
   $Provider = Get-PreferredIndependentReviewer `
     -Implementer $implementer `
-    -CodexAvailable (($codexReviews -lt [int]$reviewPolicy.max_codex_reviews_per_pr) -and ($codexRequests -lt [int]$reviewPolicy.max_codex_reviews_per_pr)) `
-    -CopilotAvailable ([bool]$reviewPolicy.copilot_fallback -and $copilotReviews -lt [int]$reviewPolicy.max_copilot_reviews_per_pr -and $copilotRequests -lt [int]$reviewPolicy.max_copilot_reviews_per_pr)
+    -CodexAvailable ($codexReviews -lt [int]$reviewPolicy.max_codex_reviews_per_pr -and -not $codexOutstanding) `
+    -CopilotAvailable ([bool]$reviewPolicy.copilot_fallback -and $copilotReviews -lt [int]$reviewPolicy.max_copilot_reviews_per_pr -and -not $copilotOutstanding)
 }
 if (-not (Test-IndependentReview -Implementer $implementer -ReviewerProvider $Provider)) { throw "Reviewer '$Provider' is not independent from implementer '$implementer'." }
 
 switch ($Provider) {
   'codex' {
-    if ($codexRequests -ge [int]$reviewPolicy.max_codex_reviews_per_pr) { throw "Codex review-request budget exhausted for PR #$Pr." }
-    & gh pr comment $Pr --repo $Repo --body '@codex review' | Out-Host
+    if ($codexReviews -ge [int]$reviewPolicy.max_codex_reviews_per_pr) { throw "Codex review-pass budget exhausted for PR #$Pr." }
+    if ($codexOutstanding) { throw "Codex review already requested for current head $headSha." }
+    & gh pr comment $Pr --repo $Repo --body "@codex review`n`n$codexMarker" | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Could not request Codex review for $Repo PR #$Pr." }
-    Write-Host "REVIEW REQUESTED: Codex ($($codexRequests + 1)/$($reviewPolicy.max_codex_reviews_per_pr)); implementer=$implementer." -ForegroundColor Green
+    Write-Host "REVIEW REQUESTED: Codex pass $($codexReviews + 1)/$($reviewPolicy.max_codex_reviews_per_pr); head=$headSha; implementer=$implementer." -ForegroundColor Green
   }
   'copilot' {
-    if ($copilotRequests -ge [int]$reviewPolicy.max_copilot_reviews_per_pr) { throw "Copilot fallback budget exhausted for PR #$Pr." }
-    $prompt = "@copilot Independently review the CURRENT PR head only. Do not modify files or push commits. Report only material P0-P2 findings. Start with AI-REVIEW PASS or AI-REVIEW FAIL and include the exact head SHA reviewed."
+    if ($copilotReviews -ge [int]$reviewPolicy.max_copilot_reviews_per_pr) { throw "Copilot fallback review-pass budget exhausted for PR #$Pr." }
+    if ($copilotOutstanding) { throw "Copilot fallback already requested for current head $headSha." }
+    $prompt = "@copilot Independently review the CURRENT PR head only. Do not modify files or push commits. Apply software/security, business/product ROI, systems/optimization, and strict leanness lenses. Report only material P0-P2 findings. Start with AI-REVIEW PASS or AI-REVIEW FAIL and include exact SHA $headSha.`n`n$copilotMarker"
     & gh pr comment $Pr --repo $Repo --body $prompt | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Could not request Copilot fallback review for $Repo PR #$Pr." }
-    Write-Host "REVIEW REQUESTED: Copilot coding-agent fallback ($($copilotRequests + 1)/$($reviewPolicy.max_copilot_reviews_per_pr)); implementer=$implementer." -ForegroundColor Yellow
+    Write-Host "REVIEW REQUESTED: Copilot fallback pass $($copilotReviews + 1)/$($reviewPolicy.max_copilot_reviews_per_pr); head=$headSha; implementer=$implementer." -ForegroundColor Yellow
   }
 }
