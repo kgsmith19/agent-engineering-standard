@@ -61,13 +61,14 @@ foreach ($name in $targets) {
   $settings = @{
     has_issues               = $true
     allow_auto_merge         = [bool]$config.allow_auto_merge
+    allow_update_branch      = [bool]$config.allow_update_branch
     delete_branch_on_merge   = [bool]$config.delete_branch_on_merge
     allow_merge_commit       = [bool]$config.allow_merge_commit
     allow_rebase_merge       = [bool]$config.allow_rebase_merge
     allow_squash_merge       = [bool]$config.allow_squash_merge
   }
   Invoke-GhJson -Method PATCH -Endpoint "repos/$repo" -Body $settings | Out-Null
-  Write-Host "repo settings: Issues/auto-merge/squash/delete-branch configured"
+  Write-Host "repo settings: Issues/auto-merge/update-branch/squash/delete-branch configured"
 
   $actionsSettings = @{ enabled = $true; allowed_actions = "all"; sha_pinning_required = $false }
   Invoke-GhJson -Method PUT -Endpoint "repos/$repo/actions/permissions" -Body $actionsSettings | Out-Null
