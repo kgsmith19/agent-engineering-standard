@@ -1,5 +1,6 @@
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot '..\scripts\lib\review-policy.ps1')
+$root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $root 'scripts/lib/review-policy.ps1')
 
 function Assert-Equal {
   param([string]$Name, $Actual, $Expected)
@@ -12,18 +13,12 @@ function Assert-Throws {
   throw "$Name failed: expected an exception."
 }
 
-Assert-Throws 'review routing requires an explicit implementer' {
-  Get-PreferredIndependentReviewer
-}
+Assert-Throws 'review routing requires an explicit implementer' { Get-PreferredIndependentReviewer }
 Assert-Equal 'Claude implementation routes to Codex' (Get-PreferredIndependentReviewer -Implementer claude) 'codex'
 Assert-Equal 'Copilot implementation routes to Codex' (Get-PreferredIndependentReviewer -Implementer copilot) 'codex'
 Assert-Equal 'Codex implementation routes to Copilot' (Get-PreferredIndependentReviewer -Implementer codex) 'copilot'
-Assert-Throws 'Codex without Copilot is blocked instead of pretending Claude is connected' {
-  Get-PreferredIndependentReviewer -Implementer codex -CopilotAvailable $false
-}
-Assert-Throws 'Codex cannot review Codex when it is the only provider' {
-  Get-PreferredIndependentReviewer -Implementer codex -CopilotAvailable $false -CodexAvailable $true
-}
+Assert-Throws 'Codex without Copilot is blocked instead of pretending Claude is connected' { Get-PreferredIndependentReviewer -Implementer codex -CopilotAvailable $false }
+Assert-Throws 'Codex cannot review Codex when it is the only provider' { Get-PreferredIndependentReviewer -Implementer codex -CopilotAvailable $false -CodexAvailable $true }
 
 Assert-Equal 'Codex bot login recognized' (Get-ReviewProviderFromLogin -Login 'chatgpt-codex-connector[bot]') 'codex'
 Assert-Equal 'Copilot bot login recognized' (Get-ReviewProviderFromLogin -Login 'copilot-pull-request-reviewer[bot]') 'copilot'
@@ -47,5 +42,9 @@ Assert-Throws 'manual gate missing removal condition is refused' {
     decision_owner = 'z'
   })
 }
+
+$bootstrap = Get-Content (Join-Path $root 'scripts/bootstrap-repo.ps1') -Raw
+if ($bootstrap -notmatch "templates/AI_REVIEW\.yml") { throw 'bootstrap-repo.ps1 must source templates/AI_REVIEW.yml.' }
+if ($bootstrap -notmatch "\.github/workflows/ai-review\.yml") { throw 'bootstrap-repo.ps1 must install .github/workflows/ai-review.yml before applying the ruleset.' }
 
 Write-Host 'review-policy tests: PASS' -ForegroundColor Green
