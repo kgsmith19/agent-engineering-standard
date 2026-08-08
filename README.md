@@ -43,16 +43,16 @@ Every artifact, rule, gate, and CI run must reduce meaningful uncertainty, preve
 ## Automation today
 
 ```powershell
-# Configure active repos: Actions, squash/auto-merge, default-branch rules.
+# Configure active repos: Issues, Actions, labels, merge settings, branch rules.
 pwsh -File scripts/apply-github-standard.ps1
 
 # Create/sync the optional cross-repo Project view. Issues remain truth.
 pwsh -File scripts/sync-agentic-project.ps1
 
-# Verify local + remote control-plane state.
+# Verify local + remote control-plane state; exits nonzero on drift.
 pwsh -File scripts/doctor.ps1 -Remote
 
-# Bootstrap a brand-new GitHub repo with the universal baseline.
+# Bootstrap a brand-new GitHub repo with an immediately safe bootstrap gate.
 pwsh -File scripts/bootstrap-repo.ps1 -Name my-app
 
 # Fan a newly approved standards commit out as reviewable pin-bump PRs.
@@ -60,15 +60,20 @@ pwsh -File scripts/upgrade-repos.ps1
 
 # Fresh independent semantic review of the current branch.
 pwsh -File scripts/codex-review.ps1
+
+# Enable auto-merge only for an eligible R0-R2 PR.
+pwsh -File scripts/auto-merge.ps1 -Repo kgsmith19/my-app -Pr 12 -Risk R2
 ```
 
 `policy/github-defaults.json` is the machine-readable portfolio policy.
 
 ## GitHub default
 
-Managed repos use GitHub Issues for durable work, one stable required `PR Gate`, draft PRs while agents iterate, squash + auto-merge, merged-branch cleanup, protected `main`, and merge queues when GitHub supports them.
+Managed repos use GitHub Issues for durable work, one stable GitHub-Actions-produced required `PR Gate`, draft PRs while agents iterate, squash merge, risk-aware auto-merge, merged-branch cleanup, protected `main`, resolved review threads, and merge queues when GitHub supports them.
 
 The optional cross-repo GitHub Project is a portfolio view only; it is never a competing task database.
+
+R3/R4 and control-plane changes require fresh independent semantic review after the final substantive push. They do not use the automatic R0-R2 merge helper.
 
 ## Repo-specific truth
 
@@ -83,6 +88,7 @@ acc repo init <name>
 acc standard upgrade
 acc doctor
 acc review
+acc merge
 ```
 
 Until then, the PowerShell scripts are the executable reference implementation.
