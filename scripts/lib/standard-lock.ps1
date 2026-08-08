@@ -1,3 +1,20 @@
+function Get-StandardLockRevisionMatch {
+  param([Parameter(Mandatory)][string]$Content)
+
+  $revisionPattern = '(?m)^(?<prefix>[ \t]*(?:sha|commit|standard_commit):[ \t]*)(?<value>[0-9a-fA-F]{40})(?<suffix>[ \t]*(?:#.*)?)$'
+  $revisionMatches = [regex]::Matches($Content, $revisionPattern)
+  if ($revisionMatches.Count -ne 1) {
+    throw "standard.lock must contain exactly one sha, commit, or standard_commit field; found $($revisionMatches.Count)."
+  }
+  return $revisionMatches[0]
+}
+
+function Get-StandardLockRevision {
+  param([Parameter(Mandatory)][string]$Content)
+
+  return (Get-StandardLockRevisionMatch -Content $Content).Groups['value'].Value
+}
+
 function Update-StandardLockContent {
   param(
     [Parameter(Mandatory)][string]$Content,
@@ -12,13 +29,7 @@ function Update-StandardLockContent {
     throw 'PinnedAt must use YYYY-MM-DD.'
   }
 
-  $revisionPattern = '(?m)^(?<prefix>[ \t]*(?:sha|commit|standard_commit):[ \t]*)(?<value>[0-9a-fA-F]{40})(?<suffix>[ \t]*(?:#.*)?)$'
-  $revisionMatches = [regex]::Matches($Content, $revisionPattern)
-  if ($revisionMatches.Count -ne 1) {
-    throw "standard.lock must contain exactly one sha, commit, or standard_commit field; found $($revisionMatches.Count)."
-  }
-
-  $revision = $revisionMatches[0]
+  $revision = Get-StandardLockRevisionMatch -Content $Content
   $revisionReplacement = $revision.Groups['prefix'].Value + $StandardSha + $revision.Groups['suffix'].Value
   $updated = $Content.Substring(0, $revision.Index) + $revisionReplacement + $Content.Substring($revision.Index + $revision.Length)
 
