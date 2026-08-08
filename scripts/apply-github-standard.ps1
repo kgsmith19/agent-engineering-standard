@@ -51,6 +51,11 @@ foreach ($name in $targets) {
   $metaRaw = & gh api "repos/$repo" 2>&1
   if ($LASTEXITCODE -ne 0) { Write-Warning "Cannot read $repo; skipping. $($metaRaw -join ' ')"; continue }
   $meta = ($metaRaw -join "`n") | ConvertFrom-Json
+  $isOrgOwned = $meta.owner.type -eq 'Organization'
+  $requireCodeOwnerReview = [bool]$config.require_code_owner_review
+  if ($isOrgOwned -and $config.org_hardening -and [bool]$config.org_hardening.require_code_owner_review) {
+    $requireCodeOwnerReview = $true
+  }
 
   $settings = @{
     has_issues               = $true
@@ -81,7 +86,7 @@ foreach ($name in $targets) {
       parameters = @{
         allowed_merge_methods             = @("squash")
         dismiss_stale_reviews_on_push     = $false
-        require_code_owner_review         = [bool]$config.require_code_owner_review
+        require_code_owner_review         = $requireCodeOwnerReview
         require_last_push_approval        = $false
         required_approving_review_count   = [int]$config.required_approving_review_count
         required_review_thread_resolution = [bool]$config.required_review_thread_resolution
@@ -100,7 +105,7 @@ foreach ($name in $targets) {
   )
 
   $queueWanted = [bool]$config.merge_queue.desired
-  $queueEligibleOwner = $meta.owner.type -eq "Organization"
+  $queueEligibleOwner = $isOrgOwned
   if ($queueWanted -and $queueEligibleOwner) {
     $rules += @{
       type = "merge_queue"
@@ -138,6 +143,8 @@ foreach ($name in $targets) {
       Invoke-GhJson -Method POST -Endpoint "repos/$repo/rulesets" -Body $payload | Out-Null
       Write-Host "ruleset: created $($config.ruleset_name)"
     }
+    if ($requireCodeOwnerReview) { Write-Host "CODEOWNERS approval: enforced" }
+    else { Write-Host "CODEOWNERS approval: advisory (solo personal-account safe)" }
     if ($queueWanted -and $queueEligibleOwner) { Write-Host "merge queue: requested" }
     elseif ($queueWanted) { Write-Host "merge queue: queue-ready only; GitHub does not support merge queues on user-owned repos" -ForegroundColor Yellow }
   }
@@ -153,4 +160,4 @@ foreach ($name in $targets) {
   }
 }
 
-Write-Host "`nDone. Re-run after moving eligible repos into a supported GitHub organization to add merge queues automatically." -ForegroundColor Green
+Write-Host "`nDone. Re-run after moving eligible repos into a supported GitHub organization to add merge queues and stronger review enforcement automatically." -ForegroundColor Green
