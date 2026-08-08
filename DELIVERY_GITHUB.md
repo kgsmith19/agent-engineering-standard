@@ -14,22 +14,24 @@ Prefer:
 
 Do not make PRs artificially large to save CI minutes. Save minutes by verifying slices locally, pushing less often, canceling superseded runs, caching, and reserving expensive assurance for changes that justify it.
 
-Name ordinary short-lived branches `<type>/<issue-number>-<short-description>`. Controlled local agent runs may use `agent/<provider>/<issue-or-work>` so GitHub Actions can attest implementation provenance without trusting editable PR prose.
+Name ordinary short-lived branches `<type>/<issue-number>-<short-description>`. Controlled agent runs use `agent/<provider>/<issue-or-work>` so review independence can be derived mechanically rather than trusted from editable PR prose.
 
 ## 2. Required integration gates
 
 Every managed repository exposes two stable required contexts on the latest PR head:
 
 - **`PR Gate`** — cheapest sufficient deterministic build/test/security evidence.
-- **`AI Review`** — current-head semantic review from a provider independent of the attested implementer.
+- **`AI Review`** — exact-head provider-specific semantic evidence required by implementation provenance.
 
 Both contexts are bound to the GitHub Actions App. A later push creates a new SHA, so an `AI Review` success from an earlier head cannot satisfy the latest commit.
 
-Draft pushes should not spend semantic-review budget. Keep active work draft, request review when coherent, and allow at most the bounded re-review budget after substantive fixes.
+Known provider routing is deliberately cheap: ChatGPT/Codex implementations require Copilot; Claude/Copilot implementations require Codex. Ordinary/user-authored branches are ambiguous for reviewer independence and require both connected providers before unattended merge.
+
+Draft pushes should not spend semantic-review budget. Keep active work draft, request review when coherent, and allow only the bounded response-pass budget after substantive fixes.
 
 `PR Gate` should normally finish in about 10 minutes or less and may contain repo-specific build/type/lint, unit/property/regression, changed-file/architecture, critical integration/contract/acceptance, and lightweight security/dependency evidence. Do not require every available test category on every change.
 
-`AI Review` uses GitHub-Actions-attested implementation provenance plus recognized review providers. Unknown provenance fails closed. Review-thread resolution remains separately required so material inline findings cannot be ignored.
+`AI Review` derives agent provenance from controlled provider branch/author metadata. It never trusts editable PR prose to self-attest an LLM provider. Review-thread resolution remains separately required so material inline findings cannot be ignored.
 
 For today's single-developer, user-owned repositories, CODEOWNERS is advisory and human approval count is 0. Required Code Owner review would deadlock a solo personal-repo workflow. Organization-owned repos may harden CODEOWNERS through the shared policy.
 
@@ -44,13 +46,14 @@ Run them through risk/path triggers, explicit escalation, main/release validatio
 ## 4. Actions and model efficiency
 
 - Keep PRs draft during active iteration.
-- Cancel superseded deterministic runs.
+- Cancel superseded deterministic and `AI Review` evaluator runs per PR.
 - Prefer one setup/install per required lane when parallel jobs mostly duplicate setup cost.
 - Cache dependencies when useful/safe.
 - Avoid redundant push+PR execution.
 - Run deterministic checks before semantic LLM review.
 - Prefer one batched semantic review over several specialist calls.
-- Codex is the primary reviewer lane; Copilot is bounded fallback, not an every-push tax.
+- Codex is the cheap default where it is cross-provider; Copilot is used when it is the required cross-provider reviewer, not as an every-push tax.
+- Review budgets count actual semantic responses; exact-head request markers prevent duplicate triggers.
 - Remove/demote checks or model calls that rarely change a decision.
 
 Optimize for **fast trustworthy feedback per human minute, compute-minute, and model cost**.
@@ -90,8 +93,8 @@ For higher-risk releases, build once, identify the immutable artifact/commit, pr
 
 - `scripts/apply-github-standard.ps1` applies repository settings, labels, Actions, and default-branch rules.
 - `.github/workflows/ai-review-reusable.yml` is the shared exact-head semantic-review evaluator; product repos use the thin caller template.
-- `scripts/request-independent-review.ps1` routes bounded review requests from GitHub-Actions-attested implementation provenance.
+- `scripts/request-independent-review.ps1` routes the next missing required provider within the configured response budget.
 - `scripts/auto-merge.ps1` validates the live integration plane and then arms GitHub auto-merge; it does not substitute its own call-time semantic judgment for the required `AI Review` context.
-- `scripts/doctor.ps1 -Remote` verifies effective remote policy and exits nonzero on drift.
+- `scripts/doctor.ps1 -Remote` verifies effective remote policy, including that the AI Review workflow itself is active, and exits nonzero on drift.
 
-Prefer centrally maintained policy and stable check names; keep stack-specific deterministic commands inside each product repo.
+Prefer centrally maintained policy and stable check naming; keep stack-specific deterministic commands inside each product repo.
