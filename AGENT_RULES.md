@@ -40,10 +40,53 @@ Before retrying, classify the failure as specification/oracle, implementation, e
 
 Do not repeat the same failing strategy indefinitely. Escalate consequential ambiguity rather than forcing a result.
 
-## 6. PR and merge behavior
+## 6. Independent review and merge
 
 Keep a PR draft while implementation is still changing. Run the repo's local/fast verification during slices, then mark the coherent PR ready so the independent `PR Gate` runs.
 
-- R0–R2: once the PR is ready and policy permits, enable auto-merge; required checks/review threads still decide when it actually merges.
-- R3/R4 or control-plane changes: request a fresh independent semantic review after the final substantive push. Do not enable auto-merge until that review has no unresolved material finding.
-- An agent that implemented a control-plane change must never treat its own review as independent.
+Every auto-merged PR needs a current-head independent AI review. Independence means the reviewer provider did not implement the PR.
+
+Default routing:
+
+- Claude implementation → Codex GitHub review
+- Copilot implementation → Codex GitHub review
+- Codex implementation → one Copilot review; use a fresh Claude session/model/context only if Copilot is unavailable
+- human/unknown implementation → Codex by default
+
+Cost rules:
+
+- deterministic checks run before LLM review
+- Codex is primary; local deep review defaults to `gpt-5.4-mini`
+- at most 2 Codex reviews per PR
+- Copilot is fallback-only, low effort, at most 1 review per PR
+- do not enable Copilot review-on-push or draft review by default
+- do not repeatedly pay for a reviewer because implementation was pushed in noisy micro-commits; keep active work draft and request review after the final substantive push
+
+R0–R3 may auto-merge only after the current head has an independent AI review, required `PR Gate` is live/enforced, and review threads are resolved. Control-plane changes are at least R3; they are not forced through a human approval merely because they are important.
+
+R4 never auto-merges. The manual gate is authorization for destructive/financial/privileged/irreversible consequence, not a substitute for technical review.
+
+## 7. Manual gates must earn their existence
+
+Never add or preserve a manual gate merely because work is "important", "sensitive", or traditionally reviewed by a person.
+
+Every manual gate must state all four:
+
+1. **failure class prevented** — the concrete bad outcome
+2. **why automation is insufficient today** — the missing signal/capability, not a vague trust claim
+3. **decision owner** — who has the authority the machine lacks
+4. **gate removal condition** — the measurable condition that lets us automate/delete the gate
+
+If any field is missing, the gate is unjustified and should be removed or replaced with objective automation.
+
+Manual review is not automatically required for R3. Prefer independent AI review + deterministic controls. Use a manual gate only when a real authority/intent decision cannot yet be safely derived or bounded.
+
+## 8. Turn manual toil into system improvement
+
+When an agent or human performs a manual workaround, ask whether the same work could recur.
+
+- If the automation is small, safe, and in scope: automate it now.
+- Otherwise record one concise automation/research candidate with the observed problem, evidence/frequency, current human cost, research needed, smallest experiment, expected payoff, and deletion/expiry condition.
+- Do not create idea landfill. A candidate without evidence, plausible ROI, or a next experiment is discarded.
+
+Repeated manual work must not become normal merely because an agent can keep doing it.
