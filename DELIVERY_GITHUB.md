@@ -26,6 +26,8 @@ Do not require every available test category on every change.
 
 Bind the required `PR Gate` context to the GitHub Actions App integration, not only to a status name.
 
+CODEOWNERS must protect both the required workflow and the small repo-specific entrypoints that determine what it executes (for example test scripts/config, coverage-gate code, or locked acceptance evaluators). Do not CODEOWN all product tests merely to satisfy this rule; protect only the control-plane mechanisms whose weakening could make `PR Gate` falsely green.
+
 Use **loose** required status checks (`strict_required_status_checks_policy: false`) by default so a PR does not rebuild merely because `main` moved. A merge queue, when available, provides the final combined-head integration check.
 
 ## 3. Expensive assurance
