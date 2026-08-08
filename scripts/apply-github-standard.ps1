@@ -1,5 +1,6 @@
 param(
-  [string]$ConfigPath = (Join-Path $PSScriptRoot "..\policy\github-defaults.json")
+  [string]$ConfigPath = (Join-Path $PSScriptRoot "..\policy\github-defaults.json"),
+  [string[]]$Repositories
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,9 +33,10 @@ if ($LASTEXITCODE -ne 0) { throw "gh is not authenticated." }
 
 $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $owner = $config.owner
+$targets = if ($Repositories -and $Repositories.Count -gt 0) { $Repositories } else { @($config.repositories) }
 
-foreach ($name in $config.repositories) {
-  $repo = "$owner/$name"
+foreach ($name in $targets) {
+  $repo = if ($name -match "/") { $name } else { "$owner/$name" }
   Write-Host "`n=== $repo ===" -ForegroundColor Cyan
 
   $metaRaw = & gh api "repos/$repo" 2>&1
@@ -54,9 +56,6 @@ foreach ($name in $config.repositories) {
   Invoke-GhJson -Method PATCH -Endpoint "repos/$repo" -Body $settings | Out-Null
   Write-Host "repo settings: auto-merge/squash/delete-branch configured"
 
-  # Keep Actions available as the independent enforcement plane. Do not require
-  # global SHA pinning yet because several existing trusted workflows still use
-  # version tags; pin those incrementally rather than breaking CI portfolio-wide.
   $actionsSettings = @{
     enabled              = $true
     allowed_actions      = "all"
@@ -142,7 +141,7 @@ foreach ($name in $config.repositories) {
   }
   catch {
     if ($queueWanted -and $queueEligibleOwner) {
-      Write-Warning "Merge-queue ruleset application failed; retrying the same protection without merge_queue. Reason: $($_.Exception.Message)"
+      Write-Warning "Merge-queue ruleset application failed; retrying without merge_queue. Reason: $($_.Exception.Message)"
       $payload.rules = @($payload.rules | Where-Object { $_.type -ne "merge_queue" })
       if ($existing) {
         Invoke-GhJson -Method PUT -Endpoint "repos/$repo/rulesets/$($existing.id)" -Body $payload | Out-Null
@@ -150,10 +149,10 @@ foreach ($name in $config.repositories) {
       else {
         Invoke-GhJson -Method POST -Endpoint "repos/$repo/rulesets" -Body $payload | Out-Null
       }
-      Write-Host "ruleset: applied without queue; move/plan eligibility before retrying queue" -ForegroundColor Yellow
+      Write-Host "ruleset: applied without queue; retry after organization transfer/plan eligibility" -ForegroundColor Yellow
     }
     else { throw }
   }
 }
 
-Write-Host "`nDone. Re-run this script after moving repos into a supported GitHub organization to add merge queues automatically." -ForegroundColor Green
+Write-Host "`nDone. Re-run after moving repos into a supported GitHub organization to add merge queues automatically." -ForegroundColor Green
