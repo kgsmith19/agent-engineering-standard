@@ -26,6 +26,9 @@ jobs:
       - name: Test standard-lock upgrades
         shell: pwsh
         run: ./tests/standard-lock.tests.ps1
+      - name: Test independent review policy
+        shell: pwsh
+        run: ./tests/review-policy.tests.ps1
       - name: Validate standard
         shell: pwsh
         run: ./scripts/doctor.ps1
