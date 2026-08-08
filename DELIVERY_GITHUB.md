@@ -10,9 +10,11 @@ GitHub Issues are the durable work-item source. A PR is the smallest coherent in
 
 Prefer:
 
-`Issue → SPEC only if needed → thin local slices → coherent PR → PR Gate → auto-merge/queue → release`
+`Issue → SPEC only if needed → thin local slices → draft PR while iterating → ready PR → PR Gate → auto-merge/queue → release`
 
 Do not make PRs artificially large to save CI minutes. Save minutes by verifying slices locally, pushing less often, canceling superseded runs, caching, and reserving expensive assurance for the changes that justify it.
+
+Agents should keep a PR in **draft** while they are still iterating. The required paid `PR Gate` should run when the PR is ready for review, on the merge queue's combined head, and on `main` as appropriate. Draft pushes should not consume a full required CI run unless a repo has a demonstrated reason to need that feedback remotely.
 
 ## 2. Required PR Gate
 
@@ -26,7 +28,7 @@ Every managed repository exposes one stable required status context named **`PR 
 - critical integration/contract/acceptance tests
 - lightweight security/dependency checks
 
-Do not require every available test category on every PR.
+Do not require every available test category on every change.
 
 The default required-status policy is **loose** (`strict_required_status_checks_policy: false`): do not force a branch update and duplicate CI merely because `main` moved. A merge queue, when available, provides the final combined-head integration check instead.
 
@@ -49,7 +51,8 @@ A correctness-critical or security-critical check stays blocking even when expen
 
 ## 4. Actions efficiency
 
-- Cancel superseded PR runs with workflow concurrency.
+- Do not run the full required gate for draft-PR iteration by default.
+- Cancel superseded ready-PR runs with workflow concurrency.
 - Prefer one setup/install per required lane over duplicate jobs when parallelism does not materially shorten feedback.
 - Cache dependencies when it is safe and useful.
 - Avoid redundant push+PR execution for the same evidence where repo behavior permits it.
