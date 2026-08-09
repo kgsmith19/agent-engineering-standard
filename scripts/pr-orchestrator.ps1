@@ -50,7 +50,9 @@ function Get-Comments {
 
 function Add-CommentOnce {
   param([int]$Number,[string]$Marker,[string]$Body)
-  if (@(Get-Comments $Number | Where-Object { [string]$_.body -like "*$Marker*" }).Count -gt 0) { return }
+  if (@(Get-Comments $Number | Where-Object {
+    (Test-TrustedAutomationComment -Comment $_ -OwnerLogin ([string]$config.owner)) -and [string]$_.body -like "*$Marker*"
+  }).Count -gt 0) { return }
   & gh pr comment $Number --repo $Repo --body "$Body`n`n$Marker" | Out-Host
   if ($LASTEXITCODE -ne 0) { throw "Could not comment on $Repo PR #$Number." }
 }
