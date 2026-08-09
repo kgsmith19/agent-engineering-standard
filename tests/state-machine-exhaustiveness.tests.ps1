@@ -61,4 +61,22 @@ foreach ($path in @('templates/PR_AUTOMATION.yml','.github/workflows/pr-automati
 Assert-Contains 'gate rerun budget is one' 'policy/github-defaults.json' '"max_gate_rerun_attempts"\s*:\s*1'
 Assert-Equal 'gate-result router is control-plane code' (Test-ControlPlanePath 'scripts/gate-result-router.ps1') $true
 
+# Reviewer independence applies to every recognized machine actor in the current PR, not only the latest commit.
+$actorCases = @(
+  @(@(), '', 'codex,copilot'),
+  @(@('chatgpt-codex-connector[bot]'), '', 'copilot'),
+  @(@('Copilot'), '', 'codex'),
+  @(@('chatgpt-codex-connector[bot]','Copilot'), '', ''),
+  @(@('chatgpt-codex-connector[bot]','kgsmith19'), '', 'copilot'),
+  @(@('Copilot','kgsmith19'), '', 'codex')
+)
+foreach ($case in $actorCases) {
+  $actual = @(Get-AcceptedMachineReviewProvidersForActors -ActorLogins $case[0] -PrAuthorLogin $case[1]) -join ','
+  Assert-Equal "reviewer actor set $($case[0] -join '+')" $actual $case[2]
+}
+Assert-Contains 'evaluator paginates all PR commits for independence' 'scripts/evaluate-ai-review.ps1' 'pulls/\$Pr/commits\?per_page=100'
+Assert-Contains 'requester paginates all PR commits for independence' 'scripts/request-machine-review.ps1' 'pulls/\$Pr/commits\?per_page=100'
+Assert-Contains 'evaluator uses actor-set reviewer policy' 'scripts/evaluate-ai-review.ps1' 'Get-AcceptedMachineReviewProvidersForActors'
+Assert-Contains 'requester uses actor-set reviewer policy' 'scripts/request-machine-review.ps1' 'Get-AcceptedMachineReviewProvidersForActors'
+
 Write-Host 'state-machine exhaustiveness tests: PASS' -ForegroundColor Green
