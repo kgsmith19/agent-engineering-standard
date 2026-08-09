@@ -74,7 +74,7 @@ After `PR Gate` passes, automation requests one fresh machine review task/sessio
 - Copilot is the bounded fallback and the required reviewer for a PR authored by the Codex GitHub App.
 - Branch names and PR prose do not prove implementation identity.
 - One review covers correctness/security, requirement fit, business ROI, systems optimization, and strict leanness.
-- Any P0–P2 finding fails `AI Review` and triggers bounded repair on the same PR.
+- A P0/P1 finding fails `AI Review` and triggers bounded repair on the same PR; P2-only findings are advisory and become one deduplicated follow-up Issue instead of blocking.
 - A fix creates a new SHA; both gates repeat.
 - Never reviewer-shop around a material finding.
 
@@ -88,7 +88,7 @@ Routine auto-merge requires:
 - no self-modifying control-plane path
 - no requested reviewer `kgsmith19`
 - current-head `PR Gate` success
-- current-head `AI Review` success
+- current-head `AI Review` passing conclusion (`success`, or `neutral` while dispatch is disabled)
 - resolved review threads
 - live squash-only zero-human ruleset
 
