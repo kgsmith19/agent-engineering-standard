@@ -64,6 +64,15 @@
     "max_entries_to_merge": 5,
     "min_entries_to_merge_wait_minutes": 1
   },
+  "dependency_automation": {
+    "patch_minor_grouping": true,
+    "patch_minor_schedule": "weekly",
+    "major_auto_merge": false,
+    "max_prs_per_major_batch": 5,
+    "max_open_dep_prs_per_ecosystem": 3,
+    "classify_script": "scripts/classify-dep-upgrades.ps1",
+    "dependabot_template": "templates/dependabot.yml"
+  },
   "repositories": [
     "agent-engineering-standard",
     "agentic-command-center",

@@ -1,0 +1,74 @@
+# Dependabot configuration template — lean batching policy
+#
+# Patch and minor updates are grouped by ecosystem and scheduled weekly so that
+# routine maintenance arrives in one PR per ecosystem rather than many small ones.
+#
+# Major updates are NOT auto-grouped here.  Use scripts/classify-dep-upgrades.ps1
+# to identify compatible batches before opening a combined upgrade PR.
+#
+# Copy this file to .github/dependabot.yml and adjust the `package-ecosystem`
+# entries for the actual technology stack in each repository.
+
+version: 2
+
+updates:
+  # --- npm / Node.js (adjust `directory` if package.json is elsewhere) ---
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Chicago
+    open-pull-requests-limit: 3
+    groups:
+      npm-patch-minor:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Major upgrades require compatibility classification; do not auto-group.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  # --- GitHub Actions ---
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Chicago
+    open-pull-requests-limit: 2
+    groups:
+      actions-patch-minor:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: "chore(deps)"
+
+  # --- pip / Python (uncomment if repository uses Python) ---
+  # - package-ecosystem: pip
+  #   directory: /
+  #   schedule:
+  #     interval: weekly
+  #     day: monday
+  #     time: "06:00"
+  #     timezone: America/Chicago
+  #   open-pull-requests-limit: 2
+  #   groups:
+  #     pip-patch-minor:
+  #       applies-to: version-updates
+  #       update-types:
+  #         - minor
+  #         - patch
+  #   ignore:
+  #     - dependency-name: "*"
+  #       update-types: ["version-update:semver-major"]
+  #   commit-message:
+  #     prefix: "chore(deps)"

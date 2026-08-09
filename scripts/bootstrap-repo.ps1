@@ -40,6 +40,13 @@ New-Item -ItemType Directory -Force (Join-Path $target 'docs/adr') | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $target '.github/ISSUE_TEMPLATE') | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $target '.github/workflows') | Out-Null
 
+# Dependabot config: install only if the repository does not already have one
+# so that stack-specific customisations (e.g. Python enabled) are preserved.
+$dependabotDest = Join-Path $target '.github/dependabot.yml'
+if (-not (Test-Path $dependabotDest)) {
+    Copy-Item (Join-Path $standardRoot 'templates/dependabot.yml') $dependabotDest -Force
+}
+
 Copy-Item (Join-Path $standardRoot 'templates/AGENTS.md') (Join-Path $target 'AGENTS.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/PRD.md') (Join-Path $target 'PRD.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/ISSUE.md') (Join-Path $target '.github/ISSUE_TEMPLATE/work-item.md') -Force
