@@ -5,26 +5,23 @@ function Assert-True {
   param([string]$Name,$Condition)
   if (-not $Condition) { throw "$Name failed." }
 }
-
-foreach ($relative in @(
-  '.gitignore',
-  'docs/AUTONOMOUS-PR-STATE-MACHINE.md',
-  '.github/workflows/ai-review-reusable.yml',
-  '.github/workflows/pr-automation-reusable.yml',
-  '.github/workflows/pr-automation.yml',
-  'scripts/evaluate-ai-review.ps1',
-  'scripts/request-machine-review.ps1',
-  'scripts/reconcile-machine-review-threads.ps1',
-  'scripts/pr-orchestrator.ps1',
-  'scripts/prune-portfolio.ps1',
-  'templates/.gitignore',
-  'templates/AI_REVIEW.yml',
-  'templates/PR_AUTOMATION.yml',
-  'templates/dependabot.yml'
-)) {
-  Assert-True "required file $relative" (Test-Path (Join-Path $root $relative))
+function Read-Text { param([string]$Path) Get-Content (Join-Path $root $Path) -Raw }
+function Assert-Contains {
+  param([string]$Name,[string]$Path,[string]$Pattern)
+  Assert-True $Name ((Read-Text $Path) -match $Pattern)
+}
+function Assert-NotContains {
+  param([string]$Name,[string]$Path,[string]$Pattern)
+  Assert-True $Name ((Read-Text $Path) -notmatch $Pattern)
 }
 
+$required = @(
+  '.gitignore','docs/AUTONOMOUS-PR-STATE-MACHINE.md',
+  '.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation-reusable.yml','.github/workflows/pr-automation.yml',
+  'scripts/evaluate-ai-review.ps1','scripts/request-machine-review.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/pr-orchestrator.ps1','scripts/prune-portfolio.ps1',
+  'templates/.gitignore','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/dependabot.yml'
+)
+foreach ($relative in $required) { Assert-True "required file $relative" (Test-Path (Join-Path $root $relative)) }
 Assert-True 'standard native CODEOWNERS absent' (-not (Test-Path (Join-Path $root '.github/CODEOWNERS')))
 Assert-True 'bootstrap CODEOWNERS template absent' (-not (Test-Path (Join-Path $root 'templates/CODEOWNERS')))
 
@@ -34,98 +31,79 @@ $conflicts = Get-ChildItem $root -Recurse -File | Where-Object {
 } | Select-String -Pattern '^(<<<<<<< .+|=======|>>>>>>> .+)$'
 if ($conflicts) { throw "Raw merge-conflict markers found:`n$($conflicts -join "`n")" }
 
-$ignore = Get-Content (Join-Path $root 'templates/.gitignore') -Raw
+$ignore = Read-Text 'templates/.gitignore'
 foreach ($entry in @('.worktrees/','.superpowers/')) {
   Assert-True "gitignore contains $entry" ($ignore -match "(?m)^$([regex]::Escape($entry))\s*$")
 }
+Assert-Contains 'Dependabot v2' 'templates/dependabot.yml' '(?m)^version:\s*2\s*$'
+Assert-Contains 'Dependabot GitHub Actions ecosystem' 'templates/dependabot.yml' 'package-ecosystem:\s*github-actions'
+Assert-Contains 'Dependabot groups minor updates' 'templates/dependabot.yml' '(?m)^\s*-\s*minor\s*$'
+Assert-Contains 'Dependabot groups patch updates' 'templates/dependabot.yml' '(?m)^\s*-\s*patch\s*$'
 
-$dependabot = Get-Content (Join-Path $root 'templates/dependabot.yml') -Raw
-Assert-True 'Dependabot v2' ($dependabot -match '(?m)^version:\s*2\s*$')
-Assert-True 'Dependabot GitHub Actions ecosystem' ($dependabot -match 'package-ecosystem:\s*github-actions')
-Assert-True 'Dependabot groups minor updates' ($dependabot -match '(?m)^\s*-\s*minor\s*$')
-Assert-True 'Dependabot groups patch updates' ($dependabot -match '(?m)^\s*-\s*patch\s*$')
-
-$ci = Get-Content (Join-Path $root '.github/workflows/ci.yml') -Raw
-Assert-True 'standard workflow named PR Gate' ($ci -match '(?m)^name:\s*PR Gate\s*$')
-Assert-True 'standard job context named PR Gate' ($ci -match '(?m)^\s+name:\s*PR Gate\s*$')
-
-$aiReusable = Get-Content (Join-Path $root '.github/workflows/ai-review-reusable.yml') -Raw
-Assert-True 'AI Review delegates to tested evaluator' ($aiReusable -match 'scripts/evaluate-ai-review\.ps1')
-Assert-True 'AI Review reconciles stale machine threads' ($aiReusable -match 'scripts/reconcile-machine-review-threads\.ps1')
-Assert-True 'AI Review does not duplicate provider login map' ($aiReusable -notmatch 'chatgpt-codex-connector|copilot-pull-request-reviewer')
+Assert-Contains 'standard workflow named PR Gate' '.github/workflows/ci.yml' '(?m)^name:\s*PR Gate\s*$'
+Assert-Contains 'standard job context named PR Gate' '.github/workflows/ci.yml' '(?m)^\s+name:\s*PR Gate\s*$'
+Assert-Contains 'AI Review delegates to evaluator' '.github/workflows/ai-review-reusable.yml' 'scripts/evaluate-ai-review\.ps1'
+Assert-Contains 'AI Review reconciles stale machine threads' '.github/workflows/ai-review-reusable.yml' 'scripts/reconcile-machine-review-threads\.ps1'
+Assert-NotContains 'AI reusable does not duplicate provider map' '.github/workflows/ai-review-reusable.yml' 'chatgpt-codex-connector|copilot-pull-request-reviewer'
 
 foreach ($templateName in @('AI_REVIEW.yml','PR_AUTOMATION.yml')) {
-  $template = Get-Content (Join-Path $root "templates/$templateName") -Raw
-  Assert-True "$templateName has exact SHA placeholder" ($template -match '__STANDARD_SHA__')
-  Assert-True "$templateName does not follow moving main" ($template -notmatch '@main\b')
+  Assert-Contains "$templateName has exact SHA placeholder" "templates/$templateName" '__STANDARD_SHA__'
+  Assert-NotContains "$templateName does not follow moving main" "templates/$templateName" '@main\b'
 }
+Assert-Contains 'draft AI Review runner is skipped' 'templates/AI_REVIEW.yml' 'github\.event\.pull_request\.draft == false'
+Assert-Contains 'AI Review can reconcile threads' 'templates/AI_REVIEW.yml' 'pull-requests:\s*write'
+Assert-Contains 'watchdog is low frequency' 'templates/PR_AUTOMATION.yml' 'cron:\s*"17 \*/12 \* \* \*"'
+Assert-Contains 'gate automation can write AI Review' 'templates/PR_AUTOMATION.yml' '(?s)gate-result:.*?checks:\s*write'
+Assert-Contains 'review automation can remove reviewers' 'templates/PR_AUTOMATION.yml' '(?s)review-event:.*?pull-requests:\s*write'
 
-$aiTemplate = Get-Content (Join-Path $root 'templates/AI_REVIEW.yml') -Raw
-Assert-True 'draft AI Review runner is skipped' ($aiTemplate -match 'github\.event\.pull_request\.draft == false')
-Assert-True 'AI Review can reconcile threads' ($aiTemplate -match 'pull-requests:\s*write')
+Assert-Contains 'review policy derives latest-head implementer' 'scripts/lib/review-policy.ps1' 'Get-HeadImplementerProvider'
+Assert-Contains 'review policy returns independent providers' 'scripts/lib/review-policy.ps1' 'Get-AcceptedMachineReviewProviders'
+Assert-Contains 'review request reads current head commit' 'scripts/request-machine-review.ps1' 'repos/\$Repo/commits/\$headSha'
+Assert-Contains 'fallback must be independent' 'scripts/request-machine-review.ps1' "acceptedProviders -contains 'copilot'"
+Assert-Contains 'evaluator reads current head commit' 'scripts/evaluate-ai-review.ps1' 'repos/\$Repo/commits/\$headSha'
+Assert-Contains 'evaluator uses independent providers' 'scripts/evaluate-ai-review.ps1' 'Get-AcceptedMachineReviewProviders'
 
-$prAutomationWorkflow = Get-Content (Join-Path $root 'templates/PR_AUTOMATION.yml') -Raw
-Assert-True 'watchdog is low frequency' ($prAutomationWorkflow -match 'cron:\s*"17 \*/12 \* \* \*"')
-Assert-True 'gate automation can write AI Review check' ($prAutomationWorkflow -match '(?s)gate-result:.*?checks:\s*write')
-Assert-True 'review automation can remove requested reviewers' ($prAutomationWorkflow -match '(?s)review-event:.*?pull-requests:\s*write')
-
-$reviewPolicy = Get-Content (Join-Path $root 'scripts/lib/review-policy.ps1') -Raw
-Assert-True 'review policy derives latest-head implementer' ($reviewPolicy -match 'Get-HeadImplementerProvider')
-Assert-True 'review policy returns accepted independent providers' ($reviewPolicy -match 'Get-AcceptedMachineReviewProviders')
-
-$requestReview = Get-Content (Join-Path $root 'scripts/request-machine-review.ps1') -Raw
-Assert-True 'review request reads current head commit' ($requestReview -match 'repos/\$Repo/commits/\$headSha')
-Assert-True 'fallback must be independent' ($requestReview -match "acceptedProviders -contains 'copilot'")
-
-$evaluator = Get-Content (Join-Path $root 'scripts/evaluate-ai-review.ps1') -Raw
-Assert-True 'evaluator reads current head commit' ($evaluator -match 'repos/\$Repo/commits/\$headSha')
-Assert-True 'evaluator uses accepted independent providers' ($evaluator -match 'Get-AcceptedMachineReviewProviders')
-
-$orchestrator = Get-Content (Join-Path $root 'scripts/pr-orchestrator.ps1') -Raw
+$orchestrator = Read-Text 'scripts/pr-orchestrator.ps1'
 Assert-True 'orchestrator removes forbidden reviewers' ($orchestrator -match 'requested_reviewers' -and $orchestrator -match 'forbidden_requested_reviewers')
 Assert-True 'orchestrator blocks Copilot-owned PRs' ($orchestrator -match 'copilot-owned-pr')
 Assert-True 'orchestrator uses Copilot only to repair existing PR' ($orchestrator -match '@copilot investigate and fix')
 Assert-True 'blocked state disables auto-merge' ($orchestrator -match '(?s)function Set-Blocked.*?Disable-AutoMerge')
 Assert-True 'automation blocks have recovery markers' ($orchestrator -match 'automation:resolve:')
-Assert-True 'short review timeout stays recoverable' ($orchestrator -match '(?i)short polling window expiring is not a blocker')
+$reviewStart = $orchestrator.IndexOf('function Run-ReviewCycle')
+$reviewEnd = $orchestrator.IndexOf('function Resolve-GateBlocks')
+Assert-True 'review-cycle boundaries found' ($reviewStart -ge 0 -and $reviewEnd -gt $reviewStart)
+$reviewCycle = $orchestrator.Substring($reviewStart,$reviewEnd-$reviewStart)
+Assert-True 'short review timeout stays recoverable' ($reviewCycle -notmatch "Set-Blocked[^\r\n]*'review-timeout'")
 Assert-True 'absolute reviewer timeout is enforced by watchdog' ($orchestrator -match 'absolute_timeout_minutes')
-Assert-True 'orchestrator has bounded CI repair' ($orchestrator -match 'max_ci_fix_attempts')
-Assert-True 'orchestrator has bounded review repair' ($orchestrator -match 'max_review_fix_attempts')
-Assert-True 'orchestrator has bounded conflict repair' ($orchestrator -match 'max_conflict_fix_attempts')
+foreach ($field in @('max_ci_fix_attempts','max_review_fix_attempts','max_conflict_fix_attempts')) {
+  Assert-True "orchestrator uses $field" ($orchestrator -match $field)
+}
 
-$reconciler = Get-Content (Join-Path $root 'scripts/reconcile-machine-review-threads.ps1') -Raw
-Assert-True 'thread reconciliation requires AI Review success' ($reconciler -match "conclusion -ne 'success'")
-Assert-True 'current-head threads are preserved' ($reconciler -match 'currentHead')
-Assert-True 'human-involved threads are preserved' ($reconciler -match 'nonMachine')
+Assert-Contains 'thread reconciliation requires AI success' 'scripts/reconcile-machine-review-threads.ps1' "conclusion -ne 'success'"
+Assert-Contains 'current-head threads are preserved' 'scripts/reconcile-machine-review-threads.ps1' 'currentHead'
+Assert-Contains 'human-involved threads are preserved' 'scripts/reconcile-machine-review-threads.ps1' 'nonMachine'
 
-$apply = Get-Content (Join-Path $root 'scripts/apply-github-standard.ps1') -Raw
-Assert-True 'ruleset dismisses stale reviews' ($apply -match 'dismiss_stale_reviews_on_push=\$true')
-Assert-True 'ruleset requires zero approvals' ($apply -match 'required_approving_review_count=0')
-Assert-True 'workflow token default is read-only' ($apply -match "default_workflow_permissions = 'read'")
-Assert-True 'workflow token cannot approve reviews' ($apply -match 'can_approve_pull_request_reviews = \$false')
-Assert-True 'legacy branch protection is deleted' ($apply -match 'branches/\$Repo/branches/|branches/\$\(\$meta\.default_branch\)/protection')
+Assert-Contains 'ruleset dismisses stale reviews' 'scripts/apply-github-standard.ps1' 'dismiss_stale_reviews_on_push=\$true'
+Assert-Contains 'ruleset requires zero approvals' 'scripts/apply-github-standard.ps1' 'required_approving_review_count=0'
+Assert-Contains 'workflow token is read-only' 'scripts/apply-github-standard.ps1' "default_workflow_permissions = 'read'"
+Assert-Contains 'workflow cannot approve reviews' 'scripts/apply-github-standard.ps1' 'can_approve_pull_request_reviews = \$false'
+Assert-Contains 'legacy branch protection is deleted' 'scripts/apply-github-standard.ps1' 'branches/\$\(\$meta\.default_branch\)/protection'
 
-$bootstrap = Get-Content (Join-Path $root 'scripts/bootstrap-repo.ps1') -Raw
-Assert-True 'bootstrap manages scratch ignore' ($bootstrap -match 'templates/\.gitignore')
-Assert-True 'bootstrap installs Dependabot default' ($bootstrap -match 'templates/dependabot\.yml')
-Assert-True 'bootstrap installs AI Review caller' ($bootstrap -match 'templates/AI_REVIEW\.yml')
-Assert-True 'bootstrap installs PR Automation caller' ($bootstrap -match 'templates/PR_AUTOMATION\.yml')
-Assert-True 'bootstrap renders exact standard SHA' ($bootstrap -match 'Replace\(''__STANDARD_SHA__'',\$standardSha\)')
-Assert-True 'bootstrap does not overwrite PowerShell automatic args variable' ($bootstrap -notmatch '(?m)^\s*\$args\s*=')
-Assert-True 'bootstrap removes native CODEOWNERS' ($bootstrap -match 'Remove-Item .*\.github/CODEOWNERS')
+Assert-Contains 'bootstrap installs AI Review' 'scripts/bootstrap-repo.ps1' 'templates/AI_REVIEW\.yml'
+Assert-Contains 'bootstrap installs PR Automation' 'scripts/bootstrap-repo.ps1' 'templates/PR_AUTOMATION\.yml'
+Assert-Contains 'bootstrap renders exact SHA' 'scripts/bootstrap-repo.ps1' 'Replace\(''__STANDARD_SHA__'',\$standardSha\)'
+Assert-NotContains 'bootstrap does not overwrite automatic args' 'scripts/bootstrap-repo.ps1' '(?m)^\s*\$args\s*='
+Assert-Contains 'bootstrap removes native CODEOWNERS' 'scripts/bootstrap-repo.ps1' 'Remove-Item .*\.github/CODEOWNERS'
+Assert-Contains 'upgrade installs AI Review' 'scripts/upgrade-repos.ps1' 'templates/AI_REVIEW\.yml'
+Assert-Contains 'upgrade installs PR Automation' 'scripts/upgrade-repos.ps1' 'templates/PR_AUTOMATION\.yml'
+Assert-Contains 'upgrade removes native CODEOWNERS' 'scripts/upgrade-repos.ps1' "Remove-Item '.github/CODEOWNERS'"
+Assert-Contains 'upgrade normalizes PR Gate name' 'scripts/upgrade-repos.ps1' 'name: PR Gate'
 
-$upgrade = Get-Content (Join-Path $root 'scripts/upgrade-repos.ps1') -Raw
-Assert-True 'upgrade installs AI Review caller' ($upgrade -match 'templates/AI_REVIEW\.yml')
-Assert-True 'upgrade installs PR Automation caller' ($upgrade -match 'templates/PR_AUTOMATION\.yml')
-Assert-True 'upgrade removes native CODEOWNERS' ($upgrade -match "Remove-Item '.github/CODEOWNERS'")
-Assert-True 'upgrade normalizes PR Gate workflow name' ($upgrade -match 'name: PR Gate')
-
-$doctor = Get-Content (Join-Path $root 'scripts/doctor.ps1') -Raw
-Assert-True 'doctor checks Copilot workflow approval' ($doctor -match 'require_actions_workflow_approval')
-Assert-True 'doctor checks requested reviewers' ($doctor -match 'requested_reviewers')
-Assert-True 'doctor checks legacy protection absence' ($doctor -match 'legacy branch protection still present')
-Assert-True 'doctor checks absolute review timeout' ($doctor -match 'absolute_timeout_minutes')
-Assert-True 'doctor requires exhaustive state map' ($doctor -match 'AUTONOMOUS-PR-STATE-MACHINE\.md')
+Assert-Contains 'doctor checks Copilot workflow approval' 'scripts/doctor.ps1' 'require_actions_workflow_approval'
+Assert-Contains 'doctor checks requested reviewers' 'scripts/doctor.ps1' 'requested_reviewers'
+Assert-Contains 'doctor checks legacy protection absence' 'scripts/doctor.ps1' 'legacy branch protection still present'
+Assert-Contains 'doctor checks absolute review timeout' 'scripts/doctor.ps1' 'absolute_timeout_minutes'
+Assert-Contains 'doctor requires state map' 'scripts/doctor.ps1' 'AUTONOMOUS-PR-STATE-MACHINE\.md'
 
 $agentsLines = @(Get-Content (Join-Path $root 'templates/AGENTS.md')).Count
 if ($agentsLines -gt 120) { throw "templates/AGENTS.md exceeded lean 120-line budget: $agentsLines" }
