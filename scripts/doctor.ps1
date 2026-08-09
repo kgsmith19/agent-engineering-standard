@@ -68,7 +68,7 @@ if ($config.auto_merge_max_risk -ne 'R3') { throw 'auto_merge_max_risk must rema
 $review = $config.independent_review
 if (-not [bool]$review.required_for_auto_merge) { throw 'Independent AI review must be required before auto-merge.' }
 if ($review.preferred_provider -ne 'codex' -or $review.local_codex_model -ne 'gpt-5.4-mini') { throw 'Current low-cost default must remain Codex + gpt-5.4-mini unless evidence changes.' }
-if ([int]$review.max_codex_reviews_per_pr -ne 2 -or [int]$review.max_copilot_reviews_per_pr -ne 1) { throw 'Review budgets drifted.' }
+if ([int]$review.max_codex_reviews_per_pr -ne 3 -or [int]$review.max_copilot_reviews_per_pr -ne 3) { throw 'Review budgets drifted.' }
 if ([bool]$review.copilot_review_on_push -or [bool]$review.copilot_review_drafts) { throw 'Unbounded Copilot draft/push review must remain off.' }
 if ($review.copilot_effort -ne 'low' -or [bool]$review.same_provider_counts_as_independent) { throw 'Copilot/independence policy drifted.' }
 
