@@ -83,7 +83,7 @@ function Set-Blocked {
   Disable-AutoMerge $Number $PrData
   & gh pr edit $Number --repo $Repo --add-label $automation.blocked_label 2>&1 | Out-Null
   $head = [string]$PrData.headRefOid
-  $marker = "<!-- automation:block:$Code:$head -->"
+  $marker = "<!-- automation:block:${Code}:${head} -->"
   Add-CommentOnce $Number $marker "$ownerTag AUTOMATION-BLOCKED: $Reason`n`nYou are tagged for the decision, not assigned as a reviewer."
 }
 
@@ -92,7 +92,7 @@ function Resolve-Block {
   if (-not $PrData) { $PrData = Get-Pr $Number }
   if (@(Get-ActiveBlockCodes $Number) -notcontains $Code) { return }
   $head = [string]$PrData.headRefOid
-  Add-CommentOnce $Number "<!-- automation:resolve:$Code:$head -->" "AUTOMATION-RECOVERED: $Evidence"
+  Add-CommentOnce $Number "<!-- automation:resolve:${Code}:${head} -->" "AUTOMATION-RECOVERED: $Evidence"
   if (@(Get-ActiveBlockCodes $Number).Count -eq 0) {
     & gh pr edit $Number --repo $Repo --remove-label $automation.blocked_label 2>&1 | Out-Null
   }
@@ -160,14 +160,14 @@ function Request-Repair {
     conflict = [int]$automation.max_conflict_fix_attempts
   }
   $comments = @(Get-Comments $Number)
-  $attempts = @($comments | Where-Object { [string]$_.body -match "<!-- auto-fix:$Kind:" }).Count
+  $attempts = @($comments | Where-Object { [string]$_.body -match "<!-- auto-fix:${Kind}:" }).Count
   if ($attempts -ge $limits[$Kind]) {
     Set-Blocked $Number "$Kind-budget" "$Kind repair budget exhausted ($($limits[$Kind]) )." $PrData
     return
   }
 
   $head = [string]$PrData.headRefOid
-  $marker = "<!-- auto-fix:$Kind:$head:$($attempts + 1) -->"
+  $marker = "<!-- auto-fix:${Kind}:${head}:$($attempts + 1) -->"
   if ($Kind -eq 'conflict' -and [string]$PrData.author.login -eq 'dependabot[bot]') {
     Add-CommentOnce $Number $marker '@dependabot rebase'
     return
