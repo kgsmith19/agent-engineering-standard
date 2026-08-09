@@ -7,6 +7,14 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib/review-policy.ps1')
 
+function Get-Paged {
+  param([string]$Endpoint)
+  $raw = & gh api --paginate --slurp $Endpoint 2>&1
+  if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
+  $pages = ($raw -join "`n") | ConvertFrom-Json
+  foreach ($page in @($pages)) { foreach ($item in @($page)) { $item } }
+}
+
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
 $config = Get-Content (Join-Path $PSScriptRoot '..\policy\github-defaults.json') -Raw | ConvertFrom-Json
 
@@ -55,9 +63,7 @@ $actionsAppRaw = & gh api /apps/github-actions 2>&1
 if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve GitHub Actions App identity.' }
 $actionsAppId = [int]((($actionsAppRaw -join "`n") | ConvertFrom-Json).id)
 
-$rulesetsRaw = & gh api "repos/$Repo/rulesets" 2>&1
-if ($LASTEXITCODE -ne 0) { throw "Cannot inspect live rulesets for $Repo." }
-$rulesetSummaries = @(($rulesetsRaw -join "`n") | ConvertFrom-Json)
+$rulesetSummaries = @(Get-Paged "repos/$Repo/rulesets?per_page=100")
 $summary = ($rulesetSummaries | Where-Object { $_.name -eq $config.ruleset_name -and $_.target -eq 'branch' -and $_.enforcement -eq 'active' } | Select-Object -First 1)
 if (-not $summary) { throw "Live active branch ruleset '$($config.ruleset_name)' is missing." }
 
@@ -66,9 +72,8 @@ if (-not $summary) { throw "Live active branch ruleset '$($config.ruleset_name)'
 # default branch, because it may silently retain approvals/checks that the
 # canonical policy intentionally removed.
 $defaultBranchEncoded = [uri]::EscapeDataString([string]$meta.default_branch)
-$effectiveRulesRaw = & gh api "repos/$Repo/rules/branches/$defaultBranchEncoded" 2>&1
-if ($LASTEXITCODE -ne 0) { throw "Cannot verify effective default-branch rules for $Repo." }
-$conflictingIds = @((($effectiveRulesRaw -join "`n") | ConvertFrom-Json) |
+$effectiveRules = @(Get-Paged "repos/$Repo/rules/branches/${defaultBranchEncoded}?per_page=100")
+$conflictingIds = @($effectiveRules |
   ForEach-Object { [long]$_.ruleset_id } |
   Where-Object { $_ -gt 0 -and $_ -ne [long]$summary.id } |
   Select-Object -Unique)

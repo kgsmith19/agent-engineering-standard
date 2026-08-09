@@ -16,6 +16,14 @@ function Invoke-GhJson {
   } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
 }
 
+function Get-Paged {
+  param([string]$Endpoint)
+  $raw = & gh api --paginate --slurp $Endpoint 2>&1
+  if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
+  $pages = ($raw -join "`n") | ConvertFrom-Json
+  foreach ($page in @($pages)) { foreach ($item in @($page)) { $item } }
+}
+
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required. Install it, then run gh auth login.' }
 & gh auth status | Out-Host
 if ($LASTEXITCODE -ne 0) { throw 'gh is not authenticated.' }
@@ -106,26 +114,22 @@ foreach ($name in $targets) {
     rules=$rules
   }
 
-  $existingRaw = & gh api "repos/$repo/rulesets" 2>&1
-  if ($LASTEXITCODE -ne 0) { throw "Cannot inspect rulesets for $repo." }
-  $existing = ((($existingRaw -join "`n") | ConvertFrom-Json) | Where-Object { $_.name -eq $config.ruleset_name } | Select-Object -First 1)
+  $existingRulesets = @(Get-Paged "repos/$repo/rulesets?per_page=100")
+  $existing = ($existingRulesets | Where-Object { $_.name -eq $config.ruleset_name } | Select-Object -First 1)
   if ($existing) { Invoke-GhJson PUT "repos/$repo/rulesets/$($existing.id)" $payload | Out-Null }
   else { Invoke-GhJson POST "repos/$repo/rulesets" $payload | Out-Null }
 
   # Verify the rulesets actually effective on the default branch. Unrelated
   # release-branch rulesets are intentionally left alone.
-  $rulesetsAfterRaw = & gh api "repos/$repo/rulesets" 2>&1
-  if ($LASTEXITCODE -ne 0) { throw "Cannot verify rulesets for $repo." }
-  $rulesetsAfter = @(($rulesetsAfterRaw -join "`n") | ConvertFrom-Json)
+  $rulesetsAfter = @(Get-Paged "repos/$repo/rulesets?per_page=100")
   $canonicalAfter = @($rulesetsAfter | Where-Object {
     $_.name -eq $config.ruleset_name -and $_.target -eq 'branch' -and $_.enforcement -eq 'active'
   } | Select-Object -First 1)
   if ($canonicalAfter.Count -eq 0) { throw "Canonical active branch ruleset missing after setup for $repo." }
 
   $defaultBranchEncoded = [uri]::EscapeDataString([string]$meta.default_branch)
-  $effectiveRulesRaw = & gh api "repos/$repo/rules/branches/$defaultBranchEncoded" 2>&1
-  if ($LASTEXITCODE -ne 0) { throw "Cannot verify effective default-branch rules for kgsmith19/agent-engineering-standard: $($effectiveRulesRaw -join ' ')" }
-  $conflictingIds = @((($effectiveRulesRaw -join "`n") | ConvertFrom-Json) |
+  $effectiveRules = @(Get-Paged "repos/$repo/rules/branches/${defaultBranchEncoded}?per_page=100")
+  $conflictingIds = @($effectiveRules |
     ForEach-Object { [long]$_.ruleset_id } |
     Where-Object { $_ -gt 0 -and $_ -ne [long]$canonicalAfter[0].id } |
     Select-Object -Unique)
@@ -135,7 +139,7 @@ foreach ($name in $targets) {
       $match = $rulesetsAfter | Where-Object { [long]$_.id -eq $id } | Select-Object -First 1
       if ($match) { "$($match.name) (#$id)" } else { "ruleset #$id" }
     }) -join ', '
-    throw "kgsmith19/agent-engineering-standard: conflicting active default-branch ruleset(s): $conflicts. Disable or remove them, then rerun setup."
+    throw "${repo}: conflicting active default-branch ruleset(s): $conflicts. Disable or remove them, then rerun setup."
   }
 
   # The canonical ruleset is the single default-branch authority. Any legacy

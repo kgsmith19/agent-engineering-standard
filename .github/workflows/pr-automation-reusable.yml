@@ -38,7 +38,20 @@ jobs:
           repository: kgsmith19/agent-engineering-standard
           ref: ${{ inputs.standard_sha }}
           path: .standard
+      - name: Detect trusted orchestrator
+        id: trusted_standard
+        shell: bash
+        run: |
+          if [[ -f .standard/scripts/pr-orchestrator.ps1 ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Trusted orchestrator unavailable::The trusted standard SHA predates automation. This bootstrap control-plane PR remains on the documented external authority path."
+            echo "### Trusted orchestrator unavailable" >> "$GITHUB_STEP_SUMMARY"
+            echo "No proposed PR script was executed. Use the documented external authority path for this bootstrap control-plane PR." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Run bounded PR state machine
+        if: steps.trusted_standard.outputs.available == 'true'
         shell: pwsh
         run: |
           & pwsh -NoProfile -File .standard/scripts/pr-orchestrator.ps1 `

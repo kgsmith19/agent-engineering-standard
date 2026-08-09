@@ -19,6 +19,7 @@ This is the authoritative decision map for routine pull-request integration acro
 13. A material finding cannot be bypassed by reviewer-shopping on the same head.
 14. Temporary reviewer latency remains recoverable; pending review pauses auto-merge and the 12-hour safety timeout is checked by a 6-hour watchdog.
 15. Automation state/budget/request markers are authoritative only when posted by a trusted automation author.
+16. If a trusted base predates the evaluator/orchestrator during the one-time bootstrap, reusable workflows execute no proposed PR scripts and remain on the explicit external authority path.
 
 ## States
 
@@ -105,7 +106,7 @@ flowchart TD
 | Latest head human/unknown | no machine actor | Codex primary; Copilot fallback | review lane |
 | Clean formal review | exact commit ID, no P0-P2 | Set `AI Review` success | `MERGE_PENDING` |
 | Codex thumbs-up | reaction on trusted exact-head request | Set `AI Review` success | `MERGE_PENDING` |
-| Structured Copilot PASS | exact SHA in response | Set `AI Review` success | `MERGE_PENDING` |
+| Structured Copilot PASS | trusted exact-head request exists and response follows it | Set `AI Review` success | `MERGE_PENDING` |
 | P0-P2 finding | exact-head formal/inline review/comment | Set failure; one batched Copilot repair | `REVIEW_REPAIR` |
 | Same-head repair comment retriggers workflows | trusted repair marker for current SHA | Treat as pending; do not consume another repair attempt | `REVIEW_REPAIR` |
 | Primary reviewer stalls for fast window | trusted request timestamp | Request one independent fallback when available | `REVIEW_FALLBACK` |
@@ -122,6 +123,7 @@ flowchart TD
 | Conflict disappears after update | PR event | Resolve automation conflict block | normal lane resumes |
 | Auto-merge disabled by contributor push | PR event/live state | Revalidate and re-arm | `MERGE_PENDING` |
 | Base branch not default | auto-merge validator | Refuse auto-merge | blocked/correct target |
+| Additional active ruleset governs default branch | effective branch-rules audit in setup, doctor, and runtime arming | Refuse READY/auto-merge until authority is reconciled | blocked/configuration repair |
 | Multiple risk labels | risk parser | Fail closed | `BLOCKED` |
 | Risk labels corrected | PR event | Resolve risk block automatically | normal lane resumes |
 | No risk label | risk parser | Default R2 | routine lane |
@@ -129,6 +131,7 @@ flowchart TD
 | R4 | label | Tag Kyle with four authority fields; never assign reviewer | `AUTHORITY_REQUIRED` |
 | Product PR changes control files | path classifier | Treat as control plane | `AUTHORITY_REQUIRED` |
 | Any standard-repo PR | repository identity | Self-modifying control plane | `AUTHORITY_REQUIRED` |
+| Trusted base predates automation scripts | reusable checkout plus explicit file guard | Execute no proposed scripts; publish a clear bootstrap warning | `AUTHORITY_REQUIRED` |
 | Copilot-owned PR | PR author/branch | Disable auto-merge; require re-home | `BLOCKED` |
 | Copilot edits existing non-Copilot PR | latest commit actor | Full gates repeat; independent reviewer excludes Copilot | routine lane |
 | Dependabot patch/minor PR | dependency PR | Full gates; eligible if risk is appropriate | routine lane |

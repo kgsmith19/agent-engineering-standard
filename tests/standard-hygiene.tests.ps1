@@ -51,6 +51,8 @@ Assert-Contains 'review automation can remove reviewers' 'templates/PR_AUTOMATIO
 Assert-Contains 'PR target lane is contents read only' 'templates/PR_AUTOMATION.yml' '(?s)pr-event:.*?contents:\s*read.*?pull-requests:\s*write'
 Assert-Contains 'standard review_requested cleanup is immediate' '.github/workflows/pr-automation.yml' 'review_requested'
 Assert-Contains 'standard review orchestration uses trusted base code' '.github/workflows/pr-automation.yml' 'github\.event\.pull_request\.base\.sha'
+Assert-Contains 'AI Review handles missing trusted evaluator without proposed-code execution' '.github/workflows/ai-review-reusable.yml' 'Trusted evaluator unavailable'
+Assert-Contains 'PR Automation handles missing trusted orchestrator without proposed-code execution' '.github/workflows/pr-automation-reusable.yml' 'Trusted orchestrator unavailable'
 
 Assert-Contains 'review policy derives latest-head implementer' 'scripts/lib/review-policy.ps1' 'Get-HeadImplementerProvider'
 Assert-Contains 'automation markers require trusted authors' 'scripts/lib/review-policy.ps1' 'Test-TrustedAutomationComment'
@@ -102,6 +104,7 @@ Assert-Contains 'doctor checks effective default-branch rulesets' 'scripts/docto
 Assert-Contains 'doctor detects conflicting default-branch rulesets' 'scripts/doctor.ps1' 'conflicting active default-branch ruleset'
 Assert-Contains 'auto-merge checks effective default-branch rulesets' 'scripts/auto-merge.ps1' 'rules/branches/\$defaultBranchEncoded'
 Assert-Contains 'auto-merge rejects conflicting default-branch rulesets' 'scripts/auto-merge.ps1' 'Auto-merge refused: conflicting active default-branch ruleset'
+Assert-Contains 'ruleset authority checks paginate' 'scripts/auto-merge.ps1' 'rules/branches/\$\{defaultBranchEncoded\}\?per_page=100'
 Assert-Contains 'workflow token is read-only' 'scripts/apply-github-standard.ps1' "default_workflow_permissions = 'read'"
 Assert-Contains 'workflow cannot approve reviews' 'scripts/apply-github-standard.ps1' 'can_approve_pull_request_reviews = \$false'
 Assert-Contains 'legacy branch protection is deleted' 'scripts/apply-github-standard.ps1' 'branches/\$\(\$meta\.default_branch\)/protection'
