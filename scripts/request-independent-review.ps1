@@ -12,7 +12,7 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh
 & gh auth status | Out-Host
 if ($LASTEXITCODE -ne 0) { throw 'gh is not authenticated.' }
 
-$config = Get-Content (Join-Path $PSScriptRoot '..\policy\github-defaults.json') -Raw | ConvertFrom-Json
+$config = Get-Content (Join-Path $PSScriptRoot '..\policy/github-defaults.json') -Raw | ConvertFrom-Json
 $reviewPolicy = $config.independent_review
 
 $prRaw = & gh api "repos/$Repo/pulls/$Pr" 2>&1
@@ -78,8 +78,10 @@ foreach ($requiredProvider in $requiredProviders) {
   }
 }
 
-$missing = @($requiredProviders | Where-Object { -not $passedCurrent.ContainsKey($_) })
-if ($missing.Count -eq 0) {
+$nextRequiredProvider = Get-NextRequiredReviewProvider `
+  -RequiredProviders $requiredProviders `
+  -PassedProviders @($passedCurrent.Keys)
+if (-not $nextRequiredProvider) {
   Write-Host "CURRENT-HEAD REQUIRED REVIEWS ALREADY SATISFIED: $($requiredProviders -join ', ')" -ForegroundColor Green
   exit 0
 }
@@ -106,22 +108,21 @@ $copilotOutstanding = @($comments | Where-Object { $_.body -like "*$copilotMarke
 
 $codexAvailable = ($codexPassCount -lt [int]$reviewPolicy.max_codex_reviews_per_pr) -and -not $codexOutstanding
 $copilotAvailable = [bool]$reviewPolicy.copilot_fallback -and ($copilotPassCount -lt [int]$reviewPolicy.max_copilot_reviews_per_pr) -and -not $copilotOutstanding
+$nextAvailable = if ($nextRequiredProvider -eq 'codex') { $codexAvailable } else { $copilotAvailable }
 
 if ($Provider -eq 'auto') {
-  $Provider = $null
-  foreach ($candidate in $missing) {
-    if ($candidate -eq 'codex' -and $codexAvailable) { $Provider = 'codex'; break }
-    if ($candidate -eq 'copilot' -and $copilotAvailable) { $Provider = 'copilot'; break }
-  }
-  if (-not $Provider) {
+  if (-not $nextAvailable) {
     if ($FollowupOnly) {
-      Write-Host "FOLLOW-UP REVIEW NOT REQUESTED: no missing provider is currently requestable for head $headSha."
+      Write-Host "FOLLOW-UP REVIEW NOT REQUESTED: ordered next provider '$nextRequiredProvider' is unavailable for head $headSha. Later providers will not be skipped ahead."
       exit 0
     }
-    throw "No budgeted required reviewer is available for current head $headSha. Missing: $($missing -join ', '). Codex passes=$codexPassCount/$($reviewPolicy.max_codex_reviews_per_pr), Copilot passes=$copilotPassCount/$($reviewPolicy.max_copilot_reviews_per_pr). Split or restart the PR rather than creating an unbounded review loop."
+    throw "Ordered next required reviewer '$nextRequiredProvider' is unavailable for current head $headSha. Later required providers will not be skipped ahead. Codex responses=$codexPassCount/$($reviewPolicy.max_codex_reviews_per_pr), Copilot responses=$copilotPassCount/$($reviewPolicy.max_copilot_reviews_per_pr). Split/restart the PR rather than violating review order or creating an unbounded loop."
   }
+  $Provider = $nextRequiredProvider
 }
-if ($missing -notcontains $Provider) { throw "Reviewer '$Provider' is not a missing required provider for implementer '$implementer'. Missing: $($missing -join ', ')." }
+elseif ($Provider -ne $nextRequiredProvider) {
+  throw "Reviewer '$Provider' cannot skip ordered required reviewer '$nextRequiredProvider' for implementer '$implementer'."
+}
 
 switch ($Provider) {
   'codex' {
