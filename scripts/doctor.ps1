@@ -45,14 +45,15 @@ if ($config.auto_merge_max_risk -ne 'R3') { throw 'R4 must remain outside auto-m
 if ([bool]$config.merge_queue.desired) { throw 'Merge queue must remain deferred until organization ownership and merge_group AI Review are proven.' }
 
 $review = $config.independent_review
-if (-not [bool]$review.required_for_auto_merge -or $review.preferred_provider -ne 'codex' -or $review.fallback_provider -ne 'copilot') { throw 'Machine-review routing drifted.' }
+if ([bool]$review.required_for_auto_merge) { throw 'Machine review must remain advisory: the deterministic PR Gate is the sole required merge authority.' }
+if ($review.preferred_provider -ne 'codex' -or $review.fallback_provider -ne 'copilot') { throw 'Machine-review routing drifted.' }
 if ([int]$review.max_review_heads_per_pr -ne 2 -or [int]$review.primary_wait_minutes -le 0 -or [int]$review.fallback_wait_minutes -le 0 -or [int]$review.poll_seconds -le 0) { throw 'Machine-review budgets drifted.' }
 if ([int]$review.absolute_timeout_minutes -le ([int]$review.primary_wait_minutes + [int]$review.fallback_wait_minutes)) { throw 'Absolute review timeout must exceed fast polling windows.' }
 if ([bool]$review.review_drafts -or [bool]$review.review_on_every_push) { throw 'Draft/every-push AI review spend must remain off.' }
 
 $automation = $config.pr_automation
 if ($automation.draft_ready_label -ne 'status:ready' -or $automation.blocked_label -ne 'status:blocked') { throw 'PR state labels drifted.' }
-foreach ($pair in @(@('max_ci_fix_attempts',3),@('max_review_fix_attempts',1),@('max_conflict_fix_attempts',2))) {
+foreach ($pair in @(@('max_ci_fix_attempts',7),@('max_review_fix_attempts',1),@('max_conflict_fix_attempts',6))) {
   if ([int]$automation.PSObject.Properties[$pair[0]].Value -ne [int]$pair[1]) { throw "Repair budget drifted: $($pair[0])." }
 }
 if ([int]$automation.watchdog_interval_minutes -ge [int]$review.absolute_timeout_minutes) { throw 'Watchdog cadence must be shorter than the configured absolute timeout.' }
@@ -120,7 +121,9 @@ foreach ($name in $config.repositories) {
   if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot list workflows' }
   else {
     $workflows = @(($workflowsRaw -join "`n") | ConvertFrom-Json | Select-Object -ExpandProperty workflows)
-    foreach ($workflowName in @('PR Gate','AI Review Gate','PR Automation')) {
+    $requiredWorkflows = @('PR Gate','PR Automation')
+    if ([bool]$review.required_for_auto_merge -or [bool]$review.solicit_reviews) { $requiredWorkflows += 'AI Review Gate' }
+    foreach ($workflowName in $requiredWorkflows) {
       $matches = @($workflows | Where-Object { $_.name -eq $workflowName -and $_.state -eq 'active' })
       if ($matches.Count -eq 0) { Add-Problem $problems "active workflow missing: $workflowName" }
       elseif ($matches.Count -gt 1) { Add-Problem $problems "duplicate active workflow: $workflowName" }
@@ -201,7 +204,7 @@ foreach ($name in $config.repositories) {
           if ([bool]$prRule.parameters.require_code_owner_review) { Add-Problem $problems 'Code Owner review required' }
           if ([bool]$prRule.parameters.require_last_push_approval) { Add-Problem $problems 'last-push approval required' }
           if (-not [bool]$prRule.parameters.dismiss_stale_reviews_on_push) { Add-Problem $problems 'stale reviews not dismissed' }
-          if (-not [bool]$prRule.parameters.required_review_thread_resolution) { Add-Problem $problems 'thread resolution not required' }
+          if ([bool]$prRule.parameters.required_review_thread_resolution -ne [bool]$config.required_review_thread_resolution) { Add-Problem $problems 'thread-resolution requirement drifted from policy' }
           $methods = @($prRule.parameters.allowed_merge_methods)
           if ($methods.Count -ne 1 -or $methods[0] -ne 'squash') { Add-Problem $problems 'ruleset not squash-only' }
         }
@@ -210,7 +213,8 @@ foreach ($name in $config.repositories) {
         if (-not $statusRule) { Add-Problem $problems 'required-status rule missing' }
         else {
           $checks = @($statusRule.parameters.required_status_checks)
-          $expected = @($config.required_status_context,$config.required_ai_review_context)
+          $expected = @($config.required_status_context)
+          if ([bool]$config.independent_review.required_for_auto_merge) { $expected += $config.required_ai_review_context }
           if ($checks.Count -ne $expected.Count) { Add-Problem $problems 'extra or missing required status checks' }
           foreach ($context in $expected) {
             $check = @($checks | Where-Object { $_.context -eq $context } | Select-Object -First 1)
