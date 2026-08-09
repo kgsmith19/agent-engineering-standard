@@ -16,7 +16,11 @@ jobs:
   update-ai-review:
     if: >-
       ((github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment') || github.event.pull_request.draft == false) &&
-      (github.event_name != 'issue_comment' || github.event.issue.pull_request != null)
+      (github.event_name != 'issue_comment' || (
+        github.event.issue.pull_request != null &&
+        (github.event.comment.user.login == 'Copilot' || github.event.comment.user.login == 'copilot-pull-request-reviewer[bot]' || github.event.comment.user.login == 'copilot-swe-agent[bot]') &&
+        (contains(github.event.comment.body, 'AI-REVIEW PASS') || contains(github.event.comment.body, 'AI-REVIEW FAIL'))
+      ))
     permissions:
       checks: write
       contents: read
