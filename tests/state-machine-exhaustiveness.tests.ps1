@@ -109,7 +109,7 @@ Assert-Contains 'watchdog paginates all open PRs' 'scripts/pr-orchestrator.ps1' 
 
 # Fork heads must be refused with a machine-readable denial before any privileged
 # mutation, in every entry path that operates on a PR (PROP-005).
-foreach ($path in @('scripts/pr-orchestrator.ps1','scripts/gate-result-router.ps1','scripts/evaluate-ai-review.ps1','scripts/request-machine-review.ps1','scripts/promote-external-draft.ps1')) {
+foreach ($path in @('scripts/pr-orchestrator.ps1','scripts/gate-result-router.ps1','scripts/evaluate-ai-review.ps1','scripts/request-machine-review.ps1','scripts/request-review-repair.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/promote-external-draft.ps1')) {
   Assert-Contains "$path denies fork PRs" $path 'FORK-DENIED'
 }
 Assert-Contains 'orchestrator blocks fork PRs machine-readably' 'scripts/pr-orchestrator.ps1' "'fork-pr'"

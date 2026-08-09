@@ -13,11 +13,14 @@ if ($parts.Count -ne 2) { throw 'Repo must be owner/name.' }
 $owner = $parts[0]
 $name = $parts[1]
 
-if (-not $HeadSha) {
-  $prRaw = & gh api "repos/$Repo/pulls/$Pr" 2>&1
-  if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
-  $HeadSha = [string](($prRaw -join "`n") | ConvertFrom-Json).head.sha
+$prRaw = & gh api "repos/$Repo/pulls/$Pr" 2>&1
+if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
+$prData = ($prRaw -join "`n") | ConvertFrom-Json
+if ([string]$prData.head.repo.full_name -ne $Repo) {
+  Write-Host "FORK-DENIED: $Repo PR #$Pr head repository '$([string]$prData.head.repo.full_name)' is not the target repository; no review thread is mutated for fork heads."
+  exit 0
 }
+if (-not $HeadSha) { $HeadSha = [string]$prData.head.sha }
 
 $encoded = [uri]::EscapeDataString('AI Review')
 $checkRaw = & gh api -H 'Accept: application/vnd.github+json' "repos/$Repo/commits/$HeadSha/check-runs?check_name=$encoded" 2>&1
