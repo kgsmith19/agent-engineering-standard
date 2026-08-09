@@ -2,14 +2,16 @@ name: PR Automation
 
 on:
   pull_request_target:
-    types: [opened, reopened, ready_for_review, converted_to_draft, synchronize, labeled, unlabeled, review_requested]
+    types: [opened, reopened, ready_for_review, converted_to_draft, synchronize, edited, labeled, unlabeled, review_requested, auto_merge_enabled, auto_merge_disabled]
   workflow_run:
     workflows: ["PR Gate"]
     types: [completed]
   pull_request_review:
-    types: [submitted, dismissed]
+    types: [submitted, edited, dismissed]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
   issue_comment:
-    types: [created, edited]
+    types: [created, edited, deleted]
   schedule:
     - cron: "17 */6 * * *"
 
@@ -36,6 +38,7 @@ jobs:
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.pull_requests[0] != null
     permissions:
+      actions: write
       checks: write
       contents: read
       issues: write
@@ -50,7 +53,7 @@ jobs:
       standard_sha: ${{ github.sha }}
 
   review-event:
-    if: github.event_name == 'pull_request_review'
+    if: github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment'
     permissions:
       checks: write
       contents: read
@@ -60,7 +63,7 @@ jobs:
     with:
       mode: review-event
       pr_number: ${{ github.event.pull_request.number }}
-      # pull_request_review github.sha can be the PR merge SHA. The orchestrator
+      # Review events expose a PR merge SHA in github.sha. The orchestrator
       # must execute from trusted base code when governing this control plane.
       standard_sha: ${{ github.event.pull_request.base.sha }}
 

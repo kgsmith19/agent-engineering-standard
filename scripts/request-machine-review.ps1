@@ -25,14 +25,12 @@ if ($pr.state -ne 'open') { throw "PR #$Pr is not open." }
 if ($pr.draft) { throw "PR #$Pr is draft; machine review is deferred until Ready." }
 
 $headSha = [string]$pr.head.sha
-$commitRaw = & gh api "repos/$Repo/commits/$headSha" 2>&1
-if ($LASTEXITCODE -ne 0) { throw ($commitRaw -join "`n") }
-$commit = ($commitRaw -join "`n") | ConvertFrom-Json
-$headAuthor = [string]$commit.author.login
-$headCommitter = [string]$commit.committer.login
 $prAuthor = [string]$pr.user.login
-$acceptedProviders = @(Get-AcceptedMachineReviewProviders -HeadAuthorLogin $headAuthor -HeadCommitterLogin $headCommitter -PrAuthorLogin $prAuthor)
-$preferred = Get-PreferredMachineReviewer -HeadAuthorLogin $headAuthor -HeadCommitterLogin $headCommitter -PrAuthorLogin $prAuthor
+$prCommits = @(Get-Paged "repos/$Repo/pulls/$Pr/commits?per_page=100")
+$actorLogins = @($prCommits | ForEach-Object { [string]$_.author.login; [string]$_.committer.login } | Where-Object { $_ })
+$implementers = @(Get-MachineImplementerProvidersForActors -ActorLogins $actorLogins -PrAuthorLogin $prAuthor)
+$acceptedProviders = @(Get-AcceptedMachineReviewProvidersForActors -ActorLogins $actorLogins -PrAuthorLogin $prAuthor)
+$preferred = Get-PreferredMachineReviewerForActors -ActorLogins $actorLogins -PrAuthorLogin $prAuthor
 
 $reviews = @(Get-Paged "repos/$Repo/pulls/$Pr/reviews?per_page=100")
 $inlineComments = @(Get-Paged "repos/$Repo/pulls/$Pr/comments?per_page=100")
@@ -81,15 +79,16 @@ if ($Provider -eq 'auto') {
   } else { Write-Host "MACHINE REVIEW PENDING: $preferred already requested for $headSha; no independent fallback is available." -ForegroundColor Yellow; exit 0 }
 }
 
-if ($acceptedProviders -notcontains $Provider) { throw "Reviewer '$Provider' is not independent of the latest head implementer. Accepted: $($acceptedProviders -join ', ')." }
+if ($acceptedProviders -notcontains $Provider) { throw "Reviewer '$Provider' is not independent of every recognized implementer in the current PR. Accepted: $($acceptedProviders -join ', ')." }
 $marker = "<!-- ai-review-request:${Provider}:$headSha -->"
 if (@($comments | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -like "*$marker*" }).Count -gt 0) { Write-Host "MACHINE REVIEW ALREADY REQUESTED: $Provider for $headSha" -ForegroundColor Yellow; exit 0 }
 
 $body = if ($Provider -eq 'codex') {
-  "@codex review`n`nIndependently review the CURRENT PR head only. You are a fresh reviewer task/session, not the implementer of this head. Apply one batched pass across: software/security correctness, requirement/spec fit, business/product ROI, systems/operational optimization, and strict leanness/complexity. Report material P0-P2 findings only. Do not modify files during review.`n`n$marker"
+  "@codex review`n`nIndependently review the CURRENT PR head only. You are a fresh reviewer task/session and did not author or commit any code in this PR. Apply one batched pass across: software/security correctness, requirement/spec fit, business/product ROI, systems/operational optimization, and strict leanness/complexity. Report material P0-P2 findings only. Do not modify files during review.`n`n$marker"
 } else {
-  "@copilot Independently review the CURRENT PR head only. Do not modify files or push commits during review. Apply software/security, requirement/spec, business/ROI, systems/optimization, and strict leanness lenses. Report material P0-P2 findings only. Start with AI-REVIEW PASS or AI-REVIEW FAIL and include exact SHA $headSha.`n`n$marker"
+  "@copilot Independently review the CURRENT PR head only. You did not author or commit any code in this PR. Do not modify files or push commits during review. Apply software/security, requirement/spec, business/ROI, systems/optimization, and strict leanness lenses. Report material P0-P2 findings only. Start with AI-REVIEW PASS or AI-REVIEW FAIL and include exact SHA $headSha.`n`n$marker"
 }
 & gh pr comment $Pr --repo $Repo --body $body | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "Could not request $Provider machine review for $Repo PR #$Pr." }
-Write-Host "MACHINE REVIEW REQUESTED: provider=$Provider head=$headSha latest-head-implementer=$(Get-HeadImplementerProvider -HeadAuthorLogin $headAuthor -HeadCommitterLogin $headCommitter -PrAuthorLogin $prAuthor)" -ForegroundColor Green
+$implementerText = if ($implementers.Count -gt 0) { $implementers -join '+' } else { 'unknown/human' }
+Write-Host "MACHINE REVIEW REQUESTED: provider=$Provider head=$headSha current-PR-implementers=$implementerText" -ForegroundColor Green

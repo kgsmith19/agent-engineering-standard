@@ -7,17 +7,16 @@ function Get-MachineReviewProvider {
   return $null
 }
 
-function Get-HeadImplementerProviders {
+function Get-MachineImplementerProvidersForActors {
   param(
-    [string]$HeadAuthorLogin = '',
-    [string]$HeadCommitterLogin = '',
+    [string[]]$ActorLogins = @(),
     [string]$PrAuthorLogin = ''
   )
 
   $providers = New-Object System.Collections.Generic.List[string]
-  foreach ($login in @($HeadAuthorLogin,$HeadCommitterLogin)) {
-    if ([string]::IsNullOrWhiteSpace($login)) { continue }
-    $provider = Get-MachineReviewProvider -Login $login
+  foreach ($login in @($ActorLogins)) {
+    if ([string]::IsNullOrWhiteSpace([string]$login)) { continue }
+    $provider = Get-MachineReviewProvider -Login ([string]$login)
     if ($provider -and -not $providers.Contains($provider)) { $providers.Add($provider) }
   }
   if ($providers.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($PrAuthorLogin)) {
@@ -25,6 +24,34 @@ function Get-HeadImplementerProviders {
     if ($provider) { $providers.Add($provider) }
   }
   return @($providers)
+}
+
+function Get-AcceptedMachineReviewProvidersForActors {
+  param(
+    [string[]]$ActorLogins = @(),
+    [string]$PrAuthorLogin = ''
+  )
+  $implementers = @(Get-MachineImplementerProvidersForActors -ActorLogins $ActorLogins -PrAuthorLogin $PrAuthorLogin)
+  return @(@('codex','copilot') | Where-Object { $implementers -notcontains $_ })
+}
+
+function Get-PreferredMachineReviewerForActors {
+  param(
+    [string[]]$ActorLogins = @(),
+    [string]$PrAuthorLogin = ''
+  )
+  $accepted = @(Get-AcceptedMachineReviewProvidersForActors -ActorLogins $ActorLogins -PrAuthorLogin $PrAuthorLogin)
+  if ($accepted.Count -eq 0) { throw 'No connected machine reviewer is independent of every detected implementer in the current PR.' }
+  return $accepted[0]
+}
+
+function Get-HeadImplementerProviders {
+  param(
+    [string]$HeadAuthorLogin = '',
+    [string]$HeadCommitterLogin = '',
+    [string]$PrAuthorLogin = ''
+  )
+  return @(Get-MachineImplementerProvidersForActors -ActorLogins @($HeadAuthorLogin,$HeadCommitterLogin) -PrAuthorLogin $PrAuthorLogin)
 }
 
 function Get-HeadImplementerProvider {
@@ -36,15 +63,12 @@ function Get-HeadImplementerProvider {
 
 function Get-AcceptedMachineReviewProviders {
   param([string]$HeadAuthorLogin = '',[string]$HeadCommitterLogin = '',[string]$PrAuthorLogin = '')
-  $implementers = @(Get-HeadImplementerProviders -HeadAuthorLogin $HeadAuthorLogin -HeadCommitterLogin $HeadCommitterLogin -PrAuthorLogin $PrAuthorLogin)
-  return @(@('codex','copilot') | Where-Object { $implementers -notcontains $_ })
+  return @(Get-AcceptedMachineReviewProvidersForActors -ActorLogins @($HeadAuthorLogin,$HeadCommitterLogin) -PrAuthorLogin $PrAuthorLogin)
 }
 
 function Get-PreferredMachineReviewer {
   param([string]$HeadAuthorLogin = '',[string]$HeadCommitterLogin = '',[string]$PrAuthorLogin = '')
-  $accepted = @(Get-AcceptedMachineReviewProviders -HeadAuthorLogin $HeadAuthorLogin -HeadCommitterLogin $HeadCommitterLogin -PrAuthorLogin $PrAuthorLogin)
-  if ($accepted.Count -eq 0) { throw 'No connected machine reviewer is independent of every detected latest-head implementer.' }
-  return $accepted[0]
+  return Get-PreferredMachineReviewerForActors -ActorLogins @($HeadAuthorLogin,$HeadCommitterLogin) -PrAuthorLogin $PrAuthorLogin
 }
 
 function Test-MaterialAiReviewBody {
@@ -101,6 +125,22 @@ function Get-ReviewRepairDecision {
   return 'request'
 }
 
+function Get-GateConclusionDecision {
+  param([AllowEmptyString()][string]$Conclusion)
+  switch ($Conclusion) {
+    'success' { return 'success' }
+    'failure' { return 'repair' }
+    'timed_out' { return 'repair' }
+    'startup_failure' { return 'repair' }
+    'action_required' { return 'block-workflow-approval' }
+    'skipped' { return 'block-gate-skipped' }
+    'cancelled' { return 'rerun' }
+    'stale' { return 'rerun' }
+    'neutral' { return 'block-gate-neutral' }
+    default { return 'block-gate-unknown' }
+  }
+}
+
 function Get-RiskFromLabels {
   param([string[]]$Labels)
   $risk = @($Labels | Where-Object { $_ -match '^risk:R[0-4]$' })
@@ -113,7 +153,7 @@ function Test-ControlPlanePath {
   param([Parameter(Mandatory)][string]$Path)
   $patterns = @(
     '^\.github/workflows/', '^\.agent/', '^policy/', '^scripts/lib/',
-    '^scripts/(apply-github-standard|setup-portfolio|doctor|auto-merge|request-machine-review|request-review-repair|evaluate-ai-review|reconcile-machine-review-threads|pause-pending-review|pr-orchestrator|upgrade-repos|bootstrap-repo)\.ps1$',
+    '^scripts/(apply-github-standard|setup-portfolio|doctor|auto-merge|gate-result-router|request-machine-review|request-review-repair|evaluate-ai-review|reconcile-machine-review-threads|pause-pending-review|pr-orchestrator|upgrade-repos|bootstrap-repo)\.ps1$',
     '^(AGENT_RULES|QUALITY_RULES|SECURITY_RISK_AUTONOMY|DELIVERY_GITHUB|EVIDENCE_LEARNING|AGENTS)\.md$'
   )
   return [bool]($patterns | Where-Object { $Path -match $_ } | Select-Object -First 1)
