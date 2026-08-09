@@ -2,6 +2,8 @@
 
 This is the authoritative decision map for routine pull-request integration across the managed portfolio.
 
+> **Amendment (2026-08-09, ADR 0002):** the deterministic `PR Gate` is now the sole required status context. Machine review is advisory-only and off by default (`independent_review.required_for_auto_merge: false`, `solicit_reviews: false`); every review state, event, and invariant below that references `AI Review` applies only when those policy flags re-enable the review lane. Required review-thread resolution is off, repair budgets are 7 (CI) / 6 (conflict), and the watchdog runs hourly.
+
 ## Invariants
 
 1. `main` changes through a pull request.
@@ -17,7 +19,7 @@ This is the authoritative decision map for routine pull-request integration acro
 11. Repairs are bounded; exhaustion becomes explicit `status:blocked`, never an infinite loop.
 12. Copilot may repair an existing non-Copilot PR, but a Copilot-owned PR is outside the unattended lane because GitHub requires human review and merge.
 13. A material finding cannot be bypassed by reviewer-shopping on the same head.
-14. Temporary reviewer latency remains recoverable; pending review pauses auto-merge and the 12-hour safety timeout is checked by a 6-hour watchdog.
+14. Temporary reviewer latency remains recoverable; pending review pauses auto-merge and the 12-hour safety timeout is checked by an hourly watchdog.
 15. Automation state/budget/request markers are authoritative only when posted by a trusted automation author.
 16. If a trusted base predates the evaluator/orchestrator during the one-time bootstrap, reusable workflows execute no proposed PR scripts and remain on the explicit external authority path.
 
@@ -61,7 +63,7 @@ flowchart TD
     K -- No --> M[Validate live ruleset and arm squash auto-merge]
     M --> N[Run PR Gate]
     N --> O{Gate result}
-    O -- Failure or timeout --> P[Copilot root-cause repair, max 3]
+    O -- Failure or timeout --> P[Copilot root-cause repair, max 7]
     P --> A
     O -- Approval required --> Q[BLOCKED: disable Copilot workflow approval]
     O -- Skipped or missing --> R[BLOCKED: repair workflow trigger]
@@ -95,7 +97,7 @@ flowchart TD
 | `kgsmith19` requested as reviewer | `review_requested` | Immediately remove requested reviewer; tag only later if authority is truly required | routine lane |
 | Stale workflow result | event SHA != current SHA | Ignore | unchanged |
 | PR Gate passes | `workflow_run.success` | Recover prior gate blocks; request independent exact-head reviewer | `REVIEW_REQUESTED` |
-| PR Gate fails/times out/startup fails | workflow conclusion | Copilot root-cause repair, max 3 | `CI_REPAIR` |
+| PR Gate fails/times out/startup fails | workflow conclusion | Copilot root-cause repair, max 7 | `CI_REPAIR` |
 | PR Gate cancelled by newer push | `cancelled` | Ignore old run | unchanged |
 | Workflow approval required | `action_required` | Disable auto-merge; block with exact UI setting | `BLOCKED` |
 | Ready PR Gate skipped | `skipped` | Block as invalid workflow trigger/job condition | `BLOCKED` |
@@ -111,15 +113,15 @@ flowchart TD
 | Same-head repair comment retriggers workflows | trusted repair marker for current SHA | Treat as pending; do not consume another repair attempt | `REVIEW_REPAIR` |
 | Primary reviewer stalls for fast window | trusted request timestamp | Request one independent fallback when available | `REVIEW_FALLBACK` |
 | Fast primary+fallback windows expire | bounded polling | Pause auto-merge; late review events can still recover | review waiting |
-| Review reaches 12-hour safety timeout | 6-hour watchdog sees age >= 720 min | Disable auto-merge; add `status:blocked` | `BLOCKED` |
+| Review reaches 12-hour safety timeout | hourly watchdog sees age >= 720 min | Disable auto-merge; add `status:blocked` | `BLOCKED` |
 | Late valid review after timeout block | review/comment event | Set success, resolve automation block, re-arm auto-merge | `MERGE_PENDING` |
 | Review dismissed | review event | Re-evaluate; withdraw success when proof disappears | review waiting/blocking |
 | New push after clean review | new SHA | Prior review cannot authorize it; repeat full cycle | `READY_UNVERIFIED` |
 | Old machine-only thread remains | successful new-head review + GraphQL audit | Resolve only if all participants are recognized machines and no comment belongs to current head | thread cleared |
 | Human participated in thread | thread audit | Never auto-resolve | merge pending |
 | Current-head machine thread remains | thread audit | Never auto-resolve | review/fix required |
-| Ordinary merge conflict | mergeability | Copilot semantic resolution, max 2 | `CONFLICT_REPAIR` |
-| Dependabot conflict | author identity | `@dependabot rebase`, max 2 | `CONFLICT_REPAIR` |
+| Ordinary merge conflict | mergeability | Copilot semantic resolution, max 6 | `CONFLICT_REPAIR` |
+| Dependabot conflict | author identity | `@dependabot rebase`, max 6 | `CONFLICT_REPAIR` |
 | Conflict disappears after update | PR event | Resolve automation conflict block | normal lane resumes |
 | Auto-merge disabled by contributor push | PR event/live state | Revalidate and re-arm | `MERGE_PENDING` |
 | Base branch not default | auto-merge validator | Refuse auto-merge | blocked/correct target |
@@ -136,9 +138,9 @@ flowchart TD
 | Copilot edits existing non-Copilot PR | latest commit actor | Full gates repeat; independent reviewer excludes Copilot | routine lane |
 | Dependabot patch/minor PR | dependency PR | Full gates; eligible if risk is appropriate | routine lane |
 | Dependabot major PR | dependency scope | Must be separately risk-classified | R2/R3/block |
-| CI repair reaches 3 | trusted markers | Disable auto-merge and block | `BLOCKED` |
+| CI repair reaches 7 | trusted markers | Disable auto-merge and block | `BLOCKED` |
 | Post-fix reviewed head still has P0-P2 | reviewed-head budget | Disable auto-merge and block | `BLOCKED` |
-| Conflict repair reaches 2 | trusted markers | Disable auto-merge and block | `BLOCKED` |
+| Conflict repair reaches 6 | trusted markers | Disable auto-merge and block | `BLOCKED` |
 | Untrusted commenter forges automation marker | marker author check | Ignore marker for state, budgets, evidence, and duplicate suppression | unchanged |
 | Automation evidence later proves recovery | success event/current facts | Post trusted recovery marker; remove label when no active automation block remains | normal lane resumes |
 | Manually applied `status:blocked` with no trusted automation marker | label | Treat as authoritative; never auto-clear | `BLOCKED` |
@@ -151,14 +153,14 @@ flowchart TD
 
 | Lane | Bound | Reason |
 |---|---:|---|
-| CI repair | 3 | root cause, correction, final attempt without loops |
+| CI repair | 7 | deep autonomous repair loop before a human is asked |
 | Review repair | 1 batched repair | two reviewed heads total: initial plus post-fix |
-| Conflict repair | 2 | resolution plus one correction |
+| Conflict repair | 6 | deep autonomous resolution loop before a human is asked |
 | Reviewed head SHAs | 2 | coherent head plus one post-fix head |
 | Fallback reviewer | 1 per head when independent | fallback, not a default second review |
 | Fast review polling | 3 + 3 minutes | catch reaction-only review without indefinite runner use |
 | Reviewer safety timeout | 12 hours | service-stall boundary |
-| Watchdog | every 6 hours | safety net checks before the 12-hour deadline; normal operation is event-driven |
+| Watchdog | hourly | fast stall recovery; normal operation is event-driven |
 | AI Review workflow | review/review-comment/structured-review-comment events only | no runner on ordinary PR pushes or implementation chatter |
 
 ## `status:blocked`
