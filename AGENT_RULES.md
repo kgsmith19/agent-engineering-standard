@@ -82,9 +82,10 @@ While `independent_review.dispatch_mode` is `disabled_pending_e2e`, no reviewer 
 - the AI Review runner wakes only when review evidence changes
 - no AI review for policy-invalid drafts or every micro-push
 - normal budget: initial reviewed head plus one post-fix reviewed head
-- CI repair: maximum 7 attempts
+- CI repair: maximum 3 attempts
 - review repair: maximum 1 batched attempt
-- conflict repair: maximum 6 attempts
+- conflict repair: maximum 2 attempts
+- gate rerun (cancelled/stale on the current head): maximum 1 attempt
 - duplicate exact-head requests are suppressed
 - stalled Codex review may use one independent Copilot fallback
 - reviewer timeout is enforced by the low-frequency watchdog, not a permanent busy runner
