@@ -1,7 +1,8 @@
 param(
   [Parameter(Mandatory)][string]$Repo,
   [Parameter(Mandatory)][int]$Pr,
-  [ValidateSet('auto','codex','copilot')][string]$Provider = 'auto'
+  [ValidateSet('auto','codex','copilot')][string]$Provider = 'auto',
+  [switch]$FollowupOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -39,13 +40,16 @@ if ($LASTEXITCODE -ne 0) { throw ($commentsRaw -join "`n") }
 $comments = @(($commentsRaw -join "`n") | ConvertFrom-Json)
 
 $passedCurrent = @{}
+$failedCurrent = @{}
 foreach ($provider in @('codex','copilot')) {
   $providerReviews = @($reviews | Where-Object {
     (Get-ReviewProviderFromLogin -Login $_.user.login) -eq $provider -and
     $_.commit_id -eq $headSha -and $_.state -notin @('DISMISSED','PENDING')
   } | Sort-Object submitted_at)
-  if ($providerReviews.Count -gt 0 -and $providerReviews[-1].state -ne 'CHANGES_REQUESTED') {
-    $passedCurrent[$provider] = $true
+  if ($providerReviews.Count -gt 0) {
+    $latest = $providerReviews[-1]
+    if ($latest.state -eq 'CHANGES_REQUESTED') { $failedCurrent[$provider] = $true }
+    else { $passedCurrent[$provider] = $true }
   }
 }
 
@@ -53,9 +57,25 @@ $structuredCopilotResponses = @($comments | Where-Object {
   (Get-ReviewProviderFromLogin -Login $_.user.login) -eq 'copilot' -and
   $_.body -match '(?im)^\s*AI-REVIEW\s+(PASS|FAIL)\b'
 })
-$currentStructuredCopilot = @($structuredCopilotResponses | Where-Object { $_.body -match [regex]::Escape($headSha) } | Sort-Object created_at)
-if ($currentStructuredCopilot.Count -gt 0 -and $currentStructuredCopilot[-1].body -match '(?im)^\s*AI-REVIEW\s+PASS\b') {
-  $passedCurrent['copilot'] = $true
+$currentStructuredCopilot = @($structuredCopilotResponses | Where-Object {
+  $_.body -match [regex]::Escape($headSha)
+} | Sort-Object created_at)
+if ($currentStructuredCopilot.Count -gt 0) {
+  $latestStructured = $currentStructuredCopilot[-1]
+  if ($latestStructured.body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') {
+    $failedCurrent['copilot'] = $true
+    $passedCurrent.Remove('copilot')
+  }
+  elseif (-not $failedCurrent.ContainsKey('copilot')) {
+    $passedCurrent['copilot'] = $true
+  }
+}
+
+foreach ($requiredProvider in $requiredProviders) {
+  if ($failedCurrent.ContainsKey($requiredProvider)) {
+    Write-Host "CURRENT-HEAD REQUIRED REVIEW FAILED: $requiredProvider on $headSha. Fix the implementation before spending another provider response." -ForegroundColor Yellow
+    exit 0
+  }
 }
 
 $missing = @($requiredProviders | Where-Object { -not $passedCurrent.ContainsKey($_) })
@@ -64,11 +84,16 @@ if ($missing.Count -eq 0) {
   exit 0
 }
 
+$passedRequiredCount = @($requiredProviders | Where-Object { $passedCurrent.ContainsKey($_) }).Count
+if ($FollowupOnly -and $passedRequiredCount -eq 0) {
+  Write-Host "FOLLOW-UP REVIEW NOT NEEDED: no required provider has passed current head $headSha yet."
+  exit 0
+}
+
 # Count actual semantic responses across the PR. One response is the normal path.
-# The hard cap of three exists only to preserve a bounded path through legitimate
-# head changes (for example PASS -> small fix -> FAIL -> correction) without
-# turning every push into an unlimited review loop. Each exact head can be
-# requested at most once by the marker checks below.
+# The hard cap of three preserves a bounded path through legitimate head changes
+# without turning every push into an unlimited review loop. Each exact head can
+# be requested at most once by the marker checks below.
 $codexPassCount = @($reviews | Where-Object { (Get-ReviewProviderFromLogin -Login $_.user.login) -eq 'codex' }).Count
 $copilotFormalCount = @($reviews | Where-Object { (Get-ReviewProviderFromLogin -Login $_.user.login) -eq 'copilot' }).Count
 $copilotStructuredCount = $structuredCopilotResponses.Count
@@ -89,6 +114,10 @@ if ($Provider -eq 'auto') {
     if ($candidate -eq 'copilot' -and $copilotAvailable) { $Provider = 'copilot'; break }
   }
   if (-not $Provider) {
+    if ($FollowupOnly) {
+      Write-Host "FOLLOW-UP REVIEW NOT REQUESTED: no missing provider is currently requestable for head $headSha."
+      exit 0
+    }
     throw "No budgeted required reviewer is available for current head $headSha. Missing: $($missing -join ', '). Codex passes=$codexPassCount/$($reviewPolicy.max_codex_reviews_per_pr), Copilot passes=$copilotPassCount/$($reviewPolicy.max_copilot_reviews_per_pr). Split or restart the PR rather than creating an unbounded review loop."
   }
 }
