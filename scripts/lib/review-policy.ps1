@@ -48,10 +48,11 @@ function Get-PreferredMachineReviewer {
     [string]$PrAuthorLogin = ''
   )
 
-  return @(Get-AcceptedMachineReviewProviders `
+  $accepted = @(Get-AcceptedMachineReviewProviders `
     -HeadAuthorLogin $HeadAuthorLogin `
     -HeadCommitterLogin $HeadCommitterLogin `
-    -PrAuthorLogin $PrAuthorLogin)[0]
+    -PrAuthorLogin $PrAuthorLogin)
+  return $accepted[0]
 }
 
 function Test-MaterialAiReviewBody {
