@@ -18,11 +18,43 @@ function Get-Paged {
   foreach ($page in @($pages)) { foreach ($item in @($page)) { $item } }
 }
 
+function Get-Comments {
+  return @(Get-Paged "repos/$Repo/issues/$Pr/comments?per_page=100")
+}
+
 function Add-CommentOnce {
   param([string]$Marker,[string]$Body,$Comments)
   if (@($Comments | Where-Object { [string]$_.body -like "*$Marker*" }).Count -gt 0) { return }
   & gh pr comment $Pr --repo $Repo --body "$Body`n`n$Marker" | Out-Host
   if ($LASTEXITCODE -ne 0) { throw "Could not comment on $Repo PR #$Pr." }
+}
+
+function Get-ActiveBlockCodes {
+  param($Comments)
+  $active = @{}
+  foreach ($comment in @($Comments | Sort-Object created_at)) {
+    $body = [string]$comment.body
+    if ($body -match '<!-- automation:block:([a-z0-9-]+):[0-9a-f]{40} -->') { $active[$Matches[1]] = $true }
+    elseif ($body -match '<!-- automation:resolve:([a-z0-9-]+):[0-9a-f]{40} -->') { $active.Remove($Matches[1]) }
+  }
+  return @($active.Keys)
+}
+
+function Resolve-TransientReviewBlocks {
+  param([string]$Head,$Comments)
+  $active = @(Get-ActiveBlockCodes $Comments)
+  $resolvedAny = $false
+  foreach ($code in @('review-request','review-fallback','review-timeout')) {
+    if ($active -notcontains $code) { continue }
+    Add-CommentOnce "<!-- automation:resolve:${code}:${Head} -->" 'AUTOMATION-RECOVERED: material review evidence is now being handled by the bounded repair lane.' $Comments
+    $resolvedAny = $true
+  }
+  if (-not $resolvedAny) { return }
+
+  $fresh = @(Get-Comments)
+  if (@(Get-ActiveBlockCodes $fresh).Count -eq 0) {
+    & gh pr edit $Pr --repo $Repo --remove-label $config.pr_automation.blocked_label 2>&1 | Out-Null
+  }
 }
 
 $prRaw = & gh api "repos/$Repo/pulls/$Pr" 2>&1
@@ -33,7 +65,7 @@ $head = [string]$prData.head.sha
 
 $reviews = @(Get-Paged "repos/$Repo/pulls/$Pr/reviews?per_page=100")
 $inlineComments = @(Get-Paged "repos/$Repo/pulls/$Pr/comments?per_page=100")
-$comments = @(Get-Paged "repos/$Repo/issues/$Pr/comments?per_page=100")
+$comments = @(Get-Comments)
 $failures = New-Object System.Collections.Generic.List[string]
 
 foreach ($review in $reviews) {
@@ -72,6 +104,8 @@ if ($attempts -ge $limit) {
   exit 0
 }
 
+Resolve-TransientReviewBlocks $head $comments
+$comments = @(Get-Comments)
 $marker = "<!-- auto-fix:review:${head}:$($attempts + 1) -->"
 $evidence = (($failures | Select-Object -Unique) -join '; ')
 $body = "@copilot address all material machine-review findings on CURRENT head $head ($evidence). Read the full formal and inline review evidence before editing. Follow AGENTS.md and the linked Issue/SPEC. For nontrivial work, create a thin Superpowers-style plan/spec first. Make one batched root-cause fix, never weaken tests/policies/evaluators, verify, and update this existing PR. The new head must pass PR Gate and a different exact-head machine reviewer. Attempt $($attempts + 1)/$limit."
