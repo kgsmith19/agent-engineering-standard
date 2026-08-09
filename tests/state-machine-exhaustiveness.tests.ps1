@@ -59,5 +59,8 @@ foreach ($path in @('templates/PR_AUTOMATION.yml','.github/workflows/pr-automati
   Assert-Contains "$path scopes Actions write to gate-result" $path '(?s)gate-result:.*?permissions:.*?actions:\s*write'
 }
 Assert-Contains 'gate rerun budget is one' 'policy/github-defaults.json' '"max_gate_rerun_attempts"\s*:\s*1'
+Assert-Equal 'gate-result router is control-plane code' (Test-ControlPlanePath 'scripts/gate-result-router.ps1') $true
+Assert-Contains 'doctor requires gate-result router' 'scripts/doctor.ps1' "scripts/gate-result-router\.ps1"
+Assert-Contains 'standard hygiene requires gate-result router' 'tests/standard-hygiene.tests.ps1' "scripts/gate-result-router\.ps1"
 
 Write-Host 'state-machine exhaustiveness tests: PASS' -ForegroundColor Green
