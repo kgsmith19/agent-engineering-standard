@@ -101,6 +101,22 @@ function Get-ReviewRepairDecision {
   return 'request'
 }
 
+function Get-GateConclusionDecision {
+  param([AllowEmptyString()][string]$Conclusion)
+  switch ($Conclusion) {
+    'success' { return 'success' }
+    'failure' { return 'repair' }
+    'timed_out' { return 'repair' }
+    'startup_failure' { return 'repair' }
+    'action_required' { return 'block-workflow-approval' }
+    'skipped' { return 'block-gate-skipped' }
+    'cancelled' { return 'rerun' }
+    'stale' { return 'rerun' }
+    'neutral' { return 'block-gate-neutral' }
+    default { return 'block-gate-unknown' }
+  }
+}
+
 function Get-RiskFromLabels {
   param([string[]]$Labels)
   $risk = @($Labels | Where-Object { $_ -match '^risk:R[0-4]$' })
