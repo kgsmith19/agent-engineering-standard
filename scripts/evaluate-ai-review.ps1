@@ -1,0 +1,125 @@
+param(
+  [Parameter(Mandatory)][string]$Repo,
+  [Parameter(Mandatory)][int]$Pr
+)
+
+$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib/review-policy.ps1')
+
+if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
+
+function Invoke-GhJson {
+  param([string]$Method,[string]$Endpoint,$Body)
+  $tmp = [System.IO.Path]::GetTempFileName()
+  try {
+    $Body | ConvertTo-Json -Depth 10 | Set-Content $tmp -Encoding utf8 -NoNewline
+    $raw = & gh api --method $Method $Endpoint --input $tmp 2>&1
+    if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
+    if ($raw) { return (($raw -join "`n") | ConvertFrom-Json) }
+  } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
+}
+
+function Get-Paged {
+  param([string]$Endpoint)
+  $raw = & gh api --paginate --slurp $Endpoint 2>&1
+  if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
+  $pages = ($raw -join "`n") | ConvertFrom-Json
+  foreach ($page in @($pages)) { foreach ($item in @($page)) { $item } }
+}
+
+function Set-AiReviewCheck {
+  param([string]$HeadSha,[ValidateSet('success','failure')][string]$Conclusion,[string]$Summary)
+  $encoded = [uri]::EscapeDataString('AI Review')
+  $raw = & gh api -H 'Accept: application/vnd.github+json' "repos/$Repo/commits/$HeadSha/check-runs?check_name=$encoded" 2>&1
+  if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
+  $runs = (($raw -join "`n") | ConvertFrom-Json).check_runs
+  $existing = @($runs | Where-Object { $_.name -eq 'AI Review' -and $_.app.slug -eq 'github-actions' } | Sort-Object id | Select-Object -Last 1)
+  $body = @{ status='completed'; conclusion=$Conclusion; output=@{ title='AI Review'; summary=$Summary } }
+  if ($existing.Count -gt 0) {
+    Invoke-GhJson PATCH "repos/$Repo/check-runs/$($existing[0].id)" $body | Out-Null
+  } else {
+    $body.name = 'AI Review'; $body.head_sha = $HeadSha
+    Invoke-GhJson POST "repos/$Repo/check-runs" $body | Out-Null
+  }
+}
+
+$prRaw = & gh api "repos/$Repo/pulls/$Pr" 2>&1
+if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
+$prData = ($prRaw -join "`n") | ConvertFrom-Json
+$headSha = [string]$prData.head.sha
+if ($prData.draft) {
+  Set-AiReviewCheck $headSha failure 'Draft PR: machine review is intentionally deferred until Ready.'
+  exit 0
+}
+
+$commitRaw = & gh api "repos/$Repo/commits/$headSha" 2>&1
+if ($LASTEXITCODE -ne 0) { throw ($commitRaw -join "`n") }
+$commit = ($commitRaw -join "`n") | ConvertFrom-Json
+$headAuthor = [string]$commit.author.login
+$headCommitter = [string]$commit.committer.login
+$prAuthor = [string]$prData.user.login
+$ownerLogin = [string]$prData.base.repo.owner.login
+$implementer = Get-HeadImplementerProvider -HeadAuthorLogin $headAuthor -HeadCommitterLogin $headCommitter -PrAuthorLogin $prAuthor
+$acceptedProviders = @(Get-AcceptedMachineReviewProviders -HeadAuthorLogin $headAuthor -HeadCommitterLogin $headCommitter -PrAuthorLogin $prAuthor)
+
+$reviews = @(Get-Paged "repos/$Repo/pulls/$Pr/reviews?per_page=100")
+$inlineComments = @(Get-Paged "repos/$Repo/pulls/$Pr/comments?per_page=100")
+$comments = @(Get-Paged "repos/$Repo/issues/$Pr/comments?per_page=100")
+$passes = New-Object System.Collections.Generic.List[string]
+$failures = New-Object System.Collections.Generic.List[string]
+
+foreach ($review in $reviews) {
+  $provider = Get-MachineReviewProvider ([string]$review.user.login)
+  if (-not $provider -or $review.commit_id -ne $headSha -or $review.state -in @('DISMISSED','PENDING')) { continue }
+  if ($review.state -eq 'CHANGES_REQUESTED' -or (Test-MaterialAiReviewBody ([string]$review.body))) {
+    $failures.Add("$provider review by $($review.user.login) contains material findings")
+  } elseif ($acceptedProviders -contains $provider) {
+    $passes.Add("$provider formal review by $($review.user.login)")
+  }
+}
+foreach ($inline in $inlineComments) {
+  $provider = Get-MachineReviewProvider ([string]$inline.user.login)
+  if (-not $provider -or [string]$inline.commit_id -ne $headSha) { continue }
+  if (Test-MaterialAiReviewBody ([string]$inline.body)) {
+    $failures.Add("$provider inline review comment #$($inline.id) contains a material current-head finding")
+  }
+}
+
+$structured = Get-TrustedStructuredCopilotReview -Comments $comments -HeadSha $headSha -OwnerLogin $ownerLogin
+if ($structured) {
+  if ([string]$structured.body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') {
+    $failures.Add('Copilot structured exact-head review contains material findings')
+  } elseif ($acceptedProviders -contains 'copilot') {
+    $passes.Add('Copilot structured exact-head review')
+  }
+}
+
+$codexRequests = @($comments | Where-Object {
+  (Test-TrustedAutomationComment $_ $ownerLogin) -and [string]$_.body -like "*ai-review-request:codex:$headSha*"
+} | Sort-Object created_at)
+foreach ($request in $codexRequests) {
+  foreach ($reaction in @(Get-Paged "repos/$Repo/issues/comments/$($request.id)/reactions?per_page=100")) {
+    if ((Get-MachineReviewProvider ([string]$reaction.user.login)) -eq 'codex' -and $reaction.content -eq '+1' -and $acceptedProviders -contains 'codex') {
+      $passes.Add('Codex thumbs-up on exact-head review request')
+    }
+  }
+}
+if ($codexRequests.Count -gt 0 -and $acceptedProviders -contains 'codex') {
+  $requestTime = [datetimeoffset]$codexRequests[-1].created_at
+  foreach ($reaction in @(Get-Paged "repos/$Repo/issues/$Pr/reactions?per_page=100")) {
+    if ((Get-MachineReviewProvider ([string]$reaction.user.login)) -eq 'codex' -and $reaction.content -eq '+1' -and ([datetimeoffset]$reaction.created_at) -ge $requestTime) {
+      $passes.Add('Codex PR thumbs-up after exact-head review request')
+    }
+  }
+}
+
+if ($failures.Count -gt 0) {
+  Set-AiReviewCheck $headSha failure ("Material machine-review finding(s): " + (($failures | Select-Object -Unique) -join '; '))
+  exit 0
+}
+if ($passes.Count -eq 0) {
+  $implementerText = if ($implementer) { $implementer } else { 'unknown/human' }
+  Set-AiReviewCheck $headSha failure ("Awaiting exact-head reviewer different from latest-head implementer=$implementerText. Accepted: " + ($acceptedProviders -join ', '))
+  exit 0
+}
+Set-AiReviewCheck $headSha success ("Exact head $headSha passed machine review; latest-head implementer=$implementer; evidence=" + (($passes | Select-Object -Unique) -join '; '))

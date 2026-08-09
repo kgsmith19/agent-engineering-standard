@@ -6,131 +6,56 @@ on:
       pr_number:
         required: true
         type: number
+      standard_sha:
+        required: true
+        type: string
 
 jobs:
   evaluate:
     name: Update AI Review status
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 5
     env:
       GH_TOKEN: ${{ github.token }}
-      PR_NUMBER: ${{ inputs.pr_number }}
     steps:
-      - name: Evaluate exact-head independent review
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: kgsmith19/agent-engineering-standard
+          ref: ${{ inputs.standard_sha }}
+          path: .standard
+      - name: Detect trusted evaluator
+        id: trusted_standard
+        shell: bash
+        run: |
+          if [[ -f .standard/scripts/evaluate-ai-review.ps1 && -f .standard/scripts/request-review-repair.ps1 && -f .standard/scripts/reconcile-machine-review-threads.ps1 ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Trusted evaluator unavailable::The trusted standard SHA predates the evaluator. This bootstrap control-plane PR remains fail-closed and requires the documented external authority path."
+            echo "### Trusted evaluator unavailable" >> "$GITHUB_STEP_SUMMARY"
+            echo "No proposed PR script was executed. Use the documented external authority path for this bootstrap control-plane PR." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Evaluate exact-head machine review
+        if: steps.trusted_standard.outputs.available == 'true'
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $repo = $env:GITHUB_REPOSITORY
-          $prNumber = [int]$env:PR_NUMBER
-
-          function Invoke-GhJson {
-            param([string]$Method, [string]$Endpoint, $Body)
-            $tmp = [System.IO.Path]::GetTempFileName()
-            try {
-              $Body | ConvertTo-Json -Depth 10 | Set-Content $tmp -Encoding utf8 -NoNewline
-              $raw = & gh api --method $Method $Endpoint --input $tmp 2>&1
-              if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
-              if ($raw) { return (($raw -join "`n") | ConvertFrom-Json) }
-            } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
-          }
-
-          function Get-ProviderFromLogin([string]$Login) {
-            $value = $Login.ToLowerInvariant()
-            if ($value -in @('chatgpt-codex-connector','chatgpt-codex-connector[bot]')) { return 'codex' }
-            if ($value -in @('copilot-pull-request-reviewer','copilot-pull-request-reviewer[bot]','copilot','copilot-swe-agent[bot]')) { return 'copilot' }
-            return $null
-          }
-
-          function Set-AiReviewCheck([string]$HeadSha, [string]$Conclusion, [string]$Summary) {
-            $encoded = [uri]::EscapeDataString('AI Review')
-            $raw = & gh api -H 'Accept: application/vnd.github+json' "repos/$repo/commits/$HeadSha/check-runs?check_name=$encoded" 2>&1
-            if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
-            $runs = (($raw -join "`n") | ConvertFrom-Json).check_runs
-            $existing = @($runs | Where-Object { $_.name -eq 'AI Review' -and $_.app.slug -eq 'github-actions' } | Sort-Object id | Select-Object -Last 1)
-            $checkBody = @{ status = 'completed'; conclusion = $Conclusion; output = @{ title = 'AI Review'; summary = $Summary } }
-            if ($existing.Count -gt 0) {
-              Invoke-GhJson -Method PATCH -Endpoint "repos/$repo/check-runs/$($existing[0].id)" -Body $checkBody | Out-Null
-            } else {
-              $checkBody.name = 'AI Review'
-              $checkBody.head_sha = $HeadSha
-              Invoke-GhJson -Method POST -Endpoint "repos/$repo/check-runs" -Body $checkBody | Out-Null
-            }
-          }
-
-          $prRaw = & gh api "repos/$repo/pulls/$prNumber" 2>&1
-          if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
-          $pr = ($prRaw -join "`n") | ConvertFrom-Json
-          $headSha = [string]$pr.head.sha
-          $headRef = [string]$pr.head.ref
-          $author = [string]$pr.user.login
-
-          if ($pr.draft) {
-            Set-AiReviewCheck $headSha failure 'Draft PR: semantic review is intentionally deferred.'
-            exit 0
-          }
-
-          # Agent provenance is mechanical. Ordinary user-authored branches are deliberately
-          # ambiguous and therefore require BOTH connected providers before automated merge.
-          $implementer = 'unknown'
-          if ($headRef -match '^agent/(chatgpt|codex|claude|copilot)/') { $implementer = $Matches[1].ToLowerInvariant() }
-          elseif ($headRef -match '^claude/') { $implementer = 'claude' }
-          elseif ($headRef -match '^copilot/' -or $author -eq 'Copilot') { $implementer = 'copilot' }
-          elseif ($author -match '^chatgpt-codex-connector(?:\[bot\])?$') { $implementer = 'codex' }
-
-          $requiredProviders = switch ($implementer) {
-            'codex' { @('copilot') }
-            'chatgpt' { @('copilot') }
-            'copilot' { @('codex') }
-            'claude' { @('codex') }
-            default { @('codex','copilot') }
-          }
-
-          $reviewsRaw = & gh api "repos/$repo/pulls/$prNumber/reviews?per_page=100" 2>&1
-          if ($LASTEXITCODE -ne 0) { throw ($reviewsRaw -join "`n") }
-          $reviews = @(($reviewsRaw -join "`n") | ConvertFrom-Json)
-
-          $commentsRaw = & gh api "repos/$repo/issues/$prNumber/comments?per_page=100" 2>&1
-          if ($LASTEXITCODE -ne 0) { throw ($commentsRaw -join "`n") }
-          $comments = @(($commentsRaw -join "`n") | ConvertFrom-Json)
-
-          $passed = @{}
-          $failed = @{}
-          foreach ($provider in @('codex','copilot')) {
-            $providerReviews = @($reviews | Where-Object {
-              (Get-ProviderFromLogin ([string]$_.user.login)) -eq $provider -and
-              $_.commit_id -eq $headSha -and $_.state -notin @('DISMISSED','PENDING')
-            } | Sort-Object submitted_at)
-            if ($providerReviews.Count -gt 0) {
-              $latest = $providerReviews[-1]
-              if ($latest.state -eq 'CHANGES_REQUESTED') { $failed[$provider] = "formal review by $($latest.user.login) requests changes" }
-              else { $passed[$provider] = "formal review by $($latest.user.login)" }
-            }
-          }
-
-          # Copilot coding-agent fallback may return a structured issue comment instead of a formal review.
-          $structured = @($comments | Where-Object {
-            (Get-ProviderFromLogin ([string]$_.user.login)) -eq 'copilot' -and
-            $_.body -match '(?im)^\s*AI-REVIEW\s+(PASS|FAIL)\b' -and
-            $_.body -match [regex]::Escape($headSha)
-          } | Sort-Object created_at)
-          if ($structured.Count -gt 0) {
-            $latestComment = $structured[-1]
-            if ($latestComment.body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') { $failed['copilot'] = 'structured Copilot fallback reported material findings' }
-            elseif (-not $failed.ContainsKey('copilot')) { $passed['copilot'] = 'structured Copilot fallback' }
-          }
-
-          foreach ($provider in $requiredProviders) {
-            if ($failed.ContainsKey($provider)) {
-              Set-AiReviewCheck $headSha failure "Required $provider review failed: $($failed[$provider])."
-              exit 0
-            }
-          }
-
-          $missing = @($requiredProviders | Where-Object { -not $passed.ContainsKey($_) })
-          if ($missing.Count -gt 0) {
-            Set-AiReviewCheck $headSha failure "Missing current-head required review provider(s): $($missing -join ', '). Implementer provenance: $implementer."
-            exit 0
-          }
-
-          $proof = @($requiredProviders | ForEach-Object { "$_=$($passed[$_])" }) -join '; '
-          Set-AiReviewCheck $headSha success "Current head $headSha satisfies required review providers for implementer=$implementer. $proof"
+          & pwsh -NoProfile -File .standard/scripts/evaluate-ai-review.ps1 `
+            -Repo '${{ github.repository }}' `
+            -Pr ${{ inputs.pr_number }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Request bounded repair for material findings
+        if: steps.trusted_standard.outputs.available == 'true'
+        shell: pwsh
+        run: |
+          & pwsh -NoProfile -File .standard/scripts/request-review-repair.ps1 `
+            -Repo '${{ github.repository }}' `
+            -Pr ${{ inputs.pr_number }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Reconcile stale machine-only review threads
+        if: steps.trusted_standard.outputs.available == 'true'
+        shell: pwsh
+        run: |
+          & pwsh -NoProfile -File .standard/scripts/reconcile-machine-review-threads.ps1 `
+            -Repo '${{ github.repository }}' `
+            -Pr ${{ inputs.pr_number }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

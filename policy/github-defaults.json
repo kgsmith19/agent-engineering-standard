@@ -7,6 +7,10 @@
   "strict_required_status_checks_policy": false,
   "required_approving_review_count": 0,
   "require_code_owner_review": false,
+  "native_codeowners": false,
+  "forbidden_requested_reviewers": [
+    "kgsmith19"
+  ],
   "required_review_thread_resolution": true,
   "merge_method": "squash",
   "allow_auto_merge": true,
@@ -16,14 +20,25 @@
   "independent_review": {
     "required_for_auto_merge": true,
     "preferred_provider": "codex",
+    "fallback_provider": "copilot",
     "local_codex_model": "gpt-5.4-mini",
-    "max_codex_reviews_per_pr": 2,
-    "copilot_fallback": true,
+    "review_stall_minutes": 3,
+    "primary_wait_minutes": 3,
+    "fallback_wait_minutes": 3,
+    "absolute_timeout_minutes": 720,
+    "poll_seconds": 20,
+    "max_review_heads_per_pr": 2,
     "copilot_effort": "low",
-    "copilot_review_drafts": false,
-    "copilot_review_on_push": false,
-    "max_copilot_reviews_per_pr": 1,
-    "same_provider_counts_as_independent": false
+    "review_drafts": false,
+    "review_on_every_push": false
+  },
+  "pr_automation": {
+    "draft_ready_label": "status:ready",
+    "blocked_label": "status:blocked",
+    "max_ci_fix_attempts": 3,
+    "max_review_fix_attempts": 1,
+    "max_conflict_fix_attempts": 2,
+    "watchdog_interval_minutes": 360
   },
   "manual_gate_required_fields": [
     "failure_class_prevented",
@@ -48,7 +63,7 @@
     }
   },
   "org_hardening": {
-    "require_code_owner_review": true,
+    "require_code_owner_review": false,
     "prefer_required_workflow_from_standard_repo": true
   },
   "delete_branch_on_merge": true,
@@ -56,7 +71,8 @@
   "allow_rebase_merge": false,
   "allow_squash_merge": true,
   "merge_queue": {
-    "desired": true,
+    "desired": false,
+    "reason": "User-owned repositories do not support the target merge-queue lane; enable only after organization ownership and exact-head merge_group AI Review are proven.",
     "grouping_strategy": "HEADGREEN",
     "check_response_timeout_minutes": 10,
     "max_entries_to_build": 3,

@@ -4,14 +4,15 @@
 Issue:
 Spec:
 Slice(s):
-Implementer: chatgpt / claude / copilot / codex / human
+Implementer (descriptive only): chatgpt / claude / copilot / codex / human
 
-> The Implementer line is descriptive, not trusted agent identity. Controlled agent work should use `agent/<provider>/...` (for example `agent/chatgpt/42-fix`). Ordinary/user-authored branches are treated as ambiguous and require both Codex + Copilot for unattended merge.
+> Review independence is derived from the latest head commit's authenticated machine actor when available. Branch names and this line are never trusted identity.
 
 ## What Changed
 -
 
 ## Evidence
+- [ ] Local evidence completed before Ready
 - [ ] Required `PR Gate` passes on the latest head
 - [ ] Required `AI Review` passes on the latest head
 - [ ] Acceptance satisfied
@@ -24,11 +25,16 @@ R0 / R1 / R2 / R3 / R4
 -
 
 ## Integrity
-- [ ] Tests/policies were not weakened
+- [ ] Tests, policies, and evaluators were not weakened
 - [ ] Scope was not unnecessarily widened
-- [ ] Repeated manual work was automated in-scope or logged as one bounded automation/research candidate
+- [ ] Repeated manual work was automated in-scope or logged as one bounded candidate
+- [ ] `kgsmith19` is not requested as a reviewer
 
-## Manual Gate (only when actually required)
+## Draft / Ready
+- Keep Draft while implementation changes.
+- Add `status:ready` only when the coherent PR should enter the automated gate/review/merge lane.
+
+## Authority Gate (only when actually required)
 None, or state all four:
 - Failure class prevented:
 - Why automation is insufficient today:

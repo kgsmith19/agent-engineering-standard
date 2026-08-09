@@ -1,6 +1,6 @@
 # Lean Agent Engineering Standard
 
-This repo is the authoritative shared engineering standard for Kyle's agent-driven software projects.
+This repository is the shared engineering control plane for Kyle's agent-driven software projects.
 
 ## Goal
 
@@ -13,101 +13,96 @@ Idea
 → Outcome / Bet
 → Product Truth
 → GitHub Issue
-→ Spec if needed
+→ Spec only if needed
 → Thin Slice
-→ Evidence
-→ Risk / Authority
 → RED → Minimum GREEN
-→ Verification
-→ PR
-→ required `PR Gate` + exact-head `AI Review`
-→ auto-merge / merge queue when supported
+→ Local Verification
+→ Draft PR
+→ `status:ready`
+→ `PR Gate`
+→ exact-head `AI Review`
+→ automatic squash merge
 → Release / Runtime Proof
 → Observe / Learn
-→ next idea or slice
 
 ## Governing rule
 
-Every artifact, rule, gate, and CI run must reduce meaningful uncertainty, prevent a real/high-consequence failure, or provide useful independent evidence. Otherwise remove it.
+Every artifact, gate, model call, and CI run must reduce meaningful uncertainty, prevent a real failure, or provide useful evidence. Otherwise remove it.
 
 ## Shared standards
 
 - [Lifecycle](LIFECYCLE.md)
 - [Agent Rules](AGENT_RULES.md)
 - [Quality Rules](QUALITY_RULES.md)
-- [Security, Risk & Autonomy](SECURITY_RISK_AUTONOMY.md)
-- [Delivery & GitHub](DELIVERY_GITHUB.md)
-- [Evidence & Learning](EVIDENCE_LEARNING.md)
+- [Security, Risk and Autonomy](SECURITY_RISK_AUTONOMY.md)
+- [Delivery and GitHub](DELIVERY_GITHUB.md)
+- [Evidence and Learning](EVIDENCE_LEARNING.md)
+- [Autonomous PR state machine](docs/AUTONOMOUS-PR-STATE-MACHINE.md)
 
-`AGENTS.md` is the operating map for agents working on this control-plane repo.
+## Existing portfolio setup
 
-## One-time portfolio setup
-
-After product repos contain the thin `AI Review` caller and GitHub CLI is authenticated:
-
-```powershell
-pwsh -File scripts/setup-portfolio.ps1
-```
-
-That applies repository settings/rules, enables Actions, creates the lean risk/status labels, syncs the optional `Agentic Portfolio` Project, and runs the remote doctor. Do not call the portfolio ready until the remote doctor reports READY.
-
-## Other automation
+After the approved standard commit is on `main`:
 
 ```powershell
-# Bootstrap a new repo with the shared engineering contract.
-pwsh -File scripts/bootstrap-repo.ps1 -Name my-app
-
-# Fan an approved standards commit out as reviewable pin PRs.
-pwsh -File scripts/upgrade-repos.ps1
-
-# One cheap batched local semantic review.
-pwsh -File scripts/codex-review.ps1
-
-# Request a bounded cross-provider review using GitHub-Actions-attested provenance.
-pwsh -File scripts/request-independent-review.ps1 -Repo kgsmith19/my-app -Pr 12
-
-# Arm GitHub auto-merge only after live policy requires exact-head PR Gate + AI Review.
-pwsh -File scripts/auto-merge.ps1 -Repo kgsmith19/my-app -Pr 12 -Risk R2
-
-# Lower-level maintenance.
-pwsh -File scripts/apply-github-standard.ps1
-pwsh -File scripts/sync-agentic-project.ps1
-pwsh -File scripts/doctor.ps1 -Remote
+pwsh -NoProfile -File .\scripts\upgrade-repos.ps1 -StandardSha <full-merged-sha>
+pwsh -NoProfile -File .\scripts\setup-portfolio.ps1
 ```
 
-`upgrade-repos.ps1` preserves each existing `.agent/standard.lock` revision key and supports `sha`, `commit`, and `standard_commit` without guessing.
+`setup-portfolio.ps1` applies settings, Actions defaults, labels, and the one canonical ruleset, then runs `doctor.ps1 -Remote`. Do not claim readiness until it reports `REMOTE: READY`.
 
-`policy/github-defaults.json` is the machine-readable portfolio policy.
+GitHub currently exposes the Copilot workflow-approval setting as read-only through REST. In each repository, disable **Require approval for workflows** in Copilot coding-agent settings. The remote doctor fails while it is enabled.
 
-## GitHub default
+## New repository
 
-Managed repos use GitHub Issues for durable work, draft PRs while agents iterate, squash merge, branch cleanup, protected `main`, and resolved review threads. Integration requires two GitHub-Actions-bound contexts on the latest head:
-
-- `PR Gate` for deterministic evidence
-- `AI Review` for cross-provider semantic review freshness
-
-A new push invalidates the previous head's semantic authorization automatically. Human approval count stays 0 on personal repos. R0-R3 may auto-merge after both required gates and review-thread resolution when no justified authority gate applies. R4 never auto-merges.
-
-Control-plane PRs remain manually merged only while they can modify the evaluator/merge authority that judges them. That gate is removed when enforcement becomes immutable/external to the PR.
-
-The optional cross-repo GitHub Project is a portfolio view only; it is never a competing task database.
-
-## Repo-specific truth
-
-Each product repo owns only product-specific PRD, active specs, important ADRs, source, tests, commands, and deployment details. Do not copy the universal standard into every repo.
-
-## ACC target
-
-ACC should eventually wrap the proven scripts and run the recurring portfolio loops automatically:
-
-```text
-acc repo init <name>
-acc standard upgrade
-acc doctor
-acc review
-acc resolve-ready
-acc cleanup
-acc merge
+```powershell
+pwsh -NoProfile -File .\scripts\bootstrap-repo.ps1 -Name my-app
 ```
 
-Until those adapters are proven, the scripts are the executable reference implementation.
+Bootstrap creates the lean repository contract, exact-SHA-pinned `AI Review` and `PR Automation` callers, a bootstrap `PR Gate`, settings/ruleset, and one Issue to replace the bootstrap gate with the repository's real stack-specific checks.
+
+## Core commands
+
+```powershell
+# Verify local structure and PowerShell syntax.
+pwsh -NoProfile -File .\scripts\doctor.ps1
+
+# Verify all managed repositories and live settings.
+pwsh -NoProfile -File .\scripts\doctor.ps1 -Remote
+
+# Request one exact-head machine review manually when debugging.
+pwsh -NoProfile -File .\scripts\request-machine-review.ps1 -Repo kgsmith19/my-app -Pr 12
+
+# Validate policy and arm GitHub auto-merge.
+pwsh -NoProfile -File .\scripts\auto-merge.ps1 -Repo kgsmith19/my-app -Pr 12 -Risk R2
+
+# Dry-run conservative branch/worktree cleanup.
+pwsh -NoProfile -File .\scripts\prune-portfolio.ps1
+```
+
+## Default GitHub behavior
+
+Managed repositories use:
+
+- GitHub Issues as durable work items
+- draft PRs during implementation
+- `status:ready` for automatic promotion to Ready
+- exact workflow and status names `PR Gate` and `AI Review`
+- zero required human approvals
+- no native `CODEOWNERS`
+- `kgsmith19` forbidden from requested-reviewer state
+- required review-thread resolution
+- stale reviews dismissed after a push
+- squash-only auto-merge
+- automatic branch deletion
+- no ruleset bypass actors
+- one low-frequency watchdog plus event-driven recovery
+
+Copilot cloud agent may repair an existing non-Copilot PR. Copilot-owned PRs are blocked from the unattended lane because GitHub requires them to be reviewed and merged by a human.
+
+R0–R3 may auto-merge after current-head `PR Gate` + `AI Review` and thread resolution. R4 and self-modifying control-plane changes retain explicitly justified authority gates; Kyle is tagged, never assigned as reviewer.
+
+## Shared versus repository-specific truth
+
+Central policy, orchestration, review evaluation, bootstrap, rollout, and doctor logic live here. Product repositories keep their own PRD, specs, ADRs, source, tests, deployment, and stack-specific `PR Gate` commands.
+
+Thin product workflows pin this repository by full SHA. They never follow moving `@main`.
