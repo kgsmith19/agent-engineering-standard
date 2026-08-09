@@ -139,8 +139,11 @@ foreach ($name in $config.repositories) {
         $callerText = $callerRaw -join "`n"
         if ($callerText -match '@main\b|__STANDARD_SHA__') { Add-Problem $problems "$caller follows moving or unresolved standard ref" }
         if ($pinnedSha) {
-          $usesPins = @([regex]::Matches($callerText,'kgsmith19/agent-engineering-standard/[^@\s]+@([0-9a-fA-F]{40})') | ForEach-Object { $_.Groups[1].Value.ToLowerInvariant() })
-          if ($usesPins.Count -eq 0 -or @($usesPins | Where-Object { $_ -ne $pinnedSha.ToLowerInvariant() }).Count -gt 0) {
+          $standardRepo = [regex]::Escape("$($config.owner)/agent-engineering-standard")
+          $usesRefs = @([regex]::Matches($callerText,"(?m)^\s*uses:\s*$standardRepo/[^@\s]+@(.*?)\s*$") | ForEach-Object { [string]$_.Groups[1].Value })
+          if ($usesRefs.Count -eq 0 -or @($usesRefs | Where-Object {
+            $_ -notmatch '^[0-9a-fA-F]{40}$' -or $_.ToLowerInvariant() -ne $pinnedSha.ToLowerInvariant()
+          }).Count -gt 0) {
             Add-Problem $problems "$caller reusable-workflow ref not pinned to standard.lock"
           }
           $standardShaInputs = @([regex]::Matches($callerText,'(?m)^\s*standard_sha:\s*(.*?)\s*$'))

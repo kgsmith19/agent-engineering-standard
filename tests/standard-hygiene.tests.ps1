@@ -126,6 +126,7 @@ Assert-Contains 'upgrade reuses existing rollout PR' 'scripts/upgrade-repos.ps1'
 
 Assert-Contains 'doctor checks Copilot workflow approval' 'scripts/doctor.ps1' 'require_actions_workflow_approval'
 Assert-Contains 'doctor checks requested reviewers' 'scripts/doctor.ps1' 'requested_reviewers'
+Assert-Contains 'doctor validates every reusable workflow ref pin' 'scripts/doctor.ps1' '\$usesRefs'
 Assert-Contains 'doctor validates reusable workflow ref pin' 'scripts/doctor.ps1' 'reusable-workflow ref not pinned to standard.lock'
 Assert-Contains 'doctor validates standard_sha input pin' 'scripts/doctor.ps1' 'standard_sha input not pinned to standard.lock'
 Assert-Contains 'doctor checks legacy protection absence' 'scripts/doctor.ps1' 'legacy branch protection still present'
