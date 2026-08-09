@@ -8,7 +8,9 @@ Use GitHub as the protected integration plane while keeping feedback fast, model
 
 GitHub Issues are the durable work-item source. A PR is the smallest coherent integration unit.
 
-`Issue → SPEC only if needed → thin slices → draft PR → Ready → PR Gate → exact-head AI Review → GitHub auto-merge → release → observe`
+`Issue → SPEC only if needed → thin slices → PR (opened Ready, risk label at creation) → PR Gate → GitHub auto-merge → release → observe`
+
+Open PRs non-draft with the `risk:R*` label already applied so the lane engages with zero promotion latency. Draft-first remains supported (label `status:ready` to promote), just slower.
 
 Do not enlarge PRs merely to save CI minutes. Save minutes through local slice verification, fewer pushes, cancellation, caching, and path/risk-aware tests.
 
@@ -36,10 +38,11 @@ Product callers never follow moving `@main`. Updating shared behavior is an expl
 
 ## 3. Required checks and settings
 
-Every managed repository requires these latest-head GitHub Actions contexts:
+Every managed repository requires this latest-head GitHub Actions context:
 
 - `PR Gate`: deterministic repo-specific evidence
-- `AI Review`: one fresh machine review task/session for the exact head
+
+`AI Review` is advisory-only and off by default (ADR 0002): `independent_review.required_for_auto_merge` restores it as a required context; `solicit_reviews` runs it informationally without gating.
 
 Repository defaults:
 
@@ -48,7 +51,7 @@ Repository defaults:
 - Code Owner approval: off
 - native `.github/CODEOWNERS`: absent
 - `kgsmith19`: forbidden from requested-reviewer state
-- review-thread resolution required
+- review-thread resolution not required (no required reviewer exists to resolve a stray thread; ADR 0002)
 - stale reviews dismissed after a push
 - auto-merge and update branch enabled
 - squash only; merge commits and rebase disabled
@@ -79,7 +82,7 @@ flowchart TD
     K --> L[Run PR Gate]
     L --> M{PR Gate result}
     M -- Pass --> N[Detect latest-head machine implementer]
-    M -- Fail --> O[Copilot root-cause repair, max 3]
+    M -- Fail --> O[Copilot root-cause repair, max 7]
     O --> L
     N --> P[Request a different machine reviewer]
     P --> Q{Review evidence}
@@ -138,10 +141,10 @@ The AI Review runner wakes only when semantic evidence changes: formal review, i
 
 | Condition | Automated action | Budget | Final stop condition |
 |---|---|---:|---|
-| PR Gate fails | Copilot reads complete logs and fixes root cause | 3 | `status:blocked` |
+| PR Gate fails | Copilot reads complete logs and fixes root cause | 7 | `status:blocked` |
 | Formal or inline review finds P0-P2 | Copilot performs one batched repair | 1 | second reviewed head still fails |
 | Codex review stalls | independent Copilot review fallback when allowed | 1 per head | 12-hour reviewer safety timeout |
-| Merge conflict | Dependabot rebase or Copilot semantic conflict resolution | 2 | `status:blocked` |
+| Merge conflict | Dependabot rebase or Copilot semantic conflict resolution | 6 | `status:blocked` |
 | Draft ready for integration | `status:ready` promotes to Ready | 1 state change | remains draft without label |
 | New push after green review | invalidate old review and restart | max 2 reviewed heads | `status:blocked` |
 | R4 | automated evidence, then human authority | none | explicit authorization |
@@ -158,7 +161,7 @@ A stop never silently assigns Kyle as reviewer. It posts the exact blocker and t
 - cancel superseded deterministic/evaluator runs
 - exact-head markers suppress duplicate requests
 - 3-minute primary polling plus 3-minute fallback polling
-- 12-hour low-frequency safety watchdog, not continuous polling
+- hourly safety watchdog (12-hour reviewer timeout when review is enabled), not continuous polling
 - path filters and safe caches where useful
 - expensive matrices, mutation, load, and broad E2E only when risk/path/release requires them
 - measure latency, Actions minutes, model responses, findings caught, and false-positive rate before expanding review
