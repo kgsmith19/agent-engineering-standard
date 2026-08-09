@@ -86,6 +86,27 @@ function Test-MaterialAiReviewBody {
   return $Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?P[0-2]\b[^\r\n]{0,120}?(?:\*\*)?\s*(?::|—)\s*\S'
 }
 
+function Get-ReviewRepairDecision {
+  param(
+    [Parameter(Mandatory)][string]$HeadSha,
+    [string[]]$AttemptedHeadShas = @(),
+    [Parameter(Mandatory)][int]$MaxAttempts,
+    [Parameter(Mandatory)][bool]$HasFindings
+  )
+
+  if ($MaxAttempts -lt 1) { throw 'MaxAttempts must be at least 1.' }
+  if (-not $HasFindings) { return 'none' }
+
+  $attempted = @($AttemptedHeadShas | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+  if ($attempted -contains $HeadSha) {
+    # The repair agent was already asked to fix this exact head. Re-triggering
+    # on the request comment itself must not consume another attempt or block.
+    return 'pending'
+  }
+  if ($attempted.Count -ge $MaxAttempts) { return 'block' }
+  return 'request'
+}
+
 function Get-RiskFromLabels {
   param([string[]]$Labels)
   $risk = @($Labels | Where-Object { $_ -match '^risk:R[0-4]$' })
@@ -98,7 +119,7 @@ function Test-ControlPlanePath {
   param([Parameter(Mandatory)][string]$Path)
   $patterns = @(
     '^\.github/workflows/', '^\.agent/', '^policy/', '^scripts/lib/',
-    '^scripts/(apply-github-standard|setup-portfolio|doctor|auto-merge|request-machine-review|request-review-repair|evaluate-ai-review|reconcile-machine-review-threads|pr-orchestrator|upgrade-repos|bootstrap-repo)\.ps1$',
+    '^scripts/(apply-github-standard|setup-portfolio|doctor|auto-merge|request-machine-review|request-review-repair|evaluate-ai-review|reconcile-machine-review-threads|pause-pending-review|pr-orchestrator|upgrade-repos|bootstrap-repo)\.ps1$',
     '^(AGENT_RULES|QUALITY_RULES|SECURITY_RISK_AUTONOMY|DELIVERY_GITHUB|EVIDENCE_LEARNING|AGENTS)\.md$'
   )
   return [bool]($patterns | Where-Object { $Path -match $_ } | Select-Object -First 1)
