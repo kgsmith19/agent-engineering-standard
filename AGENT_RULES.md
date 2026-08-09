@@ -40,57 +40,49 @@ Before retrying, classify the failure as specification/oracle, implementation, e
 
 Do not repeat the same failing strategy indefinitely. Escalate consequential ambiguity rather than forcing a result.
 
-## 6. Independent review and merge
+## 6. Automated PR state machine
 
-Keep a PR draft while implementation is changing. Run fast local verification during slices, then mark the coherent PR ready.
+Keep a PR draft while implementation is changing. Drafts deliberately do not spend semantic-review budget and cannot auto-merge. Add `status:ready` only when the coherent PR should be promoted to Ready automatically.
 
-Every automated merge requires two GitHub integration gates on the **latest head SHA**:
+Every unattended merge requires two GitHub checks on the **latest head SHA**:
 
-1. `PR Gate` — deterministic repo-specific evidence
-2. `AI Review` — required provider-specific semantic evidence for the exact head
+1. `PR Gate` — deterministic repo-specific build/test/security evidence
+2. `AI Review` — one fresh machine review task/session over that exact head
 
-A later push creates a new head SHA and invalidates the prior semantic authorization. Auto-merge may remain armed, but GitHub cannot merge until the new head receives a successful `AI Review` check.
+A later push invalidates both semantic authorization and any pending merge. The state machine re-runs the deterministic gate, requests a fresh exact-head machine review, and only then allows GitHub auto-merge.
 
-Agent provenance is mechanical, not trusted from editable PR prose:
+### Machine reviewer selection
 
-- ChatGPT work: `agent/chatgpt/<work>`
-- Codex work: `agent/codex/<work>`
-- Claude work: `agent/claude/<work>` or recognized legacy Claude cloud branch
-- Copilot work: `agent/copilot/<work>` or recognized Copilot branch/author
-- ordinary/user-authored branches are ambiguous for independence and therefore need both connected reviewer providers for unattended merge
+- A PR authored by the Codex GitHub App requires Copilot review.
+- Every other PR prefers a fresh Codex review task/session.
+- Copilot is the bounded fallback when Codex stalls.
+- Branch names and editable PR prose are descriptive only; they are never trusted as implementation identity.
+- Claude may be added later only after a mechanical GitHub review adapter is implemented and verified.
 
-Default required reviewer routing:
-
-- ChatGPT implementation → Copilot
-- Claude implementation → Codex
-- Copilot implementation → Codex
-- Codex implementation → Copilot
-- ambiguous/user-authored provenance → Codex + Copilot
-
-Do not claim a fresh-Claude fallback until a mechanical Claude review adapter exists.
-
-The default semantic reviewer performs **one batched multi-lens pass**:
+The machine review batches these lenses into one response:
 
 1. software correctness/security
-2. business/product outcome and ROI
-3. business systems/operational optimization
-4. leanness/complexity/dead-code/manual-toil review
+2. requirement/spec fit
+3. business/product outcome and ROI
+4. systems/operational optimization
+5. strict leanness, complexity, dead code, and manual toil
 
-A second semantic pass is justified only after substantive fixes, unresolved ambiguity, or when ambiguous provenance requires the second connected provider.
+A clean formal review, structured exact-head Copilot PASS, or exact-head Codex thumbs-up can satisfy `AI Review`. Any material P0–P2 finding makes `AI Review` fail and triggers a bounded repair agent. A fix creates a new SHA, then the full gate/review cycle repeats.
 
-Cost rules:
+### Cost and retry bounds
 
-- deterministic checks before LLM review
-- Codex primary for Claude/Copilot/ambiguous work; local deep review defaults to `gpt-5.4-mini`
-- max 2 Codex response passes per PR: initial + one post-fix re-review
-- max 1 Copilot response pass per PR, low effort
-- no default draft review or unlimited review-on-push spending
-- per-head request markers prevent duplicate requests
-- active implementation stays draft so noisy micro-pushes do not consume semantic review budget
+- deterministic checks run before model review
+- no AI review for drafts or every micro-push
+- normal budget: initial reviewed head plus one post-fix reviewed head
+- CI repair: maximum 3 attempts
+- review repair: maximum 2 attempts
+- conflict repair: maximum 2 attempts
+- duplicate exact-head requests are suppressed
+- stalled Codex review may use one Copilot fallback
 
-R0–R3 may auto-merge only when both required gates are enforced, review threads are resolved, and no justified manual authority gate applies. Control-plane changes remain manually merged while they can alter the evaluator that judges themselves.
+No routine path requests Kyle as a GitHub reviewer. Native `CODEOWNERS` is absent, required human approvals are `0`, and machine review is enforced through the `AI Review` status check.
 
-R4 never auto-merges. Its manual step authorizes destructive/financial/privileged/irreversible consequence; it is not a substitute for technical review.
+R0–R3 may auto-merge when both checks pass, review threads are resolved, and no justified authority gate applies. Control-plane changes remain manually integrated while they can modify the evaluator or merge authority judging themselves. R4 never auto-merges.
 
 ## 7. Manual gates must earn their existence
 
