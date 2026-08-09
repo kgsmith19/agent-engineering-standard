@@ -3,24 +3,39 @@ $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 . (Join-Path $root 'scripts/lib/review-policy.ps1')
 
 function Assert-Equal {
-  param([string]$Name, $Actual, $Expected)
+  param([string]$Name,$Actual,$Expected)
   if ($Actual -cne $Expected) { throw "$Name failed: expected '$Expected', got '$Actual'." }
 }
 
 function Assert-Throws {
-  param([string]$Name, [scriptblock]$Action)
+  param([string]$Name,[scriptblock]$Action)
   try { & $Action | Out-Null } catch { return }
   throw "$Name failed: expected an exception."
 }
 
 Assert-Equal 'Codex bot login recognized' (Get-MachineReviewProvider -Login 'chatgpt-codex-connector[bot]') 'codex'
+Assert-Equal 'Codex mention login recognized' (Get-MachineReviewProvider -Login 'codex') 'codex'
 Assert-Equal 'Copilot review bot recognized' (Get-MachineReviewProvider -Login 'copilot-pull-request-reviewer[bot]') 'copilot'
 Assert-Equal 'Copilot coding agent recognized' (Get-MachineReviewProvider -Login 'copilot-swe-agent[bot]') 'copilot'
 Assert-Equal 'Unknown reviewer ignored' (Get-MachineReviewProvider -Login 'random-bot[bot]') $null
 
-Assert-Equal 'Normal PR prefers fresh Codex review task' (Get-PreferredMachineReviewer -PrAuthorLogin 'kgsmith19') 'codex'
-Assert-Equal 'Copilot-authored PR prefers Codex' (Get-PreferredMachineReviewer -PrAuthorLogin 'Copilot') 'codex'
-Assert-Equal 'Codex-app-authored PR requires Copilot' (Get-PreferredMachineReviewer -PrAuthorLogin 'chatgpt-codex-connector[bot]') 'copilot'
+Assert-Equal 'Unknown human head has no machine implementer' (Get-HeadImplementerProvider -HeadAuthorLogin 'kgsmith19') $null
+Assert-Equal 'Latest Copilot commit is detected' (Get-HeadImplementerProvider -HeadAuthorLogin 'Copilot') 'copilot'
+Assert-Equal 'Latest Codex commit is detected' (Get-HeadImplementerProvider -HeadCommitterLogin 'chatgpt-codex-connector[bot]') 'codex'
+
+Assert-Equal 'Human or unknown head prefers Codex' (Get-PreferredMachineReviewer -HeadAuthorLogin 'kgsmith19') 'codex'
+Assert-Equal 'Copilot-implemented head requires Codex' (Get-PreferredMachineReviewer -HeadAuthorLogin 'Copilot') 'codex'
+Assert-Equal 'Codex-implemented head requires Copilot' (Get-PreferredMachineReviewer -HeadAuthorLogin 'chatgpt-codex-connector[bot]') 'copilot'
+
+$copilotAccepted = @(Get-AcceptedMachineReviewProviders -HeadAuthorLogin 'Copilot')
+Assert-Equal 'Copilot head has one accepted reviewer' $copilotAccepted.Count 1
+Assert-Equal 'Copilot head accepts Codex only' $copilotAccepted[0] 'codex'
+$codexAccepted = @(Get-AcceptedMachineReviewProviders -HeadAuthorLogin 'chatgpt-codex-connector[bot]')
+Assert-Equal 'Codex head accepts Copilot only' $codexAccepted[0] 'copilot'
+$humanAccepted = @(Get-AcceptedMachineReviewProviders -HeadAuthorLogin 'kgsmith19')
+Assert-Equal 'Unknown human head allows bounded fallback' $humanAccepted.Count 2
+Assert-Equal 'Unknown human head starts with Codex' $humanAccepted[0] 'codex'
+Assert-Equal 'Unknown human head allows Copilot fallback' $humanAccepted[1] 'copilot'
 
 Assert-Equal 'Structured AI review failure is material' (Test-MaterialAiReviewBody -Body 'AI-REVIEW FAIL — sha') $true
 Assert-Equal 'P1 heading is material' (Test-MaterialAiReviewBody -Body '## P1 — unsafe bypass') $true
@@ -35,6 +50,7 @@ Assert-Throws 'Multiple risk labels fail closed' { Get-RiskFromLabels -Labels @(
 
 Assert-Equal 'Workflow is control plane' (Test-ControlPlanePath -Path '.github/workflows/pr-gate.yml') $true
 Assert-Equal 'Evaluator is control plane' (Test-ControlPlanePath -Path 'scripts/evaluate-ai-review.ps1') $true
+Assert-Equal 'Thread reconciler is control plane' (Test-ControlPlanePath -Path 'scripts/reconcile-machine-review-threads.ps1') $true
 Assert-Equal 'Ordinary product source is not control plane' (Test-ControlPlanePath -Path 'src/feature.ts') $false
 
 $validGate = [pscustomobject]@{
@@ -55,6 +71,7 @@ Assert-Throws 'Incomplete manual gate refused' {
 $bootstrap = Get-Content (Join-Path $root 'scripts/bootstrap-repo.ps1') -Raw
 if ($bootstrap -notmatch 'templates/AI_REVIEW\.yml') { throw 'bootstrap must source AI_REVIEW template.' }
 if ($bootstrap -notmatch 'templates/PR_AUTOMATION\.yml') { throw 'bootstrap must source PR_AUTOMATION template.' }
-if ($bootstrap -match 'templates/CODEOWNERS|\.github/CODEOWNERS') { throw 'bootstrap must not install native human CODEOWNERS.' }
+if ($bootstrap -match 'templates/CODEOWNERS|Copy-Item[^\r\n]*CODEOWNERS') { throw 'bootstrap must not install native human CODEOWNERS.' }
+if ($bootstrap -notmatch 'Remove-Item[^\r\n]*\.github/CODEOWNERS') { throw 'bootstrap must remove legacy native CODEOWNERS.' }
 
 Write-Host 'review-policy tests: PASS' -ForegroundColor Green
