@@ -128,17 +128,30 @@ if ($codexRequests.Count -gt 0 -and $acceptedProviders -contains 'codex') {
 }
 
 function Ensure-AdvisoryIssue {
-  # P2-only findings never block; they are recorded exactly once as a follow-up
-  # Issue mapped to this head by a trusted marker comment.
+  # P2-only findings never block; one OPEN advisory Issue per PR carries them. A
+  # new head updates the existing open Issue instead of minting another, and each
+  # head's mapping is recorded by a trusted marker comment.
   param([string]$HeadSha,[string[]]$Advisories,$Comments,[string]$OwnerLogin)
   $existing = Get-TrustedAiReviewAdvisoryIssueNumber -Comments $Comments -HeadSha $HeadSha -OwnerLogin $OwnerLogin
   if ($existing) { return [int]$existing }
   $issueBody = "Advisory (P2-only) machine-review findings for ``$Repo`` PR #$Pr at head ``$HeadSha``:`n`n" +
     (@($Advisories | Select-Object -Unique | ForEach-Object { "- $_" }) -join "`n") +
     "`n`nThese findings did not block the merge lane. Address or explicitly discard them."
-  $issueRaw = & gh issue create --repo $Repo --title "AI review advisory (P2) follow-ups for PR #$Pr @ $($HeadSha.Substring(0,8))" --body $issueBody 2>&1
-  if ($LASTEXITCODE -ne 0) { throw ($issueRaw -join "`n") }
-  $issueNumber = [int](([string]($issueRaw -join "`n")) -replace '.*/(\d+)\s*$','$1')
+  $issueNumber = 0
+  foreach ($prior in @(Get-TrustedAiReviewAdvisoryIssueNumbers -Comments $Comments -OwnerLogin $OwnerLogin)) {
+    $stateRaw = & gh issue view $prior --repo $Repo --json state 2>&1
+    if ($LASTEXITCODE -ne 0) { throw ($stateRaw -join "`n") }
+    if ((($stateRaw -join "`n") | ConvertFrom-Json).state -ne 'OPEN') { continue }
+    & gh issue edit $prior --repo $Repo --body $issueBody | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "Could not update advisory Issue #$prior for $Repo PR #$Pr." }
+    $issueNumber = [int]$prior
+    break
+  }
+  if ($issueNumber -eq 0) {
+    $issueRaw = & gh issue create --repo $Repo --title "AI review advisory (P2) follow-ups for PR #$Pr" --body $issueBody 2>&1
+    if ($LASTEXITCODE -ne 0) { throw ($issueRaw -join "`n") }
+    $issueNumber = [int](([string]($issueRaw -join "`n")) -replace '.*/(\d+)\s*$','$1')
+  }
   & gh pr comment $Pr --repo $Repo --body "Recorded P2-only advisory findings as Issue #$issueNumber.`n`n<!-- ai-review-advisory:v1:${HeadSha}:${issueNumber} -->" | Out-Host
   if ($LASTEXITCODE -ne 0) { throw "Could not record the advisory Issue mapping on $Repo PR #$Pr." }
   return $issueNumber

@@ -50,6 +50,10 @@ Assert-Equal 'Forged advisory Issue mapping is rejected' (Get-TrustedAiReviewAdv
 Assert-Equal 'Stale advisory Issue mapping is ignored' (Get-TrustedAiReviewAdvisoryIssueNumber -Comments @($staleAdvisoryMap) -HeadSha $head -OwnerLogin 'kgsmith19') $null
 $versionedAdvisoryMap = [pscustomobject]@{ id=9; user=[pscustomobject]@{login='github-actions[bot]'}; body="<!-- ai-review-advisory:v1:${head}:43 -->"; created_at='2026-08-09T10:06:00Z' }
 Assert-Equal 'Versioned advisory Issue mapping is accepted' (Get-TrustedAiReviewAdvisoryIssueNumber -Comments @($versionedAdvisoryMap) -HeadSha $head -OwnerLogin 'kgsmith19') 43
+# Per-PR advisory dedup: mappings for ANY head count, newest first, forgeries never.
+$perPrNumbers = @(Get-TrustedAiReviewAdvisoryIssueNumbers -Comments @($trustedAdvisoryMap,$forgedAdvisoryMap,$staleAdvisoryMap,$versionedAdvisoryMap) -OwnerLogin 'kgsmith19')
+Assert-Equal 'Advisory Issues dedup across heads counts trusted mappings' ($perPrNumbers -join ',') '43,42,41'
+Assert-Equal 'Advisory Issue dedup ignores forged mappings' ($perPrNumbers -contains 99) $false
 
 Assert-Equal 'Unknown human head has no machine implementer' (Get-HeadImplementerProvider -HeadAuthorLogin 'kgsmith19') $null
 Assert-Equal 'Latest Copilot commit is detected' (Get-HeadImplementerProvider -HeadAuthorLogin 'Copilot') 'copilot'

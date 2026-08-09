@@ -123,6 +123,25 @@ function Get-TrustedAiReviewAdvisoryIssueNumber {
   return [int]$Matches[1]
 }
 
+function Get-TrustedAiReviewAdvisoryIssueNumbers {
+  # Every advisory Issue ever mapped to this PR by a trusted marker, any head,
+  # newest mapping first — the dedup source for one-open-Issue-per-PR.
+  param(
+    [object[]]$Comments = @(),
+    [Parameter(Mandatory)][string]$OwnerLogin
+  )
+  $pattern = '<!-- ai-review-advisory:(?:v\d+:)?[0-9a-f]{40}:([0-9]+) -->'
+  $numbers = New-Object System.Collections.Generic.List[int]
+  foreach ($comment in @($Comments | Where-Object {
+    (Test-TrustedAutomationComment -Comment $_ -OwnerLogin $OwnerLogin) -and [string]$_.body -match $pattern
+  } | Sort-Object created_at -Descending)) {
+    [string]$comment.body -match $pattern | Out-Null
+    $number = [int]$Matches[1]
+    if (-not $numbers.Contains($number)) { $numbers.Add($number) }
+  }
+  return @($numbers)
+}
+
 function Test-TrustedAutomationComment {
   param([Parameter(Mandatory)]$Comment,[Parameter(Mandatory)][string]$OwnerLogin)
   return [string]$Comment.user.login -in @('github-actions[bot]', $OwnerLogin)

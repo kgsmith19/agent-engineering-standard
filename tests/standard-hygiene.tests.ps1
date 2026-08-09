@@ -83,6 +83,8 @@ Assert-Contains 'evaluator authenticates structured Copilot verdict' 'scripts/ev
 Assert-Contains 'evaluator trusts only authoritative Codex request markers' 'scripts/evaluate-ai-review.ps1' 'Test-TrustedAutomationComment'
 Assert-Contains 'evaluator checks inline comments' 'scripts/evaluate-ai-review.ps1' 'inline review comment'
 Assert-Contains 'evaluator records P2 follow-up Issues before neutral outcome' 'scripts/evaluate-ai-review.ps1' 'Ensure-AdvisoryIssue'
+Assert-Contains 'evaluator updates one open advisory Issue per PR' 'scripts/evaluate-ai-review.ps1' 'gh issue edit'
+Assert-Contains 'evaluator searches prior advisory Issues across heads' 'scripts/evaluate-ai-review.ps1' 'Get-TrustedAiReviewAdvisoryIssueNumbers'
 # Test repair (2026-08-09): the original double-quoted pattern interpolated
 # $headSha to empty (backslash is not an escape in PowerShell strings), leaving
 # an unsatisfiable two-space literal. Single quotes preserve the intended regex.
