@@ -1,100 +1,201 @@
-# Delivery & GitHub
+# Delivery and GitHub
 
 ## Goal
 
-Make GitHub the protected integration/enforcement plane while keeping feedback fast and Actions spend proportional to risk.
+Use GitHub as the protected integration plane while keeping feedback fast, model spend bounded, and routine merges fully unattended.
 
-## 1. Work and integration
+## 1. Durable work model
 
-GitHub Issues are the durable work-item source. A PR is the smallest coherent integration unit, not necessarily one microscopic slice.
+GitHub Issues are the durable work-item source. A PR is the smallest coherent integration unit.
 
-Prefer:
+`Issue → SPEC only if needed → thin slices → draft PR → Ready → PR Gate → machine AI Review → GitHub auto-merge → release → observe`
 
-`Issue → SPEC only if needed → thin local slices → draft PR while iterating → ready PR → PR Gate + AI Review → auto-merge/queue → release`
+Do not enlarge PRs merely to save CI minutes. Save minutes through local slice verification, fewer pushes, cancellation, caching, and path/risk-aware tests.
 
-Do not make PRs artificially large to save CI minutes. Save minutes by verifying slices locally, pushing less often, canceling superseded runs, caching, and reserving expensive assurance for changes that justify it.
+## 2. Shared versus repository-specific configuration
 
-Name ordinary short-lived branches `<type>/<issue-number>-<short-description>`. Controlled agent runs use `agent/<provider>/<issue-or-work>` so review independence can be derived mechanically rather than trusted from editable PR prose.
+Centralized in `agent-engineering-standard`:
 
-## 2. Required integration gates
+- portfolio policy and repository list
+- ruleset/settings application
+- exact-head AI review evaluator
+- PR state machine and repair budgets
+- bootstrap and upgrade scripts
+- remote doctor
+- workflow caller templates
+- branch/worktree cleanup
 
-Every managed repository exposes two stable required contexts on the latest PR head:
+Kept in each product repository:
 
-- **`PR Gate`** — cheapest sufficient deterministic build/test/security evidence.
-- **`AI Review`** — exact-head provider-specific semantic evidence required by implementation provenance.
+- stack-specific `PR Gate` commands
+- product PRD, specs, ADRs, tests, and release/deploy logic
+- a pinned `.agent/standard.lock`
+- thin `ai-review.yml` and `pr-automation.yml` callers pinned to that exact standard SHA
 
-Both contexts are bound to the GitHub Actions App. A later push creates a new SHA, so an `AI Review` success from an earlier head cannot satisfy the latest commit.
+Product callers never follow moving `@main`. Updating shared behavior is an explicit standard-upgrade PR.
 
-Known provider routing is deliberately cheap: ChatGPT/Codex implementations require Copilot; Claude/Copilot implementations require Codex. Ordinary/user-authored branches are ambiguous for reviewer independence and require both connected providers before unattended merge.
+## 3. Required checks and settings
 
-Draft pushes should not spend semantic-review budget. Keep active work draft, request review when coherent, and allow only the bounded response-pass budget after substantive fixes.
+Every managed repository requires these latest-head GitHub Actions contexts:
 
-`PR Gate` should normally finish in about 10 minutes or less and may contain repo-specific build/type/lint, unit/property/regression, changed-file/architecture, critical integration/contract/acceptance, and lightweight security/dependency evidence. Do not require every available test category on every change.
+- `PR Gate`: deterministic repo-specific evidence
+- `AI Review`: one fresh machine review task/session for the exact head
 
-`AI Review` derives agent provenance from controlled provider branch/author metadata. It never trusts editable PR prose to self-attest an LLM provider. Review-thread resolution remains separately required so material inline findings cannot be ignored.
+Repository defaults:
 
-For today's single-developer, user-owned repositories, CODEOWNERS is advisory and human approval count is 0. Required Code Owner review would deadlock a solo personal-repo workflow. Organization-owned repos may harden CODEOWNERS through the shared policy.
-
-Use loose required status checks (`strict_required_status_checks_policy: false`) by default so a PR does not rebuild merely because `main` moved. A merge queue, when available, provides final combined-head integration checking.
-
-## 3. Expensive assurance
-
-Keep expensive/environment-specific checks outside the universal gates unless risk makes them necessary blockers: full OS/browser matrices, mutation campaigns, extended fuzzing, load/performance, broad security scans, and slow production-like E2E.
-
-Run them through risk/path triggers, explicit escalation, main/release validation, or scheduled/manual workflows. A correctness/security-critical check stays blocking even when expensive.
-
-## 4. Actions and model efficiency
-
-- Keep PRs draft during active iteration.
-- Cancel superseded deterministic and `AI Review` evaluator runs per PR.
-- Prefer one setup/install per required lane when parallel jobs mostly duplicate setup cost.
-- Cache dependencies when useful/safe.
-- Avoid redundant push+PR execution.
-- Run deterministic checks before semantic LLM review.
-- Prefer one batched semantic review over several specialist calls.
-- Codex is the cheap default where it is cross-provider; Copilot is used when it is the required cross-provider reviewer, not as an every-push tax.
-- Review budgets count actual semantic responses; exact-head request markers prevent duplicate triggers.
-- Remove/demote checks or model calls that rarely change a decision.
-
-Optimize for **fast trustworthy feedback per human minute, compute-minute, and model cost**.
-
-## 5. Merge and protection defaults
-
-For the default branch:
-
-- require a PR
-- require GitHub-Actions-produced `PR Gate`
-- require GitHub-Actions-produced exact-head `AI Review`
-- require resolution of review threads
-- require 0 human approvals by default on personal repos
-- disallow force-push and branch deletion
+- pull request required
+- human approvals: `0`
+- Code Owner approval: off
+- native `.github/CODEOWNERS`: absent, preventing automatic reviewer assignment to Kyle
+- review-thread resolution required
+- auto-merge enabled
+- update branch enabled
 - squash only
-- allow auto-merge
-- automatically delete merged head branches
-- no silent bypass actors
+- merge commits and rebase disabled
+- force-push and default-branch deletion blocked
+- merged branches deleted
+- no ruleset bypass actors
+- Copilot cloud-agent workflow approval disabled, so agent PR checks do not wait for a maintainer
 
-R0–R3 may use auto-merge when both required gates are green and no justified authority gate applies. R4 never auto-merges.
+## 4. Complete PR decision flow
 
-Control-plane changes remain manually merged **only** while the PR can modify the evaluator/merge authority judging itself. Remove that gate once governing enforcement lives in an immutable external or organization-required workflow the PR cannot edit.
+```mermaid
+flowchart TD
+    A[PR opened or updated] --> B{Draft?}
+    B -- Yes --> C[No AI review and no auto-merge]
+    C --> D{status:ready added?}
+    D -- No --> C
+    D -- Yes --> E[Mark Ready automatically]
+    B -- No --> F[Classify risk and changed paths]
+    E --> F
+    F --> G{R4 or self-modifying control plane?}
+    G -- Yes --> H[Run all automated gates, then require justified authority]
+    G -- No --> I[Arm GitHub squash auto-merge]
+    I --> J[Run PR Gate]
+    J --> K{PR Gate result}
+    K -- Pass --> L[Request one exact-head machine review]
+    K -- Fail --> M[Tag repair agent, max 3 attempts]
+    M --> N{New head pushed?}
+    N -- Yes --> J
+    N -- No or budget exhausted --> O[status:blocked with exact reason]
+    L --> P{Review result}
+    P -- Clean --> Q[AI Review success]
+    P -- Material P0-P2 finding --> R[AI Review failure and repair agent, max 2 attempts]
+    R --> N
+    P -- Stalled Codex --> S[One bounded Copilot fallback]
+    S --> P
+    Q --> T{Conflicts or unresolved threads?}
+    T -- Conflict --> U[Conflict repair, max 2 attempts]
+    U --> N
+    T -- Unresolved thread --> V[Fix or explicitly resolve valid/false-positive finding]
+    V --> N
+    T -- Clear --> W[GitHub automatically squash-merges]
+    W --> X[Delete branch, release/deploy/smoke as configured]
+```
 
-## 6. Merge queue
+A push always creates a new decision cycle. Old `AI Review` evidence cannot authorize a new head.
 
-Use a merge queue when GitHub supports it and concurrent agent PR volume justifies it. Required-check workflows must support `merge_group` before enabling the queue. User-owned repositories remain queue-ready but do not enable it until the exact-head semantic-review behavior for merge groups is explicitly implemented and verified.
+## 5. Draft PR rules
 
-## 7. Release
+Drafts are the low-cost implementation workspace:
 
-Keep low-risk releases simple: `merge → deploy → smoke`.
+- `PR Gate` may be skipped where the repo workflow explicitly defers draft checks
+- no semantic reviewer is requested
+- auto-merge is disabled
+- pushes do not consume review budget
 
-For higher-risk releases, build once, identify the immutable artifact/commit, promote that same artifact, use staging/canary/feature flags only when they materially reduce risk, verify after deployment, and preserve rollback/recovery.
+When coherent, the agent adds `status:ready`. `PR Automation` marks the draft Ready, arms auto-merge when eligible, and begins the normal gate sequence.
 
-## 8. Shared control plane
+GitHub does not support completing auto-merge while a PR remains draft. The correct solution is automatic promotion, not removing drafts.
 
-`policy/github-defaults.json` is the machine-readable portfolio policy.
+## 6. Machine review rules
 
-- `scripts/apply-github-standard.ps1` applies repository settings, labels, Actions, and default-branch rules.
-- `.github/workflows/ai-review-reusable.yml` is the shared exact-head semantic-review evaluator; product repos use the thin caller template.
-- `scripts/request-independent-review.ps1` routes the next missing required provider within the configured response budget.
-- `scripts/auto-merge.ps1` validates the live integration plane and then arms GitHub auto-merge; it does not substitute its own call-time semantic judgment for the required `AI Review` context.
-- `scripts/doctor.ps1 -Remote` verifies effective remote policy, including that the AI Review workflow itself is active, and exits nonzero on drift.
+The review is never a request to Kyle.
 
-Prefer centrally maintained policy and stable check naming; keep stack-specific deterministic commands inside each product repo.
+- PR authored by the Codex GitHub App: Copilot review required
+- every other PR: fresh Codex review preferred
+- Copilot: one fallback when Codex stalls
+- Claude: not counted until a mechanical GitHub review adapter exists
+- editable PR text and branch names do not prove implementation identity
+
+One response covers correctness/security, requirement fit, business ROI, systems optimization, and strict leanness.
+
+Accepted clean evidence:
+
+- clean formal Codex/Copilot review on the exact head
+- structured Copilot `AI-REVIEW PASS` containing the exact SHA
+- Codex thumbs-up created after the exact-head review request
+
+Any current-head P0, P1, or P2 finding fails `AI Review`. The system fixes valid findings and re-runs both gates on the new SHA. It never reviewer-shops around a failure.
+
+## 7. Recovery matrix
+
+| Condition | Automated action | Budget | Final stop condition |
+|---|---|---:|---|
+| PR Gate fails | Codex investigates logs and fixes root cause | 3 | `status:blocked` |
+| Machine review finds P0-P2 | Codex addresses valid findings | 2 | `status:blocked` |
+| Codex review stalls | Copilot review fallback | 1 | `status:blocked` |
+| Merge conflict | Dependabot rebase or Codex semantic conflict resolution | 2 | `status:blocked` |
+| Draft ready for integration | `status:ready` promotes to Ready | 1 state change | remains draft without label |
+| New push after green review | invalidate old review and restart | max 2 reviewed heads | `status:blocked` |
+| R4 | automated evidence, then human authority | none | explicit authorization |
+| Self-modifying control plane | automated evidence, then repository-owner integration | none | external immutable judge exists |
+
+A stop never silently assigns Kyle as reviewer. It posts the exact blocker and required action.
+
+## 8. Actions and model efficiency
+
+- deterministic checks before model review
+- no draft or every-push AI review
+- one batched review response
+- initial reviewed head plus one post-fix reviewed head
+- cancel superseded deterministic and evaluator runs
+- exact-head markers suppress duplicates
+- path filters and safe caches where useful
+- expensive matrices, mutation, load, and broad E2E only when risk/path/release requires them
+- measure latency, Actions minutes, model responses, findings caught, and false-positive rate before expanding review
+
+Optimize for trustworthy outcomes per human minute, compute minute, and model cost.
+
+## 9. Existing and new repositories
+
+Existing portfolio rollout:
+
+```powershell
+pwsh -NoProfile -File .\scripts\upgrade-repos.ps1 -StandardSha <merged-standard-sha>
+pwsh -NoProfile -File .\scripts\setup-portfolio.ps1
+pwsh -NoProfile -File .\scripts\doctor.ps1 -Remote
+```
+
+New repository:
+
+```powershell
+pwsh -NoProfile -File .\scripts\bootstrap-repo.ps1 -Name <repo-name>
+```
+
+Bootstrap creates the standard files, pinned workflow callers, bootstrap `PR Gate`, labels/ruleset/settings, and a single Issue to replace the bootstrap gate with real stack-specific evidence. The remote doctor remains the completion gate.
+
+GitHub currently exposes the Copilot workflow-approval configuration through a public read endpoint but not a documented write endpoint. New repos therefore have one justified UI setting: disable `Require approval for workflows`. The doctor detects and refuses readiness while it remains on.
+
+## 10. Shared control-plane inventory
+
+- `policy/github-defaults.json`: portfolio policy, budgets, repo list
+- `scripts/apply-github-standard.ps1`: live repository settings, labels, rulesets
+- `scripts/pr-orchestrator.ps1`: PR state machine and bounded recovery
+- `scripts/request-machine-review.ps1`: machine review request/fallback
+- `scripts/evaluate-ai-review.ps1`: exact-head review evidence to `AI Review`
+- `scripts/auto-merge.ps1`: validates live policy and arms GitHub auto-merge
+- `scripts/bootstrap-repo.ps1`: new-repo startup
+- `scripts/upgrade-repos.ps1`: explicit pinned rollout to existing repos
+- `scripts/doctor.ps1 -Remote`: portfolio acceptance test
+- `scripts/prune-portfolio.ps1`: conservative worktree/branch cleanup
+
+The reusable workflows execute these tested scripts. Thin product callers pin them to the standard lock SHA.
+
+## 11. Merge queue and release
+
+Use a merge queue only when repository ownership/plan support and concurrent volume justify it. Exact-head AI review for merge groups must be proven before enabling it.
+
+Low-risk release: `merge → deploy → smoke`.
+
+Higher-risk release: build once, promote the same immutable artifact, verify after deployment, and preserve rollback/recovery.
