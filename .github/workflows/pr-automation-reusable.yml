@@ -38,20 +38,40 @@ jobs:
           repository: kgsmith19/agent-engineering-standard
           ref: ${{ inputs.standard_sha }}
           path: .standard
-      - name: Detect trusted orchestrator
+      - name: Detect trusted control script
         id: trusted_standard
         shell: bash
+        env:
+          MODE: ${{ inputs.mode }}
         run: |
-          if [[ -f .standard/scripts/pr-orchestrator.ps1 ]]; then
+          if [[ "$MODE" == "gate-result" ]]; then
+            REQUIRED=.standard/scripts/gate-result-router.ps1
+            TITLE='Trusted gate-result router unavailable'
+          else
+            REQUIRED=.standard/scripts/pr-orchestrator.ps1
+            TITLE='Trusted orchestrator unavailable'
+          fi
+          if [[ -f "$REQUIRED" ]]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Trusted orchestrator unavailable::The trusted standard SHA predates automation. This bootstrap control-plane PR remains on the documented external authority path."
-            echo "### Trusted orchestrator unavailable" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning title=$TITLE::The trusted standard SHA predates the required control script. This bootstrap control-plane PR remains on the documented external authority path."
+            echo "### $TITLE" >> "$GITHUB_STEP_SUMMARY"
             echo "No proposed PR script was executed. Use the documented external authority path for this bootstrap control-plane PR." >> "$GITHUB_STEP_SUMMARY"
           fi
+      - name: Run bounded gate-result recovery
+        if: steps.trusted_standard.outputs.available == 'true' && inputs.mode == 'gate-result'
+        shell: pwsh
+        run: |
+          & pwsh -NoProfile -File .standard/scripts/gate-result-router.ps1 `
+            -Repo '${{ github.repository }}' `
+            -Pr ${{ inputs.pr_number }} `
+            -GateConclusion '${{ inputs.gate_conclusion }}' `
+            -GateHeadSha '${{ inputs.gate_head_sha }}' `
+            -GateRunId ${{ inputs.gate_run_id }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run bounded PR state machine
-        if: steps.trusted_standard.outputs.available == 'true'
+        if: steps.trusted_standard.outputs.available == 'true' && inputs.mode != 'gate-result'
         shell: pwsh
         run: |
           & pwsh -NoProfile -File .standard/scripts/pr-orchestrator.ps1 `
