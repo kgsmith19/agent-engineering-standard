@@ -4,7 +4,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib/review-policy.ps1')
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
+$config = Get-Content (Join-Path $PSScriptRoot '..\policy\github-defaults.json') -Raw | ConvertFrom-Json
 
 $prRaw = & gh pr view $Pr --repo $Repo --json state,isDraft,headRefOid,autoMergeRequest 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
@@ -27,7 +29,10 @@ $commentsRaw = & gh api --paginate --slurp "repos/$Repo/issues/$Pr/comments?per_
 if ($LASTEXITCODE -ne 0) { throw ($commentsRaw -join "`n") }
 $pages = ($commentsRaw -join "`n") | ConvertFrom-Json
 $comments = @($pages | ForEach-Object { $_ })
-if (@($comments | Where-Object { [string]$_.body -like "*$marker*" }).Count -eq 0) {
+$existing = @($comments | Where-Object {
+  (Test-TrustedAutomationComment -Comment $_ -OwnerLogin ([string]$config.owner)) -and [string]$_.body -like "*$marker*"
+})
+if ($existing.Count -eq 0) {
   & gh pr comment $Pr --repo $Repo --body "AUTO-MERGE PAUSED: exact-head machine review is still pending. A later valid review event will re-evaluate policy and re-arm auto-merge automatically.`n`n$marker" | Out-Host
   if ($LASTEXITCODE -ne 0) { throw "Could not record pending-review state for $Repo PR #$Pr." }
 }
