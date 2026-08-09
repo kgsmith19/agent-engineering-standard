@@ -68,7 +68,12 @@ $actorCases = @(
   @(@('Copilot'), '', 'codex'),
   @(@('chatgpt-codex-connector[bot]','Copilot'), '', ''),
   @(@('chatgpt-codex-connector[bot]','kgsmith19'), '', 'copilot'),
-  @(@('Copilot','kgsmith19'), '', 'codex')
+  @(@('Copilot','kgsmith19'), '', 'codex'),
+  @(@(), 'Copilot', 'codex'),
+  @(@('kgsmith19'), 'Copilot', 'codex'),
+  @(@('kgsmith19'), 'chatgpt-codex-connector[bot]', 'copilot'),
+  @(@('chatgpt-codex-connector[bot]'), 'Copilot', ''),
+  @(@('Copilot'), 'Copilot', 'codex')
 )
 foreach ($case in $actorCases) {
   $actual = @(Get-AcceptedMachineReviewProvidersForActors -ActorLogins $case[0] -PrAuthorLogin $case[1]) -join ','

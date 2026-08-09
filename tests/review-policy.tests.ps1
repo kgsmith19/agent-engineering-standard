@@ -49,6 +49,8 @@ Assert-Equal 'Unknown human head has no machine implementer' (Get-HeadImplemente
 Assert-Equal 'Latest Copilot commit is detected' (Get-HeadImplementerProvider -HeadAuthorLogin 'Copilot') 'copilot'
 Assert-Equal 'Latest Codex commit is detected' (Get-HeadImplementerProvider -HeadCommitterLogin 'chatgpt-codex-connector[bot]') 'codex'
 Assert-Equal 'Mixed machine head records both actors' (Get-HeadImplementerProvider -HeadAuthorLogin 'chatgpt-codex-connector[bot]' -HeadCommitterLogin 'Copilot') 'codex+copilot'
+Assert-Equal 'Machine PR author is recorded despite human commit actors' (Get-HeadImplementerProvider -HeadAuthorLogin 'kgsmith19' -PrAuthorLogin 'Copilot') 'copilot'
+Assert-Equal 'Machine PR author is unioned with machine commit actors' (Get-HeadImplementerProvider -HeadAuthorLogin 'chatgpt-codex-connector[bot]' -PrAuthorLogin 'Copilot') 'codex+copilot'
 
 Assert-Equal 'Human or unknown head prefers Codex' (Get-PreferredMachineReviewer -HeadAuthorLogin 'kgsmith19') 'codex'
 Assert-Equal 'Copilot-implemented head requires Codex' (Get-PreferredMachineReviewer -HeadAuthorLogin 'Copilot') 'codex'

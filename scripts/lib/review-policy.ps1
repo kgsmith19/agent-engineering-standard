@@ -8,20 +8,18 @@ function Get-MachineReviewProvider {
 }
 
 function Get-MachineImplementerProvidersForActors {
+  # The PR author's recognized provider is ALWAYS unioned with commit actors:
+  # an author whose commits carry other identities still owns the change set.
   param(
     [string[]]$ActorLogins = @(),
     [string]$PrAuthorLogin = ''
   )
 
   $providers = New-Object System.Collections.Generic.List[string]
-  foreach ($login in @($ActorLogins)) {
+  foreach ($login in @(@($ActorLogins) + @($PrAuthorLogin))) {
     if ([string]::IsNullOrWhiteSpace([string]$login)) { continue }
     $provider = Get-MachineReviewProvider -Login ([string]$login)
     if ($provider -and -not $providers.Contains($provider)) { $providers.Add($provider) }
-  }
-  if ($providers.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($PrAuthorLogin)) {
-    $provider = Get-MachineReviewProvider -Login $PrAuthorLogin
-    if ($provider) { $providers.Add($provider) }
   }
   return @($providers)
 }
