@@ -80,6 +80,7 @@ function Update-ProjectWorkTrackingContent {
     throw 'ProjectTitle must be a non-empty single-line value without double quotes.'
   }
 
+  $hadTrailingNewline = $Content.EndsWith("`n")
   $newline = if ($Content.Contains("`r`n")) { "`r`n" } else { "`n" }
   $desired = [ordered]@{
     system = 'github-projects'
@@ -94,7 +95,9 @@ function Update-ProjectWorkTrackingContent {
     if ($prefix.Length -gt 0 -and -not ($prefix.EndsWith("`n") -or $prefix.EndsWith("`r"))) { $prefix += $newline }
     if ($prefix.Length -gt 0 -and -not $prefix.EndsWith($newline + $newline)) { $prefix += $newline }
     $body = @($desired.GetEnumerator() | ForEach-Object { "  $($_.Key): $($_.Value)" }) -join $newline
-    return $prefix + 'work_tracking:' + $newline + $body + $newline
+    $result = $prefix + 'work_tracking:' + $newline + $body + $newline
+    if (-not $hadTrailingNewline) { return $result.TrimEnd("`r", "`n") }
+    return $result
   }
 
   $body = $block.Groups['body'].Value
@@ -114,5 +117,7 @@ function Update-ProjectWorkTrackingContent {
   }
 
   $replacementBlock = $block.Groups['header'].Value + $body
-  return $Content.Substring(0, $block.Index) + $replacementBlock + $Content.Substring($block.Index + $block.Length)
+  $result = $Content.Substring(0, $block.Index) + $replacementBlock + $Content.Substring($block.Index + $block.Length)
+  if (-not $hadTrailingNewline) { return $result.TrimEnd("`r", "`n") }
+  return $result
 }
