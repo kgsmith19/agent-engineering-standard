@@ -19,11 +19,11 @@ function Test-CodeownersTail {
 
 $required = @(
   'README.md','LIFECYCLE.md','AGENT_RULES.md','QUALITY_RULES.md','SECURITY_RISK_AUTONOMY.md','DELIVERY_GITHUB.md','EVIDENCE_LEARNING.md','AGENTS.md',
-  '.github/CODEOWNERS','.github/workflows/ci.yml','.github/workflows/ai-review.yml','.github/workflows/ai-review-reusable.yml','policy/github-defaults.json',
-  'scripts/setup-portfolio.ps1','scripts/apply-github-standard.ps1','scripts/sync-agentic-project.ps1','scripts/codex-review.ps1','scripts/request-independent-review.ps1','scripts/auto-merge.ps1','scripts/bootstrap-repo.ps1','scripts/upgrade-repos.ps1',
+  '.gitignore','.github/CODEOWNERS','.github/workflows/ci.yml','.github/workflows/ai-review.yml','.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation.yml','.github/workflows/auto-merge-reusable.yml','.github/workflows/request-review-reusable.yml','policy/github-defaults.json',
+  'scripts/setup-portfolio.ps1','scripts/apply-github-standard.ps1','scripts/sync-agentic-project.ps1','scripts/codex-review.ps1','scripts/request-independent-review.ps1','scripts/auto-merge.ps1','scripts/bootstrap-repo.ps1','scripts/upgrade-repos.ps1','scripts/prune-portfolio.ps1',
   'scripts/lib/legacy-protection.ps1','scripts/lib/standard-lock.ps1','scripts/lib/review-policy.ps1',
-  'tests/legacy-protection.tests.ps1','tests/standard-lock.tests.ps1','tests/review-policy.tests.ps1',
-  'templates/AGENTS.md','templates/CODEOWNERS','templates/PR_GATE.yml','templates/AI_REVIEW.yml','templates/PRD.md','templates/SPEC.md','templates/ADR.md','templates/ISSUE.md','templates/PULL_REQUEST.md'
+  'tests/legacy-protection.tests.ps1','tests/standard-lock.tests.ps1','tests/review-policy.tests.ps1','tests/standard-hygiene.tests.ps1',
+  'templates/.gitignore','templates/AGENTS.md','templates/CODEOWNERS','templates/PR_GATE.yml','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/dependabot.yml','templates/PRD.md','templates/SPEC.md','templates/ADR.md','templates/ISSUE.md','templates/PULL_REQUEST.md'
 )
 foreach ($relative in $required) { if (-not (Test-Path (Join-Path $root $relative))) { throw "Missing required file: $relative" } }
 
@@ -60,8 +60,8 @@ if (-not (Test-CodeownersTail -Content (Get-Content (Join-Path $root '.github/CO
 if (-not (Test-CodeownersTail -Content (Get-Content (Join-Path $root 'templates/CODEOWNERS') -Raw) -ExpectedTail $appTail)) { throw 'Template CODEOWNERS drifted.' }
 
 $psScripts = @(
-  'scripts/setup-portfolio.ps1','scripts/apply-github-standard.ps1','scripts/sync-agentic-project.ps1','scripts/codex-review.ps1','scripts/request-independent-review.ps1','scripts/auto-merge.ps1','scripts/bootstrap-repo.ps1','scripts/upgrade-repos.ps1','scripts/doctor.ps1',
-  'scripts/lib/legacy-protection.ps1','scripts/lib/standard-lock.ps1','scripts/lib/review-policy.ps1','tests/legacy-protection.tests.ps1','tests/standard-lock.tests.ps1','tests/review-policy.tests.ps1'
+  'scripts/setup-portfolio.ps1','scripts/apply-github-standard.ps1','scripts/sync-agentic-project.ps1','scripts/codex-review.ps1','scripts/request-independent-review.ps1','scripts/auto-merge.ps1','scripts/bootstrap-repo.ps1','scripts/upgrade-repos.ps1','scripts/prune-portfolio.ps1','scripts/doctor.ps1',
+  'scripts/lib/legacy-protection.ps1','scripts/lib/standard-lock.ps1','scripts/lib/review-policy.ps1','tests/legacy-protection.tests.ps1','tests/standard-lock.tests.ps1','tests/review-policy.tests.ps1','tests/standard-hygiene.tests.ps1'
 )
 foreach ($relative in $psScripts) {
   $tokens = $null; $errors = $null
@@ -102,20 +102,30 @@ foreach ($name in $config.repositories) {
     if (-not [bool]$actions.enabled) { $problems.Add('Actions disabled') }
   }
 
+  $workflowsRaw = & gh api "repos/$repo/actions/workflows?per_page=100" 2>&1
+  if ($LASTEXITCODE -ne 0) { $problems.Add('cannot list Actions workflows') }
+  else {
+    $workflows = @(($workflowsRaw -join "`n") | ConvertFrom-Json | Select-Object -ExpandProperty workflows)
+    $gateWorkflow = @($workflows | Where-Object { $_.name -eq 'PR Gate' -and $_.state -eq 'active' })
+    if ($gateWorkflow.Count -eq 0) { $problems.Add('active workflow named PR Gate missing') }
+  }
+
   $codeownersRaw = & gh api -H 'Accept: application/vnd.github.raw+json' "repos/$repo/contents/.github/CODEOWNERS?ref=$($meta.default_branch)" 2>&1
   if ($LASTEXITCODE -ne 0) { $problems.Add('CODEOWNERS missing') } else {
     $expectedTail = if ($name -eq 'agent-engineering-standard') { $standardTail } else { $appTail }
     if (-not (Test-CodeownersTail -Content ($codeownersRaw -join "`n") -ExpectedTail $expectedTail)) { $problems.Add('CODEOWNERS ownership map drift') }
   }
 
-  $aiWorkflowRaw = & gh api "repos/$repo/contents/.github/workflows/ai-review.yml?ref=$($meta.default_branch)" 2>&1
-  if ($LASTEXITCODE -ne 0) { $problems.Add('AI Review caller workflow missing') }
-  else {
-    $workflowStateRaw = & gh api "repos/$repo/actions/workflows/ai-review.yml" 2>&1
-    if ($LASTEXITCODE -ne 0) { $problems.Add('cannot read AI Review workflow state') }
+  foreach ($workflowFile in @('ai-review.yml','pr-automation.yml')) {
+    $workflowRaw = & gh api "repos/$repo/contents/.github/workflows/$workflowFile?ref=$($meta.default_branch)" 2>&1
+    if ($LASTEXITCODE -ne 0) { $problems.Add("$workflowFile missing") }
     else {
-      $workflowState = ($workflowStateRaw -join "`n") | ConvertFrom-Json
-      if ($workflowState.state -ne 'active') { $problems.Add("AI Review workflow not active: $($workflowState.state)") }
+      $workflowStateRaw = & gh api "repos/$repo/actions/workflows/$workflowFile" 2>&1
+      if ($LASTEXITCODE -ne 0) { $problems.Add("cannot read $workflowFile state") }
+      else {
+        $workflowState = ($workflowStateRaw -join "`n") | ConvertFrom-Json
+        if ($workflowState.state -ne 'active') { $problems.Add("$workflowFile not active: $($workflowState.state)") }
+      }
     }
   }
 
