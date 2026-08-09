@@ -114,3 +114,15 @@ When an agent or human performs a manual workaround, ask whether it can recur.
 - Discard candidates without evidence, plausible ROI, or a next experiment.
 
 Repeated manual work must not become normal merely because an agent can keep doing it.
+
+## 9. Isolated worktrees and parallel subagents
+
+Every write-capable task runs in one isolated worktree tied to its Issue or slice.
+
+- Prefer a harness-native worktree when available; otherwise use `.worktrees/<branch>`.
+- Never share a worktree or working directory between concurrent write agents.
+- Read-only investigations/reviews may fan out in parallel with isolated context.
+- Parallel write agents require provably disjoint file scopes and separate worktrees/branches.
+- One coordinator integrates results and runs the final verification.
+- Default parallelism is 3; exceed it only with evidence that added concurrency reduces wall-clock time without increasing rework.
+- Remove merged/abandoned worktrees and branches. Dirty or unique work is reported, never destroyed automatically.
