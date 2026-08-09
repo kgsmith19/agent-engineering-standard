@@ -257,7 +257,7 @@ Assert-NotContains 'agent guidance does not advertise GitHub Project sync' 'AGEN
 Assert-Contains 'agent rules explain P2 Issue-only follow-up' 'AGENT_RULES.md' 'P2.*Issue'
 Assert-Contains 'template guidance keeps reviewer dispatch disabled pending E2E' 'templates/AGENTS.md' 'disabled_pending_e2e'
 Assert-Contains 'state machine documents neutral canary outcome' 'docs/AUTONOMOUS-PR-STATE-MACHINE.md' 'neutral'
-Assert-Contains 'delivery guide documents P0/P1 blocking threshold' 'DELIVERY_GITHUB.md' 'P0/P1'
+Assert-Contains 'delivery guide documents the structured threat threshold' 'DELIVERY_GITHUB.md' 'BLOCK: <CLASS>'
 
 $agentsLines = @(Get-Content (Join-Path $root 'templates/AGENTS.md')).Count
 if ($agentsLines -gt 120) { throw "templates/AGENTS.md exceeded lean 120-line budget: $agentsLines" }

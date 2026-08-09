@@ -32,7 +32,7 @@ Kept in each product repository:
 - stack-specific `PR Gate` commands
 - product PRD, specs, ADRs, tests, and release/deploy logic
 - a pinned `.agent/standard.lock`
-- thin `ai-review.yml` and `pr-automation.yml` callers pinned to that exact SHA
+- thin `ai-review.yml` and five per-event `pr-automation*.yml` callers pinned to that exact SHA
 
 Product callers never follow moving `@main`. Updating shared behavior is an explicit standard-upgrade PR.
 
@@ -40,9 +40,9 @@ Product callers never follow moving `@main`. Updating shared behavior is an expl
 
 Every managed repository requires this latest-head GitHub Actions context:
 
-- `PR Gate`: deterministic repo-specific evidence
+- `PR Gate`: deterministic repo-specific evidence (the workflow/job are renamed `Gate: Deterministic CI`; a fail-closed `pr-gate-bridge` job keeps this required context green until the owner flips the ruleset per the context-rename runbook)
 
-`AI Review` is advisory-only and off by default (ADR 0002): `independent_review.required_for_auto_merge` restores it as a required context; `solicit_reviews` runs it informationally without gating. Independent of both flags, `independent_review.dispatch_mode: disabled_pending_e2e` (ADR 0003) keeps the evaluator reachable and merge-gating without ever soliciting a reviewer: every current head still gets an `AI Review` check, blocking P0/P1 evidence still fails it, and a head with no blocking evidence concludes `neutral` — a passing conclusion `auto-merge.ps1` accepts alongside `success`. Unreviewed auto-merge is capped at `auto_merge_max_risk: R2` while this mode is active.
+`AI Review` is advisory-only and off by default (ADR 0002): `independent_review.required_for_auto_merge` restores it as a required context; `solicit_reviews` runs it informationally without gating. Independent of both flags, `independent_review.dispatch_mode: disabled_pending_e2e` (ADR 0003) keeps the evaluator reachable and merge-gating without ever soliciting a reviewer: every current head still gets an `Advisory: AI Review` check, a structured threat verdict still fails it, and a head with no blocking evidence concludes `neutral` — a passing conclusion `auto-merge.ps1` accepts alongside `success`. Unreviewed auto-merge is capped at `auto_merge_max_risk: R2` while this mode is active.
 
 Repository defaults:
 
@@ -82,8 +82,8 @@ flowchart TD
     O --> L
     N --> P[Request a different machine reviewer]
     P --> Q{Review evidence}
-    Q -- Clean or P2-only --> R[AI Review success/neutral]
-    Q -- P0/P1 summary/inline finding --> S[One batched Copilot repair]
+    Q -- Clean or advisory-only --> R[Advisory check success/neutral]
+    Q -- Structured threat verdict --> S[One batched Copilot repair]
     S --> L
     Q -- Primary stalled --> T[One independent fallback when available]
     T --> Q
@@ -127,7 +127,7 @@ Accepted clean evidence:
 - structured Copilot `AI-REVIEW PASS` containing the exact SHA
 - Codex thumbs-up created after the exact-head request
 
-The P0/P1 blocking threshold: blocking P0/P1 evidence in either the formal summary or inline review comments fails `AI Review`, while P2-only findings are advisory — recorded once as a follow-up Issue mapped to the exact head, never blocking the lane. On a blocking failure the AI Review workflow requests one batched Copilot repair on the existing PR. The repaired head is then reviewed by a different provider. If that second reviewed head still has blocking findings, automation blocks rather than purchasing an open-ended loop.
+The blocking threshold is the structured threat tier (ADR 0003): only a verdict line `BLOCK: <CLASS> <file:line> — <exploit precondition>` with CLASS `T1-INFRA-DELETION`/`T2-BACKDOOR`/`T3-HARDCODED-SECRET`/`T4-CRITICAL-VULN` fails `Advisory: AI Review`, while every P0/P1/P2 prose finding is advisory — recorded once as a follow-up Issue mapped to the PR (P0/P1 entries flagged prominently), never blocking the lane. On a blocking failure the AI Review workflow requests one batched Copilot repair on the existing PR. The repaired head is then reviewed by a different provider. If that second reviewed head still has blocking findings, automation blocks rather than purchasing an open-ended loop.
 
 The AI Review runner wakes only when semantic evidence changes: formal review, inline review comment, or PR conversation comment. Ordinary pushes do not start it; `PR Automation` performs the initial exact-head evaluation after `PR Gate` succeeds.
 
@@ -137,7 +137,7 @@ The AI Review runner wakes only when semantic evidence changes: formal review, i
 |---|---|---:|---|
 | PR Gate fails | Copilot reads complete logs and fixes root cause | 3 | `status:blocked` |
 | PR Gate cancelled or stale on the current head | `gate-result-router.ps1` reruns the same Actions run | 1 | `status:blocked` (`gate-rerun-exhausted`) |
-| Formal or inline review finds blocking P0/P1 | Copilot performs one batched repair | 1 | second reviewed head still fails |
+| Formal or inline review carries a structured threat verdict | Copilot performs one batched repair | 1 | second reviewed head still fails |
 | Codex review stalls | independent Copilot review fallback when allowed | 1 per head | 12-hour reviewer safety timeout |
 | Merge conflict | Dependabot rebase or Copilot semantic conflict resolution | 2 | `status:blocked` |
 | Draft opened or conversion attempted | fail workflow, apply `status:blocked`, stop before auto-merge | none | Ready state is restored explicitly |
@@ -194,8 +194,8 @@ GitHub exposes the Copilot workflow-approval configuration through a public read
 - `scripts/pr-orchestrator.ps1`: PR state machine and bounded recovery
 - `scripts/gate-result-router.ps1`: bounded same-head rerun for a cancelled/stale `PR Gate`, then hands success/failure/action-required/skipped to `pr-orchestrator.ps1`
 - `scripts/request-machine-review.ps1`: independent reviewer selection/request (inert while `dispatch_mode` is `disabled_pending_e2e`)
-- `scripts/evaluate-ai-review.ps1`: formal, inline, structured, and reaction evidence → `AI Review`, including the dispatch-disabled `neutral` path and P2 advisory Issues
-- `scripts/request-review-repair.ps1`: one bounded repair for blocking P0/P1 findings
+- `scripts/evaluate-ai-review.ps1`: formal, inline, structured, and reaction evidence → `Advisory: AI Review`, including the dispatch-disabled `neutral` path and the per-PR advisory Issue
+- `scripts/request-review-repair.ps1`: one bounded repair for structured threat verdicts
 - `scripts/reconcile-machine-review-threads.ps1`: safe stale machine-only thread cleanup
 - `scripts/promote-external-draft.ps1`: identity-gated Ready promotion for external-agent drafts
 - `scripts/auto-merge.ps1`: live-policy validation and auto-merge arming
@@ -220,5 +220,5 @@ Higher-risk release: build once, promote the same immutable artifact, verify aft
 - **Fork denial.** Every privileged automation entry point — `pr-orchestrator.ps1`'s four event modes plus its watchdog, `gate-result-router.ps1`, `evaluate-ai-review.ps1`, `request-machine-review.ps1`, `request-review-repair.ps1`, `reconcile-machine-review-threads.ps1`, `promote-external-draft.ps1` — checks the PR's head repository against the target repository before any mutation. A mismatch logs `FORK-DENIED`; where a same-repository PR record exists to comment on, the orchestrator applies an explicit `fork-pr` block. The `pr-event`/`review-event` workflow jobs carry the same guard in their `if:` conditions, so a fork payload never starts the job at all.
 - **External draft promotion.** `pr_automation.external_draft_promotion` lets `promote-external-draft.ps1` mark an external agent's (not the owner, not `github-actions[bot]`) draft PR Ready via the `markPullRequestReadyForReview` GraphQL mutation, gated on the dedicated `GH_TOKEN_ADMIN` identity. Without that identity it fails closed (`automation-identity-missing`) rather than tagging a human. Owner-authored and `github-actions[bot]`-authored drafts keep the hard ready-at-creation block unchanged.
 - **Versioned correlation markers.** Automation comments carry markers like `<!-- automation:v1:block:<code>:<sha> -->`. Readers match both the versioned and legacy unversioned form (`automation:(?:v\d+:)?block:...`), so marker format can evolve without losing dedup/trust continuity.
-- **Single-writer lock.** `ai-review.yml` and `pr-automation.yml` share one repository-wide concurrency group, `automation-authority-${{ github.repository }}`, with `cancel-in-progress: false`. The evaluator and orchestrator never run concurrently against the same repository; GitHub queues the newest pending run per group instead of dropping it, and the six-hourly watchdog is the convergence net.
+- **Single-writer lock.** `ai-review.yml` and the five per-event `pr-automation*.yml` workflows share one repository-wide concurrency group, `automation-authority-${{ github.repository }}`, with `cancel-in-progress: false`. The evaluator and orchestrator never run concurrently against the same repository; GitHub queues the newest pending run per group instead of dropping it, and the six-hourly watchdog is the convergence net.
 - **Quiet-mode mentions.** While `dispatch_mode` is `disabled_pending_e2e`, no comment carries an `@codex`/`@copilot`/`@dependabot`/`@kgsmith19` mention: block and authority comments name the owner as `(owner: kgsmith19)` instead, and bounded repair lanes post a recoverable `<lane>-dispatch-disabled` block instead of a repair request. See ADR 0003.
