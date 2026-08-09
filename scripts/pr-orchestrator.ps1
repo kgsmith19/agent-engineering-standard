@@ -310,10 +310,10 @@ function Run-ReviewCycle {
   if(-not((Test-AiReviewPassingConclusion (Get-CheckConclusion $head 'AI Review'))-and(Test-HeadDispatchEvidence $head))){Invoke-AiReview $Number}
   if(@(Get-ReviewFailures $Number $prData).Count-gt 0){return}
   if(-not $reviewSolicit -or [string]$reviewPolicy.dispatch_mode-eq'disabled_pending_e2e'){Complete-ReviewSuccess $Number;return}
-  if(Test-AiReviewPassingConclusion (Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review')){Complete-ReviewSuccess $Number;return}
-
-  & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto
-  if($LASTEXITCODE-ne 0){if($reviewRequired){Set-Blocked $Number 'review-request' 'No budgeted machine reviewer could be requested.' $prData};return}
+  # A neutral (awaiting-review) conclusion is passing but must not suppress
+  # solicitation: request first (self-deduping), then complete on the verdict.
+  & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto -ConfigPath $ConfigPath
+  if($LASTEXITCODE-ne 0){if($reviewRequired){Set-Blocked $Number 'review-request' 'No budgeted machine reviewer could be requested.' $prData;return};Complete-ReviewSuccess $Number;return}
   if($reviewRequired){
     & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'pause-pending-review.ps1') -Repo $Repo -Pr $Number
     if($LASTEXITCODE-ne 0){throw'Could not pause auto-merge while machine review is pending.'}
@@ -327,7 +327,7 @@ function Run-ReviewCycle {
   if(Test-AiReviewPassingConclusion (Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review')){Complete-ReviewSuccess $Number;return}
   if(@(Get-ReviewFailures $Number (Get-Pr $Number)).Count-gt 0){return}
 
-  & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto
+  & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto -ConfigPath $ConfigPath
   if($LASTEXITCODE-ne 0){if($reviewRequired){Set-Blocked $Number 'review-fallback' 'Primary machine review stalled and no fallback reviewer was available.' $prData};return}
   $result=Wait-ForReview $Number ([string]$prData.headRefOid) ([int]$reviewPolicy.fallback_wait_minutes)
   if($result-eq'success'){Complete-ReviewSuccess $Number}

@@ -79,16 +79,19 @@ $inlineComments = @(Get-Paged "repos/$Repo/pulls/$Pr/comments?per_page=100")
 $comments = @(Get-Paged "repos/$Repo/issues/$Pr/comments?per_page=100")
 $passes = New-Object System.Collections.Generic.List[string]
 $failures = New-Object System.Collections.Generic.List[string]
+$verdictLines = New-Object System.Collections.Generic.List[string]
 
 $advisories = New-Object System.Collections.Generic.List[string]
+function Add-Advisory { param([string]$Source,[string]$Body) $severity = if (Test-SevereAdvisoryAiReviewBody $Body) { '[P0/P1] ' } else { '' }; $advisories.Add("$severity$Source") }
 
 foreach ($review in $reviews) {
   $provider = Get-MachineReviewProvider ([string]$review.user.login)
   if (-not $provider -or $review.commit_id -ne $headSha -or $review.state -in @('DISMISSED','PENDING')) { continue }
   if (Test-BlockingAiReviewEvidence -Body ([string]$review.body) -ReviewState ([string]$review.state)) {
-    $failures.Add("$provider review by $($review.user.login) contains blocking P0/P1 findings")
+    $failures.Add("$provider review by $($review.user.login) carries a structured threat verdict")
+    foreach ($verdict in @(Get-BlockingAiReviewVerdicts ([string]$review.body))) { $verdictLines.Add($verdict) }
   } else {
-    if (Test-AdvisoryAiReviewBody ([string]$review.body)) { $advisories.Add("$provider formal review by $($review.user.login)") }
+    if (Test-AdvisoryAiReviewBody ([string]$review.body)) { Add-Advisory "$provider formal review by $($review.user.login)" ([string]$review.body) }
     if ($acceptedProviders -contains $provider) { $passes.Add("$provider formal review by $($review.user.login)") }
   }
 }
@@ -96,18 +99,23 @@ foreach ($inline in $inlineComments) {
   $provider = Get-MachineReviewProvider ([string]$inline.user.login)
   if (-not $provider -or [string]$inline.commit_id -ne $headSha) { continue }
   if (Test-BlockingAiReviewBody ([string]$inline.body)) {
-    $failures.Add("$provider inline review comment #$($inline.id) contains a blocking current-head finding")
+    $failures.Add("$provider inline review comment #$($inline.id) carries a structured threat verdict")
+    foreach ($verdict in @(Get-BlockingAiReviewVerdicts ([string]$inline.body))) { $verdictLines.Add($verdict) }
   } elseif (Test-AdvisoryOnlyAiReviewBody ([string]$inline.body)) {
-    $advisories.Add("$provider inline review comment #$($inline.id)")
+    Add-Advisory "$provider inline review comment #$($inline.id)" ([string]$inline.body)
   }
 }
 
 $structured = Get-TrustedStructuredCopilotReview -Comments $comments -HeadSha $headSha -OwnerLogin $ownerLogin
 if ($structured) {
   if (Test-BlockingAiReviewBody ([string]$structured.body)) {
-    $failures.Add('Copilot structured exact-head review contains blocking findings')
+    $failures.Add('Copilot structured exact-head review carries a structured threat verdict')
+    foreach ($verdict in @(Get-BlockingAiReviewVerdicts ([string]$structured.body))) { $verdictLines.Add($verdict) }
+  } elseif ([string]$structured.body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') {
+    # A FAIL signal without a structured verdict is advisory, never blocking.
+    Add-Advisory 'Copilot structured exact-head FAIL without a structured threat verdict' ([string]$structured.body)
   } else {
-    if (Test-AdvisoryAiReviewBody ([string]$structured.body)) { $advisories.Add('Copilot structured exact-head review') }
+    if (Test-AdvisoryAiReviewBody ([string]$structured.body)) { Add-Advisory 'Copilot structured exact-head review' ([string]$structured.body) }
     if ($acceptedProviders -contains 'copilot') { $passes.Add('Copilot structured exact-head PASS') }
   }
 }
@@ -132,13 +140,15 @@ if ($codexRequests.Count -gt 0 -and $acceptedProviders -contains 'codex') {
 }
 
 function Ensure-AdvisoryIssue {
-  # P2-only findings never block; one OPEN advisory Issue per PR carries them. A
-  # new head updates the existing open Issue instead of minting another, and each
-  # head's mapping is recorded by a trusted marker comment.
+  # Advisory findings (P0-P2 prose; non-blocking under the structured threat-
+  # verdict contract) never block; one OPEN advisory Issue per PR carries them.
+  # A new head updates the existing open Issue instead of minting another, and
+  # each head's mapping is recorded by a trusted marker comment.
   param([string]$HeadSha,[string[]]$Advisories,$Comments,[string]$OwnerLogin)
   $existing = Get-TrustedAiReviewAdvisoryIssueNumber -Comments $Comments -HeadSha $HeadSha -OwnerLogin $OwnerLogin
   if ($existing) { return [int]$existing }
-  $issueBody = "Advisory (P2-only) machine-review findings for ``$Repo`` PR #$Pr at head ``$HeadSha``:`n`n" +
+  $severeNote = if (@($Advisories | Where-Object { $_ -match '^\[P0/P1\]' }).Count -gt 0) { "**Severe (P0/P1-classified) advisory findings are present — triage these first.**`n`n" } else { '' }
+  $issueBody = $severeNote + "Advisory machine-review findings for ``$Repo`` PR #$Pr at head ``$HeadSha``:`n`n" +
     (@($Advisories | Select-Object -Unique | ForEach-Object { "- $_" }) -join "`n") +
     "`n`nThese findings did not block the merge lane. Address or explicitly discard them."
   $issueNumber = 0
@@ -162,7 +172,7 @@ function Ensure-AdvisoryIssue {
 }
 
 if ($failures.Count -gt 0) {
-  Set-AiReviewCheck $headSha failure ("Blocking machine-review finding(s): " + (($failures | Select-Object -Unique) -join '; '))
+  Set-AiReviewCheck $headSha failure ("Structured threat verdict(s): " + (($verdictLines | Select-Object -Unique) -join ' | ') + ". Sources: " + (($failures | Select-Object -Unique) -join '; '))
   exit 0
 }
 $advisoryNote = ''
@@ -175,8 +185,10 @@ if ($dispatchDisabled) {
   exit 0
 }
 if ($passes.Count -eq 0) {
+  # Advisory review is evaluated, not obeyed: a head with no accepted review yet
+  # concludes neutral; failure is reserved for structured threat verdicts.
   $implementerText = if ($implementer) { $implementer } else { 'unknown/human' }
-  Set-AiReviewCheck $headSha failure ("Awaiting exact-head reviewer independent of current-PR implementers=$implementerText. Accepted: " + ($acceptedProviders -join ', '))
+  Set-AiReviewCheck $headSha neutral ("No accepted exact-head machine review yet (current-PR implementers=$implementerText; accepted: " + ($acceptedProviders -join ', ') + ")$advisoryNote`n`n$dispatchEvidence")
   exit 0
 }
 Set-AiReviewCheck $headSha success ("Exact head $headSha passed machine review; current-PR implementers=$implementer; evidence=" + (($passes | Select-Object -Unique) -join '; ') + $advisoryNote + "`n`n$dispatchEvidence")

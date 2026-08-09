@@ -63,7 +63,8 @@ foreach ($inline in $inlineComments) {
 }
 $structured = Get-TrustedStructuredCopilotReview -Comments $comments -HeadSha $headSha -OwnerLogin ([string]$config.owner)
 if ($structured) {
-  if ([string]$structured.body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') { $failures.Add('Copilot structured exact-head review contains material findings') }
+  if (Test-BlockingAiReviewBody ([string]$structured.body)) { $failures.Add('Copilot structured exact-head review carries a structured threat verdict') }
+  elseif ([string]$structured.body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') { }
   elseif ($acceptedProviders -contains 'copilot') { $passes.Add('Copilot structured exact-head PASS') }
 }
 
@@ -92,10 +93,11 @@ if ($acceptedProviders -notcontains $Provider) { throw "Reviewer '$Provider' is 
 $marker = "<!-- ai-review-request:v1:${Provider}:$headSha -->"
 if (@($comments | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match "ai-review-request:(?:v\d+:)?${Provider}:$headSha" }).Count -gt 0) { Write-Host "MACHINE REVIEW ALREADY REQUESTED: $Provider for $headSha" -ForegroundColor Yellow; exit 0 }
 
+$verdictContract = "Blocking requires a structured verdict line BLOCK: <CLASS> <file:line> — <concrete exploit precondition>, CLASS one of T1-INFRA-DELETION, T2-BACKDOOR, T3-HARDCODED-SECRET, T4-CRITICAL-VULN. T4-CRITICAL-VULN requires ALL of: introduced by this diff; remotely reachable without authentication; yields RCE, full auth bypass, or cross-tenant data access; concrete input or path cited. When uncertain, file advisory findings instead. Style, quality, architecture, and ordinary bugs are always advisory — P0-P2 prose classifications never block."
 $body = if ($Provider -eq 'codex') {
-  "@codex review`n`nIndependently review the CURRENT PR head only. You are a fresh reviewer task/session and did not author or commit any code in this PR. Apply one batched pass across: software/security correctness, requirement/spec fit, business/product ROI, systems/operational optimization, and strict leanness/complexity. Classify every finding: P0/P1 findings block the merge; P2-only findings are advisory and must not block. Do not modify files during review.`n`n$marker"
+  "@codex review`n`nIndependently review the CURRENT PR head only. You are a fresh reviewer task/session and did not author or commit any code in this PR. Apply one batched pass across: software/security correctness, requirement/spec fit, business/product ROI, systems/operational optimization, and strict leanness/complexity. $verdictContract Do not modify files during review.`n`n$marker"
 } else {
-  "@copilot Independently review the CURRENT PR head only. You did not author or commit any code in this PR. Do not modify files or push commits during review. Apply software/security, requirement/spec, business/ROI, systems/optimization, and strict leanness lenses. Classify every finding: P0/P1 findings block the merge; P2-only findings are advisory and must not block. Start with AI-REVIEW PASS or AI-REVIEW FAIL and include exact SHA $headSha.`n`n$marker"
+  "@copilot Independently review the CURRENT PR head only. You did not author or commit any code in this PR. Do not modify files or push commits during review. Apply software/security, requirement/spec, business/ROI, systems/optimization, and strict leanness lenses. $verdictContract Start with AI-REVIEW PASS or AI-REVIEW FAIL and include exact SHA $headSha; FAIL is a signal only and blocks nothing without a BLOCK verdict line.`n`n$marker"
 }
 & gh pr comment $Pr --repo $Repo --body $body | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "Could not request $Provider machine review for $Repo PR #$Pr." }

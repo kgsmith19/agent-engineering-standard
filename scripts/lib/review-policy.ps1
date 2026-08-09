@@ -69,21 +69,42 @@ function Get-PreferredMachineReviewer {
   return Get-PreferredMachineReviewerForActors -ActorLogins @($HeadAuthorLogin,$HeadCommitterLogin) -PrAuthorLogin $PrAuthorLogin
 }
 
+# The only blocking evidence is a structured threat verdict line. The regex
+# enforces the structured format and the enumerated classes; the T4 semantic
+# bar (introduced by this diff, unauthenticated remote reachability, RCE/full
+# auth bypass/cross-tenant access, concrete input) is enforced by the reviewer
+# contract, not the parser.
+$script:BlockingVerdictPattern = '(?m)^\s*BLOCK:\s+(?:T1-INFRA-DELETION|T2-BACKDOOR|T3-HARDCODED-SECRET|T4-CRITICAL-VULN)\s+\S+:\d+\s+—\s+\S[^\r\n]*$'
+
 function Test-BlockingAiReviewBody {
   param([AllowNull()][string]$Body)
   if ([string]::IsNullOrWhiteSpace($Body)) { return $false }
-  if ($Body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') { return $true }
-  if ($Body -match '(?im)!\[P[01]\s+Badge\]') { return $true }
-  if ($Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?\[P[01]\](?:\*\*)?\s*\S') { return $true }
-  return $Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?P[01]\b[^\r\n]{0,120}?(?:\*\*)?\s*(?::|—)\s*\S'
+  return $Body -cmatch $script:BlockingVerdictPattern
+}
+
+function Get-BlockingAiReviewVerdicts {
+  param([AllowNull()][string]$Body)
+  if ([string]::IsNullOrWhiteSpace($Body)) { return @() }
+  return @([regex]::Matches($Body,$script:BlockingVerdictPattern) | ForEach-Object { $_.Value.Trim() })
 }
 
 function Test-AdvisoryAiReviewBody {
+  # P0-P2 prose classifications are advisory: they flow into the per-PR
+  # advisory Issue and never block (owner-directed demotion; ADR 0003).
   param([AllowNull()][string]$Body)
   if ([string]::IsNullOrWhiteSpace($Body)) { return $false }
-  if ($Body -match '(?im)!\[P2\s+Badge\]') { return $true }
-  if ($Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?\[P2\](?:\*\*)?\s*\S') { return $true }
-  return $Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?P2\b[^\r\n]{0,120}?(?:\*\*)?\s*(?::|—)\s*\S'
+  if ($Body -match '(?im)!\[P[0-2]\s+Badge\]') { return $true }
+  if ($Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?\[P[0-2]\](?:\*\*)?\s*\S') { return $true }
+  return $Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?P[0-2]\b[^\r\n]{0,120}?(?:\*\*)?\s*(?::|—)\s*\S'
+}
+
+function Test-SevereAdvisoryAiReviewBody {
+  # P0/P1-shaped prose: advisory, but flagged prominently in the follow-up Issue.
+  param([AllowNull()][string]$Body)
+  if ([string]::IsNullOrWhiteSpace($Body)) { return $false }
+  if ($Body -match '(?im)!\[P[01]\s+Badge\]') { return $true }
+  if ($Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?\[P[01]\](?:\*\*)?\s*\S') { return $true }
+  return $Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?P[01]\b[^\r\n]{0,120}?(?:\*\*)?\s*(?::|—)\s*\S'
 }
 
 function Test-AdvisoryOnlyAiReviewBody {
@@ -92,13 +113,9 @@ function Test-AdvisoryOnlyAiReviewBody {
 }
 
 function Test-BlockingAiReviewEvidence {
-  # A CHANGES_REQUESTED review with no P0-P2 classification fails closed;
-  # a P2-only classification is advisory and never blocks the merge lane.
+  # Owner-directed demotion: a CHANGES_REQUESTED review without a structured
+  # BLOCK verdict is advisory — the old unclassified fail-closed branch is gone.
   param([AllowNull()][string]$Body,[string]$ReviewState = '')
-  if ($ReviewState -eq 'CHANGES_REQUESTED') {
-    if (Test-BlockingAiReviewBody $Body) { return $true }
-    return -not (Test-AdvisoryOnlyAiReviewBody $Body)
-  }
   return Test-BlockingAiReviewBody $Body
 }
 

@@ -74,7 +74,7 @@ After `PR Gate` passes, automation requests one fresh machine review task/sessio
 - Copilot is the bounded fallback and the required reviewer for a PR authored by the Codex GitHub App.
 - Branch names and PR prose do not prove implementation identity.
 - One review covers correctness/security, requirement fit, business ROI, systems optimization, and strict leanness.
-- A P0/P1 finding fails `AI Review` and triggers bounded repair on the same PR; P2-only findings are advisory and become one deduplicated follow-up Issue instead of blocking.
+- Blocking requires a structured threat verdict — `BLOCK: <CLASS> <file:line> — <exploit precondition>` with CLASS T1-INFRA-DELETION / T2-BACKDOOR / T3-HARDCODED-SECRET / T4-CRITICAL-VULN; P0–P2 prose findings are advisory and become one deduplicated follow-up Issue.
 - A fix creates a new SHA; both gates repeat.
 - Never reviewer-shop around a material finding.
 

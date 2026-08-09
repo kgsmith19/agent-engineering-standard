@@ -79,19 +79,40 @@ Assert-Equal 'Unknown human head allows Copilot fallback' $humanAccepted[1] 'cop
 $mixedAccepted = @(Get-AcceptedMachineReviewProviders -HeadAuthorLogin 'chatgpt-codex-connector[bot]' -HeadCommitterLogin 'Copilot')
 Assert-Equal 'Mixed machine head accepts no connected reviewer' $mixedAccepted.Count 0
 
-Assert-Equal 'Structured AI review failure blocks' (Test-BlockingAiReviewBody 'AI-REVIEW FAIL — sha') $true
-Assert-Equal 'P1 heading blocks' (Test-BlockingAiReviewBody '## P1 — unsafe bypass') $true
+# Threat-tier contract: only a structured verdict line blocks —
+# BLOCK: <CLASS> <file:line> — <concrete exploit precondition>, case-sensitive.
+Assert-Equal 'T1 infra-deletion verdict blocks' (Test-BlockingAiReviewBody 'BLOCK: T1-INFRA-DELETION scripts/deploy.ps1:14 — main-branch ruleset is deleted on merge') $true
+Assert-Equal 'T2 backdoor verdict blocks' (Test-BlockingAiReviewBody 'BLOCK: T2-BACKDOOR src/auth.ts:88 — hardcoded bypass header x-debug-admin grants root') $true
+Assert-Equal 'T3 hardcoded-secret verdict blocks' (Test-BlockingAiReviewBody 'BLOCK: T3-HARDCODED-SECRET config/prod.json:3 — live service-role key committed') $true
+Assert-Equal 'T4 critical-vuln verdict blocks' (Test-BlockingAiReviewBody 'BLOCK: T4-CRITICAL-VULN api/upload.ts:41 — unauthenticated POST /upload writes arbitrary paths, yields RCE') $true
+Assert-Equal 'Verdict inside larger review blocks' (Test-BlockingAiReviewBody "Summary text`nBLOCK: T2-BACKDOOR src/auth.ts:88 — bypass header grants root`nMore prose") $true
+Assert-Equal 'Unknown class does not block' (Test-BlockingAiReviewBody 'BLOCK: T5-OTHER src/x.ts:1 — something') $false
+Assert-Equal 'Missing file:line does not block' (Test-BlockingAiReviewBody 'BLOCK: T2-BACKDOOR — no location cited') $false
+Assert-Equal 'Empty precondition does not block' (Test-BlockingAiReviewBody 'BLOCK: T2-BACKDOOR src/x.ts:1 — ') $false
+Assert-Equal 'Lowercase class does not block' (Test-BlockingAiReviewBody 'block: t2-backdoor src/x.ts:1 — bypass') $false
+Assert-Equal 'Structured FAIL without verdict does not block' (Test-BlockingAiReviewBody 'AI-REVIEW FAIL — sha') $false
+Assert-Equal 'P1 heading does not block' (Test-BlockingAiReviewBody '## P1 — unsafe bypass') $false
+Assert-Equal 'P1 heading is advisory' (Test-AdvisoryAiReviewBody '## P1 — unsafe bypass') $true
+Assert-Equal 'P0 bracket is advisory' (Test-AdvisoryAiReviewBody '[P0] takes down prod') $true
+Assert-Equal 'P1 badge does not block' (Test-BlockingAiReviewBody '![P1 Badge](badge.svg)') $false
+Assert-Equal 'P1 badge is advisory' (Test-AdvisoryAiReviewBody '![P1 Badge](badge.svg)') $true
 Assert-Equal 'P2 bullet does not block' (Test-BlockingAiReviewBody '- **P2: missing pagination') $false
 Assert-Equal 'P2 bullet is advisory' (Test-AdvisoryAiReviewBody '- **P2: missing pagination') $true
-Assert-Equal 'P1 badge blocks' (Test-BlockingAiReviewBody '![P1 Badge](badge.svg)') $true
-Assert-Equal 'Bracketed P1 title blocks' (Test-BlockingAiReviewBody '[P1] unsafe bypass') $true
 Assert-Equal 'Bracketed markdown P2 bullet is advisory' (Test-AdvisoryAiReviewBody '- **[P2] missing pagination**') $true
-Assert-Equal 'Mixed P1 and P2 blocks' (Test-BlockingAiReviewBody "[P1] unsafe bypass`n[P2] tidy-up") $true
-Assert-Equal 'Mixed P1 and P2 is not advisory-only' (Test-AdvisoryOnlyAiReviewBody "[P1] unsafe bypass`n[P2] tidy-up") $false
+Assert-Equal 'P1 prose is severe advisory' (Test-SevereAdvisoryAiReviewBody '[P1] unsafe bypass') $true
+Assert-Equal 'P2 prose is not severe advisory' (Test-SevereAdvisoryAiReviewBody '- **P2: missing pagination') $false
+Assert-Equal 'Mixed P1 and P2 prose does not block' (Test-BlockingAiReviewBody "[P1] unsafe bypass`n[P2] tidy-up") $false
+Assert-Equal 'Mixed P1 and P2 prose is advisory-only' (Test-AdvisoryOnlyAiReviewBody "[P1] unsafe bypass`n[P2] tidy-up") $true
+Assert-Equal 'Verdict plus P2 prose blocks' (Test-BlockingAiReviewBody "BLOCK: T3-HARDCODED-SECRET a/b.ts:2 — live key`n[P2] tidy-up") $true
+Assert-Equal 'Verdict plus P2 prose is not advisory-only' (Test-AdvisoryOnlyAiReviewBody "BLOCK: T3-HARDCODED-SECRET a/b.ts:2 — live key`n[P2] tidy-up") $false
 Assert-Equal 'P2-only change request does not block' (Test-BlockingAiReviewEvidence -Body '[P2] typo in prose' -ReviewState 'CHANGES_REQUESTED') $false
-Assert-Equal 'Unclassified change request fails closed' (Test-BlockingAiReviewEvidence -Body 'Please change this.' -ReviewState 'CHANGES_REQUESTED') $true
+Assert-Equal 'Unclassified change request is advisory, not blocking' (Test-BlockingAiReviewEvidence -Body 'Please change this.' -ReviewState 'CHANGES_REQUESTED') $false
+Assert-Equal 'Change request with structured verdict blocks' (Test-BlockingAiReviewEvidence -Body 'BLOCK: T2-BACKDOOR src/auth.ts:88 — bypass header grants root' -ReviewState 'CHANGES_REQUESTED') $true
 Assert-Equal 'No-findings prose does not block' (Test-BlockingAiReviewBody 'No P0-P2 findings. Everything is clean.') $false
 Assert-Equal 'Ordinary review prose does not block' (Test-BlockingAiReviewBody 'Looks good; no material issues found.') $false
+$verdicts = @(Get-BlockingAiReviewVerdicts "prose`nBLOCK: T2-BACKDOOR src/auth.ts:88 — bypass header grants root`nBLOCK: T4-CRITICAL-VULN api/u.ts:41 — unauthenticated RCE`nmore")
+Assert-Equal 'Matched verdict lines are extracted for quoting' $verdicts.Count 2
+Assert-Equal 'Extracted verdict preserves the exact line' $verdicts[0] 'BLOCK: T2-BACKDOOR src/auth.ts:88 — bypass header grants root'
 Assert-Equal 'Neutral is a passing required-check conclusion' (Test-AiReviewPassingConclusion 'neutral') $true
 Assert-Equal 'Success is a passing required-check conclusion' (Test-AiReviewPassingConclusion 'success') $true
 Assert-Equal 'Failure is not a passing required-check conclusion' (Test-AiReviewPassingConclusion 'failure') $false

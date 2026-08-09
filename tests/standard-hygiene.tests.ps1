@@ -79,7 +79,14 @@ Assert-Contains 'review requester authenticates structured Copilot verdict' 'scr
 Assert-Contains 'fallback must be independent' 'scripts/request-machine-review.ps1' "acceptedProviders -contains 'copilot'"
 Assert-Contains 'review request blocks inline reviewer-shopping' 'scripts/request-machine-review.ps1' 'pulls/\$Pr/comments\?per_page=100'
 Assert-Contains 'review request honors disabled-dispatch canary' 'scripts/request-machine-review.ps1' 'disabled_pending_e2e'
-Assert-Contains 'review request protocol makes P2 advisory' 'scripts/request-machine-review.ps1' 'P2-only'
+# Threat-tier contract: the dispatch prompts carry the structured verdict shape
+# and the full T4 bar; prose classifications are always advisory.
+Assert-Contains 'review request protocol demands structured verdicts' 'scripts/request-machine-review.ps1' 'BLOCK: <CLASS> <file:line>'
+Assert-Contains 'review request protocol carries the T4 bar' 'scripts/request-machine-review.ps1' 'T4-CRITICAL-VULN requires ALL of'
+Assert-Contains 'review request protocol keeps prose advisory' 'scripts/request-machine-review.ps1' 'always advisory'
+Assert-Contains 'repair prompt keys on structured verdicts' 'scripts/request-review-repair.ps1' 'BLOCK: <CLASS> <file:line>'
+Assert-Contains 'evaluator quotes matched verdicts on failure' 'scripts/evaluate-ai-review.ps1' 'verdictLines'
+Assert-Contains 'evaluator flags severe advisories prominently' 'scripts/evaluate-ai-review.ps1' 'Severe \(P0/P1-classified\)'
 Assert-Contains 'evaluator reads every PR commit for independence' 'scripts/evaluate-ai-review.ps1' 'pulls/\$Pr/commits\?per_page=100'
 Assert-Contains 'evaluator uses independent providers' 'scripts/evaluate-ai-review.ps1' 'Get-AcceptedMachineReviewProviders'
 Assert-Contains 'evaluator authenticates structured Copilot verdict' 'scripts/evaluate-ai-review.ps1' 'Get-TrustedStructuredCopilotReview'
