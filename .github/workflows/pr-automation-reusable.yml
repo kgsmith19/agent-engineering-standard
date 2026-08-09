@@ -1,0 +1,51 @@
+name: Reusable PR Automation
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        required: true
+        type: string
+      pr_number:
+        required: false
+        type: number
+        default: 0
+      gate_conclusion:
+        required: false
+        type: string
+        default: ""
+      gate_head_sha:
+        required: false
+        type: string
+        default: ""
+      gate_run_id:
+        required: false
+        type: number
+        default: 0
+      standard_sha:
+        required: true
+        type: string
+
+jobs:
+  orchestrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: kgsmith19/agent-engineering-standard
+          ref: ${{ inputs.standard_sha }}
+          path: .standard
+      - name: Run bounded PR state machine
+        shell: pwsh
+        run: |
+          & pwsh -NoProfile -File .standard/scripts/pr-orchestrator.ps1 `
+            -Mode '${{ inputs.mode }}' `
+            -Repo '${{ github.repository }}' `
+            -Pr ${{ inputs.pr_number }} `
+            -GateConclusion '${{ inputs.gate_conclusion }}' `
+            -GateHeadSha '${{ inputs.gate_head_sha }}' `
+            -GateRunId ${{ inputs.gate_run_id }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
