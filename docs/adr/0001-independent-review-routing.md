@@ -14,7 +14,7 @@ Use the smallest provider-specific semantic review set **per mergeable head SHA*
 - Ordinary/user-authored provenance is ambiguous for independence and therefore requires both Codex + Copilot for unattended merge.
 - No Claude fallback is claimed until a mechanical Claude review adapter exists.
 - One semantic response batches software/security, business/product, systems/optimization, and leanness lenses.
-- Budget: at most two Codex response passes (initial + one re-review). Copilot gets one response by default and exactly one additional recovery response only after Copilot returned FAIL on an earlier head.
+- One response per required provider is the normal path. Each exact head is requested at most once per provider. A PR may consume at most three semantic responses per provider across legitimate head changes/fix cycles; after that it must stop and be split/restarted instead of entering an unbounded review loop.
 - Draft churn does not consume semantic-review budget; exact-head request markers prevent duplicate triggers.
 - A push after review creates a new SHA; the previous `AI Review` result cannot authorize that new head.
 - A successful `PR Gate` may request semantic review only when that completed run's `head_sha` still equals the PR's current head.
@@ -25,7 +25,7 @@ Use the smallest provider-specific semantic review set **per mergeable head SHA*
 
 ## Why
 
-A call-time script check is insufficient because auto-merge can remain armed after a later push. A required exact-head check makes GitHub itself enforce semantic-review freshness. Known provider provenance allows one truly cross-provider review, while ambiguous provenance pays for both connected providers rather than trusting a self-attested implementer identity. Batching business/system/lean lenses avoids multiplying calls. A single failure-recovery response prevents a real review failure from permanently deadlocking a corrected PR without creating an unlimited review-on-push loop.
+A call-time script check is insufficient because auto-merge can remain armed after a later push. A required exact-head check makes GitHub itself enforce semantic-review freshness. Known provider provenance allows one truly cross-provider review, while ambiguous provenance pays for both connected providers rather than trusting a self-attested implementer identity. Batching business/system/lean lenses avoids multiplying calls. A small hard cap preserves a bounded path through legitimate post-review fixes and changed heads without making semantic review an unlimited per-push tax.
 
 ## Trust boundary
 
