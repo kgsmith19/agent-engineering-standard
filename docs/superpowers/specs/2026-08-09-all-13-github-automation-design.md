@@ -71,7 +71,7 @@ The convergence order is fixed:
 Until the E2E review canary passes:
 
 - `independent_review.dispatch_mode` is `disabled_pending_e2e`;
-- no workflow posts a reviewer request or repair request;
+- ordinary portfolio events do not post reviewer or repair requests; only the manually scoped canary override may do so;
 - `AI Review` reports `neutral`, which is accepted only for the dispatch-disabled R0 canary;
 - a manually started canary is bound to one repository, PR number, head SHA, and base SHA;
 - unattended auto-merge is capped at R2;
@@ -81,6 +81,8 @@ Until the E2E review canary passes:
 PR #44 must make current-head decisions exhaustive, cover full-PR reviewer provenance, fail closed for forks, invalidate stale evidence after material edits or base advancement, and bound cancelled/stale reruns. Required checks use strict up-to-date mode and evidence records both head SHA and base SHA. A base-SHA change invalidates prior `PR Gate` and `AI Review` evidence.
 
 The three known post-merge P2 defects are included: consume every pagination page, inspect every open PR, and make timeout behavior match the documented value. A literal `per_page=100` request is not proof of pagination.
+
+After #44 absorbs post-#42 `main`, regression tests must still prove dispatch disabled, Projects absent, neutral accepted only for the exact canary lane, and unattended auto-merge capped at R2.
 
 ## Issue and inbox intake
 
@@ -122,7 +124,7 @@ A repair returns to the authenticated original implementer when that provider is
 
 The repaired commit must produce a new head SHA, trigger a fresh `PR Gate` against the current base SHA, and receive a new independent review. One review-repair head is allowed. A second blocking head stops.
 
-Provider invocation is enabled only after a real GitHub canary proves that the invocation creates authenticated exact-head evidence. If workflow-authored native `@codex` dispatch fails that canary, the implementation uses a full-SHA-pinned `openai/codex-action` with a scoped secret. No unproven mention is treated as authoritative.
+Provider invocation is not enabled for ordinary work until a manually scoped GitHub canary proves that it creates authenticated exact-head evidence. If workflow-authored native `@codex` dispatch fails that canary, the implementation uses a full-SHA-pinned `openai/codex-action` with a scoped secret. No unproven mention is treated as authoritative.
 
 ## Repository contract
 
