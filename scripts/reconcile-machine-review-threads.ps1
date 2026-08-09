@@ -1,7 +1,7 @@
 param(
   [Parameter(Mandatory)][string]$Repo,
   [Parameter(Mandatory)][int]$Pr,
-  [Parameter(Mandatory)][string]$HeadSha
+  [string]$HeadSha = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,6 +12,22 @@ $parts = $Repo -split '/',2
 if ($parts.Count -ne 2) { throw 'Repo must be owner/name.' }
 $owner = $parts[0]
 $name = $parts[1]
+
+if (-not $HeadSha) {
+  $prRaw = & gh api "repos/$Repo/pulls/$Pr" 2>&1
+  if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
+  $HeadSha = [string](($prRaw -join "`n") | ConvertFrom-Json).head.sha
+}
+
+$encoded = [uri]::EscapeDataString('AI Review')
+$checkRaw = & gh api -H 'Accept: application/vnd.github+json' "repos/$Repo/commits/$HeadSha/check-runs?check_name=$encoded" 2>&1
+if ($LASTEXITCODE -ne 0) { throw ($checkRaw -join "`n") }
+$checks = (($checkRaw -join "`n") | ConvertFrom-Json).check_runs
+$latest = @($checks | Where-Object { $_.name -eq 'AI Review' -and $_.app.slug -eq 'github-actions' } | Sort-Object id | Select-Object -Last 1)
+if ($latest.Count -eq 0 -or $latest[0].conclusion -ne 'success') {
+  Write-Host "MACHINE THREAD RECONCILIATION: skipped; AI Review is not successful for $HeadSha"
+  exit 0
+}
 
 $query = @'
 query($owner:String!, $name:String!, $number:Int!, $after:String) {
@@ -59,10 +75,11 @@ do {
     if ($comments.Count -eq 0) { $kept++; continue }
 
     $nonMachine = @($comments | Where-Object {
-      -not (Get-MachineReviewProvider -Login ([string]$_.author.login)
-      )
+      -not (Get-MachineReviewProvider -Login ([string]$_.author.login))
     })
-    $currentHead = @($comments | Where-Object { [string]$_.pullRequestReview.commit.oid -eq $HeadSha })
+    $currentHead = @($comments | Where-Object {
+      [string]$_.pullRequestReview.commit.oid -eq $HeadSha
+    })
     if ($nonMachine.Count -gt 0 -or $currentHead.Count -gt 0) {
       $kept++
       continue
