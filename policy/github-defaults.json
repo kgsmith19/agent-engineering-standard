@@ -1,6 +1,10 @@
 {
   "owner": "kgsmith19",
   "project_title": "Agentic Portfolio",
+  "work_tracking": {
+    "system": "github-projects",
+    "backing_record": "github-issues"
+  },
   "ruleset_name": "Lean PR Gate",
   "required_status_context": "PR Gate",
   "required_ai_review_context": "AI Review",
