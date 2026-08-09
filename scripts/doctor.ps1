@@ -24,7 +24,7 @@ function Add-Problem {
 $required = @(
   'README.md','LIFECYCLE.md','AGENT_RULES.md','QUALITY_RULES.md','SECURITY_RISK_AUTONOMY.md','DELIVERY_GITHUB.md','EVIDENCE_LEARNING.md','AGENTS.md','docs/AUTONOMOUS-PR-STATE-MACHINE.md',
   '.github/workflows/ci.yml','.github/workflows/ai-review.yml','.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation.yml','.github/workflows/pr-automation-reusable.yml','policy/github-defaults.json',
-  'scripts/setup-portfolio.ps1','scripts/apply-github-standard.ps1','scripts/sync-agentic-project.ps1','scripts/codex-review.ps1','scripts/request-independent-review.ps1','scripts/request-machine-review.ps1','scripts/evaluate-ai-review.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/auto-merge.ps1','scripts/pr-orchestrator.ps1','scripts/lint-pr-creation.ps1','scripts/bootstrap-repo.ps1','scripts/upgrade-repos.ps1','scripts/prune-portfolio.ps1',
+  'scripts/setup-portfolio.ps1','scripts/apply-github-standard.ps1','scripts/codex-review.ps1','scripts/request-independent-review.ps1','scripts/request-machine-review.ps1','scripts/evaluate-ai-review.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/auto-merge.ps1','scripts/pr-orchestrator.ps1','scripts/gate-result-router.ps1','scripts/review-metrics.ps1','scripts/lint-pr-creation.ps1','scripts/bootstrap-repo.ps1','scripts/upgrade-repos.ps1','scripts/prune-portfolio.ps1',
   'scripts/lib/standard-lock.ps1','scripts/lib/review-policy.ps1','tests/legacy-protection.tests.ps1','tests/standard-lock.tests.ps1','tests/review-policy.tests.ps1','tests/draft-prevention.tests.ps1','tests/standard-hygiene.tests.ps1',
   'templates/.gitignore','templates/AGENTS.md','templates/PR_GATE.yml','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/dependabot.yml','templates/PRD.md','templates/SPEC.md','templates/ADR.md','templates/ISSUE.md','templates/PULL_REQUEST.md'
 )
@@ -41,11 +41,12 @@ if ([bool]$config.require_code_owner_review -or [bool]$config.native_codeowners 
 if (@($config.forbidden_requested_reviewers) -notcontains [string]$config.owner) { throw 'Repository owner must be forbidden from requested-reviewer state.' }
 if (-not [bool]$config.allow_auto_merge -or -not [bool]$config.allow_update_branch) { throw 'Auto-merge and update-branch must remain enabled.' }
 if ([bool]$config.allow_merge_commit -or [bool]$config.allow_rebase_merge -or -not [bool]$config.allow_squash_merge -or $config.merge_method -ne 'squash') { throw 'Merge policy must remain squash-only.' }
-if ($config.auto_merge_max_risk -ne 'R3') { throw 'R4 must remain outside auto-merge.' }
+if ($config.auto_merge_max_risk -ne 'R2') { throw 'Unreviewed canary auto-merge must stop at R2; R3+ waits for the review lane or a human.' }
 if ([bool]$config.merge_queue.desired) { throw 'Merge queue must remain deferred until organization ownership and merge_group AI Review are proven.' }
 
 $review = $config.independent_review
 if ([bool]$review.required_for_auto_merge) { throw 'Machine review must remain advisory: the deterministic PR Gate is the sole required merge authority.' }
+if ([string]$review.dispatch_mode -notin @('disabled_pending_e2e','enabled')) { throw "Unknown review dispatch_mode '$($review.dispatch_mode)'." }
 if ($review.preferred_provider -ne 'codex' -or $review.fallback_provider -ne 'copilot') { throw 'Machine-review routing drifted.' }
 if ([int]$review.max_review_heads_per_pr -ne 2 -or [int]$review.primary_wait_minutes -le 0 -or [int]$review.fallback_wait_minutes -le 0 -or [int]$review.poll_seconds -le 0) { throw 'Machine-review budgets drifted.' }
 if ([int]$review.absolute_timeout_minutes -le ([int]$review.primary_wait_minutes + [int]$review.fallback_wait_minutes)) { throw 'Absolute review timeout must exceed fast polling windows.' }

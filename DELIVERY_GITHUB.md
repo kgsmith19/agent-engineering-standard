@@ -127,7 +127,7 @@ Accepted clean evidence:
 - structured Copilot `AI-REVIEW PASS` containing the exact SHA
 - Codex thumbs-up created after the exact-head request
 
-Material P0-P2 evidence in either the formal summary or inline review comments fails `AI Review`. The AI Review workflow requests one batched Copilot repair on the existing PR. The repaired head is then reviewed by a different provider. If that second reviewed head still has material findings, automation blocks rather than purchasing an open-ended loop.
+The P0/P1 blocking threshold: blocking P0/P1 evidence in either the formal summary or inline review comments fails `AI Review`, while P2-only findings are advisory — recorded once as a follow-up Issue mapped to the exact head, never blocking the lane. On a blocking failure the AI Review workflow requests one batched Copilot repair on the existing PR. The repaired head is then reviewed by a different provider. If that second reviewed head still has blocking findings, automation blocks rather than purchasing an open-ended loop.
 
 The AI Review runner wakes only when semantic evidence changes: formal review, inline review comment, or PR conversation comment. Ordinary pushes do not start it; `PR Automation` performs the initial exact-head evaluation after `PR Gate` succeeds.
 

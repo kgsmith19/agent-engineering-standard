@@ -25,4 +25,4 @@ Do not add a document, workflow, policy, or gate unless it reduces meaningful un
 
 ## Portfolio automation
 
-`policy/github-defaults.json` defines the default active-repository GitHub control-plane policy. `scripts/apply-github-standard.ps1` applies repository settings and the default-branch ruleset using GitHub CLI admin access. `scripts/sync-agentic-project.ps1` creates/syncs the optional cross-repo GitHub Project view; Issues remain source of truth.
+`policy/github-defaults.json` defines the default active-repository GitHub control-plane policy. `scripts/apply-github-standard.ps1` applies repository settings and the default-branch ruleset using GitHub CLI admin access. GitHub Issues are the only durable work-item view; no cross-repo Project board is synced.

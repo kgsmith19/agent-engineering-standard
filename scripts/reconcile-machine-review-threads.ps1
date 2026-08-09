@@ -24,8 +24,8 @@ $checkRaw = & gh api -H 'Accept: application/vnd.github+json' "repos/$Repo/commi
 if ($LASTEXITCODE -ne 0) { throw ($checkRaw -join "`n") }
 $checks = (($checkRaw -join "`n") | ConvertFrom-Json).check_runs
 $latest = @($checks | Where-Object { $_.name -eq 'AI Review' -and $_.app.slug -eq 'github-actions' } | Sort-Object id | Select-Object -Last 1)
-if ($latest.Count -eq 0 -or $latest[0].conclusion -ne 'success') {
-  Write-Host "MACHINE THREAD RECONCILIATION: skipped; AI Review is not successful for $HeadSha"
+if ($latest.Count -eq 0 -or -not (Test-AiReviewPassingConclusion ([string]$latest[0].conclusion))) {
+  Write-Host "MACHINE THREAD RECONCILIATION: skipped; AI Review has no passing conclusion for $HeadSha"
   exit 0
 }
 
@@ -40,6 +40,7 @@ query($owner:String!, $name:String!, $number:Int!, $after:String) {
           comments(first:100) {
             nodes {
               author { login }
+              body
               pullRequestReview { commit { oid } }
             }
           }
@@ -80,7 +81,9 @@ do {
     $currentHead = @($comments | Where-Object {
       [string]$_.pullRequestReview.commit.oid -eq $HeadSha
     })
-    if ($nonMachine.Count -gt 0 -or $currentHead.Count -gt 0) {
+    # Current-head machine threads survive unless every comment is P2-only advisory.
+    $advisoryOnly = @($comments | Where-Object { Test-AdvisoryOnlyAiReviewBody ([string]$_.body) }).Count -eq $comments.Count
+    if ($nonMachine.Count -gt 0 -or ($currentHead.Count -gt 0 -and -not $advisoryOnly)) {
       $kept++
       continue
     }

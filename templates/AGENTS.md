@@ -68,7 +68,7 @@ Do not push empty commits merely to retrigger CI.
 
 ## Machine AI Review
 
-After `PR Gate` passes, automation requests one fresh machine review task/session for the exact head SHA.
+After `PR Gate` passes, automation requests one fresh machine review task/session for the exact head SHA — unless `independent_review.dispatch_mode` is `disabled_pending_e2e`, in which case no reviewer is dispatched, the `AI Review` check completes `neutral` (passing), and P2-only findings become an advisory Issue.
 
 - Codex is primary for ordinary PRs.
 - Copilot is the bounded fallback and the required reviewer for a PR authored by the Codex GitHub App.
