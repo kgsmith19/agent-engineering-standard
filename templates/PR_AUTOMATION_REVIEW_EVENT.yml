@@ -1,4 +1,4 @@
-name: PR Automation Review Event
+name: "Orchestrator: Review Event"
 
 on:
   pull_request_review:

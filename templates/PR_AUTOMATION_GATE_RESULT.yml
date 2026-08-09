@@ -1,8 +1,8 @@
-name: PR Automation Gate Result
+name: "Orchestrator: Gate Result"
 
 on:
   workflow_run:
-    workflows: ["PR Gate"]
+    workflows: ["Gate: Deterministic CI"]
     types: [completed]
 
 # One repo-wide non-canceling authority lock shared by evaluator and orchestrator; GitHub keeps only the newest pending run per group and the six-hourly watchdog is the convergence net.

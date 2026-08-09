@@ -75,12 +75,12 @@ if (-not $meta.allow_squash_merge -or $meta.allow_merge_commit -or $meta.allow_r
 # evidence; only a failure conclusion carrying a structured threat verdict
 # refuses. neutral and success both arm in every dispatch mode.
 $headSha = [string]$prData.headRefOid
-$gateRun = Get-LatestActionsCheckRun $headSha 'PR Gate'
+$gateRun = Get-LatestActionsCheckRun $headSha ([string]$config.required_status_context)
 if (-not $gateRun -or [string]$gateRun.conclusion -ne 'success') { throw "Auto-merge refused: no exact-head 'PR Gate' success from GitHub Actions for $headSha." }
-$reviewRun = Get-LatestActionsCheckRun $headSha 'AI Review'
-if (-not $reviewRun) { throw "Auto-merge refused: no exact-head 'AI Review' evaluation exists for $headSha." }
-if (-not (Test-CurrentDispatchEvidence -Summary ([string]$reviewRun.output.summary) -PolicyVersion ([int]$config.independent_review.dispatch_policy_version))) { throw "Auto-merge refused: exact-head 'AI Review' evidence does not carry current dispatch_policy_version $($config.independent_review.dispatch_policy_version) for $headSha." }
-if ([string]$reviewRun.conclusion -eq 'failure' -and (Test-BlockingAiReviewBody ([string]$reviewRun.output.summary))) { throw "Auto-merge refused: exact-head 'AI Review' failure carries a structured threat verdict for $headSha." }
+$reviewRun = Get-LatestActionsCheckRun $headSha 'Advisory: AI Review'
+if (-not $reviewRun) { throw "Auto-merge refused: no exact-head 'Advisory: AI Review' evaluation exists for $headSha." }
+if (-not (Test-CurrentDispatchEvidence -Summary ([string]$reviewRun.output.summary) -PolicyVersion ([int]$config.independent_review.dispatch_policy_version))) { throw "Auto-merge refused: exact-head 'Advisory: AI Review' evidence does not carry current dispatch_policy_version $($config.independent_review.dispatch_policy_version) for $headSha." }
+if ([string]$reviewRun.conclusion -eq 'failure' -and (Test-BlockingAiReviewBody ([string]$reviewRun.output.summary))) { throw "Auto-merge refused: exact-head 'Advisory: AI Review' failure carries a structured threat verdict for $headSha." }
 
 $actionsAppRaw = & gh api /apps/github-actions 2>&1
 if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve GitHub Actions App identity.' }

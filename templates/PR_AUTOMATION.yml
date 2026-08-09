@@ -1,4 +1,4 @@
-name: PR Automation
+name: "Orchestrator: PR Lifecycle"
 
 on:
   pull_request_target:

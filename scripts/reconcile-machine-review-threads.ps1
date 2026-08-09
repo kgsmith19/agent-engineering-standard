@@ -22,11 +22,11 @@ if ([string]$prData.head.repo.full_name -ne $Repo) {
 }
 if (-not $HeadSha) { $HeadSha = [string]$prData.head.sha }
 
-$encoded = [uri]::EscapeDataString('AI Review')
+$encoded = [uri]::EscapeDataString('Advisory: AI Review')
 $checkRaw = & gh api -H 'Accept: application/vnd.github+json' "repos/$Repo/commits/$HeadSha/check-runs?check_name=$encoded" 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($checkRaw -join "`n") }
 $checks = (($checkRaw -join "`n") | ConvertFrom-Json).check_runs
-$latest = @($checks | Where-Object { $_.name -eq 'AI Review' -and $_.app.slug -eq 'github-actions' } | Sort-Object id | Select-Object -Last 1)
+$latest = @($checks | Where-Object { $_.name -eq 'Advisory: AI Review' -and $_.app.slug -eq 'github-actions' } | Sort-Object id | Select-Object -Last 1)
 if ($latest.Count -eq 0 -or -not (Test-AiReviewPassingConclusion ([string]$latest[0].conclusion))) {
   Write-Host "MACHINE THREAD RECONCILIATION: skipped; AI Review has no passing conclusion for $HeadSha"
   exit 0

@@ -1,4 +1,4 @@
-name: PR Automation Comment Event
+name: "Orchestrator: Comment Event"
 
 on:
   issue_comment:

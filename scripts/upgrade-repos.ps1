@@ -109,12 +109,13 @@ pinned_by: upgrade-repos.ps1
       }
 
       # workflow_run identifies the deterministic gate by workflow name. Preserve
-      # a dedicated pr-gate.yml; otherwise normalize CI/ci to exact `PR Gate`
-      # without changing the repository-specific jobs or commands.
+      # a dedicated pr-gate.yml; otherwise normalize CI/ci to the taxonomy name
+      # "Gate: Deterministic CI" (the gate-result trigger listens for it) without
+      # changing the repository-specific jobs, commands, or the PR Gate job context.
       if (-not (Test-Path '.github/workflows/pr-gate.yml') -and (Test-Path '.github/workflows/ci.yml')) {
         $ci = Get-Content '.github/workflows/ci.yml' -Raw
-        if ($ci -match '(?im)^name:\s*ci\s*$' -and $ci -match 'PR Gate') {
-          $ci = [regex]::Replace($ci,'(?im)^name:\s*ci\s*$','name: PR Gate',1)
+        if ($ci -match '(?im)^name:\s*(ci|PR Gate)\s*$' -and $ci -match 'PR Gate') {
+          $ci = [regex]::Replace($ci,'(?im)^name:\s*(ci|PR Gate)\s*$','name: "Gate: Deterministic CI"',1)
           Set-Content '.github/workflows/ci.yml' $ci -Encoding utf8 -NoNewline
         }
       }

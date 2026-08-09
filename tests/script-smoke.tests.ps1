@@ -37,7 +37,7 @@ case "$*" in
   *"pulls/22/comments"*) printf '%s\n' '[[]]' ;;
   *"issues/22/comments"*) printf '%s\n' '[[]]' ;;
   *"check-runs?check_name=PR%20Gate"*) printf '%s\n' '{"check_runs":[{"id":31,"name":"PR Gate","app":{"slug":"github-actions"},"conclusion":"success","output":{"summary":"deterministic"}}]}' ;;
-  *"check-runs?check_name="*) printf '%s\n' '{"check_runs":[{"id":32,"name":"AI Review","app":{"slug":"github-actions"},"conclusion":"neutral","output":{"summary":"dispatch-evidence repo=kgsmith19/example pr=22 head='"$HEAD"' base=e policy_version=1"}}]}' ;;
+  *"check-runs?check_name="*) printf '%s\n' '{"check_runs":[{"id":32,"name":"Advisory: AI Review","app":{"slug":"github-actions"},"conclusion":"neutral","output":{"summary":"dispatch-evidence repo=kgsmith19/example pr=22 head='"$HEAD"' base=e policy_version=1"}}]}' ;;
   "api /apps/github-actions") printf '%s\n' '{"id":15368}' ;;
   *"repos/kgsmith19/example/rulesets?per_page=100") printf '%s\n' '[[{"id":77,"name":"Lean PR Gate","target":"branch","enforcement":"active"}]]' ;;
   *"rules/branches/main?per_page=100") printf '%s\n' '[[{"ruleset_id":77,"type":"pull_request"}]]' ;;

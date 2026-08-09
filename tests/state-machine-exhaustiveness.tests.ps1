@@ -104,6 +104,30 @@ foreach ($path in @(
 }
 Assert-Contains 'PR Gate keeps its per-PR concurrency group' '.github/workflows/ci.yml' 'group:\s*pr-gate-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}'
 
+# The gate-result trigger must listen for the exact gate workflow name, or gate
+# completions never reach the orchestrator (atomic rename coupling).
+foreach ($pair in @(
+  @('.github/workflows/ci.yml','.github/workflows/pr-automation-gate-result.yml'),
+  @('templates/PR_GATE.yml','templates/PR_AUTOMATION_GATE_RESULT.yml')
+)) {
+  $gateName = ([regex]::Match((Read-Text $pair[0]),'(?m)^name:\s*"?([^"\r\n]+?)"?\s*$')).Groups[1].Value
+  Assert-Contains "$($pair[1]) triggers on the gate workflow name" $pair[1] ('workflows:\s*\["' + [regex]::Escape($gateName) + '"\]')
+}
+# Orchestrator taxonomy names, local and template.
+$orchestratorNames = @(
+  @('pr-automation.yml','PR_AUTOMATION.yml','Orchestrator: PR Lifecycle'),
+  @('pr-automation-gate-result.yml','PR_AUTOMATION_GATE_RESULT.yml','Orchestrator: Gate Result'),
+  @('pr-automation-review-event.yml','PR_AUTOMATION_REVIEW_EVENT.yml','Orchestrator: Review Event'),
+  @('pr-automation-comment-event.yml','PR_AUTOMATION_COMMENT_EVENT.yml','Orchestrator: Comment Event'),
+  @('pr-automation-watchdog.yml','PR_AUTOMATION_WATCHDOG.yml','Orchestrator: Watchdog')
+)
+foreach ($entry in $orchestratorNames) {
+  Assert-Contains "$($entry[0]) carries taxonomy name" ".github/workflows/$($entry[0])" ('(?m)^name:\s*"' + [regex]::Escape($entry[2]) + '"\s*$')
+  Assert-Contains "$($entry[1]) carries taxonomy name" "templates/$($entry[1])" ('(?m)^name:\s*"' + [regex]::Escape($entry[2]) + '"\s*$')
+}
+Assert-Contains 'advisory workflow carries taxonomy name' '.github/workflows/ai-review.yml' '(?m)^name:\s*"Advisory: AI Review"\s*$'
+Assert-Contains 'advisory template carries taxonomy name' 'templates/AI_REVIEW.yml' '(?m)^name:\s*"Advisory: AI Review"\s*$'
+
 # The watchdog must consume every pagination page of open PRs, not a capped list.
 Assert-Contains 'watchdog paginates all open PRs' 'scripts/pr-orchestrator.ps1' 'Get-Paged "repos/\$Repo/pulls\?state=open&per_page=100"'
 

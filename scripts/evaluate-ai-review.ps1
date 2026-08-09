@@ -32,16 +32,16 @@ function Get-Paged {
 
 function Set-AiReviewCheck {
   param([string]$HeadSha,[ValidateSet('success','failure','neutral')][string]$Conclusion,[string]$Summary)
-  $encoded = [uri]::EscapeDataString('AI Review')
+  $encoded = [uri]::EscapeDataString('Advisory: AI Review')
   $raw = & gh api -H 'Accept: application/vnd.github+json' "repos/$Repo/commits/$HeadSha/check-runs?check_name=$encoded" 2>&1
   if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
   $runs = (($raw -join "`n") | ConvertFrom-Json).check_runs
-  $existing = @($runs | Where-Object { $_.name -eq 'AI Review' -and $_.app.slug -eq 'github-actions' } | Sort-Object id | Select-Object -Last 1)
-  $body = @{ status='completed'; conclusion=$Conclusion; output=@{ title='AI Review'; summary=$Summary } }
+  $existing = @($runs | Where-Object { $_.name -eq 'Advisory: AI Review' -and $_.app.slug -eq 'github-actions' } | Sort-Object id | Select-Object -Last 1)
+  $body = @{ status='completed'; conclusion=$Conclusion; output=@{ title='Advisory: AI Review'; summary=$Summary } }
   if ($existing.Count -gt 0) {
     Invoke-GhJson PATCH "repos/$Repo/check-runs/$($existing[0].id)" $body | Out-Null
   } else {
-    $body.name = 'AI Review'; $body.head_sha = $HeadSha
+    $body.name = 'Advisory: AI Review'; $body.head_sha = $HeadSha
     Invoke-GhJson POST "repos/$Repo/check-runs" $body | Out-Null
   }
 }

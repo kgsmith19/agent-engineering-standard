@@ -208,7 +208,7 @@ function Get-CheckRun {
 function Get-CheckConclusion { param([string]$Head,[string]$Name) $run=Get-CheckRun $Head $Name; if(-not$run){return $null}; return [string]$run.conclusion }
 function Test-HeadDispatchEvidence {
   param([string]$Head)
-  $run=Get-CheckRun $Head 'AI Review'
+  $run=Get-CheckRun $Head 'Advisory: AI Review'
   if(-not $run){return $false}
   return Test-CurrentDispatchEvidence -Summary ([string]$run.output.summary) -PolicyVersion ([int]$reviewPolicy.dispatch_policy_version)
 }
@@ -261,11 +261,11 @@ function Ensure-PrState {
     # Merge ordering: arm only after the exact head carries a PR Gate success and
     # a dispatch-appropriate AI Review conclusion; earlier events simply wait.
     $head = [string]$prData.headRefOid
-    if ((Get-CheckConclusion $head 'PR Gate') -ne 'success') { return $prData }
+    if ((Get-CheckConclusion $head ([string]$config.required_status_context)) -ne 'success') { return $prData }
     # Evaluated, not obeyed: current-policy-version advisory evidence must EXIST;
     # only a failure conclusion carrying a structured threat verdict refuses.
     # neutral and success both arm in every dispatch mode.
-    $reviewRun = Get-CheckRun $head 'AI Review'
+    $reviewRun = Get-CheckRun $head 'Advisory: AI Review'
     if (-not $reviewRun -or -not (Test-CurrentDispatchEvidence -Summary ([string]$reviewRun.output.summary) -PolicyVersion ([int]$reviewPolicy.dispatch_policy_version))) { return $prData }
     if ([string]$reviewRun.conclusion -eq 'failure' -and (Test-BlockingAiReviewBody ([string]$reviewRun.output.summary))) { return $prData }
     & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'auto-merge.ps1') -Repo $Repo -Pr $Number -Risk $risk
@@ -285,7 +285,7 @@ function Wait-ForReview {
     if($current.state-ne'OPEN'-or$current.isDraft-or[string]$current.headRefOid-ne$Head){return 'changed'}
     Invoke-AiReview $Number
     if(@(Get-ReviewFailures $Number $current).Count-gt 0){return 'failed'}
-    if(Test-AiReviewPassingConclusion (Get-CheckConclusion $Head 'AI Review')){return 'success'}
+    if(Test-AiReviewPassingConclusion (Get-CheckConclusion $Head 'Advisory: AI Review')){return 'success'}
   } while([datetimeoffset]::UtcNow-lt$deadline)
   return 'timeout'
 }
@@ -310,7 +310,7 @@ function Run-ReviewCycle {
   # evaluates existing evidence only). Stale policy_version evidence is
   # re-evaluated so a dispatch_policy_version bump invalidates every open neutral.
   $head=[string]$prData.headRefOid
-  if(-not((Test-AiReviewPassingConclusion (Get-CheckConclusion $head 'AI Review'))-and(Test-HeadDispatchEvidence $head))){Invoke-AiReview $Number}
+  if(-not((Test-AiReviewPassingConclusion (Get-CheckConclusion $head 'Advisory: AI Review'))-and(Test-HeadDispatchEvidence $head))){Invoke-AiReview $Number}
   if(@(Get-ReviewFailures $Number $prData).Count-gt 0){return}
   if(-not $reviewSolicit -or [string]$reviewPolicy.dispatch_mode-eq'disabled_pending_e2e'){Complete-ReviewSuccess $Number;return}
   # A neutral (awaiting-review) conclusion is passing but must not suppress
@@ -327,7 +327,7 @@ function Run-ReviewCycle {
   if($result-ne'timeout'){return}
 
   Invoke-AiReview $Number
-  if(Test-AiReviewPassingConclusion (Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review')){Complete-ReviewSuccess $Number;return}
+  if(Test-AiReviewPassingConclusion (Get-CheckConclusion ([string]$prData.headRefOid) 'Advisory: AI Review')){Complete-ReviewSuccess $Number;return}
   if(@(Get-ReviewFailures $Number (Get-Pr $Number)).Count-gt 0){return}
 
   & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto -ConfigPath $ConfigPath
@@ -362,7 +362,7 @@ function Handle-ReviewEvent {
   if($prData.state-ne'OPEN'-or$prData.isDraft){return}
   Invoke-AiReview $Number
   if(@(Get-ReviewFailures $Number $prData).Count-gt 0){return}
-  if(Test-AiReviewPassingConclusion (Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review')){Complete-ReviewSuccess $Number}
+  if(Test-AiReviewPassingConclusion (Get-CheckConclusion ([string]$prData.headRefOid) 'Advisory: AI Review')){Complete-ReviewSuccess $Number}
 }
 function Handle-Watchdog {
   # Paginate every open PR: a capped list silently strands PRs past the cap.
@@ -373,12 +373,12 @@ function Handle-Watchdog {
       $prData=Ensure-PrState $number
       if($prData.state-ne'OPEN'-or$prData.isDraft){continue}
       $head=[string]$prData.headRefOid
-      $gate=Get-CheckConclusion $head 'PR Gate'
+      $gate=Get-CheckConclusion $head ([string]$config.required_status_context)
       if($gate-eq'success'){
         Resolve-GateBlocks $number $prData
         if(-not $reviewSolicit -or $dispatchDisabled){Run-ReviewCycle $number;continue}
         Invoke-AiReview $number
-        if(Test-AiReviewPassingConclusion (Get-CheckConclusion $head 'AI Review')){Complete-ReviewSuccess $number;continue}
+        if(Test-AiReviewPassingConclusion (Get-CheckConclusion $head 'Advisory: AI Review')){Complete-ReviewSuccess $number;continue}
         $requestTime=Get-FirstReviewRequestTime $number $head
         if($requestTime-and([datetimeoffset]::UtcNow-$requestTime).TotalMinutes-ge[int]$reviewPolicy.absolute_timeout_minutes){if($reviewRequired){Set-Blocked $number 'review-timeout' "Machine review exceeded the absolute $($reviewPolicy.absolute_timeout_minutes)-minute timeout." $prData}}
         else{Run-ReviewCycle $number}

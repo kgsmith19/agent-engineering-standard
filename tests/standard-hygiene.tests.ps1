@@ -30,8 +30,15 @@ Assert-Contains 'Dependabot GitHub Actions ecosystem' 'templates/dependabot.yml'
 Assert-Contains 'Dependabot groups minor updates' 'templates/dependabot.yml' '(?m)^\s*-\s*minor\s*$'
 Assert-Contains 'Dependabot groups patch updates' 'templates/dependabot.yml' '(?m)^\s*-\s*patch\s*$'
 
-Assert-Contains 'standard workflow named PR Gate' '.github/workflows/ci.yml' '(?m)^name:\s*PR Gate\s*$'
-Assert-Contains 'standard job context named PR Gate' '.github/workflows/ci.yml' '(?m)^\s+name:\s*PR Gate\s*$'
+# Pipeline taxonomy: the deterministic gate carries the new name while the
+# fail-closed pr-gate-bridge job keeps the legacy required 'PR Gate' context
+# green until the owner flips the ruleset (context-rename runbook).
+Assert-Contains 'gate workflow carries taxonomy name' '.github/workflows/ci.yml' '(?m)^name:\s*"Gate: Deterministic CI"\s*$'
+Assert-Contains 'gate job carries taxonomy name' '.github/workflows/ci.yml' '(?m)^\s+name:\s*"Gate: Deterministic CI"\s*$'
+Assert-Contains 'bridge job keeps legacy PR Gate context' '.github/workflows/ci.yml' '(?m)^\s+name:\s*PR Gate\s*$'
+Assert-Contains 'bridge is fail-closed via needs' '.github/workflows/ci.yml' '(?s)pr-gate-bridge:.*?needs:\s*\[gate\]'
+Assert-Contains 'policy names the transition target context' 'policy/github-defaults.json' '"required_status_context_next"\s*:\s*"Gate: Deterministic CI"'
+Assert-Contains 'gate template carries taxonomy name and bridge' 'templates/PR_GATE.yml' '(?s)^name:\s*"Gate: Deterministic CI".*pr-gate-bridge:'
 Assert-Contains 'AI Review delegates to evaluator' '.github/workflows/ai-review-reusable.yml' 'scripts/evaluate-ai-review\.ps1'
 Assert-Contains 'AI Review requests bounded repair' '.github/workflows/ai-review-reusable.yml' 'scripts/request-review-repair\.ps1'
 Assert-Contains 'AI Review reconciles stale machine threads' '.github/workflows/ai-review-reusable.yml' 'scripts/reconcile-machine-review-threads\.ps1'
@@ -157,8 +164,8 @@ Assert-True 'disabled dispatch does not request a reviewer' ($reviewCycle -match
 # evaluator runs unconditionally and those flags gate only what follows.
 Assert-True 'evaluation precedes solicitation gating' ($reviewCycle -match "(?s)Invoke-AiReview \`$Number.*?\`$reviewSolicit")
 Assert-True 'watchdog evaluates disabled-mode heads' ($orchestrator -match '\$dispatchDisabled\)\{Run-ReviewCycle')
-Assert-True 'arming waits for exact-head PR Gate success' ($orchestrator -match "Get-CheckConclusion \`$head 'PR Gate'")
-Assert-True 'arming requires existing current-version advisory evidence' ($orchestrator -match "(?s)Get-CheckRun \`$head 'AI Review'.*?Test-CurrentDispatchEvidence")
+Assert-True 'arming waits for exact-head deterministic gate success' ($orchestrator -match "Get-CheckConclusion \`$head \(\[string\]\`$config.required_status_context\)")
+Assert-True 'arming requires existing current-version advisory evidence' ($orchestrator -match "(?s)Get-CheckRun \`$head 'Advisory: AI Review'.*?Test-CurrentDispatchEvidence")
 Assert-True 'arming refuses only verdict-carrying failures' ($orchestrator -match "conclusion -eq 'failure' -and \(Test-BlockingAiReviewBody")
 Assert-True 'primary clean review immediately completes and re-arms' ($reviewCycle -match "result-eq'success'\)\{Complete-ReviewSuccess")
 Assert-True 'orchestrator does not launch review repair' ($orchestrator -notmatch '(?m)^\s*Request-Repair review\b')
@@ -188,7 +195,7 @@ Assert-Contains 'auto-merge checks effective default-branch rulesets' 'scripts/a
 Assert-Contains 'auto-merge rejects conflicting default-branch rulesets' 'scripts/auto-merge.ps1' 'Auto-merge refused: conflicting active default-branch ruleset'
 Assert-Contains 'ruleset authority checks paginate' 'scripts/auto-merge.ps1' 'rules/branches/\$\{defaultBranchEncoded\}\?per_page=100'
 Assert-Contains 'auto-merge requires exact-head PR Gate success' 'scripts/auto-merge.ps1' "no exact-head 'PR Gate' success"
-Assert-Contains 'auto-merge requires existing advisory evaluation' 'scripts/auto-merge.ps1' "no exact-head 'AI Review' evaluation exists"
+Assert-Contains 'auto-merge requires existing advisory evaluation' 'scripts/auto-merge.ps1' "no exact-head 'Advisory: AI Review' evaluation exists"
 Assert-Contains 'auto-merge refuses only verdict-carrying failures' 'scripts/auto-merge.ps1' "conclusion -eq 'failure' -and \(Test-BlockingAiReviewBody"
 Assert-Contains 'auto-merge refetches the PR immediately before arming' 'scripts/auto-merge.ps1' 'head moved from'
 Assert-Contains 'auto-merge pre-arm retry is bounded' 'scripts/auto-merge.ps1' '\$attempt -le 3'
@@ -211,8 +218,8 @@ Assert-NotContains 'upgrade never hardcodes a main base' 'scripts/upgrade-repos.
 Assert-Contains 'upgrade fails closed when any repository fails' 'scripts/upgrade-repos.ps1' 'ROLLOUT FAILED'
 Assert-Contains 'doctor pins repositories to the approved design note' 'scripts/doctor.ps1' 'all-13-github-automation-design'
 Assert-Contains 'upgrade removes native CODEOWNERS' 'scripts/upgrade-repos.ps1' "Remove-Item '.github/CODEOWNERS'"
-Assert-Contains 'upgrade normalizes PR Gate name' 'scripts/upgrade-repos.ps1' 'name: PR Gate'
-Assert-Contains 'upgrade normalizes lowercase ci names' 'scripts/upgrade-repos.ps1' '\(\?im\)\^name:\\s\*ci'
+Assert-Contains 'upgrade normalizes gate workflow name to taxonomy' 'scripts/upgrade-repos.ps1' 'name: "Gate: Deterministic CI"'
+Assert-Contains 'upgrade normalizes legacy ci and PR Gate names' 'scripts/upgrade-repos.ps1' '\(\?im\)\^name:\\s\*\(ci\|PR Gate\)'
 Assert-Contains 'upgrade labels rollout R3' 'scripts/upgrade-repos.ps1' "--add-label 'risk:R3'"
 Assert-Contains 'upgrade reuses existing rollout PR' 'scripts/upgrade-repos.ps1' 'existing rollout PR'
 

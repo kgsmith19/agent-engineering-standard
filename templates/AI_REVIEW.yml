@@ -1,4 +1,4 @@
-name: AI Review Gate
+name: "Advisory: AI Review"
 
 on:
   pull_request_review:

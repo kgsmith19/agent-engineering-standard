@@ -26,3 +26,4 @@ work_tracking:
 
 ci:
   required_check: PR Gate
+  required_check_next: "Gate: Deterministic CI"
