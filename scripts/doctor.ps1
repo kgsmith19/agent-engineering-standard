@@ -144,7 +144,12 @@ foreach ($name in $config.repositories) {
   if ($LASTEXITCODE -ne 0) { $problems.Add('project metadata missing') }
   else {
     $projectConfig = $projectConfigRaw -join "`n"
-    if ($projectConfig -notmatch '(?m)^work_tracking:\s*$' -or $projectConfig -notmatch '(?m)^\s+system:\s*github-projects\s*$') { $problems.Add('work tracking is not github-projects') }
+    $escapedProjectTitle = [regex]::Escape([string]$config.project_title)
+    $projectTitlePattern = '(?m)^\s+project:\s*["'']?' + $escapedProjectTitle + '["'']?\s*$'
+    if ($projectConfig -notmatch '(?m)^work_tracking:\s*$') { $problems.Add('work tracking block missing') }
+    if ($projectConfig -notmatch '(?m)^\s+system:\s*github-projects\s*$') { $problems.Add('work tracking is not github-projects') }
+    if ($projectConfig -notmatch $projectTitlePattern) { $problems.Add('work-tracking Project title drift') }
+    if ($projectConfig -notmatch '(?m)^\s+backing_record:\s*github-issues\s*$') { $problems.Add('work-tracking backing record drift') }
   }
 
   $codeownersRaw = & gh api -H 'Accept: application/vnd.github.raw+json' "repos/$repo/contents/.github/CODEOWNERS?ref=$($meta.default_branch)" 2>&1
