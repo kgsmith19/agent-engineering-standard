@@ -83,7 +83,7 @@ Cost rules:
 - deterministic checks before LLM review
 - Codex primary for Claude/Copilot/ambiguous work; local deep review defaults to `gpt-5.4-mini`
 - max 2 Codex response passes per PR: initial + one post-fix re-review
-- max 1 Copilot response pass per PR, low effort
+- Copilot gets 1 response by default; exactly 1 additional recovery response is allowed only after Copilot returned a material FAIL
 - no default draft review or unlimited review-on-push spending
 - per-head request markers prevent duplicate requests
 - active implementation stays draft so noisy micro-pushes do not consume semantic review budget
