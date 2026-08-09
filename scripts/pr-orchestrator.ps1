@@ -184,14 +184,10 @@ function Ensure-PrState {
   if ($prData.state -ne 'OPEN') { return $prData }
   $labels = @($prData.labels | ForEach-Object { $_.name })
   if ($prData.isDraft) {
-    Disable-AutoMerge $Number $prData
-    if ($labels -notcontains $automation.draft_ready_label) { return $prData }
-    Invoke-WithAdminToken { & gh pr ready $Number --repo $Repo | Out-Host }
-    if ($LASTEXITCODE -ne 0) { throw "Could not mark $Repo PR #$Number Ready." }
-    & gh pr edit $Number --repo $Repo --remove-label $automation.draft_ready_label 2>&1 | Out-Null
-    $prData = Get-Pr $Number
-    $labels = @($prData.labels | ForEach-Object { $_.name })
+    Set-Blocked $Number 'draft-pr' 'Ready-at-creation policy violation. Agents must create pull requests with draft:false; gh callers must omit --draft.' $prData
+    throw "Ready-at-creation policy violation: $Repo PR #$Number is draft."
   }
+  Resolve-Block $Number 'draft-pr' 'The pull request is Ready.' $prData
   if ([string]$prData.author.login -eq 'Copilot' -or [string]$prData.headRefName -like 'copilot/*') {
     Set-Blocked $Number 'copilot-owned-pr' 'GitHub requires human review and merge for pull requests created by Copilot cloud agent. Use Copilot only on an existing non-Copilot PR, or re-home this work through a non-Copilot implementation lane.' $prData
     return $prData
