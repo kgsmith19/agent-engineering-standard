@@ -117,7 +117,16 @@ Assert-True 'orchestrator uses Copilot only to repair existing PR' ($orchestrato
 Assert-True 'orchestrator authenticates structured Copilot failures' ($orchestrator -match 'Get-TrustedStructuredCopilotReview')
 Assert-True 'orchestrator checks exact-head inline blocking evidence' ($orchestrator -match 'pulls/\$Number/comments\?per_page=100')
 Assert-True 'blocked state disables auto-merge' ($orchestrator -match '(?s)function Set-Blocked.*?Disable-AutoMerge')
-Assert-True 'automation blocks have recovery markers' ($orchestrator -match 'automation:resolve:')
+Assert-True 'automation blocks have recovery markers' ($orchestrator -match 'automation:v1:resolve:')
+# Writers emit versioned correlation markers; readers accept both versioned and
+# legacy unversioned forms.
+Assert-True 'orchestrator emits versioned block markers' ($orchestrator -match 'automation:v1:block:')
+Assert-True 'orchestrator reads legacy and versioned block markers' ($orchestrator -match 'automation:\(\?:v\\d\+:\)\?block:')
+Assert-True 'orchestrator emits versioned repair markers' ($orchestrator -match 'auto-fix:v1:')
+Assert-Contains 'router emits versioned rerun markers' 'scripts/gate-result-router.ps1' 'auto-rerun:v1:gate:'
+Assert-Contains 'requester emits versioned request markers' 'scripts/request-machine-review.ps1' 'ai-review-request:v1:'
+Assert-Contains 'evaluator emits versioned advisory markers' 'scripts/evaluate-ai-review.ps1' 'ai-review-advisory:v1:'
+Assert-Contains 'review policy accepts legacy advisory markers' 'scripts/lib/review-policy.ps1' 'ai-review-advisory:\(\?:v\\d\+:\)\?'
 $reviewStart = $orchestrator.IndexOf('function Run-ReviewCycle')
 $reviewEnd = $orchestrator.IndexOf('function Resolve-GateBlocks')
 Assert-True 'review-cycle boundaries found' ($reviewStart -ge 0 -and $reviewEnd -gt $reviewStart)

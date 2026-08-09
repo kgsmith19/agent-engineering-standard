@@ -56,8 +56,11 @@ function Deny-ForkPr {
 }
 function Get-Comments { param([int]$Number) return @(Get-Paged "repos/$Repo/issues/$Number/comments?per_page=100") }
 function Add-CommentOnce {
-  param([int]$Number,[string]$Marker,[string]$Body)
-  if (@(Get-Comments $Number | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -like "*$Marker*" }).Count -gt 0) { return }
+  # MatchPattern lets writers emit versioned markers while deduplicating against
+  # both versioned and legacy unversioned forms.
+  param([int]$Number,[string]$Marker,[string]$Body,[string]$MatchPattern = '')
+  if (-not $MatchPattern) { $MatchPattern = [regex]::Escape($Marker) }
+  if (@(Get-Comments $Number | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match $MatchPattern }).Count -gt 0) { return }
   & gh pr comment $Number --repo $Repo --body "$Body`n`n$Marker" | Out-Host
   if ($LASTEXITCODE -ne 0) { throw "Could not comment on $Repo PR #$Number." }
 }
@@ -73,8 +76,8 @@ function Get-ActiveBlockCodes {
   foreach ($comment in @(Get-Comments $Number | Sort-Object created_at)) {
     if (-not (Test-TrustedAutomationComment $comment ([string]$config.owner))) { continue }
     $body = [string]$comment.body
-    if ($body -match '<!-- automation:block:([a-z0-9-]+):[0-9a-f]{40} -->') { $active[$Matches[1]] = $true }
-    elseif ($body -match '<!-- automation:resolve:([a-z0-9-]+):[0-9a-f]{40} -->') { $active.Remove($Matches[1]) }
+    if ($body -match '<!-- automation:(?:v\d+:)?block:([a-z0-9-]+):[0-9a-f]{40} -->') { $active[$Matches[1]] = $true }
+    elseif ($body -match '<!-- automation:(?:v\d+:)?resolve:([a-z0-9-]+):[0-9a-f]{40} -->') { $active.Remove($Matches[1]) }
   }
   return @($active.Keys)
 }
@@ -87,14 +90,14 @@ function Set-Blocked {
   # While dispatch is disabled no comment @-mentions a human; the owner is named.
   $body = if ($dispatchDisabled) { "AUTOMATION-BLOCKED (owner: $($config.owner)): $Reason`n`nThe owner is named for the decision without an @-mention while dispatch is disabled." }
     else { "$ownerTag AUTOMATION-BLOCKED: $Reason`n`nYou are tagged for the decision, not assigned as a reviewer." }
-  Add-CommentOnce $Number "<!-- automation:block:${Code}:${head} -->" $body
+  Add-CommentOnce $Number "<!-- automation:v1:block:${Code}:${head} -->" $body "<!-- automation:(?:v\d+:)?block:${Code}:${head} -->"
 }
 function Resolve-Block {
   param([int]$Number,[string]$Code,[string]$Evidence,$PrData)
   if (-not $PrData) { $PrData = Get-Pr $Number }
   if (@(Get-ActiveBlockCodes $Number) -notcontains $Code) { return }
   $head = [string]$PrData.headRefOid
-  Add-CommentOnce $Number "<!-- automation:resolve:${Code}:${head} -->" "AUTOMATION-RECOVERED: $Evidence"
+  Add-CommentOnce $Number "<!-- automation:v1:resolve:${Code}:${head} -->" "AUTOMATION-RECOVERED: $Evidence" "<!-- automation:(?:v\d+:)?resolve:${Code}:${head} -->"
   if (@(Get-ActiveBlockCodes $Number).Count -eq 0) { & gh pr edit $Number --repo $Repo --remove-label $automation.blocked_label 2>&1 | Out-Null }
 }
 function Remove-ForbiddenReviewers {
@@ -151,18 +154,19 @@ function Request-Repair {
   Resolve-Block $Number "$Kind-dispatch-disabled" "Agent dispatch is enabled; the bounded $Kind repair lane resumed." $PrData
   $limits = @{ ci=[int]$automation.max_ci_fix_attempts; review=[int]$automation.max_review_fix_attempts; conflict=[int]$automation.max_conflict_fix_attempts }
   $comments = @(Get-Comments $Number)
-  $attempts = @($comments | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match "<!-- auto-fix:${Kind}:" }).Count
+  $attempts = @($comments | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match "<!-- auto-fix:(?:v\d+:)?${Kind}:" }).Count
   if ($attempts -ge $limits[$Kind]) { Set-Blocked $Number "$Kind-budget" "$Kind repair budget exhausted ($($limits[$Kind]) )." $PrData; return }
   $head = [string]$PrData.headRefOid
-  $marker = "<!-- auto-fix:${Kind}:${head}:$($attempts + 1) -->"
-  if ($Kind -eq 'conflict' -and [string]$PrData.author.login -eq 'dependabot[bot]') { Add-CommentOnce $Number $marker '@dependabot rebase'; return }
+  $marker = "<!-- auto-fix:v1:${Kind}:${head}:$($attempts + 1) -->"
+  $markerPattern = "<!-- auto-fix:(?:v\d+:)?${Kind}:${head}:$($attempts + 1) -->"
+  if ($Kind -eq 'conflict' -and [string]$PrData.author.login -eq 'dependabot[bot]') { Add-CommentOnce $Number $marker '@dependabot rebase' $markerPattern; return }
   $scope = switch ($Kind) {
     'ci' { if ($RunId) { "GitHub Actions run $RunId" } else { 'the current failing PR Gate' } }
     'review' { "material current-head AI review findings for $head" }
     'conflict' { 'the merge conflict against current main' }
   }
   $body = "@copilot investigate and fix $scope on PR #$Number. Read the complete evidence before editing. Follow AGENTS.md and the linked Issue/SPEC. For nontrivial or cross-cutting work, create a thin Superpowers-style plan/spec first. Make the smallest root-cause fix, never weaken tests/policies/evaluators, verify, and update this existing PR. Attempt $($attempts + 1)/$($limits[$Kind])."
-  Add-CommentOnce $Number $marker $body
+  Add-CommentOnce $Number $marker $body $markerPattern
 }
 
 function Get-ReviewFailures {
@@ -210,7 +214,7 @@ function Test-CurrentDispatchEvidence {
 }
 function Get-FirstReviewRequestTime {
   param([int]$Number,[string]$Head)
-  $requests = @(Get-Comments $Number | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match "ai-review-request:(?:codex|copilot):$Head" } | Sort-Object created_at)
+  $requests = @(Get-Comments $Number | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match "ai-review-request:(?:v\d+:)?(?:codex|copilot):$Head" } | Sort-Object created_at)
   if ($requests.Count -eq 0) { return $null }
   return [datetimeoffset]$requests[0].created_at
 }

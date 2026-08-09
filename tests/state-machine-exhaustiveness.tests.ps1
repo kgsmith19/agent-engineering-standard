@@ -52,7 +52,7 @@ foreach ($case in $gateCases) {
 # Cancelled/stale gate recovery is deterministic, bounded, and the only lane with Actions write.
 Assert-Contains 'gate-result router exists in reusable workflow' '.github/workflows/pr-automation-reusable.yml' 'gate-result-router\.ps1'
 Assert-Contains 'gate-result router reruns one workflow run' 'scripts/gate-result-router.ps1' 'actions/runs/\$GateRunId/rerun'
-Assert-Contains 'gate-result router records trusted rerun marker' 'scripts/gate-result-router.ps1' 'auto-rerun:gate:'
+Assert-Contains 'gate-result router records trusted rerun marker' 'scripts/gate-result-router.ps1' 'auto-rerun:v1:gate:'
 Assert-Contains 'gate-result router blocks repeat rerun exhaustion' 'scripts/gate-result-router.ps1' 'gate-rerun-exhausted'
 Assert-Contains 'gate rerun exhaustion preserves current PR state' 'scripts/gate-result-router.ps1' 'gate-rerun-exhausted.*\$prData'
 foreach ($path in @('templates/PR_AUTOMATION.yml','.github/workflows/pr-automation.yml')) {

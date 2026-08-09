@@ -33,6 +33,10 @@ $validFail = [pscustomobject]@{ id=4; user=[pscustomobject]@{login='Copilot'}; b
 Assert-Equal 'Unsolicited structured Copilot PASS rejected' (Get-TrustedStructuredCopilotReview -Comments @($validPass) -HeadSha $head -OwnerLogin 'kgsmith19') $null
 Assert-Equal 'Structured response before trusted request rejected' (Get-TrustedStructuredCopilotReview -Comments @($earlyPass,$trustedRequest) -HeadSha $head -OwnerLogin 'kgsmith19') $null
 Assert-Equal 'Latest structured response after trusted request accepted' (Get-TrustedStructuredCopilotReview -Comments @($trustedRequest,$validPass,$validFail) -HeadSha $head -OwnerLogin 'kgsmith19').id 4
+# Readers accept both marker generations: the legacy request above is unversioned;
+# the versioned form writers emit today must satisfy the same trust checks.
+$versionedRequest = [pscustomobject]@{ id=8; user=[pscustomobject]@{login='github-actions[bot]'}; body="<!-- ai-review-request:v1:copilot:$head -->"; created_at='2026-08-09T10:00:00Z' }
+Assert-Equal 'Versioned request marker satisfies structured review trust' (Get-TrustedStructuredCopilotReview -Comments @($versionedRequest,$validPass) -HeadSha $head -OwnerLogin 'kgsmith19').id 3
 
 # Test repair (2026-08-09): "$head:41" parses as a drive-qualified variable
 # (head:41) and interpolates to empty, so the original fixture contained neither
@@ -44,6 +48,8 @@ $staleAdvisoryMap = [pscustomobject]@{ id=7; user=[pscustomobject]@{login='githu
 Assert-Equal 'Trusted advisory Issue mapping is accepted' (Get-TrustedAiReviewAdvisoryIssueNumber -Comments @($trustedAdvisoryMap) -HeadSha $head -OwnerLogin 'kgsmith19') 41
 Assert-Equal 'Forged advisory Issue mapping is rejected' (Get-TrustedAiReviewAdvisoryIssueNumber -Comments @($forgedAdvisoryMap) -HeadSha $head -OwnerLogin 'kgsmith19') $null
 Assert-Equal 'Stale advisory Issue mapping is ignored' (Get-TrustedAiReviewAdvisoryIssueNumber -Comments @($staleAdvisoryMap) -HeadSha $head -OwnerLogin 'kgsmith19') $null
+$versionedAdvisoryMap = [pscustomobject]@{ id=9; user=[pscustomobject]@{login='github-actions[bot]'}; body="<!-- ai-review-advisory:v1:${head}:43 -->"; created_at='2026-08-09T10:06:00Z' }
+Assert-Equal 'Versioned advisory Issue mapping is accepted' (Get-TrustedAiReviewAdvisoryIssueNumber -Comments @($versionedAdvisoryMap) -HeadSha $head -OwnerLogin 'kgsmith19') 43
 
 Assert-Equal 'Unknown human head has no machine implementer' (Get-HeadImplementerProvider -HeadAuthorLogin 'kgsmith19') $null
 Assert-Equal 'Latest Copilot commit is detected' (Get-HeadImplementerProvider -HeadAuthorLogin 'Copilot') 'copilot'

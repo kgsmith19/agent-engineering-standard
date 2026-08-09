@@ -71,25 +71,25 @@ if ($passes.Count -gt 0) { Write-Host "MACHINE REVIEW ALREADY SATISFIED: $(($pas
 
 $requestHeads = @{}
 foreach ($comment in $comments) {
-  if ((Test-TrustedAutomationComment $comment ([string]$config.owner)) -and [string]$comment.body -match 'ai-review-request:(?:codex|copilot):([0-9a-f]{40})') { $requestHeads[$Matches[1]] = $true }
+  if ((Test-TrustedAutomationComment $comment ([string]$config.owner)) -and [string]$comment.body -match 'ai-review-request:(?:v\d+:)?(?:codex|copilot):([0-9a-f]{40})') { $requestHeads[$Matches[1]] = $true }
 }
 if (-not $requestHeads.ContainsKey($headSha) -and $requestHeads.Count -ge [int]$reviewPolicy.max_review_heads_per_pr) { throw "Machine-review head budget exhausted ($($reviewPolicy.max_review_heads_per_pr))." }
 
 if ($Provider -eq 'auto') {
-  $preferredMarker = "<!-- ai-review-request:${preferred}:$headSha -->"
-  $preferredRequest = @($comments | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -like "*$preferredMarker*" } | Sort-Object created_at | Select-Object -Last 1)
+  $preferredPattern = "ai-review-request:(?:v\d+:)?${preferred}:$headSha"
+  $preferredRequest = @($comments | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match $preferredPattern } | Sort-Object created_at | Select-Object -Last 1)
   if ($preferredRequest.Count -eq 0) { $Provider = $preferred }
   elseif ($preferred -eq 'codex' -and $acceptedProviders -contains 'copilot' -and $reviewPolicy.fallback_provider -eq 'copilot') {
     $age = [datetimeoffset]::UtcNow - [datetimeoffset]$preferredRequest[0].created_at
-    $fallbackMarker = "<!-- ai-review-request:copilot:$headSha -->"
-    if ($age.TotalMinutes -ge [int]$reviewPolicy.review_stall_minutes -and @($comments | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -like "*$fallbackMarker*" }).Count -eq 0) { $Provider = 'copilot' }
+    $fallbackPattern = "ai-review-request:(?:v\d+:)?copilot:$headSha"
+    if ($age.TotalMinutes -ge [int]$reviewPolicy.review_stall_minutes -and @($comments | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match $fallbackPattern }).Count -eq 0) { $Provider = 'copilot' }
     else { Write-Host "MACHINE REVIEW PENDING: $preferred already requested for $headSha" -ForegroundColor Yellow; exit 0 }
   } else { Write-Host "MACHINE REVIEW PENDING: $preferred already requested for $headSha; no independent fallback is available." -ForegroundColor Yellow; exit 0 }
 }
 
 if ($acceptedProviders -notcontains $Provider) { throw "Reviewer '$Provider' is not independent of every recognized implementer in the current PR. Accepted: $($acceptedProviders -join ', ')." }
-$marker = "<!-- ai-review-request:${Provider}:$headSha -->"
-if (@($comments | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -like "*$marker*" }).Count -gt 0) { Write-Host "MACHINE REVIEW ALREADY REQUESTED: $Provider for $headSha" -ForegroundColor Yellow; exit 0 }
+$marker = "<!-- ai-review-request:v1:${Provider}:$headSha -->"
+if (@($comments | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match "ai-review-request:(?:v\d+:)?${Provider}:$headSha" }).Count -gt 0) { Write-Host "MACHINE REVIEW ALREADY REQUESTED: $Provider for $headSha" -ForegroundColor Yellow; exit 0 }
 
 $body = if ($Provider -eq 'codex') {
   "@codex review`n`nIndependently review the CURRENT PR head only. You are a fresh reviewer task/session and did not author or commit any code in this PR. Apply one batched pass across: software/security correctness, requirement/spec fit, business/product ROI, systems/operational optimization, and strict leanness/complexity. Classify every finding: P0/P1 findings block the merge; P2-only findings are advisory and must not block. Do not modify files during review.`n`n$marker"

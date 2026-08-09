@@ -113,7 +113,7 @@ function Get-TrustedAiReviewAdvisoryIssueNumber {
     [Parameter(Mandatory)][string]$HeadSha,
     [Parameter(Mandatory)][string]$OwnerLogin
   )
-  $pattern = "<!-- ai-review-advisory:$([regex]::Escape($HeadSha)):([0-9]+) -->"
+  $pattern = "<!-- ai-review-advisory:(?:v\d+:)?$([regex]::Escape($HeadSha)):([0-9]+) -->"
   $maps = @($Comments | Where-Object {
     (Test-TrustedAutomationComment -Comment $_ -OwnerLogin $OwnerLogin) -and
     [string]$_.body -match $pattern
@@ -137,7 +137,7 @@ function Get-TrustedStructuredCopilotReview {
 
   $requests = @($Comments | Where-Object {
     (Test-TrustedAutomationComment -Comment $_ -OwnerLogin $OwnerLogin) -and
-    [string]$_.body -like "*ai-review-request:copilot:$HeadSha*"
+    [string]$_.body -match "ai-review-request:(?:v\d+:)?copilot:$([regex]::Escape($HeadSha))"
   } | Sort-Object created_at)
   if ($requests.Count -eq 0) { return $null }
 

@@ -109,7 +109,7 @@ if ($structured) {
 }
 
 $codexRequests = @($comments | Where-Object {
-  (Test-TrustedAutomationComment $_ $ownerLogin) -and [string]$_.body -like "*ai-review-request:codex:$headSha*"
+  (Test-TrustedAutomationComment $_ $ownerLogin) -and [string]$_.body -match "ai-review-request:(?:v\d+:)?codex:$headSha"
 } | Sort-Object created_at)
 foreach ($request in $codexRequests) {
   foreach ($reaction in @(Get-Paged "repos/$Repo/issues/comments/$($request.id)/reactions?per_page=100")) {
@@ -139,7 +139,7 @@ function Ensure-AdvisoryIssue {
   $issueRaw = & gh issue create --repo $Repo --title "AI review advisory (P2) follow-ups for PR #$Pr @ $($HeadSha.Substring(0,8))" --body $issueBody 2>&1
   if ($LASTEXITCODE -ne 0) { throw ($issueRaw -join "`n") }
   $issueNumber = [int](([string]($issueRaw -join "`n")) -replace '.*/(\d+)\s*$','$1')
-  & gh pr comment $Pr --repo $Repo --body "Recorded P2-only advisory findings as Issue #$issueNumber.`n`n<!-- ai-review-advisory:${HeadSha}:${issueNumber} -->" | Out-Host
+  & gh pr comment $Pr --repo $Repo --body "Recorded P2-only advisory findings as Issue #$issueNumber.`n`n<!-- ai-review-advisory:v1:${HeadSha}:${issueNumber} -->" | Out-Host
   if ($LASTEXITCODE -ne 0) { throw "Could not record the advisory Issue mapping on $Repo PR #$Pr." }
   return $issueNumber
 }

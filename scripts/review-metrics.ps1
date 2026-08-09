@@ -37,7 +37,7 @@ foreach ($pr in @($prs)) {
 
   $comments = @(Get-Paged "repos/$Repo/issues/$($pr.number)/comments?per_page=100")
   $requests = @($comments | Where-Object {
-    (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match "ai-review-request:(?:codex|copilot):$head"
+    (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match "ai-review-request:(?:v\d+:)?(?:codex|copilot):$head"
   } | Sort-Object created_at)
   $verdict = Get-TrustedStructuredCopilotReview -Comments $comments -HeadSha $head -OwnerLogin ([string]$config.owner)
   $latencyMinutes = ''
