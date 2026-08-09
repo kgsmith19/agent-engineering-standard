@@ -87,9 +87,11 @@ if ($structured.Count -gt 0) {
   elseif ($acceptedProviders -contains 'copilot') { $passes.Add('Copilot structured exact-head review') }
 }
 
-# Codex may react with thumbs-up instead of posting an empty formal review. Only
-# a reaction on the exact-head request marker counts; unrelated PR reactions do not.
-$codexRequests = @($comments | Where-Object { [string]$_.body -like "*ai-review-request:codex:$headSha*" })
+# Codex may react with thumbs-up instead of posting an empty formal review.
+# Prefer a reaction on the exact-head request comment. Also accept a PR-level
+# thumbs-up only when it was created after the exact-head request, so an old
+# reaction cannot authorize a later push.
+$codexRequests = @($comments | Where-Object { [string]$_.body -like "*ai-review-request:codex:$headSha*" } | Sort-Object created_at)
 foreach ($request in $codexRequests) {
   $reactions = @(Get-Paged "repos/$Repo/issues/comments/$($request.id)/reactions?per_page=100")
   foreach ($reaction in $reactions) {
@@ -99,9 +101,19 @@ foreach ($request in $codexRequests) {
     }
   }
 }
+if ($codexRequests.Count -gt 0 -and $acceptedProviders -contains 'codex') {
+  $requestTime = [datetimeoffset]$codexRequests[-1].created_at
+  $prReactions = @(Get-Paged "repos/$Repo/issues/$Pr/reactions?per_page=100")
+  foreach ($reaction in $prReactions) {
+    if ((Get-MachineReviewProvider -Login ([string]$reaction.user.login)) -eq 'codex' -and
+        $reaction.content -eq '+1' -and ([datetimeoffset]$reaction.created_at) -ge $requestTime) {
+      $passes.Add('Codex PR thumbs-up after exact-head review request')
+    }
+  }
+}
 
 if ($failures.Count -gt 0) {
-  Set-AiReviewCheck -HeadSha $headSha -Conclusion failure -Summary ("Material machine-review finding(s): " + ($failures -join '; '))
+  Set-AiReviewCheck -HeadSha $headSha -Conclusion failure -Summary ("Material machine-review finding(s): " + (($failures | Select-Object -Unique) -join '; '))
   exit 0
 }
 if ($passes.Count -eq 0) {
