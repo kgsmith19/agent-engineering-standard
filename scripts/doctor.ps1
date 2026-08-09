@@ -138,7 +138,16 @@ foreach ($name in $config.repositories) {
         if ($LASTEXITCODE -ne 0) { Add-Problem $problems "$caller missing"; continue }
         $callerText = $callerRaw -join "`n"
         if ($callerText -match '@main\b|__STANDARD_SHA__') { Add-Problem $problems "$caller follows moving or unresolved standard ref" }
-        if ($pinnedSha -and $callerText -notmatch [regex]::Escape("@$pinnedSha")) { Add-Problem $problems "$caller not pinned to standard.lock" }
+        if ($pinnedSha) {
+          $usesPins = @([regex]::Matches($callerText,'kgsmith19/agent-engineering-standard/[^@\s]+@([0-9a-fA-F]{40})') | ForEach-Object { $_.Groups[1].Value.ToLowerInvariant() })
+          if ($usesPins.Count -eq 0 -or @($usesPins | Where-Object { $_ -ne $pinnedSha.ToLowerInvariant() }).Count -gt 0) {
+            Add-Problem $problems "$caller reusable-workflow ref not pinned to standard.lock"
+          }
+          $inputPins = @([regex]::Matches($callerText,'(?m)^\s*standard_sha:\s*([0-9a-fA-F]{40})\s*$') | ForEach-Object { $_.Groups[1].Value.ToLowerInvariant() })
+          if ($inputPins.Count -eq 0 -or @($inputPins | Where-Object { $_ -ne $pinnedSha.ToLowerInvariant() }).Count -gt 0) {
+            Add-Problem $problems "$caller standard_sha input not pinned to standard.lock"
+          }
+        }
       }
     }
   }
