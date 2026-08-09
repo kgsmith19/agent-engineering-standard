@@ -70,16 +70,17 @@ if (-not $meta.allow_auto_merge) { throw 'Live GitHub setting drift: auto-merge 
 if (-not $meta.allow_update_branch) { throw 'Live GitHub setting drift: update branch is off.' }
 if (-not $meta.allow_squash_merge -or $meta.allow_merge_commit -or $meta.allow_rebase_merge) { throw 'Live GitHub merge policy is not squash-only.' }
 
-# Merge ordering: arming is refused until the exact head carries both a PR Gate
-# success and a dispatch-appropriate AI Review conclusion from GitHub Actions.
+# Merge ordering, evaluated not obeyed: the exact head needs a PR Gate success
+# and an EXISTING AI Review evaluation with current dispatch_policy_version
+# evidence; only a failure conclusion carrying a structured threat verdict
+# refuses. neutral and success both arm in every dispatch mode.
 $headSha = [string]$prData.headRefOid
 $gateRun = Get-LatestActionsCheckRun $headSha 'PR Gate'
 if (-not $gateRun -or [string]$gateRun.conclusion -ne 'success') { throw "Auto-merge refused: no exact-head 'PR Gate' success from GitHub Actions for $headSha." }
-$dispatchDisabled = [string]$config.independent_review.dispatch_mode -eq 'disabled_pending_e2e'
-$allowedReview = if ($dispatchDisabled) { @('neutral','success') } else { @('success') }
 $reviewRun = Get-LatestActionsCheckRun $headSha 'AI Review'
-if (-not $reviewRun -or [string]$reviewRun.conclusion -notin $allowedReview) { throw "Auto-merge refused: exact-head 'AI Review' must conclude $($allowedReview -join '/') for $headSha in dispatch_mode '$($config.independent_review.dispatch_mode)'." }
+if (-not $reviewRun) { throw "Auto-merge refused: no exact-head 'AI Review' evaluation exists for $headSha." }
 if (-not (Test-CurrentDispatchEvidence -Summary ([string]$reviewRun.output.summary) -PolicyVersion ([int]$config.independent_review.dispatch_policy_version))) { throw "Auto-merge refused: exact-head 'AI Review' evidence does not carry current dispatch_policy_version $($config.independent_review.dispatch_policy_version) for $headSha." }
+if ([string]$reviewRun.conclusion -eq 'failure' -and (Test-BlockingAiReviewBody ([string]$reviewRun.output.summary))) { throw "Auto-merge refused: exact-head 'AI Review' failure carries a structured threat verdict for $headSha." }
 
 $actionsAppRaw = & gh api /apps/github-actions 2>&1
 if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve GitHub Actions App identity.' }

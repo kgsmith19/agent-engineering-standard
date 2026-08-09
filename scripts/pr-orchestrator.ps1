@@ -262,9 +262,12 @@ function Ensure-PrState {
     # a dispatch-appropriate AI Review conclusion; earlier events simply wait.
     $head = [string]$prData.headRefOid
     if ((Get-CheckConclusion $head 'PR Gate') -ne 'success') { return $prData }
-    $allowedReview = if ($dispatchDisabled) { @('neutral','success') } else { @('success') }
-    if ((Get-CheckConclusion $head 'AI Review') -notin $allowedReview) { return $prData }
-    if (-not (Test-HeadDispatchEvidence $head)) { return $prData }
+    # Evaluated, not obeyed: current-policy-version advisory evidence must EXIST;
+    # only a failure conclusion carrying a structured threat verdict refuses.
+    # neutral and success both arm in every dispatch mode.
+    $reviewRun = Get-CheckRun $head 'AI Review'
+    if (-not $reviewRun -or -not (Test-CurrentDispatchEvidence -Summary ([string]$reviewRun.output.summary) -PolicyVersion ([int]$reviewPolicy.dispatch_policy_version))) { return $prData }
+    if ([string]$reviewRun.conclusion -eq 'failure' -and (Test-BlockingAiReviewBody ([string]$reviewRun.output.summary))) { return $prData }
     & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'auto-merge.ps1') -Repo $Repo -Pr $Number -Risk $risk
     if ($LASTEXITCODE -ne 0) { Set-Blocked $Number 'auto-merge-settings' 'Auto-merge could not be armed. Reconcile live repository settings and ruleset with setup-portfolio.ps1.' $prData; return $prData }
     $prData = Get-Pr $Number

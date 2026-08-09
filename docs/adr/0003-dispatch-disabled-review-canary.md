@@ -34,6 +34,8 @@ with CLASS one of `T1-INFRA-DELETION`, `T2-BACKDOOR`, `T3-HARDCODED-SECRET`, `T4
 
 Honest limits: the regex enforces the structured format and the enumerated classes only. The T4 semantic bar is enforced by the reviewer contract (the dispatch prompt), not by the parser.
 
+Arming is evaluated, not obeyed: auto-merge arming requires that an exact-head evaluation with current `dispatch_policy_version` evidence exists, and refuses only when that evidence is missing/stale or the conclusion is a `failure` carrying a structured verdict. `neutral` and `success` both arm in every dispatch mode.
+
 ## Path to re-enabling
 
 `dispatch_mode` leaves `disabled_pending_e2e` only after the ordered live canaries in `docs/superpowers/specs/2026-08-09-all-13-github-automation-design.md` ("Required live canaries") pass against real GitHub state — a dispatch-disabled PR reaching `PR Gate` and neutral `AI Review` first, then scoped live dispatch proving clean review, routed-finding repair, and reviewer-removal behavior. Re-enabling is a `policy/github-defaults.json` change (`dispatch_mode` plus a `dispatch_policy_version` bump) governed by this ADR and the canary amendment in `docs/AUTONOMOUS-PR-STATE-MACHINE.md`, not a code change.

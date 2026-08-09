@@ -172,7 +172,7 @@ function Ensure-AdvisoryIssue {
 }
 
 if ($failures.Count -gt 0) {
-  Set-AiReviewCheck $headSha failure ("Structured threat verdict(s): " + (($verdictLines | Select-Object -Unique) -join ' | ') + ". Sources: " + (($failures | Select-Object -Unique) -join '; '))
+  Set-AiReviewCheck $headSha failure ("Structured threat verdict(s): " + (($verdictLines | Select-Object -Unique) -join ' | ') + ". Sources: " + (($failures | Select-Object -Unique) -join '; ') + "`n`n$dispatchEvidence")
   exit 0
 }
 $advisoryNote = ''
