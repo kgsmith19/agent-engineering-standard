@@ -6,11 +6,11 @@ Make GitHub the protected integration/enforcement plane while keeping feedback f
 
 ## 1. Work and integration
 
-GitHub Issues are the durable work-item source. A PR is the smallest coherent integration unit, not necessarily one microscopic slice.
+The `Agentic Portfolio` GitHub Project is the cross-repository operating workboard. GitHub Issues remain the durable backing records for executable work, acceptance criteria, PR linkage, and history.
 
 Prefer:
 
-`Issue → SPEC only if needed → thin local slices → draft PR while iterating → ready PR → PR Gate + AI Review → auto-merge/queue → release`
+`Project → Issue → SPEC only if needed → thin local slices → draft PR while iterating → ready PR → PR Gate + AI Review → auto-merge/queue → release`
 
 Do not make PRs artificially large to save CI minutes. Save minutes by verifying slices locally, pushing less often, canceling superseded runs, caching, and reserving expensive assurance for changes that justify it.
 
@@ -92,9 +92,11 @@ For higher-risk releases, build once, identify the immutable artifact/commit, pr
 `policy/github-defaults.json` is the machine-readable portfolio policy.
 
 - `scripts/apply-github-standard.ps1` applies repository settings, labels, Actions, and default-branch rules.
+- `scripts/sync-agentic-project.ps1` creates/syncs the configured portfolio Project and adds open Issue backing records idempotently.
 - `.github/workflows/ai-review-reusable.yml` is the shared exact-head semantic-review evaluator; product repos use the thin caller template.
+- `.github/workflows/pr-automation.yml` and `templates/PR_AUTOMATION.yml` bridge deterministic success to bounded independent-review requests and safe GitHub auto-merge arming.
 - `scripts/request-independent-review.ps1` routes the next missing required provider within the configured response budget.
 - `scripts/auto-merge.ps1` validates the live integration plane and then arms GitHub auto-merge; it does not substitute its own call-time semantic judgment for the required `AI Review` context.
-- `scripts/doctor.ps1 -Remote` verifies effective remote policy, including that the AI Review workflow itself is active, and exits nonzero on drift.
+- `scripts/doctor.ps1 -Remote` verifies effective remote policy, including the portfolio Project and active automation workflows, and exits nonzero on drift.
 
 Prefer centrally maintained policy and stable check naming; keep stack-specific deterministic commands inside each product repo.
