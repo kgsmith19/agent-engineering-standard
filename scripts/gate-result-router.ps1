@@ -12,6 +12,7 @@ $ErrorActionPreference = 'Stop'
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
 $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $automation = $config.pr_automation
+$dispatchDisabled = [string]$config.independent_review.dispatch_mode -eq 'disabled_pending_e2e'
 
 function Get-Paged {
   param([string]$Endpoint)
@@ -47,7 +48,10 @@ function Set-GateBlock {
   }
   & gh pr edit $Pr --repo $Repo --add-label $automation.blocked_label 2>&1 | Out-Null
   if ($LASTEXITCODE -ne 0) { throw "Could not add $($automation.blocked_label) to $Repo PR #$Pr." }
-  Add-TrustedCommentOnce "<!-- automation:block:${Code}:$GateHeadSha -->" "@$($config.owner) AUTOMATION-BLOCKED: $Reason`n`nYou are tagged for the decision, not assigned as a reviewer."
+  # While dispatch is disabled no comment @-mentions a human; the owner is named.
+  $body = if ($dispatchDisabled) { "AUTOMATION-BLOCKED (owner: $($config.owner)): $Reason`n`nThe owner is named for the decision without an @-mention while dispatch is disabled." }
+    else { "@$($config.owner) AUTOMATION-BLOCKED: $Reason`n`nYou are tagged for the decision, not assigned as a reviewer." }
+  Add-TrustedCommentOnce "<!-- automation:block:${Code}:$GateHeadSha -->" $body
 }
 
 $prData = Get-PrData

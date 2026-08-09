@@ -131,6 +131,13 @@ Assert-True 'arming waits for exact-head PR Gate success' ($orchestrator -match 
 Assert-True 'arming waits for dispatch-appropriate AI Review conclusion' ($orchestrator -match "(?s)allowedReview.*Get-CheckConclusion \`$head 'AI Review'")
 Assert-True 'primary clean review immediately completes and re-arms' ($reviewCycle -match "result-eq'success'\)\{Complete-ReviewSuccess")
 Assert-True 'orchestrator does not launch review repair' ($orchestrator -notmatch '(?m)^\s*Request-Repair review\b')
+# Disabled dispatch gates every outbound agent tag, including the CI/conflict
+# repair lanes and the @dependabot rebase path, behind a recoverable block.
+Assert-True 'repair lanes honor disabled dispatch' ($orchestrator -match '\$Kind-dispatch-disabled')
+Assert-True 'repair dispatch block precedes any agent tag' ($orchestrator -match '(?s)function Request-Repair.*?dispatch-disabled.*?@copilot investigate and fix')
+Assert-True 'blocked comments name the owner without mention while disabled' ($orchestrator -match 'AUTOMATION-BLOCKED \(owner: ')
+Assert-True 'authority comments name the owner without mention while disabled' ($orchestrator -match 'AUTHORITY REQUIRED \(owner: ')
+Assert-Contains 'gate blocks name the owner without mention while disabled' 'scripts/gate-result-router.ps1' 'AUTOMATION-BLOCKED \(owner: '
 Assert-True 'orchestrator recognizes neutral AI Review as passing' ($orchestrator -match 'Test-AiReviewPassingConclusion')
 foreach ($field in @('max_ci_fix_attempts','max_review_fix_attempts','max_conflict_fix_attempts')) { Assert-True "orchestrator uses $field" ($orchestrator -match $field) }
 

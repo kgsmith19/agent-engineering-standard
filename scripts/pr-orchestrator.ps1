@@ -84,7 +84,10 @@ function Set-Blocked {
   Disable-AutoMerge $Number $PrData
   & gh pr edit $Number --repo $Repo --add-label $automation.blocked_label 2>&1 | Out-Null
   $head = [string]$PrData.headRefOid
-  Add-CommentOnce $Number "<!-- automation:block:${Code}:${head} -->" "$ownerTag AUTOMATION-BLOCKED: $Reason`n`nYou are tagged for the decision, not assigned as a reviewer."
+  # While dispatch is disabled no comment @-mentions a human; the owner is named.
+  $body = if ($dispatchDisabled) { "AUTOMATION-BLOCKED (owner: $($config.owner)): $Reason`n`nThe owner is named for the decision without an @-mention while dispatch is disabled." }
+    else { "$ownerTag AUTOMATION-BLOCKED: $Reason`n`nYou are tagged for the decision, not assigned as a reviewer." }
+  Add-CommentOnce $Number "<!-- automation:block:${Code}:${head} -->" $body
 }
 function Resolve-Block {
   param([int]$Number,[string]$Code,[string]$Evidence,$PrData)
@@ -102,20 +105,24 @@ function Remove-ForbiddenReviewers {
   $forbidden = @($config.forbidden_requested_reviewers | Where-Object { $requested -contains [string]$_ })
   if ($forbidden.Count -eq 0) { return }
   Invoke-GhJson DELETE "repos/$Repo/pulls/$Number/requested_reviewers" @{ reviewers=$forbidden; team_reviewers=@() } | Out-Null
-  Add-CommentOnce $Number '<!-- automation:removed-reviewers -->' "Removed forbidden requested reviewer(s): $($forbidden -join ', '). Routine automation may tag $ownerTag for authority, but never assigns Kyle as a reviewer."
+  $ownerReference = if ($dispatchDisabled) { "the owner ($($config.owner))" } else { $ownerTag }
+  Add-CommentOnce $Number '<!-- automation:removed-reviewers -->' "Removed forbidden requested reviewer(s): $($forbidden -join ', '). Routine automation may tag $ownerReference for authority, but never assigns Kyle as a reviewer."
 }
 function Tag-Authority {
   param([int]$Number,[ValidateSet('control_plane','R4')][string]$Kind)
   $gate = $config.manual_gates.PSObject.Properties[$Kind].Value
+  # While dispatch is disabled no comment @-mentions a human; the owner is named.
+  $header = if ($dispatchDisabled) { "AUTHORITY REQUIRED (owner: $($config.owner)): $Kind" } else { "$ownerTag AUTHORITY REQUIRED: $Kind" }
+  $trailer = if ($dispatchDisabled) { 'All machine checks still run. The owner is named without an @-mention while dispatch is disabled, and never assigned as a GitHub reviewer.' } else { 'All machine checks still run. You are tagged, never assigned as a GitHub reviewer.' }
   $body = @"
-$ownerTag AUTHORITY REQUIRED: $Kind
+$header
 
 - Failure class prevented: $($gate.failure_class_prevented)
 - Why automation is insufficient: $($gate.why_automation_is_insufficient)
 - Decision owner: $($gate.decision_owner)
 - Gate removal condition: $($gate.gate_removal_condition)
 
-All machine checks still run. You are tagged, never assigned as a GitHub reviewer.
+$trailer
 "@
   Add-CommentOnce $Number "<!-- authority-required:$Kind -->" $body
 }
@@ -135,6 +142,13 @@ function Get-Risk { param($PrData) return Get-RiskFromLabels @($PrData.labels | 
 
 function Request-Repair {
   param([ValidateSet('ci','review','conflict')][string]$Kind,[int]$Number,$PrData,[long]$RunId = 0)
+  if ($dispatchDisabled) {
+    # No outbound agent tag (@copilot/@dependabot) leaves the repo while dispatch
+    # is disabled; the block is machine-readable and recovers when dispatch enables.
+    Set-Blocked $Number "$Kind-dispatch-disabled" "Agent dispatch is disabled_pending_e2e, so the bounded $Kind repair lane posts no agent request. This block clears automatically once dispatch is enabled and the lane resumes." $PrData
+    return
+  }
+  Resolve-Block $Number "$Kind-dispatch-disabled" "Agent dispatch is enabled; the bounded $Kind repair lane resumed." $PrData
   $limits = @{ ci=[int]$automation.max_ci_fix_attempts; review=[int]$automation.max_review_fix_attempts; conflict=[int]$automation.max_conflict_fix_attempts }
   $comments = @(Get-Comments $Number)
   $attempts = @($comments | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match "<!-- auto-fix:${Kind}:" }).Count
@@ -230,7 +244,7 @@ function Ensure-PrState {
     return $prData
   }
   if ($prData.mergeable -eq 'CONFLICTING') { Disable-AutoMerge $Number $prData; Request-Repair conflict $Number $prData; return $prData }
-  Resolve-Block $Number 'conflict-budget' 'The current head is no longer conflicting.' $prData
+  foreach ($conflictCode in @('conflict-budget','conflict-dispatch-disabled')) { Resolve-Block $Number $conflictCode 'The current head is no longer conflicting.' $prData }
   try { $risk=Get-Risk $prData; Resolve-Block $Number 'risk-labels' "Risk labels now resolve unambiguously to $risk." $prData }
   catch { Set-Blocked $Number 'risk-labels' $_.Exception.Message $prData; return $prData }
   if ($risk -eq 'R4') { Disable-AutoMerge $Number $prData; Tag-Authority $Number R4; return $prData }
@@ -321,7 +335,7 @@ function Run-ReviewCycle {
 }
 function Resolve-GateBlocks {
   param([int]$Number,$PrData)
-  foreach($code in @('ci-budget','workflow-approval','gate-skipped','missing-pr-gate')){Resolve-Block $Number $code 'The current head now has a successful PR Gate.' $PrData}
+  foreach($code in @('ci-budget','ci-dispatch-disabled','workflow-approval','gate-skipped','missing-pr-gate')){Resolve-Block $Number $code 'The current head now has a successful PR Gate.' $PrData}
 }
 function Handle-GateResult {
   param([int]$Number)
