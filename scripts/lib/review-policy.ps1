@@ -7,6 +7,29 @@ function Get-MachineReviewProvider {
   return $null
 }
 
+function Get-HeadImplementerProviders {
+  param(
+    [string]$HeadAuthorLogin = '',
+    [string]$HeadCommitterLogin = '',
+    [string]$PrAuthorLogin = ''
+  )
+
+  $providers = New-Object System.Collections.Generic.List[string]
+  foreach ($login in @($HeadAuthorLogin,$HeadCommitterLogin)) {
+    if ([string]::IsNullOrWhiteSpace($login)) { continue }
+    $provider = Get-MachineReviewProvider -Login $login
+    if ($provider -and -not $providers.Contains($provider)) { $providers.Add($provider) }
+  }
+
+  # PR author is only a fallback when the head commit itself has no detected
+  # machine actor. This prevents an old PR creator from masking the current head.
+  if ($providers.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($PrAuthorLogin)) {
+    $provider = Get-MachineReviewProvider -Login $PrAuthorLogin
+    if ($provider) { $providers.Add($provider) }
+  }
+  return @($providers)
+}
+
 function Get-HeadImplementerProvider {
   param(
     [string]$HeadAuthorLogin = '',
@@ -14,12 +37,12 @@ function Get-HeadImplementerProvider {
     [string]$PrAuthorLogin = ''
   )
 
-  foreach ($login in @($HeadAuthorLogin,$HeadCommitterLogin,$PrAuthorLogin)) {
-    if ([string]::IsNullOrWhiteSpace($login)) { continue }
-    $provider = Get-MachineReviewProvider -Login $login
-    if ($provider) { return $provider }
-  }
-  return $null
+  $providers = @(Get-HeadImplementerProviders `
+    -HeadAuthorLogin $HeadAuthorLogin `
+    -HeadCommitterLogin $HeadCommitterLogin `
+    -PrAuthorLogin $PrAuthorLogin)
+  if ($providers.Count -eq 0) { return $null }
+  return ($providers -join '+')
 }
 
 function Get-AcceptedMachineReviewProviders {
@@ -29,16 +52,11 @@ function Get-AcceptedMachineReviewProviders {
     [string]$PrAuthorLogin = ''
   )
 
-  $implementer = Get-HeadImplementerProvider `
+  $implementers = @(Get-HeadImplementerProviders `
     -HeadAuthorLogin $HeadAuthorLogin `
     -HeadCommitterLogin $HeadCommitterLogin `
-    -PrAuthorLogin $PrAuthorLogin
-
-  switch ($implementer) {
-    'codex' { return @('copilot') }
-    'copilot' { return @('codex') }
-    default { return @('codex','copilot') }
-  }
+    -PrAuthorLogin $PrAuthorLogin)
+  return @(@('codex','copilot') | Where-Object { $implementers -notcontains $_ })
 }
 
 function Get-PreferredMachineReviewer {
@@ -52,6 +70,7 @@ function Get-PreferredMachineReviewer {
     -HeadAuthorLogin $HeadAuthorLogin `
     -HeadCommitterLogin $HeadCommitterLogin `
     -PrAuthorLogin $PrAuthorLogin)
+  if ($accepted.Count -eq 0) { throw 'No connected machine reviewer is independent of every detected latest-head implementer.' }
   return $accepted[0]
 }
 
@@ -60,8 +79,10 @@ function Test-MaterialAiReviewBody {
   if ([string]::IsNullOrWhiteSpace($Body)) { return $false }
   if ($Body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') { return $true }
 
-  # Match actual finding headings/badges, not prose such as "No P0-P2 findings".
+  # Match badges, bracketed findings, and ordinary P0-P2 headings without
+  # matching prose such as "No P0-P2 findings".
   if ($Body -match '(?im)!\[P[0-2]\s+Badge\]') { return $true }
+  if ($Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?\[P[0-2]\](?:\*\*)?\s*\S') { return $true }
   return $Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?P[0-2]\b[^\r\n]{0,120}?(?:\*\*)?\s*(?::|—)\s*\S'
 }
 
@@ -77,7 +98,7 @@ function Test-ControlPlanePath {
   param([Parameter(Mandatory)][string]$Path)
   $patterns = @(
     '^\.github/workflows/', '^\.agent/', '^policy/', '^scripts/lib/',
-    '^scripts/(apply-github-standard|setup-portfolio|doctor|auto-merge|request-machine-review|evaluate-ai-review|reconcile-machine-review-threads|pr-orchestrator|upgrade-repos|bootstrap-repo)\.ps1$',
+    '^scripts/(apply-github-standard|setup-portfolio|doctor|auto-merge|request-machine-review|request-review-repair|evaluate-ai-review|reconcile-machine-review-threads|pr-orchestrator|upgrade-repos|bootstrap-repo)\.ps1$',
     '^(AGENT_RULES|QUALITY_RULES|SECURITY_RISK_AUTONOMY|DELIVERY_GITHUB|EVIDENCE_LEARNING|AGENTS)\.md$'
   )
   return [bool]($patterns | Where-Object { $Path -match $_ } | Select-Object -First 1)
