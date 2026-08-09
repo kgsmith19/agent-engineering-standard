@@ -1,10 +1,15 @@
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $root 'scripts/lib/review-policy.ps1')
 
 function Read-Text { param([string]$Path) Get-Content (Join-Path $root $Path) -Raw }
 function Assert-Contains {
   param([string]$Name,[string]$Path,[string]$Pattern)
   if ((Read-Text $Path) -notmatch $Pattern) { throw "$Name failed." }
+}
+function Assert-Equal {
+  param([string]$Name,$Actual,$Expected)
+  if ($Actual -cne $Expected) { throw "$Name failed: expected '$Expected', got '$Actual'." }
 }
 
 # Material PR mutations must wake authority reconciliation immediately.
@@ -27,4 +32,21 @@ foreach ($path in @('templates/AI_REVIEW.yml','.github/workflows/ai-review.yml')
 Assert-Contains 'PR Gate template reruns on edited PR metadata' 'templates/PR_GATE.yml' '(?s)pull_request:.*?types:\s*\[[^\]]*\bedited\b'
 Assert-Contains 'standard PR Gate reruns on edited PR metadata' '.github/workflows/ci.yml' '(?s)pull_request:\s*\r?\n\s*types:\s*\[[^\]]*\bedited\b'
 
-Write-Host 'state-machine exhaustiveness event tests: PASS' -ForegroundColor Green
+# Every documented completed workflow conclusion has one explicit authority decision.
+$gateCases = @(
+  @('success','success'),
+  @('failure','repair'),
+  @('timed_out','repair'),
+  @('startup_failure','repair'),
+  @('action_required','block-workflow-approval'),
+  @('skipped','block-gate-skipped'),
+  @('cancelled','rerun'),
+  @('stale','rerun'),
+  @('neutral','block-gate-neutral'),
+  @('future_unknown_value','block-gate-unknown')
+)
+foreach ($case in $gateCases) {
+  Assert-Equal "gate conclusion $($case[0])" (Get-GateConclusionDecision -Conclusion $case[0]) $case[1]
+}
+
+Write-Host 'state-machine exhaustiveness tests: PASS' -ForegroundColor Green
