@@ -21,9 +21,18 @@ Assert-Equal 'Unknown reviewer ignored' (Get-MachineReviewProvider 'random-bot[b
 $actionsComment = [pscustomobject]@{ user = [pscustomobject]@{ login = 'github-actions[bot]' } }
 $ownerComment = [pscustomobject]@{ user = [pscustomobject]@{ login = 'kgsmith19' } }
 $untrustedComment = [pscustomobject]@{ user = [pscustomobject]@{ login = 'random-user' } }
-Assert-Equal 'Actions marker trusted' (Test-TrustedAutomationComment -Comment $actionsComment -OwnerLogin 'kgsmith19') $true
-Assert-Equal 'Owner marker trusted' (Test-TrustedAutomationComment -Comment $ownerComment -OwnerLogin 'kgsmith19') $true
-Assert-Equal 'Ordinary commenter marker rejected' (Test-TrustedAutomationComment -Comment $untrustedComment -OwnerLogin 'kgsmith19') $false
+Assert-Equal 'Actions marker trusted' (Test-TrustedAutomationComment $actionsComment 'kgsmith19') $true
+Assert-Equal 'Owner marker trusted' (Test-TrustedAutomationComment $ownerComment 'kgsmith19') $true
+Assert-Equal 'Ordinary commenter marker rejected' (Test-TrustedAutomationComment $untrustedComment 'kgsmith19') $false
+
+$head = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+$trustedRequest = [pscustomobject]@{ id=1; user=[pscustomobject]@{login='kgsmith19'}; body="<!-- ai-review-request:copilot:$head -->"; created_at='2026-08-09T10:00:00Z' }
+$earlyPass = [pscustomobject]@{ id=2; user=[pscustomobject]@{login='Copilot'}; body="AI-REVIEW PASS — $head"; created_at='2026-08-09T09:59:00Z' }
+$validPass = [pscustomobject]@{ id=3; user=[pscustomobject]@{login='Copilot'}; body="AI-REVIEW PASS — $head"; created_at='2026-08-09T10:01:00Z' }
+$validFail = [pscustomobject]@{ id=4; user=[pscustomobject]@{login='Copilot'}; body="AI-REVIEW FAIL — $head"; created_at='2026-08-09T10:02:00Z' }
+Assert-Equal 'Unsolicited structured Copilot PASS rejected' (Get-TrustedStructuredCopilotReview -Comments @($validPass) -HeadSha $head -OwnerLogin 'kgsmith19') $null
+Assert-Equal 'Structured response before trusted request rejected' (Get-TrustedStructuredCopilotReview -Comments @($earlyPass,$trustedRequest) -HeadSha $head -OwnerLogin 'kgsmith19') $null
+Assert-Equal 'Latest structured response after trusted request accepted' (Get-TrustedStructuredCopilotReview -Comments @($trustedRequest,$validPass,$validFail) -HeadSha $head -OwnerLogin 'kgsmith19').id 4
 
 Assert-Equal 'Unknown human head has no machine implementer' (Get-HeadImplementerProvider -HeadAuthorLogin 'kgsmith19') $null
 Assert-Equal 'Latest Copilot commit is detected' (Get-HeadImplementerProvider -HeadAuthorLogin 'Copilot') 'copilot'
@@ -33,9 +42,7 @@ Assert-Equal 'Mixed machine head records both actors' (Get-HeadImplementerProvid
 Assert-Equal 'Human or unknown head prefers Codex' (Get-PreferredMachineReviewer -HeadAuthorLogin 'kgsmith19') 'codex'
 Assert-Equal 'Copilot-implemented head requires Codex' (Get-PreferredMachineReviewer -HeadAuthorLogin 'Copilot') 'codex'
 Assert-Equal 'Codex-implemented head requires Copilot' (Get-PreferredMachineReviewer -HeadAuthorLogin 'chatgpt-codex-connector[bot]') 'copilot'
-Assert-Throws 'Mixed Codex and Copilot head has no independent connected reviewer' {
-  Get-PreferredMachineReviewer -HeadAuthorLogin 'chatgpt-codex-connector[bot]' -HeadCommitterLogin 'Copilot'
-}
+Assert-Throws 'Mixed Codex and Copilot head has no independent connected reviewer' { Get-PreferredMachineReviewer -HeadAuthorLogin 'chatgpt-codex-connector[bot]' -HeadCommitterLogin 'Copilot' }
 
 $copilotAccepted = @(Get-AcceptedMachineReviewProviders -HeadAuthorLogin 'Copilot')
 Assert-Equal 'Copilot head has one accepted reviewer' $copilotAccepted.Count 1
@@ -58,13 +65,11 @@ Assert-Equal 'Bracketed markdown P2 bullet is material' (Test-MaterialAiReviewBo
 Assert-Equal 'No-findings prose is not material' (Test-MaterialAiReviewBody 'No P0-P2 findings. Everything is clean.') $false
 Assert-Equal 'Ordinary review prose is not material' (Test-MaterialAiReviewBody 'Looks good; no material issues found.') $false
 
-Assert-Equal 'No findings need no repair' (Get-ReviewRepairDecision -HeadSha 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' -AttemptedHeadShas @() -MaxAttempts 1 -HasFindings $false) 'none'
-Assert-Equal 'First finding head requests repair' (Get-ReviewRepairDecision -HeadSha 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' -AttemptedHeadShas @() -MaxAttempts 1 -HasFindings $true) 'request'
-Assert-Equal 'Same finding head remains pending instead of exhausting' (Get-ReviewRepairDecision -HeadSha 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' -AttemptedHeadShas @('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') -MaxAttempts 1 -HasFindings $true) 'pending'
-Assert-Equal 'Post-fix finding head exhausts one-repair budget' (Get-ReviewRepairDecision -HeadSha 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' -AttemptedHeadShas @('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') -MaxAttempts 1 -HasFindings $true) 'block'
-Assert-Throws 'Repair budget must be positive' {
-  Get-ReviewRepairDecision -HeadSha 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' -AttemptedHeadShas @() -MaxAttempts 0 -HasFindings $true
-}
+Assert-Equal 'No findings need no repair' (Get-ReviewRepairDecision -HeadSha $head -AttemptedHeadShas @() -MaxAttempts 1 -HasFindings $false) 'none'
+Assert-Equal 'First finding head requests repair' (Get-ReviewRepairDecision -HeadSha $head -AttemptedHeadShas @() -MaxAttempts 1 -HasFindings $true) 'request'
+Assert-Equal 'Same finding head remains pending instead of exhausting' (Get-ReviewRepairDecision -HeadSha $head -AttemptedHeadShas @($head) -MaxAttempts 1 -HasFindings $true) 'pending'
+Assert-Equal 'Post-fix finding head exhausts one-repair budget' (Get-ReviewRepairDecision -HeadSha 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' -AttemptedHeadShas @($head) -MaxAttempts 1 -HasFindings $true) 'block'
+Assert-Throws 'Repair budget must be positive' { Get-ReviewRepairDecision -HeadSha $head -AttemptedHeadShas @() -MaxAttempts 0 -HasFindings $true }
 
 Assert-Equal 'No risk label defaults to R2' (Get-RiskFromLabels @()) 'R2'
 Assert-Equal 'Single risk label is parsed' (Get-RiskFromLabels @('risk:R3','status:ready')) 'R3'
@@ -84,13 +89,7 @@ $validGate = [pscustomobject]@{
   gate_removal_condition = 'operation becomes reversible with verified restore'
 }
 Assert-Equal 'Complete manual gate accepted' (Assert-ManualGateJustification $validGate) $true
-Assert-Throws 'Incomplete manual gate refused' {
-  Assert-ManualGateJustification ([pscustomobject]@{
-    failure_class_prevented = 'x'
-    why_automation_is_insufficient = 'y'
-    decision_owner = 'z'
-  })
-}
+Assert-Throws 'Incomplete manual gate refused' { Assert-ManualGateJustification ([pscustomobject]@{failure_class_prevented='x';why_automation_is_insufficient='y';decision_owner='z'}) }
 
 $bootstrap = Get-Content (Join-Path $root 'scripts/bootstrap-repo.ps1') -Raw
 if ($bootstrap -notmatch 'templates/AI_REVIEW\.yml') { throw 'bootstrap must source AI_REVIEW template.' }
