@@ -344,7 +344,7 @@ function Run-ReviewCycle {
   Invoke-AiReview $Number
   $failures = @(Get-ReviewFailures $Number $prData)
   if ($failures.Count -gt 0) {
-    Request-Repair review $Number $prData
+    # AI Review Gate is the sole review-repair launcher.
     return
   }
   if ((Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review') -eq 'success') {
@@ -358,6 +358,8 @@ function Run-ReviewCycle {
     Set-Blocked $Number 'review-request' 'No budgeted machine reviewer could be requested.' $prData
     return
   }
+  & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'pause-pending-review.ps1') -Repo $Repo -Pr $Number
+  if ($LASTEXITCODE -ne 0) { throw 'Could not pause auto-merge while machine review is pending.' }
 
   $result = Wait-ForReview $Number ([string]$prData.headRefOid) ([int]$reviewPolicy.primary_wait_minutes)
   if ($result -ne 'timeout') { return }
@@ -365,7 +367,7 @@ function Run-ReviewCycle {
   Invoke-AiReview $Number
   if ((Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review') -eq 'success') { return }
   $failures = @(Get-ReviewFailures $Number (Get-Pr $Number))
-  if ($failures.Count -gt 0) { Request-Repair review $Number (Get-Pr $Number); return }
+  if ($failures.Count -gt 0) { return }
 
   & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto
   if ($LASTEXITCODE -ne 0) {
@@ -421,7 +423,7 @@ function Handle-ReviewEvent {
   Invoke-AiReview $Number
   $failures = @(Get-ReviewFailures $Number $prData)
   if ($failures.Count -gt 0) {
-    Request-Repair review $Number $prData
+    # AI Review Gate is the sole review-repair launcher.
     return
   }
   if ((Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review') -eq 'success') {

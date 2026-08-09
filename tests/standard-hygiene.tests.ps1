@@ -57,7 +57,7 @@ Assert-Contains 'AI Review reacts to inline evidence' 'templates/AI_REVIEW.yml' 
 Assert-Contains 'AI Review can post bounded repair' 'templates/AI_REVIEW.yml' 'issues:\s*write'
 Assert-NotContains 'AI Review does not run on ordinary pull-request pushes' 'templates/AI_REVIEW.yml' '(?m)^\s*pull_request:'
 Assert-Contains 'product AI Review ignores ordinary issue comments' 'templates/AI_REVIEW.yml' 'AI-REVIEW PASS'
-Assert-Contains 'watchdog is low frequency' 'templates/PR_AUTOMATION.yml' 'cron:\s*"17 \*/12 \* \* \*"'
+Assert-Contains 'watchdog runs before absolute review timeout' 'templates/PR_AUTOMATION.yml' 'cron:\s*"17 \*/6 \* \* \*"'
 Assert-Contains 'review_requested cleanup is immediate' 'templates/PR_AUTOMATION.yml' 'review_requested'
 Assert-Contains 'gate automation can write AI Review' 'templates/PR_AUTOMATION.yml' '(?s)gate-result:.*?checks:\s*write'
 Assert-Contains 'review automation can remove reviewers' 'templates/PR_AUTOMATION.yml' '(?s)review-event:.*?pull-requests:\s*write'
@@ -92,6 +92,8 @@ $reviewEnd = $orchestrator.IndexOf('function Resolve-GateBlocks')
 Assert-True 'review-cycle boundaries found' ($reviewStart -ge 0 -and $reviewEnd -gt $reviewStart)
 $reviewCycle = $orchestrator.Substring($reviewStart,$reviewEnd-$reviewStart)
 Assert-True 'short review timeout stays recoverable' ($reviewCycle -notmatch "Set-Blocked[^\r\n]*'review-timeout'")
+Assert-True 'pending review pauses auto-merge before waiting' ($reviewCycle -match 'pause-pending-review\.ps1')
+Assert-True 'orchestrator does not launch review repair' ($orchestrator -notmatch 'Request-Repair review')
 Assert-True 'absolute reviewer timeout is enforced by watchdog' ($orchestrator -match 'absolute_timeout_minutes')
 foreach ($field in @('max_ci_fix_attempts','max_review_fix_attempts','max_conflict_fix_attempts')) {
   Assert-True "orchestrator uses $field" ($orchestrator -match $field)
