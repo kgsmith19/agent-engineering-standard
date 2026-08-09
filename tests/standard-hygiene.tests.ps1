@@ -74,6 +74,7 @@ Assert-Contains 'fallback must be independent' 'scripts/request-machine-review.p
 Assert-Contains 'review request blocks inline reviewer-shopping' 'scripts/request-machine-review.ps1' 'pulls/\$Pr/comments\?per_page=100'
 Assert-Contains 'evaluator reads current head commit' 'scripts/evaluate-ai-review.ps1' 'repos/\$Repo/commits/\$headSha'
 Assert-Contains 'evaluator uses independent providers' 'scripts/evaluate-ai-review.ps1' 'Get-AcceptedMachineReviewProviders'
+Assert-Contains 'evaluator trusts only authoritative review-request markers' 'scripts/evaluate-ai-review.ps1' 'Test-TrustedAutomationComment'
 Assert-Contains 'evaluator checks inline comments' 'scripts/evaluate-ai-review.ps1' 'inline review comment'
 Assert-Contains 'repair script has bounded review budget' 'scripts/request-review-repair.ps1' 'max_review_fix_attempts'
 Assert-Contains 'repair script uses centralized decision' 'scripts/request-review-repair.ps1' 'Get-ReviewRepairDecision'

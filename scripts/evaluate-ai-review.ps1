@@ -106,7 +106,10 @@ if ($structured.Count -gt 0) {
   }
 }
 
-$codexRequests = @($comments | Where-Object { [string]$_.body -like "*ai-review-request:codex:$headSha*" } | Sort-Object created_at)
+$codexRequests = @($comments | Where-Object {
+  (Test-TrustedAutomationComment -Comment $_ -OwnerLogin ([string]$prData.base.repo.owner.login)) -and
+  [string]$_.body -like "*ai-review-request:codex:$headSha*"
+} | Sort-Object created_at)
 foreach ($request in $codexRequests) {
   $reactions = @(Get-Paged "repos/$Repo/issues/comments/$($request.id)/reactions?per_page=100")
   foreach ($reaction in $reactions) {
