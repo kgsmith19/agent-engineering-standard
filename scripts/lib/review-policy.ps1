@@ -2,19 +2,56 @@ function Get-MachineReviewProvider {
   param([Parameter(Mandatory)][string]$Login)
 
   $normalized = $Login.ToLowerInvariant()
-  if ($normalized -in @('chatgpt-codex-connector', 'chatgpt-codex-connector[bot]')) { return 'codex' }
-  if ($normalized -in @('copilot-pull-request-reviewer', 'copilot-pull-request-reviewer[bot]', 'copilot', 'copilot-swe-agent[bot]')) { return 'copilot' }
+  if ($normalized -in @('chatgpt-codex-connector','chatgpt-codex-connector[bot]','codex')) { return 'codex' }
+  if ($normalized -in @('copilot-pull-request-reviewer','copilot-pull-request-reviewer[bot]','copilot','copilot-swe-agent[bot]')) { return 'copilot' }
   return $null
 }
 
-function Get-PreferredMachineReviewer {
-  param([string]$PrAuthorLogin = '')
+function Get-HeadImplementerProvider {
+  param(
+    [string]$HeadAuthorLogin = '',
+    [string]$HeadCommitterLogin = '',
+    [string]$PrAuthorLogin = ''
+  )
 
-  # A PR authored by the Codex GitHub app gets Copilot so the same GitHub agent
-  # identity cannot implement and review its own work. Everything else prefers
-  # the included/cheaper Codex review service; it is a fresh review task/session.
-  if ($PrAuthorLogin.ToLowerInvariant() -match '^chatgpt-codex-connector(?:\[bot\])?$') { return 'copilot' }
-  return 'codex'
+  foreach ($login in @($HeadAuthorLogin,$HeadCommitterLogin,$PrAuthorLogin)) {
+    if ([string]::IsNullOrWhiteSpace($login)) { continue }
+    $provider = Get-MachineReviewProvider -Login $login
+    if ($provider) { return $provider }
+  }
+  return $null
+}
+
+function Get-AcceptedMachineReviewProviders {
+  param(
+    [string]$HeadAuthorLogin = '',
+    [string]$HeadCommitterLogin = '',
+    [string]$PrAuthorLogin = ''
+  )
+
+  $implementer = Get-HeadImplementerProvider `
+    -HeadAuthorLogin $HeadAuthorLogin `
+    -HeadCommitterLogin $HeadCommitterLogin `
+    -PrAuthorLogin $PrAuthorLogin
+
+  switch ($implementer) {
+    'codex' { return @('copilot') }
+    'copilot' { return @('codex') }
+    default { return @('codex','copilot') }
+  }
+}
+
+function Get-PreferredMachineReviewer {
+  param(
+    [string]$HeadAuthorLogin = '',
+    [string]$HeadCommitterLogin = '',
+    [string]$PrAuthorLogin = ''
+  )
+
+  return @(Get-AcceptedMachineReviewProviders `
+    -HeadAuthorLogin $HeadAuthorLogin `
+    -HeadCommitterLogin $HeadCommitterLogin `
+    -PrAuthorLogin $PrAuthorLogin)[0]
 }
 
 function Test-MaterialAiReviewBody {
@@ -39,7 +76,7 @@ function Test-ControlPlanePath {
   param([Parameter(Mandatory)][string]$Path)
   $patterns = @(
     '^\.github/workflows/', '^\.agent/', '^policy/', '^scripts/lib/',
-    '^scripts/(apply-github-standard|setup-portfolio|doctor|auto-merge|request-machine-review|evaluate-ai-review|pr-orchestrator|upgrade-repos|bootstrap-repo)\.ps1$',
+    '^scripts/(apply-github-standard|setup-portfolio|doctor|auto-merge|request-machine-review|evaluate-ai-review|reconcile-machine-review-threads|pr-orchestrator|upgrade-repos|bootstrap-repo)\.ps1$',
     '^(AGENT_RULES|QUALITY_RULES|SECURITY_RISK_AUTONOMY|DELIVERY_GITHUB|EVIDENCE_LEARNING|AGENTS)\.md$'
   )
   return [bool]($patterns | Where-Object { $Path -match $_ } | Select-Object -First 1)
