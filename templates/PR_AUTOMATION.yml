@@ -1,0 +1,32 @@
+name: PR Automation
+
+on:
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, synchronize, labeled, unlabeled]
+  workflow_run:
+    workflows: ["PR Gate"]
+    types: [completed]
+
+jobs:
+  arm-auto-merge:
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.draft == false
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: kgsmith19/agent-engineering-standard/.github/workflows/auto-merge-reusable.yml@main
+    with:
+      pr_number: ${{ github.event.pull_request.number }}
+
+  request-ai-review:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.pull_requests[0] != null
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    uses: kgsmith19/agent-engineering-standard/.github/workflows/request-review-reusable.yml@main
+    with:
+      pr_number: ${{ github.event.workflow_run.pull_requests[0].number }}
