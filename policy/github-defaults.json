@@ -1,6 +1,5 @@
 {
   "owner": "kgsmith19",
-  "project_title": "Agentic Portfolio",
   "ruleset_name": "Lean PR Gate",
   "required_status_context": "PR Gate",
   "required_ai_review_context": "AI Review",
@@ -15,17 +14,18 @@
   "merge_method": "squash",
   "allow_auto_merge": true,
   "allow_update_branch": true,
-  "auto_merge_max_risk": "R3",
+  "auto_merge_max_risk": "R2",
   "control_plane_requires_fresh_external_review": true,
   "independent_review": {
     "required_for_auto_merge": false,
     "solicit_reviews": false,
+    "dispatch_mode": "disabled_pending_e2e",
     "preferred_provider": "codex",
     "fallback_provider": "copilot",
     "local_codex_model": "gpt-5.4-mini",
     "review_stall_minutes": 3,
-    "primary_wait_minutes": 3,
-    "fallback_wait_minutes": 3,
+    "primary_wait_minutes": 2,
+    "fallback_wait_minutes": 2,
     "absolute_timeout_minutes": 720,
     "poll_seconds": 20,
     "max_review_heads_per_pr": 2,
@@ -38,6 +38,7 @@
     "max_ci_fix_attempts": 7,
     "max_review_fix_attempts": 1,
     "max_conflict_fix_attempts": 6,
+    "max_gate_rerun_attempts": 1,
     "watchdog_interval_minutes": 60
   },
   "manual_gate_required_fields": [

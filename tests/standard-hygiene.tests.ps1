@@ -9,8 +9,8 @@ function Assert-NotContains { param([string]$Name,[string]$Path,[string]$Pattern
 $required = @(
   '.gitignore','docs/AUTONOMOUS-PR-STATE-MACHINE.md',
   '.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation-reusable.yml','.github/workflows/pr-automation.yml',
-  'scripts/evaluate-ai-review.ps1','scripts/request-machine-review.ps1','scripts/request-review-repair.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/pr-orchestrator.ps1','scripts/lint-pr-creation.ps1','scripts/prune-portfolio.ps1',
-  'tests/draft-prevention.tests.ps1',
+  'scripts/evaluate-ai-review.ps1','scripts/request-machine-review.ps1','scripts/request-review-repair.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/pr-orchestrator.ps1','scripts/gate-result-router.ps1','scripts/review-metrics.ps1','scripts/lint-pr-creation.ps1','scripts/prune-portfolio.ps1',
+  'tests/draft-prevention.tests.ps1','tests/state-machine-exhaustiveness.tests.ps1',
   'templates/.gitignore','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/dependabot.yml'
 )
 foreach ($relative in $required) { Assert-True "required file $relative" (Test-Path (Join-Path $root $relative)) }
@@ -63,42 +63,59 @@ Assert-Contains 'automation markers require trusted authors' 'scripts/lib/review
 Assert-Contains 'structured Copilot verdict requires trusted request' 'scripts/lib/review-policy.ps1' 'Get-TrustedStructuredCopilotReview'
 Assert-Contains 'review policy returns independent providers' 'scripts/lib/review-policy.ps1' 'Get-AcceptedMachineReviewProviders'
 Assert-Contains 'review policy centralizes repair decision' 'scripts/lib/review-policy.ps1' 'Get-ReviewRepairDecision'
-Assert-Contains 'review request reads current head commit' 'scripts/request-machine-review.ps1' 'repos/\$Repo/commits/\$headSha'
+Assert-Contains 'review policy distinguishes blocking findings' 'scripts/lib/review-policy.ps1' 'Test-BlockingAiReviewBody'
+Assert-Contains 'review policy distinguishes P2 advisory findings' 'scripts/lib/review-policy.ps1' 'Test-AdvisoryAiReviewBody'
+Assert-Contains 'review policy recognizes passing neutral checks' 'scripts/lib/review-policy.ps1' 'Test-AiReviewPassingConclusion'
+Assert-Contains 'review policy authenticates advisory Issue mapping' 'scripts/lib/review-policy.ps1' 'Get-TrustedAiReviewAdvisoryIssueNumber'
+# Assertion updated with #44's reviewer-independence redesign: the requester and
+# evaluator derive machine actors from ALL PR commits (pulls/{pr}/commits), not a
+# single head-commit read; the old repos/{repo}/commits/{head} contract is gone.
+Assert-Contains 'review request reads every PR commit for independence' 'scripts/request-machine-review.ps1' 'pulls/\$Pr/commits\?per_page=100'
 Assert-Contains 'review requester authenticates structured Copilot verdict' 'scripts/request-machine-review.ps1' 'Get-TrustedStructuredCopilotReview'
 Assert-Contains 'fallback must be independent' 'scripts/request-machine-review.ps1' "acceptedProviders -contains 'copilot'"
 Assert-Contains 'review request blocks inline reviewer-shopping' 'scripts/request-machine-review.ps1' 'pulls/\$Pr/comments\?per_page=100'
-Assert-Contains 'evaluator reads current head commit' 'scripts/evaluate-ai-review.ps1' 'repos/\$Repo/commits/\$headSha'
+Assert-Contains 'review request honors disabled-dispatch canary' 'scripts/request-machine-review.ps1' 'disabled_pending_e2e'
+Assert-Contains 'review request protocol makes P2 advisory' 'scripts/request-machine-review.ps1' 'P2-only'
+Assert-Contains 'evaluator reads every PR commit for independence' 'scripts/evaluate-ai-review.ps1' 'pulls/\$Pr/commits\?per_page=100'
 Assert-Contains 'evaluator uses independent providers' 'scripts/evaluate-ai-review.ps1' 'Get-AcceptedMachineReviewProviders'
 Assert-Contains 'evaluator authenticates structured Copilot verdict' 'scripts/evaluate-ai-review.ps1' 'Get-TrustedStructuredCopilotReview'
 Assert-Contains 'evaluator trusts only authoritative Codex request markers' 'scripts/evaluate-ai-review.ps1' 'Test-TrustedAutomationComment'
 Assert-Contains 'evaluator checks inline comments' 'scripts/evaluate-ai-review.ps1' 'inline review comment'
+Assert-Contains 'evaluator records P2 follow-up Issues before neutral outcome' 'scripts/evaluate-ai-review.ps1' 'Ensure-AdvisoryIssue'
+# Test repair (2026-08-09): the original double-quoted pattern interpolated
+# $headSha to empty (backslash is not an escape in PowerShell strings), leaving
+# an unsatisfiable two-space literal. Single quotes preserve the intended regex.
+Assert-Contains 'evaluator exposes disabled dispatch with neutral check' 'scripts/evaluate-ai-review.ps1' 'Set-AiReviewCheck \$headSha neutral'
 Assert-Contains 'repair script has bounded review budget' 'scripts/request-review-repair.ps1' 'max_review_fix_attempts'
 Assert-Contains 'repair script uses centralized decision' 'scripts/request-review-repair.ps1' 'Get-ReviewRepairDecision'
 Assert-Contains 'repair script authenticates structured Copilot verdict' 'scripts/request-review-repair.ps1' 'Get-TrustedStructuredCopilotReview'
 Assert-Contains 'repair script launches Copilot on existing PR' 'scripts/request-review-repair.ps1' '@copilot address all material machine-review findings'
 Assert-Contains 'repair exhaustion disables auto-merge' 'scripts/request-review-repair.ps1' '--disable-auto'
+Assert-Contains 'repair script refuses repair while reviewer dispatch is disabled' 'scripts/request-review-repair.ps1' 'disabled_pending_e2e'
 
 $orchestrator = Read-Text 'scripts/pr-orchestrator.ps1'
 Assert-True 'orchestrator removes forbidden reviewers' ($orchestrator -match 'requested_reviewers' -and $orchestrator -match 'forbidden_requested_reviewers')
 Assert-True 'orchestrator blocks Copilot-owned PRs' ($orchestrator -match 'copilot-owned-pr')
 Assert-True 'orchestrator uses Copilot only to repair existing PR' ($orchestrator -match '@copilot investigate and fix')
 Assert-True 'orchestrator authenticates structured Copilot failures' ($orchestrator -match 'Get-TrustedStructuredCopilotReview')
+Assert-True 'orchestrator checks exact-head inline blocking evidence' ($orchestrator -match 'pulls/\$Number/comments\?per_page=100')
 Assert-True 'blocked state disables auto-merge' ($orchestrator -match '(?s)function Set-Blocked.*?Disable-AutoMerge')
 Assert-True 'automation blocks have recovery markers' ($orchestrator -match 'automation:resolve:')
 $reviewStart = $orchestrator.IndexOf('function Run-ReviewCycle')
 $reviewEnd = $orchestrator.IndexOf('function Resolve-GateBlocks')
 Assert-True 'review-cycle boundaries found' ($reviewStart -ge 0 -and $reviewEnd -gt $reviewStart)
 $reviewCycle = $orchestrator.Substring($reviewStart,$reviewEnd-$reviewStart)
-Assert-True 'short review timeout stays recoverable' ($reviewCycle -notmatch "Set-Blocked[^\r\n]*'review-timeout'")
-Assert-True 'pending review pauses auto-merge before waiting' ($reviewCycle -match 'pause-pending-review\.ps1')
+Assert-True 'disabled dispatch does not request a reviewer' ($reviewCycle -match 'disabled_pending_e2e' -and $reviewCycle -match 'Complete-ReviewSuccess')
 Assert-True 'primary clean review immediately completes and re-arms' ($reviewCycle -match "result-eq'success'\)\{Complete-ReviewSuccess")
 Assert-True 'orchestrator does not launch review repair' ($orchestrator -notmatch '(?m)^\s*Request-Repair review\b')
-Assert-True 'absolute reviewer timeout is enforced by watchdog' ($orchestrator -match 'absolute_timeout_minutes')
+Assert-True 'orchestrator recognizes neutral AI Review as passing' ($orchestrator -match 'Test-AiReviewPassingConclusion')
 foreach ($field in @('max_ci_fix_attempts','max_review_fix_attempts','max_conflict_fix_attempts')) { Assert-True "orchestrator uses $field" ($orchestrator -match $field) }
 
-Assert-Contains 'thread reconciliation requires AI success' 'scripts/reconcile-machine-review-threads.ps1' "conclusion -ne 'success'"
+Assert-Contains 'thread reconciliation requires a passing AI Review conclusion' 'scripts/reconcile-machine-review-threads.ps1' 'Test-AiReviewPassingConclusion'
 Assert-Contains 'current-head threads are preserved' 'scripts/reconcile-machine-review-threads.ps1' 'currentHead'
 Assert-Contains 'human-involved threads are preserved' 'scripts/reconcile-machine-review-threads.ps1' 'nonMachine'
+Assert-Contains 'P2-only machine threads are safely resolved' 'scripts/reconcile-machine-review-threads.ps1' 'Test-AdvisoryOnlyAiReviewBody'
+Assert-Contains 'thread reconciliation keeps truncated conversations' 'scripts/reconcile-machine-review-threads.ps1' 'hasNextPage'
 
 Assert-Contains 'ruleset dismisses stale reviews' 'scripts/apply-github-standard.ps1' 'dismiss_stale_reviews_on_push=\$true'
 Assert-Contains 'ruleset requires zero approvals' 'scripts/apply-github-standard.ps1' 'required_approving_review_count=0'
@@ -134,8 +151,20 @@ Assert-Contains 'doctor validates every reusable workflow ref pin' 'scripts/doct
 Assert-Contains 'doctor validates reusable workflow ref pin' 'scripts/doctor.ps1' 'reusable-workflow ref not pinned to standard.lock'
 Assert-Contains 'doctor validates standard_sha input pin' 'scripts/doctor.ps1' 'standard_sha input not pinned to standard.lock'
 Assert-Contains 'doctor checks legacy protection absence' 'scripts/doctor.ps1' 'legacy branch protection still present'
-Assert-Contains 'doctor checks absolute review timeout' 'scripts/doctor.ps1' 'absolute_timeout_minutes'
+Assert-Contains 'doctor checks review dispatch canary' 'scripts/doctor.ps1' 'dispatch_mode'
+Assert-Contains 'doctor verifies no-dispatch auto-merge ceiling' 'scripts/doctor.ps1' 'auto_merge_max_risk'
 Assert-Contains 'doctor requires state map' 'scripts/doctor.ps1' 'AUTONOMOUS-PR-STATE-MACHINE\.md'
+
+Assert-NotContains 'portfolio policy does not retain GitHub Project title' 'policy/github-defaults.json' 'project_title'
+Assert-NotContains 'portfolio setup does not invoke GitHub Project sync' 'scripts/setup-portfolio.ps1' 'sync-agentic-project'
+Assert-NotContains 'portfolio setup has no GitHub Project skip switch' 'scripts/setup-portfolio.ps1' 'SkipProject'
+Assert-True 'obsolete GitHub Project sync script is removed' (-not (Test-Path (Join-Path $root 'scripts/sync-agentic-project.ps1')))
+Assert-NotContains 'agent guidance does not advertise GitHub Project sync' 'AGENTS.md' 'sync-agentic-project'
+
+Assert-Contains 'agent rules explain P2 Issue-only follow-up' 'AGENT_RULES.md' 'P2.*Issue'
+Assert-Contains 'template guidance keeps reviewer dispatch disabled pending E2E' 'templates/AGENTS.md' 'disabled_pending_e2e'
+Assert-Contains 'state machine documents neutral canary outcome' 'docs/AUTONOMOUS-PR-STATE-MACHINE.md' 'neutral'
+Assert-Contains 'delivery guide documents P0/P1 blocking threshold' 'DELIVERY_GITHUB.md' 'P0/P1'
 
 $agentsLines = @(Get-Content (Join-Path $root 'templates/AGENTS.md')).Count
 if ($agentsLines -gt 120) { throw "templates/AGENTS.md exceeded lean 120-line budget: $agentsLines" }

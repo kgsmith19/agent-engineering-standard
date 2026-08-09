@@ -72,7 +72,9 @@ The machine review batches these lenses into one response:
 4. systems/operational optimization
 5. strict leanness, complexity, dead code, and manual toil
 
-A clean formal review, structured exact-head Copilot PASS, or exact-head Codex thumbs-up can satisfy `AI Review`. Material P0–P2 findings in the review summary **or inline review comments** make `AI Review` fail and trigger one batched repair attempt. A fix creates the second and final reviewed SHA; if that head still has material findings, automation blocks instead of buying an indefinite review loop.
+A clean formal review, structured exact-head Copilot PASS, or exact-head Codex thumbs-up can satisfy `AI Review`. Blocking P0/P1 findings in the review summary **or inline review comments** make `AI Review` fail and trigger one batched repair attempt; a P2-only finding never blocks — it is recorded once as an advisory follow-up Issue mapped to the exact head. A fix creates the second and final reviewed SHA; if that head still has blocking findings, automation blocks instead of buying an indefinite review loop.
+
+While `independent_review.dispatch_mode` is `disabled_pending_e2e`, no reviewer is dispatched at all: the evaluator publishes a `neutral` (passing) `AI Review` outcome, blocking evidence still fails it, and unreviewed auto-merge stops at R2.
 
 ### Cost and retry bounds
 
