@@ -17,17 +17,45 @@ function Test-CodeownersTail {
   return $true
 }
 
+function Add-WorkflowProblems {
+  param(
+    [Parameter(Mandatory)][string]$Repo,
+    [Parameter(Mandatory)][string]$DefaultBranch,
+    [Parameter(Mandatory)][string]$Path,
+    [Parameter(Mandatory)][string]$DisplayName,
+    [Parameter(Mandatory)]$Problems
+  )
+
+  $fileRaw = & gh api "repos/$Repo/contents/.github/workflows/${Path}?ref=$DefaultBranch" 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    $Problems.Add("$DisplayName workflow missing")
+    return
+  }
+
+  $stateRaw = & gh api "repos/$Repo/actions/workflows/$Path" 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    $Problems.Add("cannot read $DisplayName workflow state")
+    return
+  }
+
+  $state = ($stateRaw -join "`n") | ConvertFrom-Json
+  if ($state.state -ne 'active') { $Problems.Add("$DisplayName workflow not active: $($state.state)") }
+}
+
 $required = @(
   'README.md','LIFECYCLE.md','AGENT_RULES.md','QUALITY_RULES.md','SECURITY_RISK_AUTONOMY.md','DELIVERY_GITHUB.md','EVIDENCE_LEARNING.md','AGENTS.md',
-  '.github/CODEOWNERS','.github/workflows/ci.yml','.github/workflows/ai-review.yml','.github/workflows/ai-review-reusable.yml','policy/github-defaults.json',
+  '.github/CODEOWNERS','.github/workflows/ci.yml','.github/workflows/ai-review.yml','.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation.yml','policy/github-defaults.json',
   'scripts/setup-portfolio.ps1','scripts/apply-github-standard.ps1','scripts/sync-agentic-project.ps1','scripts/codex-review.ps1','scripts/request-independent-review.ps1','scripts/auto-merge.ps1','scripts/bootstrap-repo.ps1','scripts/upgrade-repos.ps1',
   'scripts/lib/legacy-protection.ps1','scripts/lib/standard-lock.ps1','scripts/lib/review-policy.ps1',
   'tests/legacy-protection.tests.ps1','tests/standard-lock.tests.ps1','tests/review-policy.tests.ps1',
-  'templates/AGENTS.md','templates/CODEOWNERS','templates/PR_GATE.yml','templates/AI_REVIEW.yml','templates/PRD.md','templates/SPEC.md','templates/ADR.md','templates/ISSUE.md','templates/PULL_REQUEST.md'
+  'templates/AGENTS.md','templates/CODEOWNERS','templates/PR_GATE.yml','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/PRD.md','templates/SPEC.md','templates/ADR.md','templates/ISSUE.md','templates/PULL_REQUEST.md'
 )
 foreach ($relative in $required) { if (-not (Test-Path (Join-Path $root $relative))) { throw "Missing required file: $relative" } }
 
 $config = Get-Content (Join-Path $root 'policy/github-defaults.json') -Raw | ConvertFrom-Json
+if ($config.work_tracking.system -ne 'github-projects') { throw "work_tracking.system must be 'github-projects'." }
+if ($config.work_tracking.backing_record -ne 'github-issues') { throw "work_tracking.backing_record must be 'github-issues'." }
+if ([string]::IsNullOrWhiteSpace([string]$config.project_title)) { throw 'project_title is required.' }
 if ($config.required_status_context -ne 'PR Gate') { throw "required_status_context must be 'PR Gate'" }
 if ($config.required_ai_review_context -ne 'AI Review') { throw "required_ai_review_context must be 'AI Review'" }
 if ($config.required_approving_review_count -ne 0) { throw 'Default human approval count must remain 0.' }
@@ -78,6 +106,16 @@ if ($LASTEXITCODE -ne 0) { throw 'Could not resolve GitHub Actions App identity.
 $actionsAppId = [int]((($actionsAppRaw -join "`n") | ConvertFrom-Json).id)
 $remoteFailures = New-Object System.Collections.Generic.List[string]
 
+$projectsRaw = & gh project list --owner $config.owner --format json 2>&1
+if ($LASTEXITCODE -ne 0) {
+  $remoteFailures.Add("$($config.owner): cannot access GitHub Projects; ensure gh has project scope")
+} else {
+  $projects = ($projectsRaw -join "`n") | ConvertFrom-Json
+  if (-not ($projects.projects | Where-Object { $_.title -eq $config.project_title } | Select-Object -First 1)) {
+    $remoteFailures.Add("$($config.owner): portfolio project '$($config.project_title)' missing")
+  }
+}
+
 foreach ($name in $config.repositories) {
   $repo = "$($config.owner)/$name"; $problems = New-Object System.Collections.Generic.List[string]
   $metaRaw = & gh api "repos/$repo" 2>&1
@@ -102,22 +140,21 @@ foreach ($name in $config.repositories) {
     if (-not [bool]$actions.enabled) { $problems.Add('Actions disabled') }
   }
 
+  $projectConfigRaw = & gh api -H 'Accept: application/vnd.github.raw+json' "repos/$repo/contents/.agent/project.yaml?ref=$($meta.default_branch)" 2>&1
+  if ($LASTEXITCODE -ne 0) { $problems.Add('project metadata missing') }
+  else {
+    $projectConfig = $projectConfigRaw -join "`n"
+    if ($projectConfig -notmatch '(?m)^work_tracking:\s*$' -or $projectConfig -notmatch '(?m)^\s+system:\s*github-projects\s*$') { $problems.Add('work tracking is not github-projects') }
+  }
+
   $codeownersRaw = & gh api -H 'Accept: application/vnd.github.raw+json' "repos/$repo/contents/.github/CODEOWNERS?ref=$($meta.default_branch)" 2>&1
   if ($LASTEXITCODE -ne 0) { $problems.Add('CODEOWNERS missing') } else {
     $expectedTail = if ($name -eq 'agent-engineering-standard') { $standardTail } else { $appTail }
     if (-not (Test-CodeownersTail -Content ($codeownersRaw -join "`n") -ExpectedTail $expectedTail)) { $problems.Add('CODEOWNERS ownership map drift') }
   }
 
-  $aiWorkflowRaw = & gh api "repos/$repo/contents/.github/workflows/ai-review.yml?ref=$($meta.default_branch)" 2>&1
-  if ($LASTEXITCODE -ne 0) { $problems.Add('AI Review caller workflow missing') }
-  else {
-    $workflowStateRaw = & gh api "repos/$repo/actions/workflows/ai-review.yml" 2>&1
-    if ($LASTEXITCODE -ne 0) { $problems.Add('cannot read AI Review workflow state') }
-    else {
-      $workflowState = ($workflowStateRaw -join "`n") | ConvertFrom-Json
-      if ($workflowState.state -ne 'active') { $problems.Add("AI Review workflow not active: $($workflowState.state)") }
-    }
-  }
+  Add-WorkflowProblems -Repo $repo -DefaultBranch $meta.default_branch -Path 'ai-review.yml' -DisplayName 'AI Review' -Problems $problems
+  Add-WorkflowProblems -Repo $repo -DefaultBranch $meta.default_branch -Path 'pr-automation.yml' -DisplayName 'PR Automation' -Problems $problems
 
   $rulesetsRaw = & gh api "repos/$repo/rulesets" 2>&1
   if ($LASTEXITCODE -ne 0) { $problems.Add('cannot read rulesets') } else {
