@@ -148,3 +148,30 @@ When an agent or human performs a manual workaround, ask whether it can recur.
 - Discard candidates without evidence, plausible ROI, or a next experiment.
 
 Repeated manual work must not become normal merely because an agent can keep doing it.
+
+## 9. Isolated worktrees and parallel subagents
+
+### Isolation
+
+Every write-capable task runs in one isolated worktree tied to its Issue or slice.
+
+- Prefer the harness-native worktree when the execution environment provides one.
+- Fall back to `.worktrees/<branch>` only when no harness-native worktree is available.
+- Never share a worktree or working directory between concurrent write agents.
+
+### Parallel subagents
+
+- **Read-only** investigations and reviews may fan out to parallel subagents with isolated context; no worktree coordination needed.
+- **Parallel write agents** are allowed only when file scopes are provably disjoint and each agent has its own worktree and branch.
+- One coordinator integrates results and runs the final full verification.
+- Default parallelism bound is **3**. The coordinator must provide evidence of benefit before exceeding it.
+
+### Cleanup
+
+- Worktrees and branches created by an agent must be removed after the work is merged or abandoned.
+- The portfolio cleanup script (`scripts/prune-portfolio.ps1`) prunes stale worktree metadata and deletes merged branches; dirty or unique worktrees/branches are reported, never destroyed.
+- Open PR branches and Dependabot branches are never touched by automated cleanup.
+
+### Scratch state
+
+`.worktrees/` and `.superpowers/` are local scratch directories and must not be committed. Every repo bootstrapped from this standard excludes them via `.gitignore`.
