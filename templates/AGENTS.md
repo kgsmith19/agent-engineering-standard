@@ -11,11 +11,13 @@ Read only the context needed for the assigned work, in this order:
 3. relevant `docs/adr/` — consequential architecture constraints
 4. the assigned GitHub Issue — durable work scope
 
+The portfolio GitHub Project is the planning/status surface; the linked Issue is the executable backing record.
+
 Do not invent a consequential product decision when the source truth is missing or contradictory. Record the blocker and stop that slice.
 
 ## Lean delivery loop
 
-`Issue → SPEC if needed → thin slice → RED/minimum GREEN → local verification → draft PR → PR Gate → independent AI Review → merge/release`
+`Project → Issue → SPEC if needed → thin slice → RED/minimum GREEN → local verification → draft PR → PR Gate → independent AI Review → merge/release`
 
 - Work one thin slice at a time; scope widening becomes another slice/Issue.
 - Use the smallest correct implementation. Avoid speculative abstractions and unrelated refactors.
