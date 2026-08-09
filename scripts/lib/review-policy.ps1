@@ -21,8 +21,10 @@ function Test-MaterialAiReviewBody {
   param([AllowNull()][string]$Body)
   if ([string]::IsNullOrWhiteSpace($Body)) { return $false }
   if ($Body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') { return $true }
-  # Codex/Copilot review bodies use P0/P1/P2 labels for material findings.
-  return $Body -match '(?im)(?:\*\*|\b)(P[0-2])(?:\s+Badge|\b\s*[:—-])'
+
+  # Match actual finding headings/badges, not prose such as "No P0-P2 findings".
+  if ($Body -match '(?im)!\[P[0-2]\s+Badge\]') { return $true }
+  return $Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?P[0-2]\b[^\r\n]{0,120}?(?:\*\*)?\s*(?::|—)\s*\S'
 }
 
 function Get-RiskFromLabels {
@@ -37,7 +39,7 @@ function Test-ControlPlanePath {
   param([Parameter(Mandatory)][string]$Path)
   $patterns = @(
     '^\.github/workflows/', '^\.agent/', '^policy/', '^scripts/lib/',
-    '^scripts/(apply-github-standard|setup-portfolio|doctor|auto-merge|request-independent-review|pr-orchestrator|upgrade-repos|bootstrap-repo)\.ps1$',
+    '^scripts/(apply-github-standard|setup-portfolio|doctor|auto-merge|request-machine-review|evaluate-ai-review|pr-orchestrator|upgrade-repos|bootstrap-repo)\.ps1$',
     '^(AGENT_RULES|QUALITY_RULES|SECURITY_RISK_AUTONOMY|DELIVERY_GITHUB|EVIDENCE_LEARNING|AGENTS)\.md$'
   )
   return [bool]($patterns | Where-Object { $Path -match $_ } | Select-Object -First 1)
