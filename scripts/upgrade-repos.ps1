@@ -95,11 +95,13 @@ pinned_by: upgrade-repos.ps1
         Copy-Item (Join-Path $standardRoot 'templates/dependabot.yml') '.github/dependabot.yml' -Force
       }
 
-      # workflow_run identifies the deterministic gate by workflow name.
+      # workflow_run identifies the deterministic gate by workflow name. Preserve
+      # a dedicated pr-gate.yml; otherwise normalize CI/ci to exact `PR Gate`
+      # without changing the repository-specific jobs or commands.
       if (-not (Test-Path '.github/workflows/pr-gate.yml') -and (Test-Path '.github/workflows/ci.yml')) {
         $ci = Get-Content '.github/workflows/ci.yml' -Raw
-        if ($ci -match '(?m)^name:\s*CI\s*$' -and $ci -match 'PR Gate') {
-          $ci = [regex]::Replace($ci,'(?m)^name:\s*CI\s*$','name: PR Gate',1)
+        if ($ci -match '(?im)^name:\s*ci\s*$' -and $ci -match 'PR Gate') {
+          $ci = [regex]::Replace($ci,'(?im)^name:\s*ci\s*$','name: PR Gate',1)
           Set-Content '.github/workflows/ci.yml' $ci -Encoding utf8 -NoNewline
         }
       }
@@ -121,7 +123,7 @@ pinned_by: upgrade-repos.ps1
 Pins the shared engineering standard to $StandardSha and installs exact-SHA `AI Review` + `PR Automation` callers.
 
 - Removes native CODEOWNERS so Kyle is not auto-requested as a routine reviewer.
-- Preserves the repository-specific deterministic gate and normalizes its workflow name to `PR Gate` only when no dedicated `pr-gate.yml` exists.
+- Preserves the repository-specific deterministic gate and normalizes CI/ci workflow name to exact `PR Gate` only when no dedicated `pr-gate.yml` exists.
 - Adds the lean Dependabot default only when absent.
 - No product behavior change.
 
