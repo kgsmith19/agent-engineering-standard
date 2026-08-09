@@ -57,8 +57,30 @@ $actionsAppId = [int]((($actionsAppRaw -join "`n") | ConvertFrom-Json).id)
 
 $rulesetsRaw = & gh api "repos/$Repo/rulesets" 2>&1
 if ($LASTEXITCODE -ne 0) { throw "Cannot inspect live rulesets for $Repo." }
-$summary = ((($rulesetsRaw -join "`n") | ConvertFrom-Json) | Where-Object { $_.name -eq $config.ruleset_name } | Select-Object -First 1)
-if (-not $summary) { throw "Live ruleset '$($config.ruleset_name)' is missing." }
+$rulesetSummaries = @(($rulesetsRaw -join "`n") | ConvertFrom-Json)
+$summary = ($rulesetSummaries | Where-Object { $_.name -eq $config.ruleset_name -and $_.target -eq 'branch' -and $_.enforcement -eq 'active' } | Select-Object -First 1)
+if (-not $summary) { throw "Live active branch ruleset '$($config.ruleset_name)' is missing." }
+
+# GitHub composes every ruleset that targets the branch and the most restrictive
+# rule wins. Refuse to arm auto-merge if another active ruleset also governs the
+# default branch, because it may silently retain approvals/checks that the
+# canonical policy intentionally removed.
+$defaultBranchEncoded = [uri]::EscapeDataString([string]$meta.default_branch)
+$effectiveRulesRaw = & gh api "repos/$Repo/rules/branches/$defaultBranchEncoded" 2>&1
+if ($LASTEXITCODE -ne 0) { throw "Cannot verify effective default-branch rules for $Repo." }
+$conflictingIds = @((($effectiveRulesRaw -join "`n") | ConvertFrom-Json) |
+  ForEach-Object { [long]$_.ruleset_id } |
+  Where-Object { $_ -gt 0 -and $_ -ne [long]$summary.id } |
+  Select-Object -Unique)
+if ($conflictingIds.Count -gt 0) {
+  $conflicts = @($conflictingIds | ForEach-Object {
+    $id = $_
+    $match = $rulesetSummaries | Where-Object { [long]$_.id -eq $id } | Select-Object -First 1
+    if ($match) { "$($match.name) (#$id)" } else { "ruleset #$id" }
+  }) -join ', '
+  throw "Auto-merge refused: conflicting active default-branch ruleset(s): $conflicts. Reconcile live policy first."
+}
+
 $detailRaw = & gh api "repos/$Repo/rulesets/$($summary.id)" 2>&1
 if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect live ruleset details.' }
 $detail = ($detailRaw -join "`n") | ConvertFrom-Json
