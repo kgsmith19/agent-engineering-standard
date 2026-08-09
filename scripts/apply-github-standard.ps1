@@ -112,6 +112,32 @@ foreach ($name in $targets) {
   if ($existing) { Invoke-GhJson PUT "repos/$repo/rulesets/$($existing.id)" $payload | Out-Null }
   else { Invoke-GhJson POST "repos/$repo/rulesets" $payload | Out-Null }
 
+  # Verify the rulesets actually effective on the default branch. Unrelated
+  # release-branch rulesets are intentionally left alone.
+  $rulesetsAfterRaw = & gh api "repos/$repo/rulesets" 2>&1
+  if ($LASTEXITCODE -ne 0) { throw "Cannot verify rulesets for $repo." }
+  $rulesetsAfter = @(($rulesetsAfterRaw -join "`n") | ConvertFrom-Json)
+  $canonicalAfter = @($rulesetsAfter | Where-Object {
+    $_.name -eq $config.ruleset_name -and $_.target -eq 'branch' -and $_.enforcement -eq 'active'
+  } | Select-Object -First 1)
+  if ($canonicalAfter.Count -eq 0) { throw "Canonical active branch ruleset missing after setup for $repo." }
+
+  $defaultBranchEncoded = [uri]::EscapeDataString([string]$meta.default_branch)
+  $effectiveRulesRaw = & gh api "repos/$repo/rules/branches/$defaultBranchEncoded" 2>&1
+  if ($LASTEXITCODE -ne 0) { throw "Cannot verify effective default-branch rules for kgsmith19/agent-engineering-standard: $($effectiveRulesRaw -join ' ')" }
+  $conflictingIds = @((($effectiveRulesRaw -join "`n") | ConvertFrom-Json) |
+    ForEach-Object { [long]$_.ruleset_id } |
+    Where-Object { $_ -gt 0 -and $_ -ne [long]$canonicalAfter[0].id } |
+    Select-Object -Unique)
+  if ($conflictingIds.Count -gt 0) {
+    $conflicts = @($conflictingIds | ForEach-Object {
+      $id = $_
+      $match = $rulesetsAfter | Where-Object { [long]$_.id -eq $id } | Select-Object -First 1
+      if ($match) { "$($match.name) (#$id)" } else { "ruleset #$id" }
+    }) -join ', '
+    throw "kgsmith19/agent-engineering-standard: conflicting active default-branch ruleset(s): $conflicts. Disable or remove them, then rerun setup."
+  }
+
   # The canonical ruleset is the single default-branch authority. Any legacy
   # branch-protection rule can silently reintroduce approvals/checks and is removed.
   $legacyRaw = & gh api "repos/$repo/branches/$($meta.default_branch)/protection" 2>&1

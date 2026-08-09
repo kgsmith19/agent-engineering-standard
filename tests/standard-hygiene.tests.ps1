@@ -96,6 +96,10 @@ Assert-Contains 'human-involved threads are preserved' 'scripts/reconcile-machin
 
 Assert-Contains 'ruleset dismisses stale reviews' 'scripts/apply-github-standard.ps1' 'dismiss_stale_reviews_on_push=\$true'
 Assert-Contains 'ruleset requires zero approvals' 'scripts/apply-github-standard.ps1' 'required_approving_review_count=0'
+Assert-Contains 'setup checks effective default-branch rulesets' 'scripts/apply-github-standard.ps1' 'rules/branches/\$defaultBranchEncoded'
+Assert-Contains 'setup rejects conflicting default-branch rulesets' 'scripts/apply-github-standard.ps1' 'conflicting active default-branch ruleset'
+Assert-Contains 'doctor checks effective default-branch rulesets' 'scripts/doctor.ps1' 'rules/branches/\$defaultBranchEncoded'
+Assert-Contains 'doctor detects conflicting default-branch rulesets' 'scripts/doctor.ps1' 'conflicting active default-branch ruleset'
 Assert-Contains 'workflow token is read-only' 'scripts/apply-github-standard.ps1' "default_workflow_permissions = 'read'"
 Assert-Contains 'workflow cannot approve reviews' 'scripts/apply-github-standard.ps1' 'can_approve_pull_request_reviews = \$false'
 Assert-Contains 'legacy branch protection is deleted' 'scripts/apply-github-standard.ps1' 'branches/\$\(\$meta\.default_branch\)/protection'

@@ -146,7 +146,25 @@ foreach ($name in $config.repositories) {
   $rulesetsRaw = & gh api "repos/$repo/rulesets" 2>&1
   if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot read rulesets' }
   else {
-    $summary = ((($rulesetsRaw -join "`n") | ConvertFrom-Json) | Where-Object { $_.name -eq $config.ruleset_name } | Select-Object -First 1)
+    $rulesetSummaries = @(($rulesetsRaw -join "`n") | ConvertFrom-Json)
+    $summary = ($rulesetSummaries | Where-Object { $_.name -eq $config.ruleset_name } | Select-Object -First 1)
+
+    $defaultBranchEncoded = [uri]::EscapeDataString([string]$meta.default_branch)
+    $effectiveRulesRaw = & gh api "repos/$repo/rules/branches/$defaultBranchEncoded" 2>&1
+    if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot verify effective default-branch rulesets' }
+    else {
+      $canonicalId = if ($summary) { [long]$summary.id } else { [long]-1 }
+      $conflictingIds = @((($effectiveRulesRaw -join "`n") | ConvertFrom-Json) |
+        ForEach-Object { [long]$_.ruleset_id } |
+        Where-Object { $_ -gt 0 -and $_ -ne $canonicalId } |
+        Select-Object -Unique)
+      foreach ($id in $conflictingIds) {
+        $match = $rulesetSummaries | Where-Object { [long]$_.id -eq $id } | Select-Object -First 1
+        $description = if ($match) { "$($match.name) (#$id)" } else { "ruleset #$id" }
+        Add-Problem $problems "conflicting active default-branch ruleset: $description"
+      }
+    }
+
     if (-not $summary) { Add-Problem $problems 'canonical ruleset missing' }
     else {
       $detailRaw = & gh api "repos/$repo/rulesets/$($summary.id)" 2>&1
