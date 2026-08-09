@@ -1,0 +1,55 @@
+name: Reusable Safe Auto-Merge Armer
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: number
+
+jobs:
+  arm-auto-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ inputs.pr_number }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: kgsmith19/agent-engineering-standard
+          ref: main
+          path: .standard
+      - name: Arm safe auto-merge when eligible
+        shell: pwsh
+        run: |
+          $repo = $env:GITHUB_REPOSITORY
+          $prRaw = & gh api "repos/$repo/pulls/$env:PR_NUMBER" 2>&1
+          if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
+          $pr = ($prRaw -join "`n") | ConvertFrom-Json
+          if ($pr.state -ne 'open' -or $pr.draft) {
+            Write-Host 'Auto-merge skipped: PR is closed or draft.'
+            exit 0
+          }
+
+          $labelsRaw = & gh api "repos/$repo/issues/$env:PR_NUMBER/labels?per_page=100" 2>&1
+          if ($LASTEXITCODE -ne 0) { throw ($labelsRaw -join "`n") }
+          $riskLabels = @((($labelsRaw -join "`n") | ConvertFrom-Json) | ForEach-Object { $_.name } | Where-Object { $_ -match '^risk:R[0-4]$' })
+          if ($riskLabels.Count -gt 1) { throw "Multiple risk labels found: $($riskLabels -join ', ')" }
+          $risk = if ($riskLabels.Count -eq 1) { $riskLabels[0].Substring(5) } else { 'R2' }
+
+          try {
+            & pwsh -NoProfile -File .standard/scripts/auto-merge.ps1 -Repo $repo -Pr ([int]$env:PR_NUMBER) -Risk $risk
+            if ($LASTEXITCODE -ne 0) { throw "auto-merge.ps1 exited $LASTEXITCODE" }
+          }
+          catch {
+            $message = $_.Exception.Message
+            if ($message -match 'Auto-merge refused by justified control-plane gate|Auto-merge refused for R4|status:blocked') {
+              Write-Host "Auto-merge intentionally not armed: $message" -ForegroundColor Yellow
+              exit 0
+            }
+            throw
+          }
