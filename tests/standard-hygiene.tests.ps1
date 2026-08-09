@@ -39,6 +39,13 @@ Assert-Contains 'bridge job keeps legacy PR Gate context' '.github/workflows/ci.
 Assert-Contains 'bridge is fail-closed via needs' '.github/workflows/ci.yml' '(?s)pr-gate-bridge:.*?needs:\s*\[gate\]'
 Assert-Contains 'policy names the transition target context' 'policy/github-defaults.json' '"required_status_context_next"\s*:\s*"Gate: Deterministic CI"'
 Assert-Contains 'gate template carries taxonomy name and bridge' 'templates/PR_GATE.yml' '(?s)^name:\s*"Gate: Deterministic CI".*pr-gate-bridge:'
+# Ops lane: manual + weekly portfolio bootstrap that fails closed without the
+# dedicated automation identity (it writes live settings and rulesets).
+Assert-Contains 'ops bootstrap is dispatchable and scheduled' '.github/workflows/ops-portfolio-bootstrap.yml' '(?s)workflow_dispatch:.*schedule:'
+Assert-Contains 'ops bootstrap requires the automation identity' '.github/workflows/ops-portfolio-bootstrap.yml' 'AUTOMATION-IDENTITY-MISSING'
+Assert-Contains 'ops bootstrap uses the automation token' '.github/workflows/ops-portfolio-bootstrap.yml' 'secrets\.AUTOMATION_TOKEN'
+Assert-Contains 'ops bootstrap pins its checkout action' '.github/workflows/ops-portfolio-bootstrap.yml' 'actions/checkout@11d5960a326750d5838078e36cf38b85af677262'
+Assert-Contains 'ops bootstrap runs setup then remote doctor' '.github/workflows/ops-portfolio-bootstrap.yml' '(?s)setup-portfolio\.ps1.*doctor\.ps1 -Remote'
 Assert-Contains 'AI Review delegates to evaluator' '.github/workflows/ai-review-reusable.yml' 'scripts/evaluate-ai-review\.ps1'
 Assert-Contains 'AI Review requests bounded repair' '.github/workflows/ai-review-reusable.yml' 'scripts/request-review-repair\.ps1'
 Assert-Contains 'AI Review reconciles stale machine threads' '.github/workflows/ai-review-reusable.yml' 'scripts/reconcile-machine-review-threads\.ps1'
