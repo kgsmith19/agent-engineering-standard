@@ -44,7 +44,10 @@ Assert-Contains 'AI Review reacts to inline evidence' 'templates/AI_REVIEW.yml' 
 Assert-Contains 'AI Review can post bounded repair' 'templates/AI_REVIEW.yml' 'issues:\s*write'
 Assert-NotContains 'AI Review does not run on ordinary pull-request pushes' 'templates/AI_REVIEW.yml' '(?m)^\s*pull_request:'
 Assert-Contains 'product AI Review ignores ordinary issue comments' 'templates/AI_REVIEW.yml' 'AI-REVIEW PASS'
-Assert-Contains 'watchdog runs before absolute review timeout' 'templates/PR_AUTOMATION.yml' 'cron:\s*"17 \*/6 \* \* \*"'
+# Expected cron updated 2026-08-09 with policy watchdog_interval_minutes 360->60:
+# the invariant is unchanged (template cron matches the policy interval and stays
+# under the absolute review timeout); only the pinned cadence moved to hourly.
+Assert-Contains 'watchdog runs hourly, before absolute review timeout' 'templates/PR_AUTOMATION.yml' 'cron:\s*"17 \* \* \* \*"'
 Assert-Contains 'review_requested cleanup is immediate' 'templates/PR_AUTOMATION.yml' 'review_requested'
 Assert-Contains 'gate automation can write AI Review' 'templates/PR_AUTOMATION.yml' '(?s)gate-result:.*?checks:\s*write'
 Assert-Contains 'review automation can remove reviewers' 'templates/PR_AUTOMATION.yml' '(?s)review-event:.*?pull-requests:\s*write'
