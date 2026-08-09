@@ -19,7 +19,7 @@ jobs:
       checks: write
       contents: read
       issues: read
-      pull-requests: read
+      pull-requests: write
     uses: ./.github/workflows/ai-review-reusable.yml
     with:
       pr_number: ${{ github.event.pull_request.number || github.event.issue.number }}
