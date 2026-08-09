@@ -53,6 +53,11 @@ if (-not (Test-Path $gitignorePath)) {
   }
 }
 
+$dependabotPath = Join-Path $target '.github/dependabot.yml'
+if (-not (Test-Path $dependabotPath)) {
+  Copy-Item (Join-Path $standardRoot 'templates/dependabot.yml') $dependabotPath -Force
+}
+
 Copy-Item (Join-Path $standardRoot 'templates/AGENTS.md') (Join-Path $target 'AGENTS.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/PRD.md') (Join-Path $target 'PRD.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/ISSUE.md') (Join-Path $target '.github/ISSUE_TEMPLATE/work-item.md') -Force
@@ -111,6 +116,7 @@ Replace the bootstrap-only PR Gate with the smallest objective gate appropriate 
 - Detect and record verified build/test/type/lint/E2E commands in `.agent/project.yaml`.
 - Replace `.github/workflows/pr-gate.yml` so `PR Gate` executes the cheapest sufficient independent evidence.
 - Preserve `.github/workflows/ai-review.yml` so the required exact-head `AI Review` context continues to run.
+- Extend `.github/dependabot.yml` only with package ecosystems this repo actually uses; group patch/minor updates when it reduces CI/review noise and keep majors separate unless compatibility evidence justifies a batch.
 - Extend `.github/CODEOWNERS` with the small repo-specific gate entrypoints whose weakening could make `PR Gate` falsely green; keep the canonical control-plane ownership rules as the final non-comment rules.
 - Keep draft iteration local; ready PR and `merge_group` must produce the real `PR Gate`.
 - Add only tests/tools justified by actual product risk; do not invent a framework just for conformity.
