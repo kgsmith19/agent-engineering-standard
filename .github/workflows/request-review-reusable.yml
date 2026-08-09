@@ -1,0 +1,39 @@
+name: Reusable Independent Review Request
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: number
+
+jobs:
+  request-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ inputs.pr_number }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: kgsmith19/agent-engineering-standard
+          ref: main
+          path: .standard
+      - name: Request cheapest required independent review
+        shell: pwsh
+        run: |
+          $repo = $env:GITHUB_REPOSITORY
+          $prRaw = & gh api "repos/$repo/pulls/$env:PR_NUMBER" 2>&1
+          if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
+          $pr = ($prRaw -join "`n") | ConvertFrom-Json
+          if ($pr.state -ne 'open' -or $pr.draft) {
+            Write-Host 'Review request skipped: PR is closed or draft.'
+            exit 0
+          }
+          & pwsh -NoProfile -File .standard/scripts/request-independent-review.ps1 -Repo $repo -Pr ([int]$env:PR_NUMBER) -Provider auto
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
