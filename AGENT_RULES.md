@@ -76,14 +76,15 @@ The default semantic reviewer performs **one batched multi-lens pass**:
 3. business systems/operational optimization
 4. leanness/complexity/dead-code/manual-toil review
 
-A second semantic pass is justified only after substantive fixes, unresolved ambiguity, or when ambiguous provenance requires the second connected provider.
+Additional semantic responses are paid only when the exact PR head changes or a reviewer returns a material failure.
 
 Cost rules:
 
 - deterministic checks before LLM review
 - Codex primary for Claude/Copilot/ambiguous work; local deep review defaults to `gpt-5.4-mini`
-- max 2 Codex response passes per PR: initial + one post-fix re-review
-- Copilot gets 1 response by default; exactly 1 additional recovery response is allowed only after Copilot returned a material FAIL
+- 1 semantic response per required provider is the normal path
+- hard cap: 3 responses per provider per PR across changed heads/fix cycles; after that, stop and split/restart the PR instead of looping
+- each exact head is requested at most once per provider
 - no default draft review or unlimited review-on-push spending
 - per-head request markers prevent duplicate requests
 - active implementation stays draft so noisy micro-pushes do not consume semantic review budget
