@@ -83,6 +83,33 @@ function Get-ActiveBlockCodes {
   }
   return @($active.Keys)
 }
+function Get-BlockAdvice {
+  # Machine-actionable next step per block code (FR-9); the marker comment stays
+  # the machine handle, this prose is for the human/agent reading the PR.
+  param([string]$Code)
+  $advice = @{
+    'draft-pr'='mark the PR Ready (agents must create PRs with draft:false); automation re-evaluates on the ready_for_review event.'
+    'copilot-owned-pr'='re-home this change into a non-Copilot branch and PR; GitHub requires human review and merge for Copilot-owned PRs.'
+    'fork-pr'='push the same change to a branch inside this repository and open a PR from it; fork heads never enter the unattended lane.'
+    'risk-labels'='leave exactly one risk:R0..R4 label on the PR; the block resolves on the next event.'
+    'ci-budget'='fix the failing gate manually (the bounded repair budget is spent) and push; the block clears on the next gate success.'
+    'conflict-budget'='resolve the merge conflict manually and push; the block clears when the head stops conflicting.'
+    'review-budget'='address the review findings manually and push a new head; the reviewed-head budget is spent.'
+    'ci-dispatch-disabled'='fix CI manually, or wait for dispatch to be enabled — the bounded repair lane then resumes and clears this block.'
+    'conflict-dispatch-disabled'='resolve the conflict manually, or wait for dispatch to be enabled — the repair lane then resumes and clears this block.'
+    'review-dispatch-disabled'='wait for dispatch to be enabled; the bounded review-repair lane resumes automatically.'
+    'auto-merge-settings'='reconcile live settings and ruleset — run the "Ops: Portfolio Bootstrap" workflow once AUTOMATION_TOKEN is provisioned, or scripts/setup-portfolio.ps1 locally — then any PR event re-arms.'
+    'automation-identity-missing'='provision the AUTOMATION_TOKEN / GH_TOKEN_ADMIN secret (owner authority); promotion retries on the next event.'
+    'review-request'='check reviewer connectivity and budgets, then re-trigger with a review event or wait for the watchdog.'
+    'review-fallback'='no independent fallback reviewer exists for this head; wait for the primary reviewer or adjust provider connectivity.'
+    'review-timeout'='the reviewer exceeded the absolute timeout; a later valid review event still recovers this PR automatically.'
+    'missing-pr-gate'='make the deterministic gate workflow trigger for this PR (check workflow name and trigger types), then push or re-run it.'
+    'workflow-approval'='disable the Copilot cloud-agent workflow-approval setting for this repository (one-time UI step), then re-run the gate.'
+    'gate-skipped'='fix the gate workflow trigger or job condition so a Ready PR always runs it, then push.'
+  }
+  if ($advice.ContainsKey($Code)) { return [string]$advice[$Code] }
+  return 'inspect the reason above, fix the underlying condition, and the next PR event re-evaluates.'
+}
 function Set-Blocked {
   param([int]$Number,[string]$Code,[string]$Reason,$PrData)
   if (-not $PrData) { $PrData = Get-Pr $Number }
@@ -90,8 +117,8 @@ function Set-Blocked {
   & gh pr edit $Number --repo $Repo --add-label $automation.blocked_label 2>&1 | Out-Null
   $head = [string]$PrData.headRefOid
   # While dispatch is disabled no comment @-mentions a human; the owner is named.
-  $body = if ($dispatchDisabled) { "AUTOMATION-BLOCKED (owner: $($config.owner)): $Reason`n`nThe owner is named for the decision without an @-mention while dispatch is disabled." }
-    else { "$ownerTag AUTOMATION-BLOCKED: $Reason`n`nYou are tagged for the decision, not assigned as a reviewer." }
+  $ownerReference = if ($dispatchDisabled) { "the owner ($($config.owner))" } else { $ownerTag }
+  $body = "Automation put this PR on hold ($Code): $Reason`n`nNext step: $(Get-BlockAdvice $Code)`n`nDecision contact: $ownerReference — named for the decision, never assigned as a reviewer."
   Add-CommentOnce $Number "<!-- automation:v1:block:${Code}:${head} -->" $body "<!-- automation:(?:v\d+:)?block:${Code}:${head} -->"
 }
 function Resolve-Block {
@@ -117,8 +144,8 @@ function Tag-Authority {
   param([int]$Number,[ValidateSet('control_plane','R4')][string]$Kind)
   $gate = $config.manual_gates.PSObject.Properties[$Kind].Value
   # While dispatch is disabled no comment @-mentions a human; the owner is named.
-  $header = if ($dispatchDisabled) { "AUTHORITY REQUIRED (owner: $($config.owner)): $Kind" } else { "$ownerTag AUTHORITY REQUIRED: $Kind" }
-  $trailer = if ($dispatchDisabled) { 'All machine checks still run. The owner is named without an @-mention while dispatch is disabled, and never assigned as a GitHub reviewer.' } else { 'All machine checks still run. You are tagged, never assigned as a GitHub reviewer.' }
+  $header = if ($dispatchDisabled) { "Authority needed from the owner ($($config.owner)) — $Kind" } else { "$ownerTag — authority needed: $Kind" }
+  $trailer = if ($dispatchDisabled) { 'Next step: review the evidence above and decide. All machine checks still run; the owner is named without an @-mention while dispatch is disabled and never assigned as a GitHub reviewer.' } else { 'Next step: review the evidence above and decide. All machine checks still run; you are tagged, never assigned as a GitHub reviewer.' }
   $body = @"
 $header
 
@@ -268,8 +295,14 @@ function Ensure-PrState {
     $reviewRun = Get-CheckRun $head 'Advisory: AI Review'
     if (-not $reviewRun -or -not (Test-CurrentDispatchEvidence -Summary ([string]$reviewRun.output.summary) -PolicyVersion ([int]$reviewPolicy.dispatch_policy_version))) { return $prData }
     if ([string]$reviewRun.conclusion -eq 'failure' -and (Test-BlockingAiReviewBody ([string]$reviewRun.output.summary))) { return $prData }
-    & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'auto-merge.ps1') -Repo $Repo -Pr $Number -Risk $risk
-    if ($LASTEXITCODE -ne 0) { Set-Blocked $Number 'auto-merge-settings' 'Auto-merge could not be armed. Reconcile live repository settings and ruleset with setup-portfolio.ps1.' $prData; return $prData }
+    $armOutput = @(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'auto-merge.ps1') -Repo $Repo -Pr $Number -Risk $risk 2>&1 | ForEach-Object { [string]$_ })
+    $armOutput | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+      # RC-I: a script failure must never masquerade as a bare policy refusal —
+      # the block quotes the underlying error line.
+      $armError = [string](@($armOutput | ForEach-Object { ($_ -replace "`e\[[0-9;]*m",'').Trim() } | Where-Object { $_ }) | Select-Object -Last 1)
+      Set-Blocked $Number 'auto-merge-settings' "Auto-merge could not be armed. Underlying error: $armError" $prData; return $prData
+    }
     $prData = Get-Pr $Number
     Resolve-Block $Number 'auto-merge-settings' 'Live settings and ruleset now allow GitHub auto-merge to be armed.' $prData
   }
@@ -315,8 +348,13 @@ function Run-ReviewCycle {
   if(-not $reviewSolicit -or [string]$reviewPolicy.dispatch_mode-eq'disabled_pending_e2e'){Complete-ReviewSuccess $Number;return}
   # A neutral (awaiting-review) conclusion is passing but must not suppress
   # solicitation: request first (self-deduping), then complete on the verdict.
-  & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto -ConfigPath $ConfigPath
-  if($LASTEXITCODE-ne 0){if($reviewRequired){Set-Blocked $Number 'review-request' 'No budgeted machine reviewer could be requested.' $prData;return};Complete-ReviewSuccess $Number;return}
+  $requestOutput=@(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto -ConfigPath $ConfigPath 2>&1|ForEach-Object{[string]$_})
+  $requestOutput|Out-Host
+  if($LASTEXITCODE-ne 0){
+    $requestError=[string](@($requestOutput|ForEach-Object{($_ -replace "`e\[[0-9;]*m",'').Trim()}|Where-Object{$_})|Select-Object -Last 1)
+    if($reviewRequired){Set-Blocked $Number 'review-request' "No budgeted machine reviewer could be requested. Underlying error: $requestError" $prData;return}
+    Complete-ReviewSuccess $Number;return
+  }
   if($reviewRequired){
     & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'pause-pending-review.ps1') -Repo $Repo -Pr $Number
     if($LASTEXITCODE-ne 0){throw'Could not pause auto-merge while machine review is pending.'}
@@ -330,8 +368,13 @@ function Run-ReviewCycle {
   if(Test-AiReviewPassingConclusion (Get-CheckConclusion ([string]$prData.headRefOid) 'Advisory: AI Review')){Complete-ReviewSuccess $Number;return}
   if(@(Get-ReviewFailures $Number (Get-Pr $Number)).Count-gt 0){return}
 
-  & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto -ConfigPath $ConfigPath
-  if($LASTEXITCODE-ne 0){if($reviewRequired){Set-Blocked $Number 'review-fallback' 'Primary machine review stalled and no fallback reviewer was available.' $prData};return}
+  $fallbackOutput=@(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto -ConfigPath $ConfigPath 2>&1|ForEach-Object{[string]$_})
+  $fallbackOutput|Out-Host
+  if($LASTEXITCODE-ne 0){
+    $fallbackError=[string](@($fallbackOutput|ForEach-Object{($_ -replace "`e\[[0-9;]*m",'').Trim()}|Where-Object{$_})|Select-Object -Last 1)
+    if($reviewRequired){Set-Blocked $Number 'review-fallback' "Primary machine review stalled and no fallback reviewer was available. Underlying error: $fallbackError" $prData}
+    return
+  }
   $result=Wait-ForReview $Number ([string]$prData.headRefOid) ([int]$reviewPolicy.fallback_wait_minutes)
   if($result-eq'success'){Complete-ReviewSuccess $Number}
 }

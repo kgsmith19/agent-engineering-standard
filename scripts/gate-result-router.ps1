@@ -42,6 +42,17 @@ function Add-TrustedCommentOnce {
   if ($LASTEXITCODE -ne 0) { throw "Could not comment on $Repo PR #$Pr." }
 }
 
+function Get-GateBlockAdvice {
+  param([string]$Code)
+  $advice = @{
+    'gate-rerun-exhausted'='inspect the workflow run for the repeated cancellation/staleness cause, fix it, and push or re-run manually; the bounded automatic rerun is spent.'
+    'gate-rerun-failed'='re-run the workflow manually from the Actions tab and fix whatever made GitHub refuse the automatic rerun.'
+    'gate-neutral'='make the deterministic gate produce success or an actionable failure; a neutral required gate cannot authorize a merge.'
+    'gate-unknown'='inspect the new conclusion value and teach Get-GateConclusionDecision an explicit decision for it.'
+  }
+  if ($advice.ContainsKey($Code)) { return [string]$advice[$Code] }
+  return 'inspect the reason above, fix the underlying condition, and the next gate run re-evaluates.'
+}
 function Set-GateBlock {
   param([string]$Code,[string]$Reason,$PrData)
   if ($PrData.autoMergeRequest) {
@@ -51,8 +62,8 @@ function Set-GateBlock {
   & gh pr edit $Pr --repo $Repo --add-label $automation.blocked_label 2>&1 | Out-Null
   if ($LASTEXITCODE -ne 0) { throw "Could not add $($automation.blocked_label) to $Repo PR #$Pr." }
   # While dispatch is disabled no comment @-mentions a human; the owner is named.
-  $body = if ($dispatchDisabled) { "AUTOMATION-BLOCKED (owner: $($config.owner)): $Reason`n`nThe owner is named for the decision without an @-mention while dispatch is disabled." }
-    else { "@$($config.owner) AUTOMATION-BLOCKED: $Reason`n`nYou are tagged for the decision, not assigned as a reviewer." }
+  $ownerReference = if ($dispatchDisabled) { "the owner ($($config.owner))" } else { "@$($config.owner)" }
+  $body = "Automation put this PR on hold ($Code): $Reason`n`nNext step: $(Get-GateBlockAdvice $Code)`n`nDecision contact: $ownerReference — named for the decision, never assigned as a reviewer."
   Add-TrustedCommentOnce "<!-- automation:v1:block:${Code}:$GateHeadSha -->" $body "<!-- automation:(?:v\d+:)?block:${Code}:$GateHeadSha -->"
 }
 

@@ -180,9 +180,17 @@ Assert-True 'orchestrator does not launch review repair' ($orchestrator -notmatc
 # repair lanes and the @dependabot rebase path, behind a recoverable block.
 Assert-True 'repair lanes honor disabled dispatch' ($orchestrator -match '\$Kind-dispatch-disabled')
 Assert-True 'repair dispatch block precedes any agent tag' ($orchestrator -match '(?s)function Request-Repair.*?dispatch-disabled.*?@copilot investigate and fix')
-Assert-True 'blocked comments name the owner without mention while disabled' ($orchestrator -match 'AUTOMATION-BLOCKED \(owner: ')
-Assert-True 'authority comments name the owner without mention while disabled' ($orchestrator -match 'AUTHORITY REQUIRED \(owner: ')
-Assert-Contains 'gate blocks name the owner without mention while disabled' 'scripts/gate-result-router.ps1' 'AUTOMATION-BLOCKED \(owner: '
+# Block/authority comments carry calm prose plus a machine-actionable next step,
+# never an alarm-caps header; disabled mode still avoids @-mentions, and a block
+# born from a script failure quotes the underlying error line (RC-I).
+Assert-True 'block comments carry per-code advice' ($orchestrator -match 'Next step: \$\(Get-BlockAdvice \$Code\)')
+Assert-True 'blocked comments avoid mentions while disabled' ($orchestrator -match "the owner \(\`$\(\`$config.owner\)\)")
+Assert-True 'authority comments carry a next step' ($orchestrator -match 'Next step: review the evidence above and decide')
+Assert-True 'arming failure quotes the underlying error' ($orchestrator -match 'Underlying error: \$armError')
+Assert-True 'review-request failure quotes the underlying error' ($orchestrator -match 'Underlying error: \$requestError')
+Assert-True 'orchestrator dropped alarm-caps block headers' ($orchestrator -notmatch 'AUTOMATION-BLOCKED')
+Assert-Contains 'gate blocks carry per-code advice' 'scripts/gate-result-router.ps1' 'Next step: \$\(Get-GateBlockAdvice \$Code\)'
+Assert-NotContains 'router dropped alarm-caps block headers' 'scripts/gate-result-router.ps1' 'AUTOMATION-BLOCKED'
 Assert-True 'orchestrator recognizes neutral AI Review as passing' ($orchestrator -match 'Test-AiReviewPassingConclusion')
 foreach ($field in @('max_ci_fix_attempts','max_review_fix_attempts','max_conflict_fix_attempts')) { Assert-True "orchestrator uses $field" ($orchestrator -match $field) }
 
