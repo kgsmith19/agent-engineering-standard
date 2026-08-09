@@ -2,11 +2,11 @@ name: AI Review Gate
 
 on:
   pull_request_review:
-    types: [submitted, dismissed]
+    types: [submitted, edited, dismissed]
   pull_request_review_comment:
     types: [created, edited, deleted]
   issue_comment:
-    types: [created, edited]
+    types: [created, edited, deleted]
 
 concurrency:
   group: ai-review-${{ github.repository }}-${{ github.event.pull_request.number || github.event.issue.number }}
