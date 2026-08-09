@@ -67,13 +67,32 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:
+      actions: read
       contents: read
       issues: write
       pull-requests: read
     env:
       GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+      GATE_RUN_ID: ${{ github.event.workflow_run.id }}
     steps:
+      - name: Verify successful gate belongs to current PR head
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $repo = $env:GITHUB_REPOSITORY
+          $runRaw = & gh api "repos/$repo/actions/runs/$env:GATE_RUN_ID" 2>&1
+          if ($LASTEXITCODE -ne 0) { throw ($runRaw -join "`n") }
+          $gateRun = ($runRaw -join "`n") | ConvertFrom-Json
+
+          $prRaw = & gh api "repos/$repo/pulls/$env:PR_NUMBER" 2>&1
+          if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
+          $pr = ($prRaw -join "`n") | ConvertFrom-Json
+
+          if ($gateRun.head_sha -ne $pr.head.sha) {
+            Write-Host "Ignoring stale PR Gate run $env:GATE_RUN_ID for $($gateRun.head_sha); current head is $($pr.head.sha)."
+            exit 0
+          }
       - name: Checkout trusted standard
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
