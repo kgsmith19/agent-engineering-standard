@@ -87,7 +87,8 @@ if ($passes.Count -gt 0) {
 
 $requestHeads = @{}
 foreach ($comment in $comments) {
-  if ([string]$comment.body -match 'ai-review-request:(?:codex|copilot):([0-9a-f]{40})') { $requestHeads[$Matches[1]] = $true }
+  if ((Test-TrustedAutomationComment -Comment $comment -OwnerLogin ([string]$config.owner)) -and
+      [string]$comment.body -match 'ai-review-request:(?:codex|copilot):([0-9a-f]{40})') { $requestHeads[$Matches[1]] = $true }
 }
 if (-not $requestHeads.ContainsKey($headSha) -and $requestHeads.Count -ge [int]$reviewPolicy.max_review_heads_per_pr) {
   throw "Machine-review head budget exhausted ($($reviewPolicy.max_review_heads_per_pr))."
@@ -95,14 +96,18 @@ if (-not $requestHeads.ContainsKey($headSha) -and $requestHeads.Count -ge [int]$
 
 if ($Provider -eq 'auto') {
   $preferredMarker = "<!-- ai-review-request:${preferred}:$headSha -->"
-  $preferredRequest = @($comments | Where-Object { [string]$_.body -like "*$preferredMarker*" } | Sort-Object created_at | Select-Object -Last 1)
+  $preferredRequest = @($comments | Where-Object {
+    (Test-TrustedAutomationComment -Comment $_ -OwnerLogin ([string]$config.owner)) -and [string]$_.body -like "*$preferredMarker*"
+  } | Sort-Object created_at | Select-Object -Last 1)
   if ($preferredRequest.Count -eq 0) {
     $Provider = $preferred
   }
   elseif ($preferred -eq 'codex' -and $acceptedProviders -contains 'copilot' -and $reviewPolicy.fallback_provider -eq 'copilot') {
     $age = [datetimeoffset]::UtcNow - [datetimeoffset]$preferredRequest[0].created_at
     $fallbackMarker = "<!-- ai-review-request:copilot:$headSha -->"
-    if ($age.TotalMinutes -ge [int]$reviewPolicy.review_stall_minutes -and @($comments | Where-Object { [string]$_.body -like "*$fallbackMarker*" }).Count -eq 0) {
+    if ($age.TotalMinutes -ge [int]$reviewPolicy.review_stall_minutes -and @($comments | Where-Object {
+      (Test-TrustedAutomationComment -Comment $_ -OwnerLogin ([string]$config.owner)) -and [string]$_.body -like "*$fallbackMarker*"
+    }).Count -eq 0) {
       $Provider = 'copilot'
     } else {
       Write-Host "MACHINE REVIEW PENDING: $preferred already requested for $headSha" -ForegroundColor Yellow

@@ -66,6 +66,7 @@ Assert-Contains 'standard review_requested cleanup is immediate' '.github/workfl
 Assert-Contains 'standard review orchestration uses trusted base code' '.github/workflows/pr-automation.yml' 'github\.event\.pull_request\.base\.sha'
 
 Assert-Contains 'review policy derives latest-head implementer' 'scripts/lib/review-policy.ps1' 'Get-HeadImplementerProvider'
+Assert-Contains 'automation markers require trusted authors' 'scripts/lib/review-policy.ps1' 'Test-TrustedAutomationComment'
 Assert-Contains 'review policy returns independent providers' 'scripts/lib/review-policy.ps1' 'Get-AcceptedMachineReviewProviders'
 Assert-Contains 'review policy centralizes repair decision' 'scripts/lib/review-policy.ps1' 'Get-ReviewRepairDecision'
 Assert-Contains 'review request reads current head commit' 'scripts/request-machine-review.ps1' 'repos/\$Repo/commits/\$headSha'

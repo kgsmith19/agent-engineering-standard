@@ -18,6 +18,13 @@ Assert-Equal 'Copilot review bot recognized' (Get-MachineReviewProvider 'copilot
 Assert-Equal 'Copilot coding agent recognized' (Get-MachineReviewProvider 'copilot-swe-agent[bot]') 'copilot'
 Assert-Equal 'Unknown reviewer ignored' (Get-MachineReviewProvider 'random-bot[bot]') $null
 
+$actionsComment = [pscustomobject]@{ user = [pscustomobject]@{ login = 'github-actions[bot]' } }
+$ownerComment = [pscustomobject]@{ user = [pscustomobject]@{ login = 'kgsmith19' } }
+$untrustedComment = [pscustomobject]@{ user = [pscustomobject]@{ login = 'random-user' } }
+Assert-Equal 'Actions marker trusted' (Test-TrustedAutomationComment -Comment $actionsComment -OwnerLogin 'kgsmith19') $true
+Assert-Equal 'Owner marker trusted' (Test-TrustedAutomationComment -Comment $ownerComment -OwnerLogin 'kgsmith19') $true
+Assert-Equal 'Ordinary commenter marker rejected' (Test-TrustedAutomationComment -Comment $untrustedComment -OwnerLogin 'kgsmith19') $false
+
 Assert-Equal 'Unknown human head has no machine implementer' (Get-HeadImplementerProvider -HeadAuthorLogin 'kgsmith19') $null
 Assert-Equal 'Latest Copilot commit is detected' (Get-HeadImplementerProvider -HeadAuthorLogin 'Copilot') 'copilot'
 Assert-Equal 'Latest Codex commit is detected' (Get-HeadImplementerProvider -HeadCommitterLogin 'chatgpt-codex-connector[bot]') 'codex'

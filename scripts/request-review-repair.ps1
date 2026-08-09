@@ -33,6 +33,7 @@ function Get-ActiveBlockCodes {
   param($Comments)
   $active = @{}
   foreach ($comment in @($Comments | Sort-Object created_at)) {
+    if (-not (Test-TrustedAutomationComment -Comment $comment -OwnerLogin ([string]$config.owner))) { continue }
     $body = [string]$comment.body
     if ($body -match '<!-- automation:block:([a-z0-9-]+):[0-9a-f]{40} -->') { $active[$Matches[1]] = $true }
     elseif ($body -match '<!-- automation:resolve:([a-z0-9-]+):[0-9a-f]{40} -->') { $active.Remove($Matches[1]) }
@@ -92,7 +93,8 @@ foreach ($comment in $comments) {
 
 $attemptedHeads = New-Object System.Collections.Generic.List[string]
 foreach ($comment in $comments) {
-  if ([string]$comment.body -match '<!-- auto-fix:review:([0-9a-f]{40}):\d+ -->' -and -not $attemptedHeads.Contains($Matches[1])) {
+  if ((Test-TrustedAutomationComment -Comment $comment -OwnerLogin ([string]$config.owner)) -and
+      [string]$comment.body -match '<!-- auto-fix:review:([0-9a-f]{40}):\d+ -->' -and -not $attemptedHeads.Contains($Matches[1])) {
     $attemptedHeads.Add($Matches[1])
   }
 }

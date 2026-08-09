@@ -86,6 +86,11 @@ function Test-MaterialAiReviewBody {
   return $Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?P[0-2]\b[^\r\n]{0,120}?(?:\*\*)?\s*(?::|—)\s*\S'
 }
 
+function Test-TrustedAutomationComment {
+  param([Parameter(Mandatory)]$Comment,[Parameter(Mandatory)][string]$OwnerLogin)
+  return [string]$Comment.user.login -in @('github-actions[bot]', $OwnerLogin)
+}
+
 function Get-ReviewRepairDecision {
   param(
     [Parameter(Mandatory)][string]$HeadSha,

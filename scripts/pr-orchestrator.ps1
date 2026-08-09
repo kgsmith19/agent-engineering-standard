@@ -66,6 +66,7 @@ function Get-ActiveBlockCodes {
   param([int]$Number)
   $active = @{}
   foreach ($comment in @(Get-Comments $Number | Sort-Object created_at)) {
+    if (-not (Test-TrustedAutomationComment -Comment $comment -OwnerLogin ([string]$config.owner))) { continue }
     $body = [string]$comment.body
     if ($body -match '<!-- automation:block:([a-z0-9-]+):[0-9a-f]{40} -->') {
       $active[$Matches[1]] = $true
@@ -160,7 +161,10 @@ function Request-Repair {
     conflict = [int]$automation.max_conflict_fix_attempts
   }
   $comments = @(Get-Comments $Number)
-  $attempts = @($comments | Where-Object { [string]$_.body -match "<!-- auto-fix:${Kind}:" }).Count
+  $attempts = @($comments | Where-Object {
+    (Test-TrustedAutomationComment -Comment $_ -OwnerLogin ([string]$config.owner)) -and
+    [string]$_.body -match "<!-- auto-fix:${Kind}:"
+  }).Count
   if ($attempts -ge $limits[$Kind]) {
     Set-Blocked $Number "$Kind-budget" "$Kind repair budget exhausted ($($limits[$Kind]) )." $PrData
     return
@@ -226,6 +230,7 @@ function Get-CheckConclusion {
 function Get-FirstReviewRequestTime {
   param([int]$Number,[string]$Head)
   $requests = @(Get-Comments $Number | Where-Object {
+    (Test-TrustedAutomationComment -Comment $_ -OwnerLogin ([string]$config.owner)) -and
     [string]$_.body -match "ai-review-request:(?:codex|copilot):$Head"
   } | Sort-Object created_at)
   if ($requests.Count -eq 0) { return $null }
