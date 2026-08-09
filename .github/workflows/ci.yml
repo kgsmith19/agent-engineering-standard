@@ -45,6 +45,9 @@ jobs:
       - name: "Gate: Script Smoke Tests"
         shell: pwsh
         run: ./tests/script-smoke.tests.ps1
+      - name: "Gate: One-Pass Arming Test"
+        shell: pwsh
+        run: ./tests/gate-result-arming.tests.ps1
       - name: "Audit: PR Creation Lint"
         shell: pwsh
         run: ./scripts/lint-pr-creation.ps1
