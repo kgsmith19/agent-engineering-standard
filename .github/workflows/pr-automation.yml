@@ -1,0 +1,84 @@
+name: PR Automation
+
+on:
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, converted_to_draft, synchronize, labeled, unlabeled]
+  workflow_run:
+    workflows: ["PR Gate"]
+    types: [completed]
+  pull_request_review:
+    types: [submitted, dismissed]
+  issue_comment:
+    types: [created, edited]
+  schedule:
+    - cron: "17 * * * *"
+
+concurrency:
+  group: pr-automation-${{ github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.pull_requests[0].number || github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  pr-event:
+    if: github.event_name == 'pull_request_target'
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    uses: ./.github/workflows/pr-automation-reusable.yml
+    with:
+      mode: pr-event
+      pr_number: ${{ github.event.pull_request.number }}
+      standard_sha: ${{ github.sha }}
+
+  gate-result:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.pull_requests[0] != null
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    uses: ./.github/workflows/pr-automation-reusable.yml
+    with:
+      mode: gate-result
+      pr_number: ${{ github.event.workflow_run.pull_requests[0].number }}
+      gate_conclusion: ${{ github.event.workflow_run.conclusion }}
+      gate_head_sha: ${{ github.event.workflow_run.head_sha }}
+      gate_run_id: ${{ github.event.workflow_run.id }}
+      standard_sha: ${{ github.sha }}
+
+  review-event:
+    if: github.event_name == 'pull_request_review'
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    uses: ./.github/workflows/pr-automation-reusable.yml
+    with:
+      mode: review-event
+      pr_number: ${{ github.event.pull_request.number }}
+      standard_sha: ${{ github.sha }}
+
+  comment-event:
+    if: github.event_name == 'issue_comment' && github.event.issue.pull_request != null
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    uses: ./.github/workflows/pr-automation-reusable.yml
+    with:
+      mode: comment-event
+      pr_number: ${{ github.event.issue.number }}
+      standard_sha: ${{ github.sha }}
+
+  watchdog:
+    if: github.event_name == 'schedule'
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    uses: ./.github/workflows/pr-automation-reusable.yml
+    with:
+      mode: watchdog
+      standard_sha: ${{ github.sha }}
