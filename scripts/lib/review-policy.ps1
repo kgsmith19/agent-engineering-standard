@@ -1,4 +1,4 @@
-function Get-ReviewProviderFromLogin {
+function Get-MachineReviewProvider {
   param([Parameter(Mandatory)][string]$Login)
 
   $normalized = $Login.ToLowerInvariant()
@@ -7,39 +7,40 @@ function Get-ReviewProviderFromLogin {
   return $null
 }
 
-function Get-RequiredReviewProviders {
-  param([Parameter(Mandatory)][ValidateSet('chatgpt','claude','copilot','codex','human','unknown')][string]$Implementer)
+function Get-PreferredMachineReviewer {
+  param([string]$PrAuthorLogin = '')
 
-  switch ($Implementer) {
-    'codex' { return @('copilot') }
-    'chatgpt' { return @('copilot') }
-    'copilot' { return @('codex') }
-    'claude' { return @('codex') }
-    default { return @('codex','copilot') }
-  }
+  # A PR authored by the Codex GitHub app gets Copilot so the same GitHub agent
+  # identity cannot implement and review its own work. Everything else prefers
+  # the included/cheaper Codex review service; it is a fresh review task/session.
+  if ($PrAuthorLogin.ToLowerInvariant() -match '^chatgpt-codex-connector(?:\[bot\])?$') { return 'copilot' }
+  return 'codex'
 }
 
-function Get-PreferredIndependentReviewer {
-  param(
-    [Parameter(Mandatory)][ValidateSet('chatgpt','claude','copilot','codex','human','unknown')][string]$Implementer,
-    [bool]$CodexAvailable = $true,
-    [bool]$CopilotAvailable = $true
-  )
-
-  foreach ($provider in @(Get-RequiredReviewProviders -Implementer $Implementer)) {
-    if ($provider -eq 'codex' -and $CodexAvailable) { return 'codex' }
-    if ($provider -eq 'copilot' -and $CopilotAvailable) { return 'copilot' }
-  }
-  throw "No required connected reviewer is available for implementer '$Implementer'."
+function Test-MaterialAiReviewBody {
+  param([AllowNull()][string]$Body)
+  if ([string]::IsNullOrWhiteSpace($Body)) { return $false }
+  if ($Body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') { return $true }
+  # Codex/Copilot review bodies use P0/P1/P2 labels for material findings.
+  return $Body -match '(?im)(?:\*\*|\b)(P[0-2])(?:\s+Badge|\b\s*[:—-])'
 }
 
-function Test-IndependentReview {
-  param(
-    [Parameter(Mandatory)][ValidateSet('chatgpt','claude','copilot','codex','human','unknown')][string]$Implementer,
-    [Parameter(Mandatory)][ValidateSet('copilot','codex')][string]$ReviewerProvider
-  )
+function Get-RiskFromLabels {
+  param([string[]]$Labels)
+  $risk = @($Labels | Where-Object { $_ -match '^risk:R[0-4]$' })
+  if ($risk.Count -gt 1) { throw "Multiple risk labels found: $($risk -join ', ')" }
+  if ($risk.Count -eq 0) { return 'R2' }
+  return $risk[0].Substring(5)
+}
 
-  return @((Get-RequiredReviewProviders -Implementer $Implementer)) -contains $ReviewerProvider
+function Test-ControlPlanePath {
+  param([Parameter(Mandatory)][string]$Path)
+  $patterns = @(
+    '^\.github/workflows/', '^\.agent/', '^policy/', '^scripts/lib/',
+    '^scripts/(apply-github-standard|setup-portfolio|doctor|auto-merge|request-independent-review|pr-orchestrator|upgrade-repos|bootstrap-repo)\.ps1$',
+    '^(AGENT_RULES|QUALITY_RULES|SECURITY_RISK_AUTONOMY|DELIVERY_GITHUB|EVIDENCE_LEARNING|AGENTS)\.md$'
+  )
+  return [bool]($patterns | Where-Object { $Path -match $_ } | Select-Object -First 1)
 }
 
 function Assert-ManualGateJustification {
