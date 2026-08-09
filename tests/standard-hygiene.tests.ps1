@@ -10,7 +10,8 @@ foreach ($relative in @(
   '.gitignore',
   'scripts/prune-portfolio.ps1',
   'templates/.gitignore',
-  'templates/dependabot.yml'
+  'templates/dependabot.yml',
+  'templates/PR_AUTOMATION.yml'
 )) {
   Assert-True "required file $relative" (Test-Path (Join-Path $root $relative))
 }
@@ -40,6 +41,17 @@ if ($agentsLines -gt 120) { throw "templates/AGENTS.md exceeded lean 120-line bu
 $bootstrap = Get-Content (Join-Path $root 'scripts/bootstrap-repo.ps1') -Raw
 Assert-True 'bootstrap manages scratch ignore' ($bootstrap -match 'templates/\.gitignore')
 Assert-True 'bootstrap installs Dependabot default' ($bootstrap -match 'templates/dependabot\.yml')
+
+$prAutomation = Get-Content (Join-Path $root 'templates/PR_AUTOMATION.yml') -Raw
+Assert-True 'PR automation reacts to formal reviews' ($prAutomation -match '(?m)^\s*pull_request_review:\s*$')
+Assert-True 'PR automation reacts to structured review comments' ($prAutomation -match '(?m)^\s*issue_comment:\s*$')
+Assert-True 'PR automation chains only follow-up reviews' ($prAutomation -match '-FollowupOnly')
+Assert-True 'PR automation rejects stale gate heads' ($prAutomation -match 'gateRun\.head_sha\s+-ne\s+\$pr\.head\.sha')
+
+$requestReview = Get-Content (Join-Path $root 'scripts/request-independent-review.ps1') -Raw
+Assert-True 'review router exposes follow-up-only mode' ($requestReview -match '\[switch\]\$FollowupOnly')
+Assert-True 'review router stops on current-head failure' ($requestReview -match 'CURRENT-HEAD REQUIRED REVIEW FAILED')
+Assert-True 'review router requires a prior pass for follow-up' ($requestReview -match 'passedRequiredCount')
 
 $tokens = $null; $errors = $null
 [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'scripts/prune-portfolio.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
