@@ -34,17 +34,10 @@ jobs:
             } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
           }
 
-<<<<<<< HEAD
-          function Get-ProviderFromReviewer([string]$Login) {
-            $value = $Login.ToLowerInvariant()
-            if ($value -in @('chatgpt-codex-connector','chatgpt-codex-connector[bot]')) { return 'codex' }
-            if ($value -in @('copilot-pull-request-reviewer','copilot-pull-request-reviewer[bot]')) { return 'copilot' }
-=======
           function Get-ProviderFromLogin([string]$Login) {
             $value = $Login.ToLowerInvariant()
             if ($value -in @('chatgpt-codex-connector','chatgpt-codex-connector[bot]')) { return 'codex' }
             if ($value -in @('copilot-pull-request-reviewer','copilot-pull-request-reviewer[bot]','copilot','copilot-swe-agent[bot]')) { return 'copilot' }
->>>>>>> origin/main
             return $null
           }
 
@@ -70,30 +63,12 @@ jobs:
           $headSha = [string]$pr.head.sha
           $headRef = [string]$pr.head.ref
           $author = [string]$pr.user.login
-<<<<<<< HEAD
-          $prBody = [string]$pr.body
-=======
->>>>>>> origin/main
 
           if ($pr.draft) {
             Set-AiReviewCheck $headSha failure 'Draft PR: semantic review is intentionally deferred.'
             exit 0
           }
 
-<<<<<<< HEAD
-          # LLM identity is accepted only from controlled branch namespaces or recognized bot authors.
-          # Editable PR prose may identify a human implementation, but cannot self-attest an LLM provider.
-          $implementer = $null
-          if ($headRef -match '^agent/(codex|claude|copilot)/') { $implementer = $Matches[1].ToLowerInvariant() }
-          elseif ($headRef -match '^claude/') { $implementer = 'claude' }
-          elseif ($headRef -match '^copilot/' -or $author -eq 'Copilot') { $implementer = 'copilot' }
-          elseif ($author -match '^chatgpt-codex-connector(?:\[bot\])?$') { $implementer = 'codex' }
-          elseif ($prBody -match '(?im)^\s*Implementer:\s*human\s*$') { $implementer = 'human' }
-
-          if (-not $implementer) {
-            Set-AiReviewCheck $headSha failure 'Unknown implementation provenance. Agent PRs must use agent/<provider>/... or a recognized provider branch/author; human PRs must declare Implementer: human.'
-            exit 0
-=======
           # Agent provenance is mechanical. Ordinary user-authored branches are deliberately
           # ambiguous and therefore require BOTH connected providers before automated merge.
           $implementer = 'unknown'
@@ -108,31 +83,11 @@ jobs:
             'copilot' { @('codex') }
             'claude' { @('codex') }
             default { @('codex','copilot') }
->>>>>>> origin/main
           }
 
           $reviewsRaw = & gh api "repos/$repo/pulls/$prNumber/reviews?per_page=100" 2>&1
           if ($LASTEXITCODE -ne 0) { throw ($reviewsRaw -join "`n") }
           $reviews = @(($reviewsRaw -join "`n") | ConvertFrom-Json)
-<<<<<<< HEAD
-          $current = @($reviews | Where-Object {
-            $provider = Get-ProviderFromReviewer ([string]$_.user.login)
-            $_.commit_id -eq $headSha -and $_.state -notin @('DISMISSED','PENDING') -and $provider -and ($implementer -eq 'human' -or $provider -ne $implementer)
-          } | Sort-Object submitted_at)
-
-          if ($current.Count -eq 0) {
-            Set-AiReviewCheck $headSha failure "No current-head independent AI review exists for $headSha (implementer: $implementer)."
-            exit 0
-          }
-
-          $latest = $current[-1]
-          if ($latest.state -eq 'CHANGES_REQUESTED') {
-            Set-AiReviewCheck $headSha failure "Latest current-head independent review by $($latest.user.login) requests changes."
-            exit 0
-          }
-
-          Set-AiReviewCheck $headSha success "Current head $headSha has an independent review by $($latest.user.login); implementer: $implementer. Review-thread resolution is separately required by the branch ruleset."
-=======
 
           $commentsRaw = & gh api "repos/$repo/issues/$prNumber/comments?per_page=100" 2>&1
           if ($LASTEXITCODE -ne 0) { throw ($commentsRaw -join "`n") }
@@ -179,4 +134,3 @@ jobs:
 
           $proof = @($requiredProviders | ForEach-Object { "$_=$($passed[$_])" }) -join '; '
           Set-AiReviewCheck $headSha success "Current head $headSha satisfies required review providers for implementer=$implementer. $proof"
->>>>>>> origin/main
