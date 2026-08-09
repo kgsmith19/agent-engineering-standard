@@ -56,7 +56,10 @@ $review = $config.independent_review
 if ([bool]$review.required_for_auto_merge) { throw 'Machine review must remain advisory: the deterministic PR Gate is the sole required merge authority.' }
 if ([string]$review.dispatch_mode -notin @('disabled_pending_e2e','enabled')) { throw "Unknown review dispatch_mode '$($review.dispatch_mode)'." }
 if ([string]$review.dispatch_policy_version -notmatch '^[1-9][0-9]*$') { throw 'dispatch_policy_version must be a positive integer.' }
-if ($review.preferred_provider -ne 'codex' -or $review.fallback_provider -ne 'copilot') { throw 'Machine-review routing drifted.' }
+# RC-J: Copilot's repository access is revoked; codex is the sole connected
+# reviewer. The fallback lane stays in code but doctor tolerates blanking it.
+if ($review.preferred_provider -ne 'codex') { throw 'Machine-review routing drifted: codex must remain primary.' }
+if ([string]$review.fallback_provider -notin @('copilot','')) { throw "Unknown fallback provider '$($review.fallback_provider)'." }
 if ([int]$review.max_review_heads_per_pr -ne 2 -or [int]$review.primary_wait_minutes -le 0 -or [int]$review.fallback_wait_minutes -le 0 -or [int]$review.poll_seconds -le 0) { throw 'Machine-review budgets drifted.' }
 if ([int]$review.review_stall_minutes -ne 2) { throw 'Review stall window drifted from the approved 2 minutes.' }
 if ([int]$review.absolute_timeout_minutes -le ([int]$review.primary_wait_minutes + [int]$review.fallback_wait_minutes)) { throw 'Absolute review timeout must exceed fast polling windows.' }
