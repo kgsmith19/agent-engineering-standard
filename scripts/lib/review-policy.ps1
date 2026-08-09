@@ -129,7 +129,7 @@ function Test-ControlPlanePath {
   param([Parameter(Mandatory)][string]$Path)
   $patterns = @(
     '^\.github/workflows/', '^\.agent/', '^policy/', '^scripts/lib/',
-    '^scripts/(apply-github-standard|setup-portfolio|doctor|auto-merge|request-machine-review|request-review-repair|evaluate-ai-review|reconcile-machine-review-threads|pause-pending-review|pr-orchestrator|upgrade-repos|bootstrap-repo)\.ps1$',
+    '^scripts/(apply-github-standard|setup-portfolio|doctor|auto-merge|gate-result-router|request-machine-review|request-review-repair|evaluate-ai-review|reconcile-machine-review-threads|pause-pending-review|pr-orchestrator|upgrade-repos|bootstrap-repo)\.ps1$',
     '^(AGENT_RULES|QUALITY_RULES|SECURITY_RISK_AUTONOMY|DELIVERY_GITHUB|EVIDENCE_LEARNING|AGENTS)\.md$'
   )
   return [bool]($patterns | Where-Object { $Path -match $_ } | Select-Object -First 1)
