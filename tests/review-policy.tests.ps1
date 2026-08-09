@@ -51,6 +51,14 @@ Assert-Equal 'Bracketed markdown P2 bullet is material' (Test-MaterialAiReviewBo
 Assert-Equal 'No-findings prose is not material' (Test-MaterialAiReviewBody 'No P0-P2 findings. Everything is clean.') $false
 Assert-Equal 'Ordinary review prose is not material' (Test-MaterialAiReviewBody 'Looks good; no material issues found.') $false
 
+Assert-Equal 'No findings need no repair' (Get-ReviewRepairDecision -HeadSha 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' -AttemptedHeadShas @() -MaxAttempts 1 -HasFindings $false) 'none'
+Assert-Equal 'First finding head requests repair' (Get-ReviewRepairDecision -HeadSha 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' -AttemptedHeadShas @() -MaxAttempts 1 -HasFindings $true) 'request'
+Assert-Equal 'Same finding head remains pending instead of exhausting' (Get-ReviewRepairDecision -HeadSha 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' -AttemptedHeadShas @('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') -MaxAttempts 1 -HasFindings $true) 'pending'
+Assert-Equal 'Post-fix finding head exhausts one-repair budget' (Get-ReviewRepairDecision -HeadSha 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' -AttemptedHeadShas @('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') -MaxAttempts 1 -HasFindings $true) 'block'
+Assert-Throws 'Repair budget must be positive' {
+  Get-ReviewRepairDecision -HeadSha 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' -AttemptedHeadShas @() -MaxAttempts 0 -HasFindings $true
+}
+
 Assert-Equal 'No risk label defaults to R2' (Get-RiskFromLabels @()) 'R2'
 Assert-Equal 'Single risk label is parsed' (Get-RiskFromLabels @('risk:R3','status:ready')) 'R3'
 Assert-Throws 'Multiple risk labels fail closed' { Get-RiskFromLabels @('risk:R1','risk:R3') }
@@ -58,6 +66,7 @@ Assert-Throws 'Multiple risk labels fail closed' { Get-RiskFromLabels @('risk:R1
 Assert-Equal 'Workflow is control plane' (Test-ControlPlanePath '.github/workflows/pr-gate.yml') $true
 Assert-Equal 'Evaluator is control plane' (Test-ControlPlanePath 'scripts/evaluate-ai-review.ps1') $true
 Assert-Equal 'Review repair is control plane' (Test-ControlPlanePath 'scripts/request-review-repair.ps1') $true
+Assert-Equal 'Pending-review pause is control plane' (Test-ControlPlanePath 'scripts/pause-pending-review.ps1') $true
 Assert-Equal 'Thread reconciler is control plane' (Test-ControlPlanePath 'scripts/reconcile-machine-review-threads.ps1') $true
 Assert-Equal 'Ordinary product source is not control plane' (Test-ControlPlanePath 'src/feature.ts') $false
 
