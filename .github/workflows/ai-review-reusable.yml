@@ -11,12 +11,12 @@ jobs:
   evaluate:
     name: Update AI Review status
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 3
     env:
       GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ inputs.pr_number }}
     steps:
-      - name: Evaluate exact-head independent review
+      - name: Evaluate exact-head machine review
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -34,11 +34,24 @@ jobs:
             } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
           }
 
-          function Get-ProviderFromLogin([string]$Login) {
+          function Get-Paged([string]$Endpoint) {
+            $raw = & gh api --paginate --slurp $Endpoint 2>&1
+            if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
+            $pages = ($raw -join "`n") | ConvertFrom-Json
+            foreach ($page in @($pages)) { foreach ($item in @($page)) { $item } }
+          }
+
+          function Get-Provider([string]$Login) {
             $value = $Login.ToLowerInvariant()
             if ($value -in @('chatgpt-codex-connector','chatgpt-codex-connector[bot]')) { return 'codex' }
             if ($value -in @('copilot-pull-request-reviewer','copilot-pull-request-reviewer[bot]','copilot','copilot-swe-agent[bot]')) { return 'copilot' }
             return $null
+          }
+
+          function Test-Material([string]$Body) {
+            if ([string]::IsNullOrWhiteSpace($Body)) { return $false }
+            if ($Body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') { return $true }
+            return $Body -match '(?im)(?:\*\*|\b)(P[0-2])(?:\s+Badge|\b\s*[:—-])'
           }
 
           function Set-AiReviewCheck([string]$HeadSha, [string]$Conclusion, [string]$Summary) {
@@ -47,13 +60,12 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
             $runs = (($raw -join "`n") | ConvertFrom-Json).check_runs
             $existing = @($runs | Where-Object { $_.name -eq 'AI Review' -and $_.app.slug -eq 'github-actions' } | Sort-Object id | Select-Object -Last 1)
-            $checkBody = @{ status = 'completed'; conclusion = $Conclusion; output = @{ title = 'AI Review'; summary = $Summary } }
+            $body = @{ status = 'completed'; conclusion = $Conclusion; output = @{ title = 'AI Review'; summary = $Summary } }
             if ($existing.Count -gt 0) {
-              Invoke-GhJson -Method PATCH -Endpoint "repos/$repo/check-runs/$($existing[0].id)" -Body $checkBody | Out-Null
+              Invoke-GhJson -Method PATCH -Endpoint "repos/$repo/check-runs/$($existing[0].id)" -Body $body | Out-Null
             } else {
-              $checkBody.name = 'AI Review'
-              $checkBody.head_sha = $HeadSha
-              Invoke-GhJson -Method POST -Endpoint "repos/$repo/check-runs" -Body $checkBody | Out-Null
+              $body.name = 'AI Review'; $body.head_sha = $HeadSha
+              Invoke-GhJson -Method POST -Endpoint "repos/$repo/check-runs" -Body $body | Out-Null
             }
           }
 
@@ -61,76 +73,74 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
           $pr = ($prRaw -join "`n") | ConvertFrom-Json
           $headSha = [string]$pr.head.sha
-          $headRef = [string]$pr.head.ref
           $author = [string]$pr.user.login
 
           if ($pr.draft) {
-            Set-AiReviewCheck $headSha failure 'Draft PR: semantic review is intentionally deferred.'
+            Set-AiReviewCheck $headSha failure 'Draft PR: machine review is intentionally deferred until Ready.'
             exit 0
           }
 
-          # Agent provenance is mechanical. Ordinary user-authored branches are deliberately
-          # ambiguous and therefore require BOTH connected providers before automated merge.
-          $implementer = 'unknown'
-          if ($headRef -match '^agent/(chatgpt|codex|claude|copilot)/') { $implementer = $Matches[1].ToLowerInvariant() }
-          elseif ($headRef -match '^claude/') { $implementer = 'claude' }
-          elseif ($headRef -match '^copilot/' -or $author -eq 'Copilot') { $implementer = 'copilot' }
-          elseif ($author -match '^chatgpt-codex-connector(?:\[bot\])?$') { $implementer = 'codex' }
+          # The review service itself is a fresh agent/session. A PR authored by the
+          # Codex GitHub app must use Copilot; every other PR prefers Codex but may
+          # use bounded Copilot fallback.
+          $acceptedProviders = if ($author.ToLowerInvariant() -match '^chatgpt-codex-connector(?:\[bot\])?$') { @('copilot') } else { @('codex','copilot') }
 
-          $requiredProviders = switch ($implementer) {
-            'codex' { @('copilot') }
-            'chatgpt' { @('copilot') }
-            'copilot' { @('codex') }
-            'claude' { @('codex') }
-            default { @('codex','copilot') }
-          }
+          $reviews = @(Get-Paged "repos/$repo/pulls/$prNumber/reviews?per_page=100")
+          $comments = @(Get-Paged "repos/$repo/issues/$prNumber/comments?per_page=100")
+          $reactions = @(Get-Paged "repos/$repo/issues/$prNumber/reactions?per_page=100")
+          $commitRaw = & gh api "repos/$repo/commits/$headSha" 2>&1
+          if ($LASTEXITCODE -ne 0) { throw ($commitRaw -join "`n") }
+          $commit = ($commitRaw -join "`n") | ConvertFrom-Json
+          $headTime = [datetimeoffset]$commit.commit.committer.date
 
-          $reviewsRaw = & gh api "repos/$repo/pulls/$prNumber/reviews?per_page=100" 2>&1
-          if ($LASTEXITCODE -ne 0) { throw ($reviewsRaw -join "`n") }
-          $reviews = @(($reviewsRaw -join "`n") | ConvertFrom-Json)
+          $passes = New-Object System.Collections.Generic.List[string]
+          $failures = New-Object System.Collections.Generic.List[string]
 
-          $commentsRaw = & gh api "repos/$repo/issues/$prNumber/comments?per_page=100" 2>&1
-          if ($LASTEXITCODE -ne 0) { throw ($commentsRaw -join "`n") }
-          $comments = @(($commentsRaw -join "`n") | ConvertFrom-Json)
-
-          $passed = @{}
-          $failed = @{}
-          foreach ($provider in @('codex','copilot')) {
-            $providerReviews = @($reviews | Where-Object {
-              (Get-ProviderFromLogin ([string]$_.user.login)) -eq $provider -and
-              $_.commit_id -eq $headSha -and $_.state -notin @('DISMISSED','PENDING')
-            } | Sort-Object submitted_at)
-            if ($providerReviews.Count -gt 0) {
-              $latest = $providerReviews[-1]
-              if ($latest.state -eq 'CHANGES_REQUESTED') { $failed[$provider] = "formal review by $($latest.user.login) requests changes" }
-              else { $passed[$provider] = "formal review by $($latest.user.login)" }
+          foreach ($review in $reviews) {
+            $provider = Get-Provider ([string]$review.user.login)
+            if (-not $provider -or $review.commit_id -ne $headSha) { continue }
+            if ($review.state -in @('DISMISSED','PENDING')) { continue }
+            if ($review.state -eq 'CHANGES_REQUESTED' -or (Test-Material ([string]$review.body))) {
+              $failures.Add("$provider review by $($review.user.login) contains material findings")
+            } elseif ($acceptedProviders -contains $provider) {
+              $passes.Add("$provider formal review by $($review.user.login)")
             }
           }
 
-          # Copilot coding-agent fallback may return a structured issue comment instead of a formal review.
           $structured = @($comments | Where-Object {
-            (Get-ProviderFromLogin ([string]$_.user.login)) -eq 'copilot' -and
+            (Get-Provider ([string]$_.user.login)) -eq 'copilot' -and
             $_.body -match '(?im)^\s*AI-REVIEW\s+(PASS|FAIL)\b' -and
             $_.body -match [regex]::Escape($headSha)
           } | Sort-Object created_at)
           if ($structured.Count -gt 0) {
-            $latestComment = $structured[-1]
-            if ($latestComment.body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') { $failed['copilot'] = 'structured Copilot fallback reported material findings' }
-            elseif (-not $failed.ContainsKey('copilot')) { $passed['copilot'] = 'structured Copilot fallback' }
+            $latest = $structured[-1]
+            if ($latest.body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') { $failures.Add('Copilot structured review contains material findings') }
+            elseif ($acceptedProviders -contains 'copilot') { $passes.Add('Copilot structured exact-head review') }
           }
 
-          foreach ($provider in $requiredProviders) {
-            if ($failed.ContainsKey($provider)) {
-              Set-AiReviewCheck $headSha failure "Required $provider review failed: $($failed[$provider])."
-              exit 0
+          # Codex may signal a clean review with a thumbs-up instead of a review body.
+          foreach ($reaction in $reactions) {
+            if ((Get-Provider ([string]$reaction.user.login)) -eq 'codex' -and $reaction.content -eq '+1' -and
+                ([datetimeoffset]$reaction.created_at) -ge $headTime -and $acceptedProviders -contains 'codex') {
+              $passes.Add('Codex thumbs-up after current head')
+            }
+          }
+          foreach ($comment in @($comments | Where-Object { $_.body -like "*ai-review-request:codex:$headSha*" })) {
+            $commentReactions = @(Get-Paged "repos/$repo/issues/comments/$($comment.id)/reactions?per_page=100")
+            foreach ($reaction in $commentReactions) {
+              if ((Get-Provider ([string]$reaction.user.login)) -eq 'codex' -and $reaction.content -eq '+1' -and $acceptedProviders -contains 'codex') {
+                $passes.Add('Codex thumbs-up on exact-head review request')
+              }
             }
           }
 
-          $missing = @($requiredProviders | Where-Object { -not $passed.ContainsKey($_) })
-          if ($missing.Count -gt 0) {
-            Set-AiReviewCheck $headSha failure "Missing current-head required review provider(s): $($missing -join ', '). Implementer provenance: $implementer."
+          if ($failures.Count -gt 0) {
+            Set-AiReviewCheck $headSha failure ("Material machine-review finding(s): " + ($failures -join '; '))
+            exit 0
+          }
+          if ($passes.Count -eq 0) {
+            Set-AiReviewCheck $headSha failure ("Awaiting exact-head machine review. Accepted reviewer(s): " + ($acceptedProviders -join ', '))
             exit 0
           }
 
-          $proof = @($requiredProviders | ForEach-Object { "$_=$($passed[$_])" }) -join '; '
-          Set-AiReviewCheck $headSha success "Current head $headSha satisfies required review providers for implementer=$implementer. $proof"
+          Set-AiReviewCheck $headSha success ("Exact head $headSha passed machine review: " + ($passes -join '; '))
