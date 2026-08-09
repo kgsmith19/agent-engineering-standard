@@ -99,6 +99,10 @@ Assert-Equal 'Policy manages all 13 non-archived repositories' (@($config.reposi
 Assert-Equal 'Unreviewed canary auto-merge stops at R2' ([string]$config.auto_merge_max_risk) 'R2'
 Assert-Equal 'Primary review window is two minutes when dispatch is re-enabled' ([int]$config.independent_review.primary_wait_minutes) 2
 Assert-Equal 'Fallback review window is two minutes when dispatch is re-enabled' ([int]$config.independent_review.fallback_wait_minutes) 2
+Assert-Equal 'Review stall window is the approved two minutes' ([int]$config.independent_review.review_stall_minutes) 2
+Assert-Equal 'CI repair budget is the approved three attempts' ([int]$config.pr_automation.max_ci_fix_attempts) 3
+Assert-Equal 'Conflict repair budget is the approved two attempts' ([int]$config.pr_automation.max_conflict_fix_attempts) 2
+Assert-Equal 'Watchdog reconciles six-hourly' ([int]$config.pr_automation.watchdog_interval_minutes) 360
 
 Assert-Equal 'No risk label defaults to R2' (Get-RiskFromLabels @()) 'R2'
 Assert-Equal 'Single risk label is parsed' (Get-RiskFromLabels @('risk:R3','status:blocked')) 'R3'

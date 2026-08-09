@@ -336,9 +336,8 @@ function Handle-ReviewEvent {
   if(Test-AiReviewPassingConclusion (Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review')){Complete-ReviewSuccess $Number}
 }
 function Handle-Watchdog {
-  $raw=& gh pr list --repo $Repo --state open --limit 100 --json number 2>&1
-  if($LASTEXITCODE-ne 0){throw($raw-join"`n")}
-  foreach($item in @(($raw-join"`n")|ConvertFrom-Json)){
+  # Paginate every open PR: a capped list silently strands PRs past the cap.
+  foreach($item in @(Get-Paged "repos/$Repo/pulls?state=open&per_page=100")){
     $number=[int]$item.number
     try{
       if(Deny-ForkPr $number){continue}

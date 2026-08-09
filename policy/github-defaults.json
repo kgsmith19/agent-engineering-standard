@@ -24,7 +24,7 @@
     "preferred_provider": "codex",
     "fallback_provider": "copilot",
     "local_codex_model": "gpt-5.4-mini",
-    "review_stall_minutes": 3,
+    "review_stall_minutes": 2,
     "primary_wait_minutes": 2,
     "fallback_wait_minutes": 2,
     "absolute_timeout_minutes": 720,
@@ -36,11 +36,11 @@
   },
   "pr_automation": {
     "blocked_label": "status:blocked",
-    "max_ci_fix_attempts": 7,
+    "max_ci_fix_attempts": 3,
     "max_review_fix_attempts": 1,
-    "max_conflict_fix_attempts": 6,
+    "max_conflict_fix_attempts": 2,
     "max_gate_rerun_attempts": 1,
-    "watchdog_interval_minutes": 60
+    "watchdog_interval_minutes": 360
   },
   "manual_gate_required_fields": [
     "failure_class_prevented",

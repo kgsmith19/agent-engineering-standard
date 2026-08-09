@@ -50,15 +50,17 @@ if ([string]$review.dispatch_mode -notin @('disabled_pending_e2e','enabled')) { 
 if ([string]$review.dispatch_policy_version -notmatch '^[1-9][0-9]*$') { throw 'dispatch_policy_version must be a positive integer.' }
 if ($review.preferred_provider -ne 'codex' -or $review.fallback_provider -ne 'copilot') { throw 'Machine-review routing drifted.' }
 if ([int]$review.max_review_heads_per_pr -ne 2 -or [int]$review.primary_wait_minutes -le 0 -or [int]$review.fallback_wait_minutes -le 0 -or [int]$review.poll_seconds -le 0) { throw 'Machine-review budgets drifted.' }
+if ([int]$review.review_stall_minutes -ne 2) { throw 'Review stall window drifted from the approved 2 minutes.' }
 if ([int]$review.absolute_timeout_minutes -le ([int]$review.primary_wait_minutes + [int]$review.fallback_wait_minutes)) { throw 'Absolute review timeout must exceed fast polling windows.' }
 if ([bool]$review.review_drafts -or [bool]$review.review_on_every_push) { throw 'Draft/every-push AI review spend must remain off.' }
 
 $automation = $config.pr_automation
 if ($automation.PSObject.Properties.Name -contains 'draft_ready_label') { throw 'Draft promotion must not exist in strict ready-at-creation policy.' }
 if ($automation.blocked_label -ne 'status:blocked') { throw 'PR blocked-state label drifted.' }
-foreach ($pair in @(@('max_ci_fix_attempts',7),@('max_review_fix_attempts',1),@('max_conflict_fix_attempts',6))) {
+foreach ($pair in @(@('max_ci_fix_attempts',3),@('max_review_fix_attempts',1),@('max_conflict_fix_attempts',2))) {
   if ([int]$automation.PSObject.Properties[$pair[0]].Value -ne [int]$pair[1]) { throw "Repair budget drifted: $($pair[0])." }
 }
+if ([int]$automation.watchdog_interval_minutes -ne 360) { throw 'Watchdog cadence drifted from the approved six-hourly (360-minute) reconciliation.' }
 if ([int]$automation.watchdog_interval_minutes -ge [int]$review.absolute_timeout_minutes) { throw 'Watchdog cadence must be shorter than the configured absolute timeout.' }
 
 foreach ($gateName in @('control_plane','R4')) {
