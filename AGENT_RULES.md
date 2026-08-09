@@ -53,9 +53,10 @@ A later push invalidates both semantic authorization and any pending merge. The 
 
 ### Machine reviewer selection
 
-- A PR authored by the Codex GitHub App requires Copilot review.
-- Every other PR prefers a fresh Codex review task/session.
-- Copilot is the bounded fallback when Codex stalls.
+- The latest head commit's authenticated machine actor determines reviewer independence.
+- Copilot-implemented head → Codex review.
+- Codex-implemented head → Copilot review.
+- Human/unknown head → Codex primary with one Copilot fallback.
 - Branch names and editable PR prose are descriptive only; they are never trusted as implementation identity.
 - Claude may be added later only after a mechanical GitHub review adapter is implemented and verified.
 
@@ -67,18 +68,20 @@ The machine review batches these lenses into one response:
 4. systems/operational optimization
 5. strict leanness, complexity, dead code, and manual toil
 
-A clean formal review, structured exact-head Copilot PASS, or exact-head Codex thumbs-up can satisfy `AI Review`. Any material P0–P2 finding makes `AI Review` fail and triggers a bounded repair agent. A fix creates a new SHA, then the full gate/review cycle repeats.
+A clean formal review, structured exact-head Copilot PASS, or exact-head Codex thumbs-up can satisfy `AI Review`. Material P0–P2 findings in the review summary **or inline review comments** make `AI Review` fail and trigger one batched repair attempt. A fix creates the second and final reviewed SHA; if that head still has material findings, automation blocks instead of buying an indefinite review loop.
 
 ### Cost and retry bounds
 
 - deterministic checks run before model review
+- the AI Review runner wakes only when review evidence changes
 - no AI review for drafts or every micro-push
 - normal budget: initial reviewed head plus one post-fix reviewed head
 - CI repair: maximum 3 attempts
-- review repair: maximum 2 attempts
+- review repair: maximum 1 batched attempt
 - conflict repair: maximum 2 attempts
 - duplicate exact-head requests are suppressed
-- stalled Codex review may use one Copilot fallback
+- stalled Codex review may use one independent Copilot fallback
+- reviewer timeout is enforced by the low-frequency watchdog, not a permanent busy runner
 
 No routine path requests Kyle as a GitHub reviewer. Native `CODEOWNERS` is absent, required human approvals are `0`, and machine review is enforced through the `AI Review` status check.
 
