@@ -20,7 +20,6 @@ Idea
 → Draft PR
 → `status:ready`
 → `PR Gate`
-→ exact-head `AI Review`
 → automatic squash merge
 → Release / Runtime Proof
 → Observe / Learn
@@ -86,11 +85,10 @@ Managed repositories use:
 - GitHub Issues as durable work items
 - draft PRs during implementation
 - `status:ready` for automatic promotion to Ready
-- exact workflow and status names `PR Gate` and `AI Review`
+- exact workflow and status name `PR Gate` — the sole required context (machine review is advisory-only per ADR 0002)
 - zero required human approvals
 - no native `CODEOWNERS`
 - `kgsmith19` forbidden from requested-reviewer state
-- required review-thread resolution
 - stale reviews dismissed after a push
 - squash-only auto-merge
 - automatic branch deletion
@@ -99,7 +97,7 @@ Managed repositories use:
 
 Copilot cloud agent may repair an existing non-Copilot PR. Copilot-owned PRs are blocked from the unattended lane because GitHub requires them to be reviewed and merged by a human.
 
-R0–R3 may auto-merge after current-head `PR Gate` + `AI Review` and thread resolution. R4 and self-modifying control-plane changes retain explicitly justified authority gates; Kyle is tagged, never assigned as reviewer.
+R0–R3 may auto-merge after a current-head `PR Gate` success. R4 and self-modifying control-plane changes retain explicitly justified authority gates; Kyle is tagged, never assigned as reviewer.
 
 ## Shared versus repository-specific truth
 
