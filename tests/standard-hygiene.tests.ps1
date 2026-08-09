@@ -47,11 +47,22 @@ Assert-True 'PR automation reacts to formal reviews' ($prAutomation -match '(?m)
 Assert-True 'PR automation reacts to structured review comments' ($prAutomation -match '(?m)^\s*issue_comment:\s*$')
 Assert-True 'PR automation chains only follow-up reviews' ($prAutomation -match '-FollowupOnly')
 Assert-True 'PR automation rejects stale gate heads' ($prAutomation -match 'gateRun\.head_sha\s+-ne\s+\$pr\.head\.sha')
+Assert-True 'PR automation reconciles draft conversion' ($prAutomation -match 'converted_to_draft')
+Assert-True 'PR automation reconciles external auto-merge arming' ($prAutomation -match 'auto_merge_enabled')
+
+$autoMerge = Get-Content (Join-Path $root 'scripts/auto-merge.ps1') -Raw
+Assert-True 'auto-merge actively disarms ineligible PRs' ($autoMerge -match '--disable-auto')
+Assert-True 'auto-merge pins the validated head when arming' ($autoMerge -match '--match-head-commit\s+\$pr\.headRefOid')
+Assert-True 'auto-merge validates multiple risk labels itself' ($autoMerge -match 'multiple risk labels')
 
 $requestReview = Get-Content (Join-Path $root 'scripts/request-independent-review.ps1') -Raw
 Assert-True 'review router exposes follow-up-only mode' ($requestReview -match '\[switch\]\$FollowupOnly')
 Assert-True 'review router stops on current-head failure' ($requestReview -match 'CURRENT-HEAD REQUIRED REVIEW FAILED')
 Assert-True 'review router requires a prior pass for follow-up' ($requestReview -match 'passedRequiredCount')
+
+$doctor = Get-Content (Join-Path $root 'scripts/doctor.ps1') -Raw
+Assert-True 'doctor validates configured Project title per repo' ($doctor -match 'work-tracking Project title drift')
+Assert-True 'doctor validates Issues backing record per repo' ($doctor -match 'work-tracking backing record drift')
 
 $tokens = $null; $errors = $null
 [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'scripts/prune-portfolio.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
