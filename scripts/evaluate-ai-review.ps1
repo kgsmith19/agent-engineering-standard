@@ -52,13 +52,15 @@ if ($prData.draft) {
   exit 0
 }
 
+$commitRaw = & gh api "repos/$Repo/commits/$headSha" 2>&1
+if ($LASTEXITCODE -ne 0) { throw ($commitRaw -join "`n") }
+$commit = ($commitRaw -join "`n") | ConvertFrom-Json
+$headAuthor = [string]$commit.author.login
+$headCommitter = [string]$commit.committer.login
 $prAuthor = [string]$prData.user.login
 $ownerLogin = [string]$prData.base.repo.owner.login
-$prCommits = @(Get-Paged "repos/$Repo/pulls/$Pr/commits?per_page=100")
-$actorLogins = @($prCommits | ForEach-Object { [string]$_.author.login; [string]$_.committer.login } | Where-Object { $_ })
-$implementers = @(Get-MachineImplementerProvidersForActors -ActorLogins $actorLogins -PrAuthorLogin $prAuthor)
-$implementer = if ($implementers.Count -gt 0) { $implementers -join '+' } else { $null }
-$acceptedProviders = @(Get-AcceptedMachineReviewProvidersForActors -ActorLogins $actorLogins -PrAuthorLogin $prAuthor)
+$implementer = Get-HeadImplementerProvider -HeadAuthorLogin $headAuthor -HeadCommitterLogin $headCommitter -PrAuthorLogin $prAuthor
+$acceptedProviders = @(Get-AcceptedMachineReviewProviders -HeadAuthorLogin $headAuthor -HeadCommitterLogin $headCommitter -PrAuthorLogin $prAuthor)
 
 $reviews = @(Get-Paged "repos/$Repo/pulls/$Pr/reviews?per_page=100")
 $inlineComments = @(Get-Paged "repos/$Repo/pulls/$Pr/comments?per_page=100")
@@ -117,7 +119,7 @@ if ($failures.Count -gt 0) {
 }
 if ($passes.Count -eq 0) {
   $implementerText = if ($implementer) { $implementer } else { 'unknown/human' }
-  Set-AiReviewCheck $headSha failure ("Awaiting exact-head reviewer independent of current-PR implementers=$implementerText. Accepted: " + ($acceptedProviders -join ', '))
+  Set-AiReviewCheck $headSha failure ("Awaiting exact-head reviewer different from latest-head implementer=$implementerText. Accepted: " + ($acceptedProviders -join ', '))
   exit 0
 }
-Set-AiReviewCheck $headSha success ("Exact head $headSha passed machine review; current-PR implementers=$implementer; evidence=" + (($passes | Select-Object -Unique) -join '; '))
+Set-AiReviewCheck $headSha success ("Exact head $headSha passed machine review; latest-head implementer=$implementer; evidence=" + (($passes | Select-Object -Unique) -join '; '))

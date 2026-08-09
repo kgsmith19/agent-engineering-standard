@@ -2,7 +2,7 @@ name: PR Gate
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, edited]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   merge_group:
 
 permissions:

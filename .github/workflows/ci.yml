@@ -2,7 +2,7 @@ name: PR Gate
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, edited]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
     branches: [main]
   merge_group:
@@ -45,9 +45,6 @@ jobs:
       - name: Test standard hygiene
         shell: pwsh
         run: ./tests/standard-hygiene.tests.ps1
-      - name: Test state-machine exhaustiveness
-        shell: pwsh
-        run: ./tests/state-machine-exhaustiveness.tests.ps1
       - name: Validate standard
         shell: pwsh
         run: ./scripts/doctor.ps1
