@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
 function Assert-True {
-  param([string]$Name, $Condition)
+  param([string]$Name,$Condition)
   if (-not $Condition) { throw "$Name failed." }
 }
 
@@ -57,14 +57,45 @@ foreach ($templateName in @('AI_REVIEW.yml','PR_AUTOMATION.yml')) {
   Assert-True "$templateName does not follow moving main" ($template -notmatch '@main\b')
 }
 
+$prAutomationWorkflow = Get-Content (Join-Path $root 'templates/PR_AUTOMATION.yml') -Raw
+Assert-True 'watchdog is low frequency' ($prAutomationWorkflow -match 'cron:\s*"17 \*/12 \* \* \*"')
+Assert-True 'gate automation can write AI Review check' ($prAutomationWorkflow -match '(?s)gate-result:.*?checks:\s*write')
+Assert-True 'review automation can remove requested reviewers' ($prAutomationWorkflow -match '(?s)review-event:.*?pull-requests:\s*write')
+
+$orchestrator = Get-Content (Join-Path $root 'scripts/pr-orchestrator.ps1') -Raw
+Assert-True 'orchestrator removes forbidden reviewers' ($orchestrator -match 'requested_reviewers' -and $orchestrator -match 'forbidden_requested_reviewers')
+Assert-True 'orchestrator blocks Copilot-owned PRs' ($orchestrator -match 'copilot-owned-pr')
+Assert-True 'orchestrator uses Copilot only to repair existing PR' ($orchestrator -match '@copilot investigate and fix')
+Assert-True 'orchestrator has bounded CI repair' ($orchestrator -match 'max_ci_fix_attempts')
+Assert-True 'orchestrator has bounded review repair' ($orchestrator -match 'max_review_fix_attempts')
+Assert-True 'orchestrator has bounded conflict repair' ($orchestrator -match 'max_conflict_fix_attempts')
+
+$apply = Get-Content (Join-Path $root 'scripts/apply-github-standard.ps1') -Raw
+Assert-True 'ruleset dismisses stale reviews' ($apply -match 'dismiss_stale_reviews_on_push=\$true')
+Assert-True 'ruleset requires zero approvals' ($apply -match 'required_approving_review_count=0')
+Assert-True 'workflow token default is read-only' ($apply -match "default_workflow_permissions = 'read'")
+Assert-True 'workflow token cannot approve reviews' ($apply -match 'can_approve_pull_request_reviews = \$false')
+Assert-True 'legacy branch protection is deleted' ($apply -match 'branches/\$\(\$meta\.default_branch\)/protection')
+
 $bootstrap = Get-Content (Join-Path $root 'scripts/bootstrap-repo.ps1') -Raw
 Assert-True 'bootstrap manages scratch ignore' ($bootstrap -match 'templates/\.gitignore')
 Assert-True 'bootstrap installs Dependabot default' ($bootstrap -match 'templates/dependabot\.yml')
 Assert-True 'bootstrap installs AI Review caller' ($bootstrap -match 'templates/AI_REVIEW\.yml')
 Assert-True 'bootstrap installs PR Automation caller' ($bootstrap -match 'templates/PR_AUTOMATION\.yml')
-Assert-True 'bootstrap renders exact standard SHA' ($bootstrap -match "Replace\('__STANDARD_SHA__',\$standardSha\)")
+Assert-True 'bootstrap renders exact standard SHA' ($bootstrap -match 'Replace\(''__STANDARD_SHA__'',\$standardSha\)')
 Assert-True 'bootstrap does not overwrite PowerShell automatic args variable' ($bootstrap -notmatch '(?m)^\s*\$args\s*=')
-Assert-True 'bootstrap removes native CODEOWNERS' ($bootstrap -match "Remove-Item .*\.github/CODEOWNERS")
+Assert-True 'bootstrap removes native CODEOWNERS' ($bootstrap -match 'Remove-Item .*\.github/CODEOWNERS')
+
+$upgrade = Get-Content (Join-Path $root 'scripts/upgrade-repos.ps1') -Raw
+Assert-True 'upgrade installs AI Review caller' ($upgrade -match 'templates/AI_REVIEW\.yml')
+Assert-True 'upgrade installs PR Automation caller' ($upgrade -match 'templates/PR_AUTOMATION\.yml')
+Assert-True 'upgrade removes native CODEOWNERS' ($upgrade -match "Remove-Item '.github/CODEOWNERS'")
+Assert-True 'upgrade normalizes PR Gate workflow name' ($upgrade -match "name: PR Gate")
+
+$doctor = Get-Content (Join-Path $root 'scripts/doctor.ps1') -Raw
+Assert-True 'doctor checks Copilot workflow approval' ($doctor -match 'require_actions_workflow_approval')
+Assert-True 'doctor checks requested reviewers' ($doctor -match 'requested_reviewers')
+Assert-True 'doctor checks legacy protection absence' ($doctor -match 'legacy branch protection still present')
 
 $agentsLines = @(Get-Content (Join-Path $root 'templates/AGENTS.md')).Count
 if ($agentsLines -gt 120) { throw "templates/AGENTS.md exceeded lean 120-line budget: $agentsLines" }
@@ -72,7 +103,7 @@ if ($agentsLines -gt 120) { throw "templates/AGENTS.md exceeded lean 120-line bu
 $parseFailures = New-Object System.Collections.Generic.List[string]
 foreach ($file in @(Get-ChildItem (Join-Path $root 'scripts') -Recurse -Filter '*.ps1') + @(Get-ChildItem (Join-Path $root 'tests') -Recurse -Filter '*.ps1')) {
   $tokens = $null; $errors = $null
-  [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+  [System.Management.Automation.Language.Parser]::ParseFile($file.FullName,[ref]$tokens,[ref]$errors) | Out-Null
   foreach ($error in @($errors)) { $parseFailures.Add("$($file.FullName): $($error.Message)") }
 }
 if ($parseFailures.Count -gt 0) { throw "PowerShell parse failures:`n$($parseFailures -join "`n")" }
