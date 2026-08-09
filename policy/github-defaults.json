@@ -8,6 +8,9 @@
   "required_approving_review_count": 0,
   "require_code_owner_review": false,
   "native_codeowners": false,
+  "forbidden_requested_reviewers": [
+    "kgsmith19"
+  ],
   "required_review_thread_resolution": true,
   "merge_method": "squash",
   "allow_auto_merge": true,
