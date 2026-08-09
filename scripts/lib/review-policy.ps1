@@ -127,3 +127,14 @@ function Assert-ManualGateJustification {
   }
   return $true
 }
+
+function Invoke-WithAdminToken {
+  # GITHUB_TOKEN cannot read admin repo settings/rulesets and its events never
+  # trigger downstream workflows; GH_TOKEN_ADMIN (fine-grained PAT, Administration:read)
+  # covers exactly those call sites. Falls back to the ambient token when unset.
+  param([Parameter(Mandatory)][scriptblock]$Action)
+  if ([string]::IsNullOrWhiteSpace($env:GH_TOKEN_ADMIN)) { return & $Action }
+  $previous = $env:GH_TOKEN
+  $env:GH_TOKEN = $env:GH_TOKEN_ADMIN
+  try { return & $Action } finally { $env:GH_TOKEN = $previous }
+}

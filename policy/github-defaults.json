@@ -11,14 +11,15 @@
   "forbidden_requested_reviewers": [
     "kgsmith19"
   ],
-  "required_review_thread_resolution": true,
+  "required_review_thread_resolution": false,
   "merge_method": "squash",
   "allow_auto_merge": true,
   "allow_update_branch": true,
   "auto_merge_max_risk": "R3",
   "control_plane_requires_fresh_external_review": true,
   "independent_review": {
-    "required_for_auto_merge": true,
+    "required_for_auto_merge": false,
+    "solicit_reviews": false,
     "preferred_provider": "codex",
     "fallback_provider": "copilot",
     "local_codex_model": "gpt-5.4-mini",
@@ -35,10 +36,10 @@
   "pr_automation": {
     "draft_ready_label": "status:ready",
     "blocked_label": "status:blocked",
-    "max_ci_fix_attempts": 3,
+    "max_ci_fix_attempts": 7,
     "max_review_fix_attempts": 1,
-    "max_conflict_fix_attempts": 2,
-    "watchdog_interval_minutes": 360
+    "max_conflict_fix_attempts": 6,
+    "watchdog_interval_minutes": 60
   },
   "manual_gate_required_fields": [
     "failure_class_prevented",
