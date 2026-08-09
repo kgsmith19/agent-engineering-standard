@@ -1,0 +1,88 @@
+name: PR Automation
+
+on:
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, synchronize, labeled, unlabeled]
+  workflow_run:
+    workflows: ["PR Gate"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-automation-${{ github.repository }}-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  arm-auto-merge:
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Checkout trusted standard
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: kgsmith19/agent-engineering-standard
+          ref: main
+          path: .standard
+          persist-credentials: false
+      - name: Arm eligible auto-merge
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $repo = $env:GITHUB_REPOSITORY
+          $prRaw = & gh api "repos/$repo/pulls/$env:PR_NUMBER" 2>&1
+          if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
+          $pr = ($prRaw -join "`n") | ConvertFrom-Json
+          if ($pr.state -ne 'open' -or $pr.draft) { exit 0 }
+
+          $riskLabels = @($pr.labels | ForEach-Object { $_.name } | Where-Object { $_ -match '^risk:R[0-4]$' })
+          if ($riskLabels.Count -gt 1) { throw "Multiple risk labels found: $($riskLabels -join ', ')" }
+          $risk = if ($riskLabels.Count -eq 1) { $riskLabels[0].Substring(5) } else { 'R2' }
+
+          $output = & pwsh -NoProfile -File .standard/scripts/auto-merge.ps1 -Repo $repo -Pr ([int]$env:PR_NUMBER) -Risk $risk 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            $text = $output -join "`n"
+            if ($text -match 'Auto-merge refused by justified control-plane gate|Auto-merge refused for R4') {
+              Write-Host "Auto-merge intentionally not armed: $text" -ForegroundColor Yellow
+              exit 0
+            }
+            throw $text
+          }
+          $output | Out-Host
+
+  request-ai-review:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.pull_requests[0] != null
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+    steps:
+      - name: Checkout trusted standard
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: kgsmith19/agent-engineering-standard
+          ref: main
+          path: .standard
+          persist-credentials: false
+      - name: Request cheapest missing independent reviewer
+        shell: pwsh
+        run: |
+          & pwsh -NoProfile -File .standard/scripts/request-independent-review.ps1 -Repo $env:GITHUB_REPOSITORY -Pr ([int]$env:PR_NUMBER) -Provider auto
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
