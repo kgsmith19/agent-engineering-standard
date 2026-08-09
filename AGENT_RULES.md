@@ -6,7 +6,7 @@ Produce correct, useful software with minimum human attention, rework, cost, and
 
 ## 1. Work small
 
-Work one thin slice at a time.
+The portfolio GitHub Project is the planning/status surface. Execute work from its linked GitHub Issue backing record, one thin slice at a time.
 
 Before coding:
 
@@ -117,7 +117,7 @@ Repeated manual work must not become normal merely because an agent can keep doi
 
 ## 9. Isolated worktrees and parallel subagents
 
-Every write-capable task runs in one isolated worktree tied to its Issue or slice.
+Every write-capable task runs in one isolated worktree tied to its Project-backed Issue or slice.
 
 - Prefer a harness-native worktree when available; otherwise use `.worktrees/<branch>`.
 - Never share a worktree or working directory between concurrent write agents.
