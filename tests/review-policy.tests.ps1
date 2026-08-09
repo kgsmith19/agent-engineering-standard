@@ -21,12 +21,16 @@ Assert-Equal 'Codex implementation routes to Copilot' (Get-PreferredIndependentR
 Assert-Equal 'Unknown provenance starts with Codex' (Get-PreferredIndependentReviewer -Implementer unknown) 'codex'
 Assert-Equal 'Human/user-authored provenance starts with Codex' (Get-PreferredIndependentReviewer -Implementer human) 'codex'
 Assert-Throws 'Codex without Copilot is blocked instead of pretending Claude is connected' { Get-PreferredIndependentReviewer -Implementer codex -CopilotAvailable $false }
+Assert-Throws 'Unknown provenance never skips unavailable Codex to spend Copilot early' { Get-PreferredIndependentReviewer -Implementer unknown -CodexAvailable $false -CopilotAvailable $true }
 
 $unknownProviders = @(Get-RequiredReviewProviders -Implementer unknown)
 Assert-Equal 'Unknown provenance requires two providers' $unknownProviders.Count 2
 Assert-Equal 'Unknown first provider is Codex' $unknownProviders[0] 'codex'
 Assert-Equal 'Unknown second provider is Copilot' $unknownProviders[1] 'copilot'
 Assert-Equal 'ChatGPT requires Copilot specifically' (@(Get-RequiredReviewProviders -Implementer chatgpt)[0]) 'copilot'
+Assert-Equal 'Unknown with no passes requires Codex next' (Get-NextRequiredReviewProvider -RequiredProviders $unknownProviders) 'codex'
+Assert-Equal 'Unknown after Codex pass requires Copilot next' (Get-NextRequiredReviewProvider -RequiredProviders $unknownProviders -PassedProviders @('codex')) 'copilot'
+Assert-Equal 'Unknown after both passes needs no provider' (Get-NextRequiredReviewProvider -RequiredProviders $unknownProviders -PassedProviders @('codex','copilot')) $null
 
 Assert-Equal 'Codex bot login recognized' (Get-ReviewProviderFromLogin -Login 'chatgpt-codex-connector[bot]') 'codex'
 Assert-Equal 'Copilot bot login recognized' (Get-ReviewProviderFromLogin -Login 'copilot-pull-request-reviewer[bot]') 'copilot'
