@@ -24,13 +24,13 @@ if ($latest.Count -gt 0 -and $latest[0].conclusion -eq 'success') { exit 0 }
 $disableRaw = & gh pr merge $Pr --repo $Repo --disable-auto 2>&1
 if ($LASTEXITCODE -ne 0) { throw "Could not pause auto-merge for $Repo PR #$Pr. $($disableRaw -join ' ')" }
 
-$marker = "<!-- automation:review-pending:$head -->"
+$marker = "<!-- automation:v1:review-pending:$head -->"
 $commentsRaw = & gh api --paginate --slurp "repos/$Repo/issues/$Pr/comments?per_page=100" 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($commentsRaw -join "`n") }
 $pages = ($commentsRaw -join "`n") | ConvertFrom-Json
 $comments = @($pages | ForEach-Object { $_ })
 $existing = @($comments | Where-Object {
-  (Test-TrustedAutomationComment -Comment $_ -OwnerLogin ([string]$config.owner)) -and [string]$_.body -like "*$marker*"
+  (Test-TrustedAutomationComment -Comment $_ -OwnerLogin ([string]$config.owner)) -and [string]$_.body -match "<!-- automation:(?:v\d+:)?review-pending:$head -->"
 })
 if ($existing.Count -eq 0) {
   & gh pr comment $Pr --repo $Repo --body "AUTO-MERGE PAUSED: exact-head machine review is still pending. A later valid review event will re-evaluate policy and re-arm auto-merge automatically.`n`n$marker" | Out-Host

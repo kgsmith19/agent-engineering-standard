@@ -111,7 +111,7 @@ function Remove-ForbiddenReviewers {
   if ($forbidden.Count -eq 0) { return }
   Invoke-GhJson DELETE "repos/$Repo/pulls/$Number/requested_reviewers" @{ reviewers=$forbidden; team_reviewers=@() } | Out-Null
   $ownerReference = if ($dispatchDisabled) { "the owner ($($config.owner))" } else { $ownerTag }
-  Add-CommentOnce $Number '<!-- automation:removed-reviewers -->' "Removed forbidden requested reviewer(s): $($forbidden -join ', '). Routine automation may tag $ownerReference for authority, but never assigns Kyle as a reviewer."
+  Add-CommentOnce $Number '<!-- automation:v1:removed-reviewers -->' "Removed forbidden requested reviewer(s): $($forbidden -join ', '). Routine automation may tag $ownerReference for authority, but never assigns Kyle as a reviewer." '<!-- automation:(?:v\d+:)?removed-reviewers -->'
 }
 function Tag-Authority {
   param([int]$Number,[ValidateSet('control_plane','R4')][string]$Kind)
@@ -129,7 +129,7 @@ $header
 
 $trailer
 "@
-  Add-CommentOnce $Number "<!-- authority-required:$Kind -->" $body
+  Add-CommentOnce $Number "<!-- authority-required:v1:$Kind -->" $body "<!-- authority-required:(?:v\d+:)?$Kind -->"
 }
 function Get-ChangedFiles {
   param([int]$Number)

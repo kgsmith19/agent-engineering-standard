@@ -131,6 +131,12 @@ Assert-True 'automation blocks have recovery markers' ($orchestrator -match 'aut
 Assert-True 'orchestrator emits versioned block markers' ($orchestrator -match 'automation:v1:block:')
 Assert-True 'orchestrator reads legacy and versioned block markers' ($orchestrator -match 'automation:\(\?:v\\d\+:\)\?block:')
 Assert-True 'orchestrator emits versioned repair markers' ($orchestrator -match 'auto-fix:v1:')
+Assert-True 'orchestrator emits versioned reviewer-removal marker' ($orchestrator -match 'automation:v1:removed-reviewers')
+Assert-True 'orchestrator reads legacy reviewer-removal markers' ($orchestrator -match 'automation:\(\?:v\\d\+:\)\?removed-reviewers')
+Assert-True 'orchestrator emits versioned authority marker' ($orchestrator -match 'authority-required:v1:')
+Assert-True 'orchestrator reads legacy authority markers' ($orchestrator -match 'authority-required:\(\?:v\\d\+:\)\?')
+Assert-Contains 'pause lane emits versioned pending marker' 'scripts/pause-pending-review.ps1' 'automation:v1:review-pending:'
+Assert-Contains 'pause lane reads legacy pending markers' 'scripts/pause-pending-review.ps1' 'automation:\(\?:v\\d\+:\)\?review-pending:'
 Assert-Contains 'router emits versioned rerun markers' 'scripts/gate-result-router.ps1' 'auto-rerun:v1:gate:'
 Assert-Contains 'requester emits versioned request markers' 'scripts/request-machine-review.ps1' 'ai-review-request:v1:'
 Assert-Contains 'evaluator emits versioned advisory markers' 'scripts/evaluate-ai-review.ps1' 'ai-review-advisory:v1:'
