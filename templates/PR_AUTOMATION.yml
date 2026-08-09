@@ -2,7 +2,7 @@ name: PR Automation
 
 on:
   pull_request_target:
-    types: [opened, reopened, ready_for_review, synchronize, labeled, unlabeled]
+    types: [opened, reopened, ready_for_review, synchronize, converted_to_draft, edited, labeled, unlabeled, auto_merge_enabled]
   workflow_run:
     workflows: ["PR Gate"]
     types: [completed]
@@ -19,8 +19,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  arm-auto-merge:
-    if: github.event_name == 'pull_request_target' && github.event.pull_request.draft == false
+  reconcile-auto-merge:
+    if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:
@@ -37,7 +37,7 @@ jobs:
           ref: main
           path: .standard
           persist-credentials: false
-      - name: Arm eligible auto-merge
+      - name: Reconcile eligible auto-merge
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -45,17 +45,16 @@ jobs:
           $prRaw = & gh api "repos/$repo/pulls/$env:PR_NUMBER" 2>&1
           if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
           $pr = ($prRaw -join "`n") | ConvertFrom-Json
-          if ($pr.state -ne 'open' -or $pr.draft) { exit 0 }
+          if ($pr.state -ne 'open') { exit 0 }
 
           $riskLabels = @($pr.labels | ForEach-Object { $_.name } | Where-Object { $_ -match '^risk:R[0-4]$' })
-          if ($riskLabels.Count -gt 1) { throw "Multiple risk labels found: $($riskLabels -join ', ')" }
           $risk = if ($riskLabels.Count -eq 1) { $riskLabels[0].Substring(5) } else { 'R2' }
 
           $output = & pwsh -NoProfile -File .standard/scripts/auto-merge.ps1 -Repo $repo -Pr ([int]$env:PR_NUMBER) -Risk $risk 2>&1
           if ($LASTEXITCODE -ne 0) {
             $text = $output -join "`n"
-            if ($text -match 'Auto-merge refused by justified control-plane gate|Auto-merge refused for R4') {
-              Write-Host "Auto-merge intentionally not armed: $text" -ForegroundColor Yellow
+            if ($text -match 'Auto-merge refused by justified control-plane gate|Auto-merge refused for R4|status:blocked|multiple risk labels|is draft') {
+              Write-Host "Auto-merge intentionally disarmed/not armed: $text" -ForegroundColor Yellow
               exit 0
             }
             throw $text
