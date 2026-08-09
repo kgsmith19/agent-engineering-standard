@@ -81,7 +81,7 @@ if (-not $requestHeads.ContainsKey($headSha) -and $requestHeads.Count -ge [int]$
 }
 
 if ($Provider -eq 'auto') {
-  $preferredMarker = "<!-- ai-review-request:$preferred:$headSha -->"
+  $preferredMarker = "<!-- ai-review-request:${preferred}:$headSha -->"
   $preferredRequest = @($comments | Where-Object { [string]$_.body -like "*$preferredMarker*" } | Sort-Object created_at | Select-Object -Last 1)
   if ($preferredRequest.Count -eq 0) {
     $Provider = $preferred
@@ -106,7 +106,7 @@ if ($acceptedProviders -notcontains $Provider) {
   throw "Reviewer '$Provider' is not independent of the latest head implementer. Accepted: $($acceptedProviders -join ', ')."
 }
 
-$marker = "<!-- ai-review-request:$Provider:$headSha -->"
+$marker = "<!-- ai-review-request:${Provider}:$headSha -->"
 if (@($comments | Where-Object { [string]$_.body -like "*$marker*" }).Count -gt 0) {
   Write-Host "MACHINE REVIEW ALREADY REQUESTED: $Provider for $headSha" -ForegroundColor Yellow
   exit 0
