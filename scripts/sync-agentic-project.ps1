@@ -1,5 +1,6 @@
 param(
-  [string]$ConfigPath = (Join-Path $PSScriptRoot "..\policy\github-defaults.json")
+  [string]$ConfigPath = (Join-Path $PSScriptRoot "..\policy\github-defaults.json"),
+  [string[]]$Repositories
 )
 
 $ErrorActionPreference = "Stop"
@@ -12,8 +13,10 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
 if ($LASTEXITCODE -ne 0) { throw "gh is not authenticated." }
 
 $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
+if ($config.work_tracking.system -ne 'github-projects') { throw "work_tracking.system must be 'github-projects'." }
 $owner = $config.owner
 $title = $config.project_title
+$targets = if ($Repositories -and $Repositories.Count -gt 0) { @($Repositories) } else { @($config.repositories) }
 
 $projectsRaw = & gh project list --owner $owner --format json 2>&1
 if ($LASTEXITCODE -ne 0) {
@@ -35,9 +38,9 @@ if (-not $project) { throw "Project '$title' could not be resolved after creatio
 $number = $project.number
 Write-Host "Using project #${number}: $title"
 
-foreach ($name in $config.repositories) {
-  $repo = "$owner/$name"
-  Write-Host "Syncing open issues from $repo"
+foreach ($name in $targets) {
+  $repo = if ($name -match '/') { $name } else { "$owner/$name" }
+  Write-Host "Syncing open work items from $repo"
   $issuesRaw = & gh issue list --repo $repo --state open --limit 100 --json url 2>&1
   if ($LASTEXITCODE -ne 0) {
     Write-Warning "Could not list issues for $repo"
@@ -53,4 +56,4 @@ foreach ($name in $config.repositories) {
   }
 }
 
-Write-Host "`nProject sync complete. GitHub Issues remain the source of truth; this project is only a cross-repo view." -ForegroundColor Green
+Write-Host "`nProject sync complete. '$title' is the portfolio operating workboard; GitHub Issues remain the durable backing records." -ForegroundColor Green
