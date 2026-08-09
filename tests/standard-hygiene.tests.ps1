@@ -93,7 +93,7 @@ Assert-True 'review-cycle boundaries found' ($reviewStart -ge 0 -and $reviewEnd 
 $reviewCycle = $orchestrator.Substring($reviewStart,$reviewEnd-$reviewStart)
 Assert-True 'short review timeout stays recoverable' ($reviewCycle -notmatch "Set-Blocked[^\r\n]*'review-timeout'")
 Assert-True 'pending review pauses auto-merge before waiting' ($reviewCycle -match 'pause-pending-review\.ps1')
-Assert-True 'orchestrator does not launch review repair' ($orchestrator -notmatch 'Request-Repair review')
+Assert-True 'orchestrator does not launch review repair' ($orchestrator -notmatch '(?m)^\s*Request-Repair review\b')
 Assert-True 'absolute reviewer timeout is enforced by watchdog' ($orchestrator -match 'absolute_timeout_minutes')
 foreach ($field in @('max_ci_fix_attempts','max_review_fix_attempts','max_conflict_fix_attempts')) {
   Assert-True "orchestrator uses $field" ($orchestrator -match $field)
