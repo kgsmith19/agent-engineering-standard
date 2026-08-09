@@ -1,19 +1,10 @@
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
-function Assert-True {
-  param([string]$Name,$Condition)
-  if (-not $Condition) { throw "$Name failed." }
-}
+function Assert-True { param([string]$Name,$Condition) if (-not $Condition) { throw "$Name failed." } }
 function Read-Text { param([string]$Path) Get-Content (Join-Path $root $Path) -Raw }
-function Assert-Contains {
-  param([string]$Name,[string]$Path,[string]$Pattern)
-  Assert-True $Name ((Read-Text $Path) -match $Pattern)
-}
-function Assert-NotContains {
-  param([string]$Name,[string]$Path,[string]$Pattern)
-  Assert-True $Name ((Read-Text $Path) -notmatch $Pattern)
-}
+function Assert-Contains { param([string]$Name,[string]$Path,[string]$Pattern) Assert-True $Name ((Read-Text $Path) -match $Pattern) }
+function Assert-NotContains { param([string]$Name,[string]$Path,[string]$Pattern) Assert-True $Name ((Read-Text $Path) -notmatch $Pattern) }
 
 $required = @(
   '.gitignore','docs/AUTONOMOUS-PR-STATE-MACHINE.md',
@@ -26,15 +17,11 @@ Assert-True 'standard native CODEOWNERS absent' (-not (Test-Path (Join-Path $roo
 Assert-True 'bootstrap CODEOWNERS template absent' (-not (Test-Path (Join-Path $root 'templates/CODEOWNERS')))
 
 $textExtensions = @('.md','.ps1','.yml','.yaml','.json','.txt')
-$conflicts = Get-ChildItem $root -Recurse -File | Where-Object {
-  $_.FullName -notmatch '[\\/]\.git[\\/]' -and $textExtensions -contains $_.Extension.ToLowerInvariant()
-} | Select-String -Pattern '^(<<<<<<< .+|=======|>>>>>>> .+)$'
+$conflicts = Get-ChildItem $root -Recurse -File | Where-Object { $_.FullName -notmatch '[\\/]\.git[\\/]' -and $textExtensions -contains $_.Extension.ToLowerInvariant() } | Select-String -Pattern '^(<<<<<<< .+|=======|>>>>>>> .+)$'
 if ($conflicts) { throw "Raw merge-conflict markers found:`n$($conflicts -join "`n")" }
 
 $ignore = Read-Text 'templates/.gitignore'
-foreach ($entry in @('.worktrees/','.superpowers/')) {
-  Assert-True "gitignore contains $entry" ($ignore -match "(?m)^$([regex]::Escape($entry))\s*$")
-}
+foreach ($entry in @('.worktrees/','.superpowers/')) { Assert-True "gitignore contains $entry" ($ignore -match "(?m)^$([regex]::Escape($entry))\s*$") }
 Assert-Contains 'Dependabot v2' 'templates/dependabot.yml' '(?m)^version:\s*2\s*$'
 Assert-Contains 'Dependabot GitHub Actions ecosystem' 'templates/dependabot.yml' 'package-ecosystem:\s*github-actions'
 Assert-Contains 'Dependabot groups minor updates' 'templates/dependabot.yml' '(?m)^\s*-\s*minor\s*$'
@@ -67,17 +54,21 @@ Assert-Contains 'standard review orchestration uses trusted base code' '.github/
 
 Assert-Contains 'review policy derives latest-head implementer' 'scripts/lib/review-policy.ps1' 'Get-HeadImplementerProvider'
 Assert-Contains 'automation markers require trusted authors' 'scripts/lib/review-policy.ps1' 'Test-TrustedAutomationComment'
+Assert-Contains 'structured Copilot verdict requires trusted request' 'scripts/lib/review-policy.ps1' 'Get-TrustedStructuredCopilotReview'
 Assert-Contains 'review policy returns independent providers' 'scripts/lib/review-policy.ps1' 'Get-AcceptedMachineReviewProviders'
 Assert-Contains 'review policy centralizes repair decision' 'scripts/lib/review-policy.ps1' 'Get-ReviewRepairDecision'
 Assert-Contains 'review request reads current head commit' 'scripts/request-machine-review.ps1' 'repos/\$Repo/commits/\$headSha'
+Assert-Contains 'review requester authenticates structured Copilot verdict' 'scripts/request-machine-review.ps1' 'Get-TrustedStructuredCopilotReview'
 Assert-Contains 'fallback must be independent' 'scripts/request-machine-review.ps1' "acceptedProviders -contains 'copilot'"
 Assert-Contains 'review request blocks inline reviewer-shopping' 'scripts/request-machine-review.ps1' 'pulls/\$Pr/comments\?per_page=100'
 Assert-Contains 'evaluator reads current head commit' 'scripts/evaluate-ai-review.ps1' 'repos/\$Repo/commits/\$headSha'
 Assert-Contains 'evaluator uses independent providers' 'scripts/evaluate-ai-review.ps1' 'Get-AcceptedMachineReviewProviders'
-Assert-Contains 'evaluator trusts only authoritative review-request markers' 'scripts/evaluate-ai-review.ps1' 'Test-TrustedAutomationComment'
+Assert-Contains 'evaluator authenticates structured Copilot verdict' 'scripts/evaluate-ai-review.ps1' 'Get-TrustedStructuredCopilotReview'
+Assert-Contains 'evaluator trusts only authoritative Codex request markers' 'scripts/evaluate-ai-review.ps1' 'Test-TrustedAutomationComment'
 Assert-Contains 'evaluator checks inline comments' 'scripts/evaluate-ai-review.ps1' 'inline review comment'
 Assert-Contains 'repair script has bounded review budget' 'scripts/request-review-repair.ps1' 'max_review_fix_attempts'
 Assert-Contains 'repair script uses centralized decision' 'scripts/request-review-repair.ps1' 'Get-ReviewRepairDecision'
+Assert-Contains 'repair script authenticates structured Copilot verdict' 'scripts/request-review-repair.ps1' 'Get-TrustedStructuredCopilotReview'
 Assert-Contains 'repair script launches Copilot on existing PR' 'scripts/request-review-repair.ps1' '@copilot address all material machine-review findings'
 Assert-Contains 'repair exhaustion disables auto-merge' 'scripts/request-review-repair.ps1' '--disable-auto'
 
@@ -85,6 +76,7 @@ $orchestrator = Read-Text 'scripts/pr-orchestrator.ps1'
 Assert-True 'orchestrator removes forbidden reviewers' ($orchestrator -match 'requested_reviewers' -and $orchestrator -match 'forbidden_requested_reviewers')
 Assert-True 'orchestrator blocks Copilot-owned PRs' ($orchestrator -match 'copilot-owned-pr')
 Assert-True 'orchestrator uses Copilot only to repair existing PR' ($orchestrator -match '@copilot investigate and fix')
+Assert-True 'orchestrator authenticates structured Copilot failures' ($orchestrator -match 'Get-TrustedStructuredCopilotReview')
 Assert-True 'blocked state disables auto-merge' ($orchestrator -match '(?s)function Set-Blocked.*?Disable-AutoMerge')
 Assert-True 'automation blocks have recovery markers' ($orchestrator -match 'automation:resolve:')
 $reviewStart = $orchestrator.IndexOf('function Run-ReviewCycle')
@@ -93,11 +85,10 @@ Assert-True 'review-cycle boundaries found' ($reviewStart -ge 0 -and $reviewEnd 
 $reviewCycle = $orchestrator.Substring($reviewStart,$reviewEnd-$reviewStart)
 Assert-True 'short review timeout stays recoverable' ($reviewCycle -notmatch "Set-Blocked[^\r\n]*'review-timeout'")
 Assert-True 'pending review pauses auto-merge before waiting' ($reviewCycle -match 'pause-pending-review\.ps1')
+Assert-True 'primary clean review immediately completes and re-arms' ($reviewCycle -match "result-eq'success'\)\{Complete-ReviewSuccess")
 Assert-True 'orchestrator does not launch review repair' ($orchestrator -notmatch '(?m)^\s*Request-Repair review\b')
 Assert-True 'absolute reviewer timeout is enforced by watchdog' ($orchestrator -match 'absolute_timeout_minutes')
-foreach ($field in @('max_ci_fix_attempts','max_review_fix_attempts','max_conflict_fix_attempts')) {
-  Assert-True "orchestrator uses $field" ($orchestrator -match $field)
-}
+foreach ($field in @('max_ci_fix_attempts','max_review_fix_attempts','max_conflict_fix_attempts')) { Assert-True "orchestrator uses $field" ($orchestrator -match $field) }
 
 Assert-Contains 'thread reconciliation requires AI success' 'scripts/reconcile-machine-review-threads.ps1' "conclusion -ne 'success'"
 Assert-Contains 'current-head threads are preserved' 'scripts/reconcile-machine-review-threads.ps1' 'currentHead'
@@ -133,10 +124,9 @@ if ($agentsLines -gt 120) { throw "templates/AGENTS.md exceeded lean 120-line bu
 
 $parseFailures = New-Object System.Collections.Generic.List[string]
 foreach ($file in @(Get-ChildItem (Join-Path $root 'scripts') -Recurse -Filter '*.ps1') + @(Get-ChildItem (Join-Path $root 'tests') -Recurse -Filter '*.ps1')) {
-  $tokens = $null; $errors = $null
-  [System.Management.Automation.Language.Parser]::ParseFile($file.FullName,[ref]$tokens,[ref]$errors) | Out-Null
-  foreach ($error in @($errors)) { $parseFailures.Add("$($file.FullName): $($error.Message)") }
+  $tokens=$null;$errors=$null
+  [System.Management.Automation.Language.Parser]::ParseFile($file.FullName,[ref]$tokens,[ref]$errors)|Out-Null
+  foreach($error in @($errors)){$parseFailures.Add("$($file.FullName): $($error.Message)")}
 }
-if ($parseFailures.Count -gt 0) { throw "PowerShell parse failures:`n$($parseFailures -join "`n")" }
-
+if($parseFailures.Count-gt 0){throw"PowerShell parse failures:`n$($parseFailures -join "`n")"}
 Write-Host 'standard-hygiene tests: PASS' -ForegroundColor Green
