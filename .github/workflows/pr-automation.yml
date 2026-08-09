@@ -6,12 +6,16 @@ on:
   workflow_run:
     workflows: ["PR Gate"]
     types: [completed]
+  pull_request_review:
+    types: [submitted]
+  issue_comment:
+    types: [created, edited]
 
 permissions:
   contents: read
 
 concurrency:
-  group: pr-automation-${{ github.repository }}-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.run_id }}
+  group: pr-automation-${{ github.repository }}-${{ github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.pull_requests[0].number || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -109,4 +113,31 @@ jobs:
         shell: pwsh
         run: |
           & pwsh -NoProfile -File .standard/scripts/request-independent-review.ps1 -Repo $env:GITHUB_REPOSITORY -Pr ([int]$env:PR_NUMBER) -Provider auto
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  request-followup-ai-review:
+    if: >-
+      (github.event_name == 'pull_request_review' && github.event.action == 'submitted') ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+    steps:
+      - name: Checkout trusted standard
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: kgsmith19/agent-engineering-standard
+          ref: main
+          path: .standard
+          persist-credentials: false
+      - name: Request next provider only after a current-head pass
+        shell: pwsh
+        run: |
+          & pwsh -NoProfile -File .standard/scripts/request-independent-review.ps1 -Repo $env:GITHUB_REPOSITORY -Pr ([int]$env:PR_NUMBER) -Provider auto -FollowupOnly
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
