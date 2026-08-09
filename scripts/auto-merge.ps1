@@ -18,7 +18,18 @@ function Get-Paged {
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
 $config = Get-Content (Join-Path $PSScriptRoot '..\policy\github-defaults.json') -Raw | ConvertFrom-Json
 
-$prRaw = & gh pr view $Pr --repo $Repo --json isDraft,state,labels,baseRefName,headRefName,author 2>&1
+function Get-LatestActionsCheckRun {
+  param([string]$Head,[string]$Name)
+  $encoded = [uri]::EscapeDataString($Name)
+  $raw = & gh api -H 'Accept: application/vnd.github+json' "repos/$Repo/commits/$Head/check-runs?check_name=$encoded" 2>&1
+  if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
+  $runs = (($raw -join "`n") | ConvertFrom-Json).check_runs
+  $latest = @($runs | Where-Object { $_.name -eq $Name -and $_.app.slug -eq 'github-actions' } | Sort-Object id | Select-Object -Last 1)
+  if ($latest.Count -eq 0) { return $null }
+  return $latest[0]
+}
+
+$prRaw = & gh pr view $Pr --repo $Repo --json isDraft,state,labels,baseRefName,headRefName,headRefOid,author 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
 $pr = ($prRaw -join "`n") | ConvertFrom-Json
 if ($pr.state -ne 'OPEN') { throw "PR #$Pr is not open." }
@@ -58,6 +69,16 @@ if ($pr.baseRefName -ne $meta.default_branch) { throw "PR targets '$($pr.baseRef
 if (-not $meta.allow_auto_merge) { throw 'Live GitHub setting drift: auto-merge is off.' }
 if (-not $meta.allow_update_branch) { throw 'Live GitHub setting drift: update branch is off.' }
 if (-not $meta.allow_squash_merge -or $meta.allow_merge_commit -or $meta.allow_rebase_merge) { throw 'Live GitHub merge policy is not squash-only.' }
+
+# Merge ordering: arming is refused until the exact head carries both a PR Gate
+# success and a dispatch-appropriate AI Review conclusion from GitHub Actions.
+$headSha = [string]$pr.headRefOid
+$gateRun = Get-LatestActionsCheckRun $headSha 'PR Gate'
+if (-not $gateRun -or [string]$gateRun.conclusion -ne 'success') { throw "Auto-merge refused: no exact-head 'PR Gate' success from GitHub Actions for $headSha." }
+$dispatchDisabled = [string]$config.independent_review.dispatch_mode -eq 'disabled_pending_e2e'
+$allowedReview = if ($dispatchDisabled) { @('neutral','success') } else { @('success') }
+$reviewRun = Get-LatestActionsCheckRun $headSha 'AI Review'
+if (-not $reviewRun -or [string]$reviewRun.conclusion -notin $allowedReview) { throw "Auto-merge refused: exact-head 'AI Review' must conclude $($allowedReview -join '/') for $headSha in dispatch_mode '$($config.independent_review.dispatch_mode)'." }
 
 $actionsAppRaw = & gh api /apps/github-actions 2>&1
 if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve GitHub Actions App identity.' }
@@ -111,6 +132,18 @@ foreach ($context in $requiredContexts) {
   $required = @($statusRule.parameters.required_status_checks) | Where-Object { $_.context -eq $context } | Select-Object -First 1
   if (-not $required) { throw "Live ruleset does not require '$context'." }
   if ([int]$required.integration_id -ne $actionsAppId) { throw "Required '$context' is not bound to GitHub Actions." }
+}
+
+# Draft/ready races: re-verify the exact PR immediately before arming.
+for ($attempt = 1; $attempt -le 3; $attempt++) {
+  $freshRaw = & gh api "repos/$Repo/pulls/$Pr" 2>&1
+  if ($LASTEXITCODE -ne 0) { throw ($freshRaw -join "`n") }
+  $fresh = ($freshRaw -join "`n") | ConvertFrom-Json
+  if ([string]$fresh.head.sha -ne $headSha) { throw "Auto-merge refused: head moved from $headSha to $($fresh.head.sha) before arming." }
+  if ($fresh.state -ne 'open') { throw "Auto-merge refused: PR #$Pr is no longer open." }
+  if (-not $fresh.draft) { break }
+  if ($attempt -eq 3) { throw "Auto-merge refused: PR #$Pr still reports draft after $attempt pre-arm checks." }
+  Start-Sleep -Seconds 5
 }
 
 Invoke-WithAdminToken { & gh pr merge $Pr --repo $Repo --auto --squash }

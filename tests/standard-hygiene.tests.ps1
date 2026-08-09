@@ -106,6 +106,12 @@ $reviewEnd = $orchestrator.IndexOf('function Resolve-GateBlocks')
 Assert-True 'review-cycle boundaries found' ($reviewStart -ge 0 -and $reviewEnd -gt $reviewStart)
 $reviewCycle = $orchestrator.Substring($reviewStart,$reviewEnd-$reviewStart)
 Assert-True 'disabled dispatch does not request a reviewer' ($reviewCycle -match 'disabled_pending_e2e' -and $reviewCycle -match 'Complete-ReviewSuccess')
+# The disabled-mode evaluator branch must run before the solicit_reviews early
+# return, or the canary lane is dead code while reviews are not solicited.
+Assert-True 'disabled-mode evaluation is reachable without solicit_reviews' ($reviewCycle -match "(?s)disabled_pending_e2e.*?if\(-not \`$reviewSolicit\)\{return\}")
+Assert-True 'watchdog evaluates disabled-mode heads' ($orchestrator -match '\$dispatchDisabled\)\{Run-ReviewCycle')
+Assert-True 'arming waits for exact-head PR Gate success' ($orchestrator -match "Get-CheckConclusion \`$head 'PR Gate'")
+Assert-True 'arming waits for dispatch-appropriate AI Review conclusion' ($orchestrator -match "(?s)allowedReview.*Get-CheckConclusion \`$head 'AI Review'")
 Assert-True 'primary clean review immediately completes and re-arms' ($reviewCycle -match "result-eq'success'\)\{Complete-ReviewSuccess")
 Assert-True 'orchestrator does not launch review repair' ($orchestrator -notmatch '(?m)^\s*Request-Repair review\b')
 Assert-True 'orchestrator recognizes neutral AI Review as passing' ($orchestrator -match 'Test-AiReviewPassingConclusion')
@@ -126,6 +132,10 @@ Assert-Contains 'doctor detects conflicting default-branch rulesets' 'scripts/do
 Assert-Contains 'auto-merge checks effective default-branch rulesets' 'scripts/auto-merge.ps1' 'rules/branches/\$\{?defaultBranchEncoded\}?'
 Assert-Contains 'auto-merge rejects conflicting default-branch rulesets' 'scripts/auto-merge.ps1' 'Auto-merge refused: conflicting active default-branch ruleset'
 Assert-Contains 'ruleset authority checks paginate' 'scripts/auto-merge.ps1' 'rules/branches/\$\{defaultBranchEncoded\}\?per_page=100'
+Assert-Contains 'auto-merge requires exact-head PR Gate success' 'scripts/auto-merge.ps1' "no exact-head 'PR Gate' success"
+Assert-Contains 'auto-merge requires dispatch-appropriate AI Review conclusion' 'scripts/auto-merge.ps1' "@\('neutral','success'\)"
+Assert-Contains 'auto-merge refetches the PR immediately before arming' 'scripts/auto-merge.ps1' 'head moved from'
+Assert-Contains 'auto-merge pre-arm retry is bounded' 'scripts/auto-merge.ps1' '\$attempt -le 3'
 Assert-Contains 'setup authority check paginates' 'scripts/apply-github-standard.ps1' 'rules/branches/\$\{defaultBranchEncoded\}\?per_page=100'
 Assert-Contains 'doctor authority check paginates' 'scripts/doctor.ps1' 'rules/branches/\$\{defaultBranchEncoded\}\?per_page=100'
 Assert-Contains 'workflow token is read-only' 'scripts/apply-github-standard.ps1' "default_workflow_permissions = 'read'"

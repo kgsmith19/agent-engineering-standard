@@ -18,6 +18,7 @@ $reviewPolicy = $config.independent_review
 # the review lane is fully inert and PR Gate alone gates the squash merge.
 $reviewRequired = [bool]$reviewPolicy.required_for_auto_merge
 $reviewSolicit = $reviewRequired -or [bool]$reviewPolicy.solicit_reviews
+$dispatchDisabled = [string]$reviewPolicy.dispatch_mode -eq 'disabled_pending_e2e'
 $ownerTag = "@$($config.owner)"
 
 function Invoke-GhJson {
@@ -208,6 +209,12 @@ function Ensure-PrState {
   if ($labels -contains $automation.blocked_label -and $activeBlocks.Count -eq 0) { Disable-AutoMerge $Number $prData; return $prData }
   if ($activeBlocks.Count -gt 0 -and @($activeBlocks | Where-Object { $_ -ne 'auto-merge-settings' }).Count -gt 0) { Disable-AutoMerge $Number $prData; return $prData }
   if (-not $prData.autoMergeRequest) {
+    # Merge ordering: arm only after the exact head carries a PR Gate success and
+    # a dispatch-appropriate AI Review conclusion; earlier events simply wait.
+    $head = [string]$prData.headRefOid
+    if ((Get-CheckConclusion $head 'PR Gate') -ne 'success') { return $prData }
+    $allowedReview = if ($dispatchDisabled) { @('neutral','success') } else { @('success') }
+    if ((Get-CheckConclusion $head 'AI Review') -notin $allowedReview) { return $prData }
     & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'auto-merge.ps1') -Repo $Repo -Pr $Number -Risk $risk
     if ($LASTEXITCODE -ne 0) { Set-Blocked $Number 'auto-merge-settings' 'Auto-merge could not be armed. Reconcile live repository settings and ruleset with setup-portfolio.ps1.' $prData; return $prData }
     $prData = Get-Pr $Number
@@ -242,16 +249,18 @@ function Complete-ReviewSuccess {
 
 function Run-ReviewCycle {
   param([int]$Number)
-  if(-not $reviewSolicit){return}
   $prData=Get-Pr $Number
   if($prData.state-ne'OPEN'-or$prData.isDraft){return}
   if([string]$reviewPolicy.dispatch_mode-eq'disabled_pending_e2e'){
-    # Canary mode: the evaluator publishes a neutral (passing) outcome and P2-only
-    # advisories become Issues; no reviewer is dispatched until the live E2E proves it.
+    # Canary mode runs regardless of solicit_reviews: every head gets an exact-head
+    # AI Review conclusion with zero review events. The evaluator publishes a
+    # neutral (passing) outcome and P2-only advisories become Issues; no reviewer
+    # is dispatched until the live E2E proves it.
     Invoke-AiReview $Number
     if(@(Get-ReviewFailures $Number $prData).Count-eq 0){Complete-ReviewSuccess $Number}
     return
   }
+  if(-not $reviewSolicit){return}
   Invoke-AiReview $Number
   if(@(Get-ReviewFailures $Number $prData).Count-gt 0){return}
   if(Test-AiReviewPassingConclusion (Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review')){Complete-ReviewSuccess $Number;return}
@@ -317,6 +326,7 @@ function Handle-Watchdog {
       $gate=Get-CheckConclusion $head 'PR Gate'
       if($gate-eq'success'){
         Resolve-GateBlocks $number $prData
+        if($dispatchDisabled){Run-ReviewCycle $number;continue}
         if(-not $reviewSolicit){continue}
         Invoke-AiReview $number
         if(Test-AiReviewPassingConclusion (Get-CheckConclusion $head 'AI Review')){Complete-ReviewSuccess $number;continue}
