@@ -25,5 +25,6 @@ foreach ($path in @('templates/AI_REVIEW.yml','.github/workflows/ai-review.yml')
 
 # PR metadata edits can change the effective base/diff, so deterministic evidence must rerun.
 Assert-Contains 'PR Gate template reruns on edited PR metadata' 'templates/PR_GATE.yml' '(?s)pull_request:.*?types:\s*\[[^\]]*\bedited\b'
+Assert-Contains 'standard PR Gate reruns on edited PR metadata' '.github/workflows/ci.yml' '(?s)pull_request:\s*\r?\n\s*types:\s*\[[^\]]*\bedited\b'
 
 Write-Host 'state-machine exhaustiveness event tests: PASS' -ForegroundColor Green
