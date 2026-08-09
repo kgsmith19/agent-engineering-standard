@@ -11,7 +11,7 @@ $required = @(
   '.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation-reusable.yml','.github/workflows/pr-automation.yml',
   '.github/workflows/pr-automation-gate-result.yml','.github/workflows/pr-automation-review-event.yml','.github/workflows/pr-automation-comment-event.yml','.github/workflows/pr-automation-watchdog.yml',
   'scripts/evaluate-ai-review.ps1','scripts/request-machine-review.ps1','scripts/request-review-repair.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/pr-orchestrator.ps1','scripts/gate-result-router.ps1','scripts/review-metrics.ps1','scripts/lint-pr-creation.ps1','scripts/prune-portfolio.ps1',
-  'tests/draft-prevention.tests.ps1','tests/state-machine-exhaustiveness.tests.ps1',
+  'tests/draft-prevention.tests.ps1','tests/state-machine-exhaustiveness.tests.ps1','tests/unconditional-evaluation.tests.ps1',
   'templates/.gitignore','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/dependabot.yml',
   'templates/PR_AUTOMATION_GATE_RESULT.yml','templates/PR_AUTOMATION_REVIEW_EVENT.yml','templates/PR_AUTOMATION_COMMENT_EVENT.yml','templates/PR_AUTOMATION_WATCHDOG.yml'
 )
@@ -137,9 +137,9 @@ $reviewEnd = $orchestrator.IndexOf('function Resolve-GateBlocks')
 Assert-True 'review-cycle boundaries found' ($reviewStart -ge 0 -and $reviewEnd -gt $reviewStart)
 $reviewCycle = $orchestrator.Substring($reviewStart,$reviewEnd-$reviewStart)
 Assert-True 'disabled dispatch does not request a reviewer' ($reviewCycle -match 'disabled_pending_e2e' -and $reviewCycle -match 'Complete-ReviewSuccess')
-# The disabled-mode evaluator branch must run before the solicit_reviews early
-# return, or the canary lane is dead code while reviews are not solicited.
-Assert-True 'disabled-mode evaluation is reachable without solicit_reviews' ($reviewCycle -match "(?s)disabled_pending_e2e.*?if\(-not \`$reviewSolicit\)\{return\}")
+# Evaluation must precede every solicit_reviews/dispatch_mode gate: the
+# evaluator runs unconditionally and those flags gate only what follows.
+Assert-True 'evaluation precedes solicitation gating' ($reviewCycle -match "(?s)Invoke-AiReview \`$Number.*?\`$reviewSolicit")
 Assert-True 'watchdog evaluates disabled-mode heads' ($orchestrator -match '\$dispatchDisabled\)\{Run-ReviewCycle')
 Assert-True 'arming waits for exact-head PR Gate success' ($orchestrator -match "Get-CheckConclusion \`$head 'PR Gate'")
 Assert-True 'arming waits for dispatch-appropriate AI Review conclusion' ($orchestrator -match "(?s)allowedReview.*Get-CheckConclusion \`$head 'AI Review'")

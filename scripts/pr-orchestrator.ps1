@@ -14,8 +14,10 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh
 $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $automation = $config.pr_automation
 $reviewPolicy = $config.independent_review
-# Deterministic-only merge authority: when review is neither required nor solicited,
-# the review lane is fully inert and PR Gate alone gates the squash merge.
+# Deterministic-only merge authority: PR Gate alone is the required context. The
+# advisory evaluator runs unconditionally on every gated head — in every
+# dispatch_mode and solicit_reviews combination; solicit_reviews gates only
+# whether a reviewer is solicited, never whether evaluation happens.
 $reviewRequired = [bool]$reviewPolicy.required_for_auto_merge
 $reviewSolicit = $reviewRequired -or [bool]$reviewPolicy.solicit_reviews
 $dispatchDisabled = [string]$reviewPolicy.dispatch_mode -eq 'disabled_pending_e2e'
@@ -190,7 +192,7 @@ function Get-ReviewFailures {
 }
 function Invoke-AiReview {
   param([int]$Number)
-  & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'evaluate-ai-review.ps1') -Repo $Repo -Pr $Number
+  & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'evaluate-ai-review.ps1') -Repo $Repo -Pr $Number -ConfigPath $ConfigPath
   if ($LASTEXITCODE -ne 0) { throw "AI Review evaluator failed for $Repo PR #$Number." }
 }
 function Get-CheckRun {
@@ -301,20 +303,15 @@ function Run-ReviewCycle {
   param([int]$Number)
   $prData=Get-Pr $Number
   if($prData.state-ne'OPEN'-or$prData.isDraft){return}
-  if([string]$reviewPolicy.dispatch_mode-eq'disabled_pending_e2e'){
-    # Canary mode runs regardless of solicit_reviews: every head gets an exact-head
-    # AI Review conclusion with zero review events. The evaluator publishes a
-    # neutral (passing) outcome and P2-only advisories become Issues; no reviewer
-    # is dispatched until the live E2E proves it. Stale policy_version evidence is
-    # re-evaluated so a dispatch_policy_version bump invalidates every open neutral.
-    $head=[string]$prData.headRefOid
-    if(-not((Test-AiReviewPassingConclusion (Get-CheckConclusion $head 'AI Review'))-and(Test-CurrentDispatchEvidence $head))){Invoke-AiReview $Number}
-    if(@(Get-ReviewFailures $Number $prData).Count-eq 0){Complete-ReviewSuccess $Number}
-    return
-  }
-  if(-not $reviewSolicit){return}
-  Invoke-AiReview $Number
+  # Evaluation is unconditional: every head gets an exact-head AI Review
+  # conclusion in every dispatch_mode and solicit_reviews combination (the
+  # disabled_pending_e2e canary dispatches nothing; enabled without solicitation
+  # evaluates existing evidence only). Stale policy_version evidence is
+  # re-evaluated so a dispatch_policy_version bump invalidates every open neutral.
+  $head=[string]$prData.headRefOid
+  if(-not((Test-AiReviewPassingConclusion (Get-CheckConclusion $head 'AI Review'))-and(Test-CurrentDispatchEvidence $head))){Invoke-AiReview $Number}
   if(@(Get-ReviewFailures $Number $prData).Count-gt 0){return}
+  if(-not $reviewSolicit -or [string]$reviewPolicy.dispatch_mode-eq'disabled_pending_e2e'){Complete-ReviewSuccess $Number;return}
   if(Test-AiReviewPassingConclusion (Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review')){Complete-ReviewSuccess $Number;return}
 
   & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto
@@ -378,8 +375,7 @@ function Handle-Watchdog {
       $gate=Get-CheckConclusion $head 'PR Gate'
       if($gate-eq'success'){
         Resolve-GateBlocks $number $prData
-        if($dispatchDisabled){Run-ReviewCycle $number;continue}
-        if(-not $reviewSolicit){continue}
+        if(-not $reviewSolicit -or $dispatchDisabled){Run-ReviewCycle $number;continue}
         Invoke-AiReview $number
         if(Test-AiReviewPassingConclusion (Get-CheckConclusion $head 'AI Review')){Complete-ReviewSuccess $number;continue}
         $requestTime=Get-FirstReviewRequestTime $number $head

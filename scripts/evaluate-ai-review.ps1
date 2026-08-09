@@ -1,13 +1,14 @@
 param(
   [Parameter(Mandatory)][string]$Repo,
-  [Parameter(Mandatory)][int]$Pr
+  [Parameter(Mandatory)][int]$Pr,
+  [string]$ConfigPath = (Join-Path $PSScriptRoot '..\policy\github-defaults.json')
 )
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib/review-policy.ps1')
 
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
-$config = Get-Content (Join-Path $PSScriptRoot '..\policy\github-defaults.json') -Raw | ConvertFrom-Json
+$config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $dispatchDisabled = [string]$config.independent_review.dispatch_mode -eq 'disabled_pending_e2e'
 
 function Invoke-GhJson {
