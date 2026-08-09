@@ -34,7 +34,6 @@
     "review_on_every_push": false
   },
   "pr_automation": {
-    "draft_ready_label": "status:ready",
     "blocked_label": "status:blocked",
     "max_ci_fix_attempts": 7,
     "max_review_fix_attempts": 1,

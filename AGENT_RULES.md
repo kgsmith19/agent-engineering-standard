@@ -42,7 +42,12 @@ Do not repeat the same failing strategy indefinitely. Escalate consequential amb
 
 ## 6. Automated PR state machine
 
-Open a coherent PR non-draft with its `risk:R*` label already applied, so the lane engages with zero promotion latency. Use a draft only while implementation is genuinely still changing — drafts cannot auto-merge, and `status:ready` promotes one to Ready automatically when it becomes coherent.
+Finish and verify one coherent slice locally, then open its PR Ready. Draft PRs are forbidden because GitHub cannot merge them and a conversion step introduces a race before auto-merge.
+
+- REST, SDK, GraphQL, and connector creation calls set `draft: false` and verify the returned PR is not draft.
+- `gh pr create` callers omit `--draft` and verify `gh pr view --json isDraft --jq .isDraft` returns `false`.
+- Never use `gh pr ready` or automated draft conversion in the steady-state lane.
+- If a draft is observed, automation applies `status:blocked`, emits the exact contract error, and stops before auto-merge.
 
 Every unattended merge requires one GitHub check on the **latest head SHA**:
 
@@ -73,7 +78,7 @@ A clean formal review, structured exact-head Copilot PASS, or exact-head Codex t
 
 - deterministic checks run before model review
 - the AI Review runner wakes only when review evidence changes
-- no AI review for drafts or every micro-push
+- no AI review for policy-invalid drafts or every micro-push
 - normal budget: initial reviewed head plus one post-fix reviewed head
 - CI repair: maximum 7 attempts
 - review repair: maximum 1 batched attempt

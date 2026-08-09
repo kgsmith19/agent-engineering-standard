@@ -30,9 +30,9 @@ R0 / R1 / R2 / R3 / R4
 - [ ] Repeated manual work was automated in-scope or logged as one bounded candidate
 - [ ] `kgsmith19` is not requested as a reviewer
 
-## Draft / Ready
-- Keep Draft while implementation changes.
-- Add `status:ready` only when the coherent PR should enter the automated gate/review/merge lane.
+## Ready-at-creation contract
+- [ ] This PR was opened Ready, never Draft.
+- [ ] Its creation call used `draft: false`, or `gh pr create` without `--draft`.
 
 ## Authority Gate (only when actually required)
 None, or state all four:

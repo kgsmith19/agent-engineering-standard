@@ -138,7 +138,7 @@ Replace the bootstrap-only PR Gate with the smallest objective gate appropriate 
 - Preserve exact-SHA-pinned `.github/workflows/ai-review.yml` and `.github/workflows/pr-automation.yml`.
 - Extend `.github/dependabot.yml` only with package ecosystems this repo actually uses; group patch/minor updates when it reduces CI/review noise.
 - Keep native `.github/CODEOWNERS` absent so Kyle is never auto-requested as a routine reviewer.
-- Keep draft iteration quiet; `status:ready` promotes a coherent draft, then `PR Gate` + exact-head `AI Review` govern auto-merge.
+- Finish the coherent slice locally, then create the PR Ready. REST/SDK/connector callers set `draft:false`; `gh pr create` callers omit `--draft`.
 - Add only tests/tools justified by actual product risk; do not invent a framework for conformity.
 - Update `ci.gate_profile` away from `bootstrap-only`.
 

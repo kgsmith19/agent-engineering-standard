@@ -24,8 +24,8 @@ function Add-Problem {
 $required = @(
   'README.md','LIFECYCLE.md','AGENT_RULES.md','QUALITY_RULES.md','SECURITY_RISK_AUTONOMY.md','DELIVERY_GITHUB.md','EVIDENCE_LEARNING.md','AGENTS.md','docs/AUTONOMOUS-PR-STATE-MACHINE.md',
   '.github/workflows/ci.yml','.github/workflows/ai-review.yml','.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation.yml','.github/workflows/pr-automation-reusable.yml','policy/github-defaults.json',
-  'scripts/setup-portfolio.ps1','scripts/apply-github-standard.ps1','scripts/sync-agentic-project.ps1','scripts/codex-review.ps1','scripts/request-independent-review.ps1','scripts/request-machine-review.ps1','scripts/evaluate-ai-review.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/auto-merge.ps1','scripts/pr-orchestrator.ps1','scripts/bootstrap-repo.ps1','scripts/upgrade-repos.ps1','scripts/prune-portfolio.ps1',
-  'scripts/lib/standard-lock.ps1','scripts/lib/review-policy.ps1','tests/legacy-protection.tests.ps1','tests/standard-lock.tests.ps1','tests/review-policy.tests.ps1','tests/standard-hygiene.tests.ps1',
+  'scripts/setup-portfolio.ps1','scripts/apply-github-standard.ps1','scripts/sync-agentic-project.ps1','scripts/codex-review.ps1','scripts/request-independent-review.ps1','scripts/request-machine-review.ps1','scripts/evaluate-ai-review.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/auto-merge.ps1','scripts/pr-orchestrator.ps1','scripts/lint-pr-creation.ps1','scripts/bootstrap-repo.ps1','scripts/upgrade-repos.ps1','scripts/prune-portfolio.ps1',
+  'scripts/lib/standard-lock.ps1','scripts/lib/review-policy.ps1','tests/legacy-protection.tests.ps1','tests/standard-lock.tests.ps1','tests/review-policy.tests.ps1','tests/draft-prevention.tests.ps1','tests/standard-hygiene.tests.ps1',
   'templates/.gitignore','templates/AGENTS.md','templates/PR_GATE.yml','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/dependabot.yml','templates/PRD.md','templates/SPEC.md','templates/ADR.md','templates/ISSUE.md','templates/PULL_REQUEST.md'
 )
 foreach ($relative in $required) {
@@ -52,7 +52,8 @@ if ([int]$review.absolute_timeout_minutes -le ([int]$review.primary_wait_minutes
 if ([bool]$review.review_drafts -or [bool]$review.review_on_every_push) { throw 'Draft/every-push AI review spend must remain off.' }
 
 $automation = $config.pr_automation
-if ($automation.draft_ready_label -ne 'status:ready' -or $automation.blocked_label -ne 'status:blocked') { throw 'PR state labels drifted.' }
+if ($automation.PSObject.Properties.Name -contains 'draft_ready_label') { throw 'Draft promotion must not exist in strict ready-at-creation policy.' }
+if ($automation.blocked_label -ne 'status:blocked') { throw 'PR blocked-state label drifted.' }
 foreach ($pair in @(@('max_ci_fix_attempts',7),@('max_review_fix_attempts',1),@('max_conflict_fix_attempts',6))) {
   if ([int]$automation.PSObject.Properties[$pair[0]].Value -ne [int]$pair[1]) { throw "Repair budget drifted: $($pair[0])." }
 }
