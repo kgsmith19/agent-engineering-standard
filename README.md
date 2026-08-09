@@ -12,7 +12,8 @@ Idea
 → Shape / Research
 → Outcome / Bet
 → Product Truth
-→ GitHub Issue
+→ GitHub Project
+→ GitHub Issue backing record
 → Spec if needed
 → Thin Slice
 → Evidence
@@ -43,13 +44,13 @@ Every artifact, rule, gate, and CI run must reduce meaningful uncertainty, preve
 
 ## One-time portfolio setup
 
-After product repos contain the thin `AI Review` caller and GitHub CLI is authenticated:
+After product repos contain the thin `AI Review` and `PR Automation` callers and GitHub CLI is authenticated:
 
 ```powershell
 pwsh -File scripts/setup-portfolio.ps1
 ```
 
-That applies repository settings/rules, enables Actions, creates the lean risk/status labels, syncs the optional `Agentic Portfolio` Project, and runs the remote doctor. Do not call the portfolio ready until the remote doctor reports READY.
+That applies repository settings/rules, enables Actions, creates the lean risk/status labels, creates or syncs the `Agentic Portfolio` Project, and runs the remote doctor. Do not call the portfolio ready until the Project sync and remote doctor both succeed.
 
 ## Other automation
 
@@ -57,7 +58,7 @@ That applies repository settings/rules, enables Actions, creates the lean risk/s
 # Bootstrap a new repo with the shared engineering contract.
 pwsh -File scripts/bootstrap-repo.ps1 -Name my-app
 
-# Fan an approved standards commit out as reviewable pin PRs.
+# Fan an approved standards commit out as reviewable pin/workflow PRs.
 pwsh -File scripts/upgrade-repos.ps1
 
 # One cheap batched local semantic review.
@@ -75,13 +76,13 @@ pwsh -File scripts/sync-agentic-project.ps1
 pwsh -File scripts/doctor.ps1 -Remote
 ```
 
-`upgrade-repos.ps1` preserves each existing `.agent/standard.lock` revision key and supports `sha`, `commit`, and `standard_commit` without guessing.
+`upgrade-repos.ps1` preserves each existing `.agent/standard.lock` revision key, supports `sha`, `commit`, and `standard_commit` without guessing, and refreshes the canonical `AI Review` + `PR Automation` callers without replacing repo-specific `PR Gate` logic.
 
 `policy/github-defaults.json` is the machine-readable portfolio policy.
 
 ## GitHub default
 
-Managed repos use GitHub Issues for durable work, draft PRs while agents iterate, squash merge, branch cleanup, protected `main`, and resolved review threads. Integration requires two GitHub-Actions-bound contexts on the latest head:
+Managed repos use the `Agentic Portfolio` GitHub Project as the cross-repo planning/status surface and GitHub Issues as durable backing records. Draft PRs are used while agents iterate. Integration uses squash merge, branch cleanup, protected `main`, resolved review threads, and two GitHub-Actions-bound contexts on the latest head:
 
 - `PR Gate` for deterministic evidence
 - `AI Review` for cross-provider semantic review freshness
@@ -90,7 +91,7 @@ A new push invalidates the previous head's semantic authorization automatically.
 
 Control-plane PRs remain manually merged only while they can modify the evaluator/merge authority that judges them. That gate is removed when enforcement becomes immutable/external to the PR.
 
-The optional cross-repo GitHub Project is a portfolio view only; it is never a competing task database.
+The Project is the portfolio operating workboard, not a second task database. Issues remain the durable records that PRs/specs/acceptance criteria link to.
 
 ## Repo-specific truth
 
