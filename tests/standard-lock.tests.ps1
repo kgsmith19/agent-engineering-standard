@@ -132,6 +132,43 @@ Assert-Equal -Name 'leaves unrelated project commit unchanged' `
   -Actual (Update-StandardProjectContent -Content $projectUnrelated -PreviousStandardSha $old -StandardSha $new) `
   -Expected $projectUnrelated
 
+$existingTracking = @"
+project:
+  name: app
+work_tracking:
+  system: github-issues
+  labels_present: [future]
+"@
+$existingTrackingExpected = @"
+project:
+  name: app
+work_tracking:
+  system: github-projects
+  labels_present: [future]
+  project: "Agentic Portfolio"
+  backing_record: github-issues
+"@
+Assert-Equal -Name 'migrates tracking while preserving repo-specific keys' `
+  -Actual (Update-ProjectWorkTrackingContent -Content $existingTracking -ProjectTitle 'Agentic Portfolio') `
+  -Expected $existingTrackingExpected
+
+$missingTracking = @"
+project:
+  name: app
+"@
+$missingTrackingExpected = @"
+project:
+  name: app
+
+work_tracking:
+  system: github-projects
+  project: "Agentic Portfolio"
+  backing_record: github-issues
+"@
+Assert-Equal -Name 'adds tracking block when missing' `
+  -Actual (Update-ProjectWorkTrackingContent -Content $missingTracking -ProjectTitle 'Agentic Portfolio') `
+  -Expected $missingTrackingExpected
+
 Assert-Throws -Name 'refuses missing revision field' -Action {
   Update-StandardLockContent -Content "revision: $old`npinned_at: 2026-08-08" -StandardSha $new -PinnedAt $date
 }
@@ -150,6 +187,10 @@ Assert-Throws -Name 'refuses invalid target SHA' -Action {
 
 Assert-Throws -Name 'refuses ambiguous project references' -Action {
   Update-StandardProjectContent -Content "sha: $old`nstandard_sha: $old" -PreviousStandardSha $old -StandardSha $new
+}
+
+Assert-Throws -Name 'refuses duplicate work tracking system fields' -Action {
+  Update-ProjectWorkTrackingContent -Content "work_tracking:`n  system: github-issues`n  system: github-projects`n" -ProjectTitle 'Agentic Portfolio'
 }
 
 Write-Host 'standard-lock tests: PASS' -ForegroundColor Green
