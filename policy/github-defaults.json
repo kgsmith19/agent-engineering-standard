@@ -25,6 +25,7 @@
     "review_stall_minutes": 3,
     "primary_wait_minutes": 3,
     "fallback_wait_minutes": 3,
+    "absolute_timeout_minutes": 120,
     "poll_seconds": 20,
     "max_review_heads_per_pr": 2,
     "copilot_effort": "low",
@@ -70,7 +71,8 @@
   "allow_rebase_merge": false,
   "allow_squash_merge": true,
   "merge_queue": {
-    "desired": true,
+    "desired": false,
+    "reason": "User-owned repositories do not support the target merge-queue lane; enable only after organization ownership and exact-head merge_group AI Review are proven.",
     "grouping_strategy": "HEADGREEN",
     "check_response_timeout_minutes": 10,
     "max_entries_to_build": 3,
