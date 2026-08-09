@@ -14,7 +14,9 @@ concurrency:
 
 jobs:
   bootstrap-gate:
-    name: ${{ github.event.pull_request.draft && 'Draft CI (local only)' || 'PR Gate' }}
+    # Static check name: the job-level if already skips drafts, so the draft branch
+    # of a dynamic name can never render, and the ruleset requires the literal 'PR Gate'.
+    name: PR Gate
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:

@@ -25,6 +25,10 @@ on:
       standard_sha:
         required: true
         type: string
+    secrets:
+      automation_token:
+        description: Fine-grained PAT (Administration:read) for admin reads, ready-promotion, and arming; never exposed to PR code.
+        required: false
 
 jobs:
   orchestrate:
@@ -32,6 +36,7 @@ jobs:
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ github.token }}
+      GH_TOKEN_ADMIN: ${{ secrets.automation_token }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:

@@ -11,7 +11,7 @@ on:
   issue_comment:
     types: [created, edited]
   schedule:
-    - cron: "17 */6 * * *"
+    - cron: "17 * * * *"
 
 concurrency:
   group: pr-automation-${{ github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.pull_requests[0].number || github.repository }}
@@ -29,6 +29,8 @@ jobs:
       mode: pr-event
       pr_number: ${{ github.event.pull_request.number }}
       standard_sha: ${{ github.sha }}
+    secrets:
+      automation_token: ${{ secrets.AUTOMATION_TOKEN }}
 
   gate-result:
     if: >-
@@ -48,6 +50,8 @@ jobs:
       gate_head_sha: ${{ github.event.workflow_run.head_sha }}
       gate_run_id: ${{ github.event.workflow_run.id }}
       standard_sha: ${{ github.sha }}
+    secrets:
+      automation_token: ${{ secrets.AUTOMATION_TOKEN }}
 
   review-event:
     if: github.event_name == 'pull_request_review'
@@ -63,6 +67,8 @@ jobs:
       # pull_request_review github.sha can be the PR merge SHA. The orchestrator
       # must execute from trusted base code when governing this control plane.
       standard_sha: ${{ github.event.pull_request.base.sha }}
+    secrets:
+      automation_token: ${{ secrets.AUTOMATION_TOKEN }}
 
   comment-event:
     if: >-
@@ -80,6 +86,8 @@ jobs:
       mode: comment-event
       pr_number: ${{ github.event.issue.number }}
       standard_sha: ${{ github.sha }}
+    secrets:
+      automation_token: ${{ secrets.AUTOMATION_TOKEN }}
 
   watchdog:
     if: github.event_name == 'schedule'
@@ -92,3 +100,5 @@ jobs:
     with:
       mode: watchdog
       standard_sha: ${{ github.sha }}
+    secrets:
+      automation_token: ${{ secrets.AUTOMATION_TOKEN }}
