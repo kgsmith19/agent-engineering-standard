@@ -27,7 +27,7 @@ on:
         type: string
     secrets:
       automation_token:
-        description: Fine-grained PAT (Administration:read) for admin reads, ready-promotion, and arming; never exposed to PR code.
+        description: Fine-grained PAT (Administration:read) for admin reads and arming; never exposed to PR code.
         required: false
 
 jobs:
