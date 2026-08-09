@@ -49,6 +49,10 @@ $prRaw = & gh api "repos/$Repo/pulls/$Pr" 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
 $prData = ($prRaw -join "`n") | ConvertFrom-Json
 $headSha = [string]$prData.head.sha
+$baseSha = [string]$prData.base.sha
+# Machine-readable evidence scope: a dispatch_policy_version bump invalidates
+# every older neutral/success, so re-enabling dispatch forces fresh evaluation.
+$dispatchEvidence = "dispatch-evidence repo=$Repo pr=$Pr head=$headSha base=$baseSha mode=$([string]$config.independent_review.dispatch_mode) policy_version=$([int]$config.independent_review.dispatch_policy_version)"
 if ($prData.draft) {
   Set-AiReviewCheck $headSha failure 'Ready-at-creation policy violation: draft PRs are forbidden.'
   exit 0
@@ -146,7 +150,7 @@ if ($advisories.Count -gt 0) {
   $advisoryNote = "; P2-only advisory findings recorded in Issue #$advisoryIssue"
 }
 if ($dispatchDisabled) {
-  Set-AiReviewCheck $headSha neutral ("Reviewer dispatch is disabled_pending_e2e; no machine review was solicited for $headSha$advisoryNote")
+  Set-AiReviewCheck $headSha neutral ("Reviewer dispatch is disabled_pending_e2e; no machine review was solicited for $headSha$advisoryNote`n`n$dispatchEvidence")
   exit 0
 }
 if ($passes.Count -eq 0) {
@@ -154,4 +158,4 @@ if ($passes.Count -eq 0) {
   Set-AiReviewCheck $headSha failure ("Awaiting exact-head reviewer independent of current-PR implementers=$implementerText. Accepted: " + ($acceptedProviders -join ', '))
   exit 0
 }
-Set-AiReviewCheck $headSha success ("Exact head $headSha passed machine review; current-PR implementers=$implementer; evidence=" + (($passes | Select-Object -Unique) -join '; ') + $advisoryNote)
+Set-AiReviewCheck $headSha success ("Exact head $headSha passed machine review; current-PR implementers=$implementer; evidence=" + (($passes | Select-Object -Unique) -join '; ') + $advisoryNote + "`n`n$dispatchEvidence")

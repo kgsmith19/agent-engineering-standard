@@ -176,6 +176,14 @@ function Get-CheckRun {
   return $latest[0]
 }
 function Get-CheckConclusion { param([string]$Head,[string]$Name) $run=Get-CheckRun $Head $Name; if(-not$run){return $null}; return [string]$run.conclusion }
+function Test-CurrentDispatchEvidence {
+  # Evidence not carrying the CURRENT dispatch_policy_version is stale: bumping
+  # the version on re-enable invalidates every open neutral (swarm-activation gate).
+  param([string]$Head)
+  $run=Get-CheckRun $Head 'AI Review'
+  if(-not $run){return $false}
+  return [string]$run.output.summary -match "policy_version=$([int]$reviewPolicy.dispatch_policy_version)(\D|$)"
+}
 function Get-FirstReviewRequestTime {
   param([int]$Number,[string]$Head)
   $requests = @(Get-Comments $Number | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match "ai-review-request:(?:codex|copilot):$Head" } | Sort-Object created_at)
@@ -215,6 +223,7 @@ function Ensure-PrState {
     if ((Get-CheckConclusion $head 'PR Gate') -ne 'success') { return $prData }
     $allowedReview = if ($dispatchDisabled) { @('neutral','success') } else { @('success') }
     if ((Get-CheckConclusion $head 'AI Review') -notin $allowedReview) { return $prData }
+    if (-not (Test-CurrentDispatchEvidence $head)) { return $prData }
     & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'auto-merge.ps1') -Repo $Repo -Pr $Number -Risk $risk
     if ($LASTEXITCODE -ne 0) { Set-Blocked $Number 'auto-merge-settings' 'Auto-merge could not be armed. Reconcile live repository settings and ruleset with setup-portfolio.ps1.' $prData; return $prData }
     $prData = Get-Pr $Number
@@ -255,8 +264,10 @@ function Run-ReviewCycle {
     # Canary mode runs regardless of solicit_reviews: every head gets an exact-head
     # AI Review conclusion with zero review events. The evaluator publishes a
     # neutral (passing) outcome and P2-only advisories become Issues; no reviewer
-    # is dispatched until the live E2E proves it.
-    Invoke-AiReview $Number
+    # is dispatched until the live E2E proves it. Stale policy_version evidence is
+    # re-evaluated so a dispatch_policy_version bump invalidates every open neutral.
+    $head=[string]$prData.headRefOid
+    if(-not((Test-AiReviewPassingConclusion (Get-CheckConclusion $head 'AI Review'))-and(Test-CurrentDispatchEvidence $head))){Invoke-AiReview $Number}
     if(@(Get-ReviewFailures $Number $prData).Count-eq 0){Complete-ReviewSuccess $Number}
     return
   }

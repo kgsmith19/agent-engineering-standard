@@ -20,6 +20,7 @@
     "required_for_auto_merge": false,
     "solicit_reviews": false,
     "dispatch_mode": "disabled_pending_e2e",
+    "dispatch_policy_version": 1,
     "preferred_provider": "codex",
     "fallback_provider": "copilot",
     "local_codex_model": "gpt-5.4-mini",

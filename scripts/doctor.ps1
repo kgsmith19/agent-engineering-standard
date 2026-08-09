@@ -47,6 +47,7 @@ if ([bool]$config.merge_queue.desired) { throw 'Merge queue must remain deferred
 $review = $config.independent_review
 if ([bool]$review.required_for_auto_merge) { throw 'Machine review must remain advisory: the deterministic PR Gate is the sole required merge authority.' }
 if ([string]$review.dispatch_mode -notin @('disabled_pending_e2e','enabled')) { throw "Unknown review dispatch_mode '$($review.dispatch_mode)'." }
+if ([string]$review.dispatch_policy_version -notmatch '^[1-9][0-9]*$') { throw 'dispatch_policy_version must be a positive integer.' }
 if ($review.preferred_provider -ne 'codex' -or $review.fallback_provider -ne 'copilot') { throw 'Machine-review routing drifted.' }
 if ([int]$review.max_review_heads_per_pr -ne 2 -or [int]$review.primary_wait_minutes -le 0 -or [int]$review.fallback_wait_minutes -le 0 -or [int]$review.poll_seconds -le 0) { throw 'Machine-review budgets drifted.' }
 if ([int]$review.absolute_timeout_minutes -le ([int]$review.primary_wait_minutes + [int]$review.fallback_wait_minutes)) { throw 'Absolute review timeout must exceed fast polling windows.' }

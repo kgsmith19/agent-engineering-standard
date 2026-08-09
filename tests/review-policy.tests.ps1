@@ -92,6 +92,7 @@ Assert-Throws 'Repair budget must be positive' { Get-ReviewRepairDecision -HeadS
 
 $config = Get-Content (Join-Path $root 'policy/github-defaults.json') -Raw | ConvertFrom-Json
 Assert-Equal 'Review dispatch mode is explicitly disabled pending canary' ([string]$config.independent_review.dispatch_mode) 'disabled_pending_e2e'
+Assert-Equal 'Dispatch policy version is a positive integer' ([int]$config.independent_review.dispatch_policy_version -ge 1) $true
 Assert-Equal 'Unreviewed canary auto-merge stops at R2' ([string]$config.auto_merge_max_risk) 'R2'
 Assert-Equal 'Primary review window is two minutes when dispatch is re-enabled' ([int]$config.independent_review.primary_wait_minutes) 2
 Assert-Equal 'Fallback review window is two minutes when dispatch is re-enabled' ([int]$config.independent_review.fallback_wait_minutes) 2
