@@ -16,6 +16,11 @@ function Get-Paged {
   foreach ($page in @($pages)) { foreach ($item in @($page)) { $item } }
 }
 
+function Add-Problem {
+  param($List,[string]$Text)
+  $List.Add($Text)
+}
+
 $required = @(
   'README.md','LIFECYCLE.md','AGENT_RULES.md','QUALITY_RULES.md','SECURITY_RISK_AUTONOMY.md','DELIVERY_GITHUB.md','EVIDENCE_LEARNING.md','AGENTS.md','docs/AUTONOMOUS-PR-STATE-MACHINE.md',
   '.github/workflows/ci.yml','.github/workflows/ai-review.yml','.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation.yml','.github/workflows/pr-automation-reusable.yml','policy/github-defaults.json',
@@ -42,15 +47,15 @@ if ([bool]$config.merge_queue.desired) { throw 'Merge queue must remain deferred
 $review = $config.independent_review
 if (-not [bool]$review.required_for_auto_merge -or $review.preferred_provider -ne 'codex' -or $review.fallback_provider -ne 'copilot') { throw 'Machine-review routing drifted.' }
 if ([int]$review.max_review_heads_per_pr -ne 2 -or [int]$review.primary_wait_minutes -le 0 -or [int]$review.fallback_wait_minutes -le 0 -or [int]$review.poll_seconds -le 0) { throw 'Machine-review budgets drifted.' }
-if ([int]$review.absolute_timeout_minutes -le ([int]$review.primary_wait_minutes + [int]$review.fallback_wait_minutes)) { throw 'Absolute review timeout must exceed the fast primary+fallback polling windows.' }
+if ([int]$review.absolute_timeout_minutes -le ([int]$review.primary_wait_minutes + [int]$review.fallback_wait_minutes)) { throw 'Absolute review timeout must exceed fast polling windows.' }
 if ([bool]$review.review_drafts -or [bool]$review.review_on_every_push) { throw 'Draft/every-push AI review spend must remain off.' }
 
 $automation = $config.pr_automation
 if ($automation.draft_ready_label -ne 'status:ready' -or $automation.blocked_label -ne 'status:blocked') { throw 'PR state labels drifted.' }
-foreach ($pair in @(@('max_ci_fix_attempts',3),@('max_review_fix_attempts',2),@('max_conflict_fix_attempts',2))) {
+foreach ($pair in @(@('max_ci_fix_attempts',3),@('max_review_fix_attempts',1),@('max_conflict_fix_attempts',2))) {
   if ([int]$automation.PSObject.Properties[$pair[0]].Value -ne [int]$pair[1]) { throw "Repair budget drifted: $($pair[0])." }
 }
-if ([int]$automation.watchdog_interval_minutes -lt [int]$review.absolute_timeout_minutes) { throw 'Watchdog cadence must not be shorter than the absolute machine-review timeout.' }
+if ([int]$automation.watchdog_interval_minutes -lt [int]$review.absolute_timeout_minutes) { throw 'Watchdog cadence cannot be shorter than the configured absolute timeout.' }
 
 foreach ($gateName in @('control_plane','R4')) {
   $gate = $config.manual_gates.PSObject.Properties[$gateName].Value
@@ -83,104 +88,101 @@ foreach ($name in $config.repositories) {
   if ($LASTEXITCODE -ne 0) { $remoteFailures.Add("${repo}: cannot read repository"); continue }
   $meta = ($metaRaw -join "`n") | ConvertFrom-Json
 
-  if (-not $meta.has_issues) { $problems.Add('Issues disabled') }
-  if (-not $meta.allow_auto_merge) { $problems.Add('auto-merge off') }
-  if (-not $meta.allow_update_branch) { $problems.Add('update-branch off') }
-  if (-not $meta.delete_branch_on_merge) { $problems.Add('delete-branch off') }
-  if (-not $meta.allow_squash_merge) { $problems.Add('squash off') }
-  if ($meta.allow_merge_commit) { $problems.Add('merge commits enabled') }
-  if ($meta.allow_rebase_merge) { $problems.Add('rebase enabled') }
+  if (-not $meta.has_issues) { Add-Problem $problems 'Issues disabled' }
+  if (-not $meta.allow_auto_merge) { Add-Problem $problems 'auto-merge off' }
+  if (-not $meta.allow_update_branch) { Add-Problem $problems 'update-branch off' }
+  if (-not $meta.delete_branch_on_merge) { Add-Problem $problems 'delete-branch off' }
+  if (-not $meta.allow_squash_merge) { Add-Problem $problems 'squash off' }
+  if ($meta.allow_merge_commit) { Add-Problem $problems 'merge commits enabled' }
+  if ($meta.allow_rebase_merge) { Add-Problem $problems 'rebase enabled' }
 
   $actionsRaw = & gh api "repos/$repo/actions/permissions" 2>&1
-  if ($LASTEXITCODE -ne 0) { $problems.Add('cannot read Actions permissions') }
-  else {
-    $actions = ($actionsRaw -join "`n") | ConvertFrom-Json
-    if (-not [bool]$actions.enabled) { $problems.Add('Actions disabled') }
-  }
+  if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot read Actions permissions' }
+  elseif (-not [bool](($actionsRaw -join "`n") | ConvertFrom-Json).enabled) { Add-Problem $problems 'Actions disabled' }
+
   $workflowPermissionsRaw = & gh api "repos/$repo/actions/permissions/workflow" 2>&1
-  if ($LASTEXITCODE -ne 0) { $problems.Add('cannot read workflow-token defaults') }
+  if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot read workflow-token defaults' }
   else {
     $workflowPermissions = ($workflowPermissionsRaw -join "`n") | ConvertFrom-Json
-    if ($workflowPermissions.default_workflow_permissions -ne 'read') { $problems.Add('workflow token default is not read-only') }
-    if ([bool]$workflowPermissions.can_approve_pull_request_reviews) { $problems.Add('workflow token can approve PR reviews') }
+    if ($workflowPermissions.default_workflow_permissions -ne 'read') { Add-Problem $problems 'workflow token default is not read-only' }
+    if ([bool]$workflowPermissions.can_approve_pull_request_reviews) { Add-Problem $problems 'workflow token can approve PR reviews' }
   }
 
   $copilotRaw = & gh api -H 'X-GitHub-Api-Version: 2026-03-10' "repos/$repo/copilot/cloud-agent/configuration" 2>&1
-  if ($LASTEXITCODE -ne 0) { $problems.Add('cannot read Copilot cloud-agent settings') }
-  else {
-    $copilot = ($copilotRaw -join "`n") | ConvertFrom-Json
-    if ([bool]$copilot.require_actions_workflow_approval) { $problems.Add('Copilot Actions still require maintainer approval') }
-  }
+  if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot read Copilot cloud-agent settings' }
+  elseif ([bool](($copilotRaw -join "`n") | ConvertFrom-Json).require_actions_workflow_approval) { Add-Problem $problems 'Copilot Actions still require maintainer approval' }
 
   $codeownersRaw = & gh api "repos/$repo/contents/.github/CODEOWNERS?ref=$($meta.default_branch)" 2>&1
-  if ($LASTEXITCODE -eq 0) { $problems.Add('native CODEOWNERS present') }
-  elseif (-not (($codeownersRaw -join "`n") -match '(?i)404|not found')) { $problems.Add('cannot determine CODEOWNERS absence') }
+  if ($LASTEXITCODE -eq 0) { Add-Problem $problems 'native CODEOWNERS present' }
+  elseif (-not (($codeownersRaw -join "`n") -match '(?i)404|not found')) { Add-Problem $problems 'cannot determine CODEOWNERS absence' }
 
   $workflowsRaw = & gh api "repos/$repo/actions/workflows?per_page=100" 2>&1
-  if ($LASTEXITCODE -ne 0) { $problems.Add('cannot list workflows') }
+  if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot list workflows' }
   else {
     $workflows = @(($workflowsRaw -join "`n") | ConvertFrom-Json | Select-Object -ExpandProperty workflows)
     foreach ($workflowName in @('PR Gate','AI Review Gate','PR Automation')) {
       $matches = @($workflows | Where-Object { $_.name -eq $workflowName -and $_.state -eq 'active' })
-      if ($matches.Count -eq 0) { $problems.Add("active workflow missing: $workflowName") }
-      elseif ($matches.Count -gt 1) { $problems.Add("duplicate active workflow: $workflowName") }
+      if ($matches.Count -eq 0) { Add-Problem $problems "active workflow missing: $workflowName" }
+      elseif ($matches.Count -gt 1) { Add-Problem $problems "duplicate active workflow: $workflowName" }
     }
   }
 
   if ($name -ne 'agent-engineering-standard') {
     $lockRaw = & gh api -H 'Accept: application/vnd.github.raw+json' "repos/$repo/contents/.agent/standard.lock?ref=$($meta.default_branch)" 2>&1
-    if ($LASTEXITCODE -ne 0) { $problems.Add('standard.lock missing') }
+    if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'standard.lock missing' }
     else {
       try { $pinnedSha = Get-StandardLockRevision ($lockRaw -join "`n") }
-      catch { $pinnedSha = $null; $problems.Add('standard.lock revision unreadable') }
+      catch { $pinnedSha = $null; Add-Problem $problems 'standard.lock revision unreadable' }
       foreach ($caller in @('ai-review.yml','pr-automation.yml')) {
         $callerRaw = & gh api -H 'Accept: application/vnd.github.raw+json' "repos/$repo/contents/.github/workflows/$caller?ref=$($meta.default_branch)" 2>&1
-        if ($LASTEXITCODE -ne 0) { $problems.Add("$caller missing"); continue }
+        if ($LASTEXITCODE -ne 0) { Add-Problem $problems "$caller missing"; continue }
         $callerText = $callerRaw -join "`n"
-        if ($callerText -match '@main\b|__STANDARD_SHA__') { $problems.Add("$caller follows moving or unresolved standard ref") }
-        if ($pinnedSha -and $callerText -notmatch [regex]::Escape("@$pinnedSha")) { $problems.Add("$caller not pinned to standard.lock") }
+        if ($callerText -match '@main\b|__STANDARD_SHA__') { Add-Problem $problems "$caller follows moving or unresolved standard ref" }
+        if ($pinnedSha -and $callerText -notmatch [regex]::Escape("@$pinnedSha")) { Add-Problem $problems "$caller not pinned to standard.lock" }
       }
     }
   }
 
   $rulesetsRaw = & gh api "repos/$repo/rulesets" 2>&1
-  if ($LASTEXITCODE -ne 0) { $problems.Add('cannot read rulesets') }
+  if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot read rulesets' }
   else {
     $summary = ((($rulesetsRaw -join "`n") | ConvertFrom-Json) | Where-Object { $_.name -eq $config.ruleset_name } | Select-Object -First 1)
-    if (-not $summary) { $problems.Add('canonical ruleset missing') }
+    if (-not $summary) { Add-Problem $problems 'canonical ruleset missing' }
     else {
       $detailRaw = & gh api "repos/$repo/rulesets/$($summary.id)" 2>&1
-      if ($LASTEXITCODE -ne 0) { $problems.Add('cannot read canonical ruleset') }
+      if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot read canonical ruleset' }
       else {
         $detail = ($detailRaw -join "`n") | ConvertFrom-Json
-        if ($detail.enforcement -ne 'active') { $problems.Add('ruleset not active') }
-        if ($detail.bypass_actors -and @($detail.bypass_actors).Count -gt 0) { $problems.Add('ruleset has bypass actors') }
-        if (-not (@($detail.conditions.ref_name.include) -contains '~DEFAULT_BRANCH')) { $problems.Add('ruleset misses default branch') }
+        if ($detail.enforcement -ne 'active') { Add-Problem $problems 'ruleset not active' }
+        if ($detail.bypass_actors -and @($detail.bypass_actors).Count -gt 0) { Add-Problem $problems 'ruleset has bypass actors' }
+        if (-not (@($detail.conditions.ref_name.include) -contains '~DEFAULT_BRANCH')) { Add-Problem $problems 'ruleset misses default branch' }
         $types = @($detail.rules | ForEach-Object { $_.type })
         foreach ($requiredType in @('deletion','non_fast_forward','pull_request','required_status_checks')) {
-          if ($types -notcontains $requiredType) { $problems.Add("missing rule: $requiredType") }
+          if ($types -notcontains $requiredType) { Add-Problem $problems "missing rule: $requiredType" }
         }
 
         $prRule = $detail.rules | Where-Object { $_.type -eq 'pull_request' } | Select-Object -First 1
-        if ($prRule) {
-          if ([int]$prRule.parameters.required_approving_review_count -ne 0) { $problems.Add('human approvals not zero') }
-          if ([bool]$prRule.parameters.require_code_owner_review) { $problems.Add('Code Owner review required') }
-          if ([bool]$prRule.parameters.require_last_push_approval) { $problems.Add('last-push approval required') }
-          if (-not [bool]$prRule.parameters.dismiss_stale_reviews_on_push) { $problems.Add('stale reviews not dismissed') }
-          if (-not [bool]$prRule.parameters.required_review_thread_resolution) { $problems.Add('thread resolution not required') }
+        if (-not $prRule) { Add-Problem $problems 'pull-request rule missing' }
+        else {
+          if ([int]$prRule.parameters.required_approving_review_count -ne 0) { Add-Problem $problems 'human approvals not zero' }
+          if ([bool]$prRule.parameters.require_code_owner_review) { Add-Problem $problems 'Code Owner review required' }
+          if ([bool]$prRule.parameters.require_last_push_approval) { Add-Problem $problems 'last-push approval required' }
+          if (-not [bool]$prRule.parameters.dismiss_stale_reviews_on_push) { Add-Problem $problems 'stale reviews not dismissed' }
+          if (-not [bool]$prRule.parameters.required_review_thread_resolution) { Add-Problem $problems 'thread resolution not required' }
           $methods = @($prRule.parameters.allowed_merge_methods)
-          if ($methods.Count -ne 1 -or $methods[0] -ne 'squash') { $problems.Add('ruleset not squash-only') }
+          if ($methods.Count -ne 1 -or $methods[0] -ne 'squash') { Add-Problem $problems 'ruleset not squash-only' }
         }
 
         $statusRule = $detail.rules | Where-Object { $_.type -eq 'required_status_checks' } | Select-Object -First 1
-        if ($statusRule) {
+        if (-not $statusRule) { Add-Problem $problems 'required-status rule missing' }
+        else {
           $checks = @($statusRule.parameters.required_status_checks)
           $expected = @($config.required_status_context,$config.required_ai_review_context)
-          if ($checks.Count -ne $expected.Count) { $problems.Add('extra or missing required status checks') }
+          if ($checks.Count -ne $expected.Count) { Add-Problem $problems 'extra or missing required status checks' }
           foreach ($context in $expected) {
             $check = @($checks | Where-Object { $_.context -eq $context } | Select-Object -First 1)
-            if ($check.Count -eq 0) { $problems.Add("required context missing: $context") }
-            elseif ([int]$check[0].integration_id -ne $actionsAppId) { $problems.Add("$context not bound to GitHub Actions") }
+            if ($check.Count -eq 0) { Add-Problem $problems "required context missing: $context" }
+            elseif ([int]$check[0].integration_id -ne $actionsAppId) { Add-Problem $problems "$context not bound to GitHub Actions" }
           }
         }
       }
@@ -188,15 +190,15 @@ foreach ($name in $config.repositories) {
   }
 
   $legacyRaw = & gh api "repos/$repo/branches/$($meta.default_branch)/protection" 2>&1
-  if ($LASTEXITCODE -eq 0) { $problems.Add('legacy branch protection still present') }
-  elseif (-not (($legacyRaw -join "`n") -match '(?i)branch not protected|\b404\b|not found')) { $problems.Add('cannot verify legacy protection absence') }
+  if ($LASTEXITCODE -eq 0) { Add-Problem $problems 'legacy branch protection still present' }
+  elseif (-not (($legacyRaw -join "`n") -match '(?i)branch not protected|\b404\b|not found')) { Add-Problem $problems 'cannot verify legacy protection absence' }
 
   try { $openPrs = @(Get-Paged "repos/$repo/pulls?state=open&per_page=100") }
-  catch { $openPrs = @(); $problems.Add('cannot inspect open PR blockers') }
+  catch { $openPrs = @(); Add-Problem $problems 'cannot inspect open PR blockers' }
   foreach ($openPr in $openPrs) {
     $forbidden = @($openPr.requested_reviewers | ForEach-Object { [string]$_.login } | Where-Object { @($config.forbidden_requested_reviewers) -contains $_ })
-    if ($forbidden.Count -gt 0) { $problems.Add("PR #$($openPr.number) requests forbidden reviewer: $($forbidden -join ', ')") }
-    if ([string]$openPr.user.login -eq 'Copilot' -or [string]$openPr.head.ref -like 'copilot/*') { $problems.Add("PR #$($openPr.number) is Copilot-owned and cannot be unattended") }
+    if ($forbidden.Count -gt 0) { Add-Problem $problems "PR #$($openPr.number) requests forbidden reviewer: $($forbidden -join ', ')" }
+    if ([string]$openPr.user.login -eq 'Copilot' -or [string]$openPr.head.ref -like 'copilot/*') { Add-Problem $problems "PR #$($openPr.number) is Copilot-owned and cannot be unattended" }
   }
 
   if ($problems.Count -eq 0) { Write-Host "${repo} : READY" -ForegroundColor Green }
