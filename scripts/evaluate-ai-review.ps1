@@ -38,8 +38,7 @@ function Set-AiReviewCheck {
   if ($existing.Count -gt 0) {
     Invoke-GhJson PATCH "repos/$Repo/check-runs/$($existing[0].id)" $body | Out-Null
   } else {
-    $body.name = 'AI Review'
-    $body.head_sha = $HeadSha
+    $body.name = 'AI Review'; $body.head_sha = $HeadSha
     Invoke-GhJson POST "repos/$Repo/check-runs" $body | Out-Null
   }
 }
@@ -59,14 +58,9 @@ $commit = ($commitRaw -join "`n") | ConvertFrom-Json
 $headAuthor = [string]$commit.author.login
 $headCommitter = [string]$commit.committer.login
 $prAuthor = [string]$prData.user.login
-$implementer = Get-HeadImplementerProvider `
-  -HeadAuthorLogin $headAuthor `
-  -HeadCommitterLogin $headCommitter `
-  -PrAuthorLogin $prAuthor
-$acceptedProviders = @(Get-AcceptedMachineReviewProviders `
-  -HeadAuthorLogin $headAuthor `
-  -HeadCommitterLogin $headCommitter `
-  -PrAuthorLogin $prAuthor)
+$ownerLogin = [string]$prData.base.repo.owner.login
+$implementer = Get-HeadImplementerProvider -HeadAuthorLogin $headAuthor -HeadCommitterLogin $headCommitter -PrAuthorLogin $prAuthor
+$acceptedProviders = @(Get-AcceptedMachineReviewProviders -HeadAuthorLogin $headAuthor -HeadCommitterLogin $headCommitter -PrAuthorLogin $prAuthor)
 
 $reviews = @(Get-Paged "repos/$Repo/pulls/$Pr/reviews?per_page=100")
 $inlineComments = @(Get-Paged "repos/$Repo/pulls/$Pr/comments?per_page=100")
@@ -75,31 +69,25 @@ $passes = New-Object System.Collections.Generic.List[string]
 $failures = New-Object System.Collections.Generic.List[string]
 
 foreach ($review in $reviews) {
-  $provider = Get-MachineReviewProvider -Login ([string]$review.user.login)
+  $provider = Get-MachineReviewProvider ([string]$review.user.login)
   if (-not $provider -or $review.commit_id -ne $headSha -or $review.state -in @('DISMISSED','PENDING')) { continue }
-  if ($review.state -eq 'CHANGES_REQUESTED' -or (Test-MaterialAiReviewBody -Body ([string]$review.body))) {
+  if ($review.state -eq 'CHANGES_REQUESTED' -or (Test-MaterialAiReviewBody ([string]$review.body))) {
     $failures.Add("$provider review by $($review.user.login) contains material findings")
   } elseif ($acceptedProviders -contains $provider) {
     $passes.Add("$provider formal review by $($review.user.login)")
   }
 }
-
 foreach ($inline in $inlineComments) {
-  $provider = Get-MachineReviewProvider -Login ([string]$inline.user.login)
+  $provider = Get-MachineReviewProvider ([string]$inline.user.login)
   if (-not $provider -or [string]$inline.commit_id -ne $headSha) { continue }
-  if (Test-MaterialAiReviewBody -Body ([string]$inline.body)) {
+  if (Test-MaterialAiReviewBody ([string]$inline.body)) {
     $failures.Add("$provider inline review comment #$($inline.id) contains a material current-head finding")
   }
 }
 
-$structured = @($comments | Where-Object {
-  (Get-MachineReviewProvider -Login ([string]$_.user.login)) -eq 'copilot' -and
-  $_.body -match '(?im)^\s*AI-REVIEW\s+(PASS|FAIL)\b' -and
-  $_.body -match [regex]::Escape($headSha)
-} | Sort-Object created_at)
-if ($structured.Count -gt 0) {
-  $latest = $structured[-1]
-  if ($latest.body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') {
+$structured = Get-TrustedStructuredCopilotReview -Comments $comments -HeadSha $headSha -OwnerLogin $ownerLogin
+if ($structured) {
+  if ([string]$structured.body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') {
     $failures.Add('Copilot structured exact-head review contains material findings')
   } elseif ($acceptedProviders -contains 'copilot') {
     $passes.Add('Copilot structured exact-head review')
@@ -107,24 +95,19 @@ if ($structured.Count -gt 0) {
 }
 
 $codexRequests = @($comments | Where-Object {
-  (Test-TrustedAutomationComment -Comment $_ -OwnerLogin ([string]$prData.base.repo.owner.login)) -and
-  [string]$_.body -like "*ai-review-request:codex:$headSha*"
+  (Test-TrustedAutomationComment $_ $ownerLogin) -and [string]$_.body -like "*ai-review-request:codex:$headSha*"
 } | Sort-Object created_at)
 foreach ($request in $codexRequests) {
-  $reactions = @(Get-Paged "repos/$Repo/issues/comments/$($request.id)/reactions?per_page=100")
-  foreach ($reaction in $reactions) {
-    if ((Get-MachineReviewProvider -Login ([string]$reaction.user.login)) -eq 'codex' -and
-        $reaction.content -eq '+1' -and $acceptedProviders -contains 'codex') {
+  foreach ($reaction in @(Get-Paged "repos/$Repo/issues/comments/$($request.id)/reactions?per_page=100")) {
+    if ((Get-MachineReviewProvider ([string]$reaction.user.login)) -eq 'codex' -and $reaction.content -eq '+1' -and $acceptedProviders -contains 'codex') {
       $passes.Add('Codex thumbs-up on exact-head review request')
     }
   }
 }
 if ($codexRequests.Count -gt 0 -and $acceptedProviders -contains 'codex') {
   $requestTime = [datetimeoffset]$codexRequests[-1].created_at
-  $prReactions = @(Get-Paged "repos/$Repo/issues/$Pr/reactions?per_page=100")
-  foreach ($reaction in $prReactions) {
-    if ((Get-MachineReviewProvider -Login ([string]$reaction.user.login)) -eq 'codex' -and
-        $reaction.content -eq '+1' -and ([datetimeoffset]$reaction.created_at) -ge $requestTime) {
+  foreach ($reaction in @(Get-Paged "repos/$Repo/issues/$Pr/reactions?per_page=100")) {
+    if ((Get-MachineReviewProvider ([string]$reaction.user.login)) -eq 'codex' -and $reaction.content -eq '+1' -and ([datetimeoffset]$reaction.created_at) -ge $requestTime) {
       $passes.Add('Codex PR thumbs-up after exact-head review request')
     }
   }
@@ -139,5 +122,4 @@ if ($passes.Count -eq 0) {
   Set-AiReviewCheck $headSha failure ("Awaiting exact-head reviewer different from latest-head implementer=$implementerText. Accepted: " + ($acceptedProviders -join ', '))
   exit 0
 }
-
 Set-AiReviewCheck $headSha success ("Exact head $headSha passed machine review; latest-head implementer=$implementer; evidence=" + (($passes | Select-Object -Unique) -join '; '))
