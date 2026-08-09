@@ -67,19 +67,25 @@ Assert-Contains 'review policy distinguishes blocking findings' 'scripts/lib/rev
 Assert-Contains 'review policy distinguishes P2 advisory findings' 'scripts/lib/review-policy.ps1' 'Test-AdvisoryAiReviewBody'
 Assert-Contains 'review policy recognizes passing neutral checks' 'scripts/lib/review-policy.ps1' 'Test-AiReviewPassingConclusion'
 Assert-Contains 'review policy authenticates advisory Issue mapping' 'scripts/lib/review-policy.ps1' 'Get-TrustedAiReviewAdvisoryIssueNumber'
-Assert-Contains 'review request reads current head commit' 'scripts/request-machine-review.ps1' 'repos/\$Repo/commits/\$headSha'
+# Assertion updated with #44's reviewer-independence redesign: the requester and
+# evaluator derive machine actors from ALL PR commits (pulls/{pr}/commits), not a
+# single head-commit read; the old repos/{repo}/commits/{head} contract is gone.
+Assert-Contains 'review request reads every PR commit for independence' 'scripts/request-machine-review.ps1' 'pulls/\$Pr/commits\?per_page=100'
 Assert-Contains 'review requester authenticates structured Copilot verdict' 'scripts/request-machine-review.ps1' 'Get-TrustedStructuredCopilotReview'
 Assert-Contains 'fallback must be independent' 'scripts/request-machine-review.ps1' "acceptedProviders -contains 'copilot'"
 Assert-Contains 'review request blocks inline reviewer-shopping' 'scripts/request-machine-review.ps1' 'pulls/\$Pr/comments\?per_page=100'
 Assert-Contains 'review request honors disabled-dispatch canary' 'scripts/request-machine-review.ps1' 'disabled_pending_e2e'
 Assert-Contains 'review request protocol makes P2 advisory' 'scripts/request-machine-review.ps1' 'P2-only'
-Assert-Contains 'evaluator reads current head commit' 'scripts/evaluate-ai-review.ps1' 'repos/\$Repo/commits/\$headSha'
+Assert-Contains 'evaluator reads every PR commit for independence' 'scripts/evaluate-ai-review.ps1' 'pulls/\$Pr/commits\?per_page=100'
 Assert-Contains 'evaluator uses independent providers' 'scripts/evaluate-ai-review.ps1' 'Get-AcceptedMachineReviewProviders'
 Assert-Contains 'evaluator authenticates structured Copilot verdict' 'scripts/evaluate-ai-review.ps1' 'Get-TrustedStructuredCopilotReview'
 Assert-Contains 'evaluator trusts only authoritative Codex request markers' 'scripts/evaluate-ai-review.ps1' 'Test-TrustedAutomationComment'
 Assert-Contains 'evaluator checks inline comments' 'scripts/evaluate-ai-review.ps1' 'inline review comment'
 Assert-Contains 'evaluator records P2 follow-up Issues before neutral outcome' 'scripts/evaluate-ai-review.ps1' 'Ensure-AdvisoryIssue'
-Assert-Contains 'evaluator exposes disabled dispatch with neutral check' 'scripts/evaluate-ai-review.ps1' "Set-AiReviewCheck \$headSha neutral"
+# Test repair (2026-08-09): the original double-quoted pattern interpolated
+# $headSha to empty (backslash is not an escape in PowerShell strings), leaving
+# an unsatisfiable two-space literal. Single quotes preserve the intended regex.
+Assert-Contains 'evaluator exposes disabled dispatch with neutral check' 'scripts/evaluate-ai-review.ps1' 'Set-AiReviewCheck \$headSha neutral'
 Assert-Contains 'repair script has bounded review budget' 'scripts/request-review-repair.ps1' 'max_review_fix_attempts'
 Assert-Contains 'repair script uses centralized decision' 'scripts/request-review-repair.ps1' 'Get-ReviewRepairDecision'
 Assert-Contains 'repair script authenticates structured Copilot verdict' 'scripts/request-review-repair.ps1' 'Get-TrustedStructuredCopilotReview'

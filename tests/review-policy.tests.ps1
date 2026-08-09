@@ -34,8 +34,12 @@ Assert-Equal 'Unsolicited structured Copilot PASS rejected' (Get-TrustedStructur
 Assert-Equal 'Structured response before trusted request rejected' (Get-TrustedStructuredCopilotReview -Comments @($earlyPass,$trustedRequest) -HeadSha $head -OwnerLogin 'kgsmith19') $null
 Assert-Equal 'Latest structured response after trusted request accepted' (Get-TrustedStructuredCopilotReview -Comments @($trustedRequest,$validPass,$validFail) -HeadSha $head -OwnerLogin 'kgsmith19').id 4
 
-$trustedAdvisoryMap = [pscustomobject]@{ id=5; user=[pscustomobject]@{login='github-actions[bot]'}; body="<!-- ai-review-advisory:$head:41 -->"; created_at='2026-08-09T10:03:00Z' }
-$forgedAdvisoryMap = [pscustomobject]@{ id=6; user=[pscustomobject]@{login='random-user'}; body="<!-- ai-review-advisory:$head:99 -->"; created_at='2026-08-09T10:04:00Z' }
+# Test repair (2026-08-09): "$head:41" parses as a drive-qualified variable
+# (head:41) and interpolates to empty, so the original fixture contained neither
+# head nor issue number and the assertion below was unsatisfiable. ${head} keeps
+# the declared marker format <!-- ai-review-advisory:<head>:<issue> --> intact.
+$trustedAdvisoryMap = [pscustomobject]@{ id=5; user=[pscustomobject]@{login='github-actions[bot]'}; body="<!-- ai-review-advisory:${head}:41 -->"; created_at='2026-08-09T10:03:00Z' }
+$forgedAdvisoryMap = [pscustomobject]@{ id=6; user=[pscustomobject]@{login='random-user'}; body="<!-- ai-review-advisory:${head}:99 -->"; created_at='2026-08-09T10:04:00Z' }
 $staleAdvisoryMap = [pscustomobject]@{ id=7; user=[pscustomobject]@{login='github-actions[bot]'}; body='<!-- ai-review-advisory:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:42 -->'; created_at='2026-08-09T10:05:00Z' }
 Assert-Equal 'Trusted advisory Issue mapping is accepted' (Get-TrustedAiReviewAdvisoryIssueNumber -Comments @($trustedAdvisoryMap) -HeadSha $head -OwnerLogin 'kgsmith19') 41
 Assert-Equal 'Forged advisory Issue mapping is rejected' (Get-TrustedAiReviewAdvisoryIssueNumber -Comments @($forgedAdvisoryMap) -HeadSha $head -OwnerLogin 'kgsmith19') $null
