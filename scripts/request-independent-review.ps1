@@ -66,9 +66,17 @@ if ($missing.Count -eq 0) {
 
 # Budgets count actual semantic responses, not duplicate trigger comments.
 $codexPassCount = @($reviews | Where-Object { (Get-ReviewProviderFromLogin -Login $_.user.login) -eq 'codex' }).Count
-$copilotFormalCount = @($reviews | Where-Object { (Get-ReviewProviderFromLogin -Login $_.user.login) -eq 'copilot' }).Count
+$copilotFormal = @($reviews | Where-Object { (Get-ReviewProviderFromLogin -Login $_.user.login) -eq 'copilot' })
+$copilotFormalCount = $copilotFormal.Count
 $copilotStructuredCount = $structuredCopilotResponses.Count
 $copilotPassCount = $copilotFormalCount + $copilotStructuredCount
+
+# One normal Copilot response is the default budget. If Copilot actually failed a prior
+# head, permit exactly one post-fix recovery response so the PR has a bounded path back
+# to green. A second failure exhausts the budget; no unbounded review-on-push loop.
+$copilotHadFailure = @($structuredCopilotResponses | Where-Object { $_.body -match '(?im)^\s*AI-REVIEW\s+FAIL\b' }).Count -gt 0 -or
+  @($copilotFormal | Where-Object { $_.state -eq 'CHANGES_REQUESTED' }).Count -gt 0
+$copilotResponseLimit = [int]$reviewPolicy.max_copilot_reviews_per_pr + $(if ($copilotHadFailure) { 1 } else { 0 })
 
 $codexMarker = "<!-- ai-review-request:codex:$headSha -->"
 $copilotMarker = "<!-- ai-review-request:copilot:$headSha -->"
@@ -76,7 +84,7 @@ $codexOutstanding = @($comments | Where-Object { $_.body -like "*$codexMarker*" 
 $copilotOutstanding = @($comments | Where-Object { $_.body -like "*$copilotMarker*" }).Count -gt 0
 
 $codexAvailable = ($codexPassCount -lt [int]$reviewPolicy.max_codex_reviews_per_pr) -and -not $codexOutstanding
-$copilotAvailable = [bool]$reviewPolicy.copilot_fallback -and ($copilotPassCount -lt [int]$reviewPolicy.max_copilot_reviews_per_pr) -and -not $copilotOutstanding
+$copilotAvailable = [bool]$reviewPolicy.copilot_fallback -and ($copilotPassCount -lt $copilotResponseLimit) -and -not $copilotOutstanding
 
 if ($Provider -eq 'auto') {
   $Provider = $null
@@ -85,7 +93,7 @@ if ($Provider -eq 'auto') {
     if ($candidate -eq 'copilot' -and $copilotAvailable) { $Provider = 'copilot'; break }
   }
   if (-not $Provider) {
-    throw "No budgeted required reviewer is available for current head $headSha. Missing: $($missing -join ', '). Codex passes=$codexPassCount/$($reviewPolicy.max_codex_reviews_per_pr), Copilot passes=$copilotPassCount/$($reviewPolicy.max_copilot_reviews_per_pr)."
+    throw "No budgeted required reviewer is available for current head $headSha. Missing: $($missing -join ', '). Codex passes=$codexPassCount/$($reviewPolicy.max_codex_reviews_per_pr), Copilot passes=$copilotPassCount/$copilotResponseLimit."
   }
 }
 if ($missing -notcontains $Provider) { throw "Reviewer '$Provider' is not a missing required provider for implementer '$implementer'. Missing: $($missing -join ', ')." }
@@ -102,6 +110,6 @@ switch ($Provider) {
     $prompt = "@copilot Independently review the CURRENT PR head only. Do not modify files or push commits. Apply software/security, business/product ROI, systems/optimization, and strict leanness lenses. Report only material P0-P2 findings. Start with AI-REVIEW PASS or AI-REVIEW FAIL and include exact SHA $headSha.`n`n$copilotMarker"
     & gh pr comment $Pr --repo $Repo --body $prompt | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Could not request Copilot fallback review for $Repo PR #$Pr." }
-    Write-Host "REVIEW REQUESTED: Copilot response budget $($copilotPassCount + 1)/$($reviewPolicy.max_copilot_reviews_per_pr); head=$headSha; implementer=$implementer." -ForegroundColor Yellow
+    Write-Host "REVIEW REQUESTED: Copilot response budget $($copilotPassCount + 1)/$copilotResponseLimit; head=$headSha; implementer=$implementer." -ForegroundColor Yellow
   }
 }
