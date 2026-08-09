@@ -11,7 +11,8 @@ Use the smallest provider-specific semantic review set **per mergeable head SHA*
 - ChatGPT implementations require Copilot review.
 - Claude/Copilot implementations require Codex review.
 - Codex implementations require Copilot review.
-- Ordinary/user-authored provenance is ambiguous for independence and therefore requires both Codex + Copilot for unattended merge.
+- Ordinary/user-authored provenance is ambiguous for independence and therefore requires both Codex + Copilot for unattended merge, in that order.
+- Required-provider order is fail-closed: if the next required provider is unavailable or at budget, later providers are not skipped ahead.
 - For ambiguous provenance, provider #2 is requested only after provider #1 has passed the current head. A current-head FAIL suppresses additional provider spend until the code changes.
 - No Claude fallback is claimed until a mechanical Claude review adapter exists.
 - One semantic response batches software/security, business/product, systems/optimization, and leanness lenses.
@@ -26,7 +27,7 @@ Use the smallest provider-specific semantic review set **per mergeable head SHA*
 
 ## Why
 
-A call-time script check is insufficient because auto-merge can remain armed after a later push. A required exact-head check makes GitHub itself enforce semantic-review freshness. Known provider provenance allows one truly cross-provider review, while ambiguous provenance pays for both connected providers rather than trusting a self-attested implementer identity. Chaining the second ambiguous-provenance reviewer only after the first passes preserves independence without spending both reviews on a head that already has material findings. Batching business/system/lean lenses avoids multiplying calls. A small hard cap preserves a bounded path through legitimate post-review fixes and changed heads without making semantic review an unlimited per-push tax.
+A call-time script check is insufficient because auto-merge can remain armed after a later push. A required exact-head check makes GitHub itself enforce semantic-review freshness. Known provider provenance allows one truly cross-provider review, while ambiguous provenance pays for both connected providers rather than trusting a self-attested implementer identity. Ordered chaining prevents spending a later provider before its prerequisite reviewer has passed, while current-head failure suppression avoids paying for extra opinions on code already known to need repair. Batching business/system/lean lenses avoids multiplying calls. A small hard cap preserves a bounded path through legitimate post-review fixes and changed heads without making semantic review an unlimited per-push tax.
 
 ## Trust boundary
 
