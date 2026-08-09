@@ -55,7 +55,7 @@ if ($automation.draft_ready_label -ne 'status:ready' -or $automation.blocked_lab
 foreach ($pair in @(@('max_ci_fix_attempts',3),@('max_review_fix_attempts',1),@('max_conflict_fix_attempts',2))) {
   if ([int]$automation.PSObject.Properties[$pair[0]].Value -ne [int]$pair[1]) { throw "Repair budget drifted: $($pair[0])." }
 }
-if ([int]$automation.watchdog_interval_minutes -lt [int]$review.absolute_timeout_minutes) { throw 'Watchdog cadence cannot be shorter than the configured absolute timeout.' }
+if ([int]$automation.watchdog_interval_minutes -ge [int]$review.absolute_timeout_minutes) { throw 'Watchdog cadence must be shorter than the configured absolute timeout.' }
 
 foreach ($gateName in @('control_plane','R4')) {
   $gate = $config.manual_gates.PSObject.Properties[$gateName].Value
