@@ -46,6 +46,8 @@ Assert-Contains 'AI Review delegates to evaluator' '.github/workflows/ai-review-
 Assert-Contains 'AI Review requests bounded repair' '.github/workflows/ai-review-reusable.yml' 'scripts/request-review-repair\.ps1'
 Assert-Contains 'AI Review reconciles stale machine threads' '.github/workflows/ai-review-reusable.yml' 'scripts/reconcile-machine-review-threads\.ps1'
 Assert-NotContains 'AI reusable does not duplicate provider map' '.github/workflows/ai-review-reusable.yml' 'chatgpt-codex-connector|copilot-pull-request-reviewer'
+Assert-Contains 'standard AI Review uses trusted PR base evaluator' '.github/workflows/ai-review.yml' 'github\.event\.pull_request\.base\.sha \|\| github\.sha'
+Assert-Contains 'standard AI Review ignores ordinary issue comments' '.github/workflows/ai-review.yml' 'AI-REVIEW PASS'
 
 foreach ($templateName in @('AI_REVIEW.yml','PR_AUTOMATION.yml')) {
   Assert-Contains "$templateName has exact SHA placeholder" "templates/$templateName" '__STANDARD_SHA__'
@@ -54,12 +56,18 @@ foreach ($templateName in @('AI_REVIEW.yml','PR_AUTOMATION.yml')) {
 Assert-Contains 'AI Review reacts to inline evidence' 'templates/AI_REVIEW.yml' 'pull_request_review_comment:'
 Assert-Contains 'AI Review can post bounded repair' 'templates/AI_REVIEW.yml' 'issues:\s*write'
 Assert-NotContains 'AI Review does not run on ordinary pull-request pushes' 'templates/AI_REVIEW.yml' '(?m)^\s*pull_request:'
+Assert-Contains 'product AI Review ignores ordinary issue comments' 'templates/AI_REVIEW.yml' 'AI-REVIEW PASS'
 Assert-Contains 'watchdog is low frequency' 'templates/PR_AUTOMATION.yml' 'cron:\s*"17 \*/12 \* \* \*"'
+Assert-Contains 'review_requested cleanup is immediate' 'templates/PR_AUTOMATION.yml' 'review_requested'
 Assert-Contains 'gate automation can write AI Review' 'templates/PR_AUTOMATION.yml' '(?s)gate-result:.*?checks:\s*write'
 Assert-Contains 'review automation can remove reviewers' 'templates/PR_AUTOMATION.yml' '(?s)review-event:.*?pull-requests:\s*write'
+Assert-Contains 'PR target lane is contents read only' 'templates/PR_AUTOMATION.yml' '(?s)pr-event:.*?contents:\s*read.*?pull-requests:\s*write'
+Assert-Contains 'standard review_requested cleanup is immediate' '.github/workflows/pr-automation.yml' 'review_requested'
+Assert-Contains 'standard review orchestration uses trusted base code' '.github/workflows/pr-automation.yml' 'github\.event\.pull_request\.base\.sha'
 
 Assert-Contains 'review policy derives latest-head implementer' 'scripts/lib/review-policy.ps1' 'Get-HeadImplementerProvider'
 Assert-Contains 'review policy returns independent providers' 'scripts/lib/review-policy.ps1' 'Get-AcceptedMachineReviewProviders'
+Assert-Contains 'review policy centralizes repair decision' 'scripts/lib/review-policy.ps1' 'Get-ReviewRepairDecision'
 Assert-Contains 'review request reads current head commit' 'scripts/request-machine-review.ps1' 'repos/\$Repo/commits/\$headSha'
 Assert-Contains 'fallback must be independent' 'scripts/request-machine-review.ps1' "acceptedProviders -contains 'copilot'"
 Assert-Contains 'review request blocks inline reviewer-shopping' 'scripts/request-machine-review.ps1' 'pulls/\$Pr/comments\?per_page=100'
@@ -67,6 +75,7 @@ Assert-Contains 'evaluator reads current head commit' 'scripts/evaluate-ai-revie
 Assert-Contains 'evaluator uses independent providers' 'scripts/evaluate-ai-review.ps1' 'Get-AcceptedMachineReviewProviders'
 Assert-Contains 'evaluator checks inline comments' 'scripts/evaluate-ai-review.ps1' 'inline review comment'
 Assert-Contains 'repair script has bounded review budget' 'scripts/request-review-repair.ps1' 'max_review_fix_attempts'
+Assert-Contains 'repair script uses centralized decision' 'scripts/request-review-repair.ps1' 'Get-ReviewRepairDecision'
 Assert-Contains 'repair script launches Copilot on existing PR' 'scripts/request-review-repair.ps1' '@copilot address all material machine-review findings'
 Assert-Contains 'repair exhaustion disables auto-merge' 'scripts/request-review-repair.ps1' '--disable-auto'
 
