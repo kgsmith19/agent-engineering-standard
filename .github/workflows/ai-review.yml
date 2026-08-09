@@ -2,7 +2,7 @@ name: AI Review Gate
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, ready_for_review, edited]
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
   pull_request_review:
     types: [submitted, dismissed]
   issue_comment:
@@ -18,7 +18,9 @@ jobs:
     permissions:
       checks: write
       contents: read
+      issues: read
       pull-requests: read
     uses: ./.github/workflows/ai-review-reusable.yml
     with:
       pr_number: ${{ github.event.pull_request.number || github.event.issue.number }}
+      standard_sha: ${{ github.sha }}
