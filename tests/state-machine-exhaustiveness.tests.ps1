@@ -54,6 +54,7 @@ Assert-Contains 'gate-result router exists in reusable workflow' '.github/workfl
 Assert-Contains 'gate-result router reruns one workflow run' 'scripts/gate-result-router.ps1' 'actions/runs/\$GateRunId/rerun'
 Assert-Contains 'gate-result router records trusted rerun marker' 'scripts/gate-result-router.ps1' 'auto-rerun:gate:'
 Assert-Contains 'gate-result router blocks repeat rerun exhaustion' 'scripts/gate-result-router.ps1' 'gate-rerun-exhausted'
+Assert-Contains 'gate rerun exhaustion preserves current PR state' 'scripts/gate-result-router.ps1' "gate-rerun-exhausted'.*\$prData"
 foreach ($path in @('templates/PR_AUTOMATION.yml','.github/workflows/pr-automation.yml')) {
   Assert-Contains "$path scopes Actions write to gate-result" $path '(?s)gate-result:.*?permissions:.*?actions:\s*write'
 }
