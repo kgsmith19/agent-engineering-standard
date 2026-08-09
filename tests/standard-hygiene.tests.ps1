@@ -10,7 +10,7 @@ $required = @(
   '.gitignore','docs/AUTONOMOUS-PR-STATE-MACHINE.md',
   '.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation-reusable.yml','.github/workflows/pr-automation.yml',
   'scripts/evaluate-ai-review.ps1','scripts/request-machine-review.ps1','scripts/request-review-repair.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/pr-orchestrator.ps1','scripts/gate-result-router.ps1','scripts/review-metrics.ps1','scripts/lint-pr-creation.ps1','scripts/prune-portfolio.ps1',
-  'tests/draft-prevention.tests.ps1','tests/state-machine-exhaustiveness.tests.ps1',
+  'tests/draft-prevention.tests.ps1','tests/automation-entrypoints.tests.ps1','tests/state-machine-exhaustiveness.tests.ps1',
   'templates/.gitignore','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/dependabot.yml'
 )
 foreach ($relative in $required) { Assert-True "required file $relative" (Test-Path (Join-Path $root $relative)) }

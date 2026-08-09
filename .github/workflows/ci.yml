@@ -39,6 +39,9 @@ jobs:
       - name: Test ready-at-creation enforcement
         shell: pwsh
         run: ./tests/draft-prevention.tests.ps1
+      - name: Test automation entrypoints
+        shell: pwsh
+        run: ./tests/automation-entrypoints.tests.ps1
       - name: Lint PR creation contract
         shell: pwsh
         run: ./scripts/lint-pr-creation.ps1

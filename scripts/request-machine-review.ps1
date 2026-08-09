@@ -24,12 +24,12 @@ function Get-Paged {
 
 $prRaw = & gh api "repos/$Repo/pulls/$Pr" 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
-$pr = ($prRaw -join "`n") | ConvertFrom-Json
-if ($pr.state -ne 'open') { throw "PR #$Pr is not open." }
-if ($pr.draft) { throw "Ready-at-creation policy violation: $Repo PR #$Pr is draft." }
+$prData = ($prRaw -join "`n") | ConvertFrom-Json
+if ($prData.state -ne 'open') { throw "PR #$Pr is not open." }
+if ($prData.draft) { throw "Ready-at-creation policy violation: $Repo PR #$Pr is draft." }
 
-$headSha = [string]$pr.head.sha
-$prAuthor = [string]$pr.user.login
+$headSha = [string]$prData.head.sha
+$prAuthor = [string]$prData.user.login
 $prCommits = @(Get-Paged "repos/$Repo/pulls/$Pr/commits?per_page=100")
 $actorLogins = @($prCommits | ForEach-Object { [string]$_.author.login; [string]$_.committer.login } | Where-Object { $_ })
 $implementers = @(Get-MachineImplementerProvidersForActors -ActorLogins $actorLogins -PrAuthorLogin $prAuthor)
