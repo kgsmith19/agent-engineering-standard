@@ -69,6 +69,7 @@ $acceptedProviders = @(Get-AcceptedMachineReviewProviders `
   -PrAuthorLogin $prAuthor)
 
 $reviews = @(Get-Paged "repos/$Repo/pulls/$Pr/reviews?per_page=100")
+$inlineComments = @(Get-Paged "repos/$Repo/pulls/$Pr/comments?per_page=100")
 $comments = @(Get-Paged "repos/$Repo/issues/$Pr/comments?per_page=100")
 $passes = New-Object System.Collections.Generic.List[string]
 $failures = New-Object System.Collections.Generic.List[string]
@@ -80,6 +81,14 @@ foreach ($review in $reviews) {
     $failures.Add("$provider review by $($review.user.login) contains material findings")
   } elseif ($acceptedProviders -contains $provider) {
     $passes.Add("$provider formal review by $($review.user.login)")
+  }
+}
+
+foreach ($inline in $inlineComments) {
+  $provider = Get-MachineReviewProvider -Login ([string]$inline.user.login)
+  if (-not $provider -or [string]$inline.commit_id -ne $headSha) { continue }
+  if (Test-MaterialAiReviewBody -Body ([string]$inline.body)) {
+    $failures.Add("$provider inline review comment #$($inline.id) contains a material current-head finding")
   }
 }
 
