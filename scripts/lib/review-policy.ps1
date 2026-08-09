@@ -21,25 +21,44 @@ function Get-RequiredReviewProviders {
 
 function Get-PreferredIndependentReviewer {
   param(
+<<<<<<< HEAD
+    [ValidateSet('claude','copilot','codex','human')][string]$Implementer,
+=======
     [Parameter(Mandatory)][ValidateSet('chatgpt','claude','copilot','codex','human','unknown')][string]$Implementer,
+>>>>>>> origin/main
     [bool]$CodexAvailable = $true,
     [bool]$CopilotAvailable = $true
   )
 
+<<<<<<< HEAD
+  if ($Implementer -ne 'codex' -and $CodexAvailable) { return 'codex' }
+  if ($Implementer -ne 'copilot' -and $CopilotAvailable) { return 'copilot' }
+  throw "No mechanically connected independent reviewer is available for implementer '$Implementer'."
+=======
   foreach ($provider in @(Get-RequiredReviewProviders -Implementer $Implementer)) {
     if ($provider -eq 'codex' -and $CodexAvailable) { return 'codex' }
     if ($provider -eq 'copilot' -and $CopilotAvailable) { return 'copilot' }
   }
   throw "No required connected reviewer is available for implementer '$Implementer'."
+>>>>>>> origin/main
 }
 
 function Test-IndependentReview {
   param(
+<<<<<<< HEAD
+    [Parameter(Mandatory)][ValidateSet('claude','copilot','codex','human')][string]$Implementer,
+    [Parameter(Mandatory)][ValidateSet('copilot','codex')][string]$ReviewerProvider
+  )
+
+  if ($Implementer -eq 'human') { return $true }
+  return $Implementer -ne $ReviewerProvider
+=======
     [Parameter(Mandatory)][ValidateSet('chatgpt','claude','copilot','codex','human','unknown')][string]$Implementer,
     [Parameter(Mandatory)][ValidateSet('copilot','codex')][string]$ReviewerProvider
   )
 
   return @((Get-RequiredReviewProviders -Implementer $Implementer)) -contains $ReviewerProvider
+>>>>>>> origin/main
 }
 
 function Assert-ManualGateJustification {
