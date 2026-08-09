@@ -11,7 +11,7 @@ $required = @(
   '.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation-reusable.yml','.github/workflows/pr-automation.yml',
   '.github/workflows/pr-automation-gate-result.yml','.github/workflows/pr-automation-review-event.yml','.github/workflows/pr-automation-comment-event.yml','.github/workflows/pr-automation-watchdog.yml',
   'scripts/evaluate-ai-review.ps1','scripts/request-machine-review.ps1','scripts/request-review-repair.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/pr-orchestrator.ps1','scripts/gate-result-router.ps1','scripts/review-metrics.ps1','scripts/lint-pr-creation.ps1','scripts/prune-portfolio.ps1',
-  'tests/draft-prevention.tests.ps1','tests/state-machine-exhaustiveness.tests.ps1','tests/unconditional-evaluation.tests.ps1',
+  'tests/draft-prevention.tests.ps1','tests/state-machine-exhaustiveness.tests.ps1','tests/unconditional-evaluation.tests.ps1','tests/script-smoke.tests.ps1',
   'templates/.gitignore','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/dependabot.yml',
   'templates/PR_AUTOMATION_GATE_RESULT.yml','templates/PR_AUTOMATION_REVIEW_EVENT.yml','templates/PR_AUTOMATION_COMMENT_EVENT.yml','templates/PR_AUTOMATION_WATCHDOG.yml'
 )
@@ -224,6 +224,19 @@ Assert-Contains 'delivery guide documents P0/P1 blocking threshold' 'DELIVERY_GI
 
 $agentsLines = @(Get-Content (Join-Path $root 'templates/AGENTS.md')).Count
 if ($agentsLines -gt 120) { throw "templates/AGENTS.md exceeded lean 120-line budget: $agentsLines" }
+
+# PowerShell variable names are case-insensitive and typed params keep their
+# constraint: assigning a parsed object to $pr under [int]$Pr crashes the script
+# before any logic runs. Forbid reassigning any [int]/[long] param name.
+foreach ($scriptFile in Get-ChildItem (Join-Path $root 'scripts') -Recurse -Filter '*.ps1') {
+  $scriptText = Get-Content $scriptFile.FullName -Raw
+  $numericParams = @([regex]::Matches($scriptText,'(?m)^\s*(?:\[Parameter[^\]]*\])?\[(?:int|long)\]\$(\w+)\s*(?:=\s*\d+\s*)?[,)]?\s*$') | ForEach-Object { $_.Groups[1].Value })
+  foreach ($numericParam in $numericParams) {
+    if ($scriptText -match "(?im)^\s*\`$$numericParam\s*=(?!=)") {
+      throw "typed numeric param `$$numericParam is case-insensitively reassigned in $($scriptFile.Name); rename the local variable."
+    }
+  }
+}
 
 $parseFailures = New-Object System.Collections.Generic.List[string]
 foreach ($file in @(Get-ChildItem (Join-Path $root 'scripts') -Recurse -Filter '*.ps1') + @(Get-ChildItem (Join-Path $root 'tests') -Recurse -Filter '*.ps1')) {

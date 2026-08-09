@@ -42,6 +42,9 @@ jobs:
       - name: Test unconditional advisory evaluation
         shell: pwsh
         run: ./tests/unconditional-evaluation.tests.ps1
+      - name: Smoke-test arming and review-request scripts
+        shell: pwsh
+        run: ./tests/script-smoke.tests.ps1
       - name: Lint PR creation contract
         shell: pwsh
         run: ./scripts/lint-pr-creation.ps1

@@ -1,13 +1,14 @@
 param(
   [Parameter(Mandatory)][string]$Repo,
   [Parameter(Mandatory)][int]$Pr,
-  [ValidateSet('auto','codex','copilot')][string]$Provider = 'auto'
+  [ValidateSet('auto','codex','copilot')][string]$Provider = 'auto',
+  [string]$ConfigPath = (Join-Path $PSScriptRoot '..\policy\github-defaults.json')
 )
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib/review-policy.ps1')
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
-$config = Get-Content (Join-Path $PSScriptRoot '..\policy\github-defaults.json') -Raw | ConvertFrom-Json
+$config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $reviewPolicy = $config.independent_review
 if ([string]$reviewPolicy.dispatch_mode -eq 'disabled_pending_e2e') {
   Write-Host 'MACHINE REVIEW DISPATCH DISABLED: dispatch_mode=disabled_pending_e2e; no reviewer is requested until the live E2E canary re-enables dispatch.' -ForegroundColor Yellow
@@ -24,16 +25,16 @@ function Get-Paged {
 
 $prRaw = & gh api "repos/$Repo/pulls/$Pr" 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
-$pr = ($prRaw -join "`n") | ConvertFrom-Json
-if ([string]$pr.head.repo.full_name -ne $Repo) {
-  Write-Host "FORK-DENIED: $Repo PR #$Pr head repository '$([string]$pr.head.repo.full_name)' is not the target repository; no reviewer is requested for fork heads."
+$prData = ($prRaw -join "`n") | ConvertFrom-Json
+if ([string]$prData.head.repo.full_name -ne $Repo) {
+  Write-Host "FORK-DENIED: $Repo PR #$Pr head repository '$([string]$prData.head.repo.full_name)' is not the target repository; no reviewer is requested for fork heads."
   exit 0
 }
-if ($pr.state -ne 'open') { throw "PR #$Pr is not open." }
-if ($pr.draft) { throw "Ready-at-creation policy violation: $Repo PR #$Pr is draft." }
+if ($prData.state -ne 'open') { throw "PR #$Pr is not open." }
+if ($prData.draft) { throw "Ready-at-creation policy violation: $Repo PR #$Pr is draft." }
 
-$headSha = [string]$pr.head.sha
-$prAuthor = [string]$pr.user.login
+$headSha = [string]$prData.head.sha
+$prAuthor = [string]$prData.user.login
 $prCommits = @(Get-Paged "repos/$Repo/pulls/$Pr/commits?per_page=100")
 $actorLogins = @($prCommits | ForEach-Object { [string]$_.author.login; [string]$_.committer.login } | Where-Object { $_ })
 $implementers = @(Get-MachineImplementerProvidersForActors -ActorLogins $actorLogins -PrAuthorLogin $prAuthor)
