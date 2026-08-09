@@ -125,7 +125,9 @@ if ($acceptedProviders -notcontains $Provider) {
 }
 
 $marker = "<!-- ai-review-request:${Provider}:$headSha -->"
-if (@($comments | Where-Object { [string]$_.body -like "*$marker*" }).Count -gt 0) {
+if (@($comments | Where-Object {
+  (Test-TrustedAutomationComment -Comment $_ -OwnerLogin ([string]$config.owner)) -and [string]$_.body -like "*$marker*"
+}).Count -gt 0) {
   Write-Host "MACHINE REVIEW ALREADY REQUESTED: $Provider for $headSha" -ForegroundColor Yellow
   exit 0
 }
