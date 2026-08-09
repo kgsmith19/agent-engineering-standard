@@ -60,10 +60,12 @@ foreach ($repo in $Repositories) {
   if (-not (Test-Path $cloneDir)) {
     Write-Host "  Shallow-cloning $repo for worktree inspection..."
     & gh repo clone $repo $cloneDir -- --depth=1 --no-single-branch 2>&1 | Out-Null
-    $cloned = $true
+    if ($LASTEXITCODE -eq 0) { $cloned = $true } else {
+      Write-Host "  WARNING: clone failed for $repo — skipping worktree prune." -ForegroundColor Yellow
+    }
   }
 
-  if (Test-Path $cloneDir) {
+  if ((Test-Path $cloneDir) -and ($cloned -or (Test-Path (Join-Path $cloneDir '.git')))) {
     $wtList = & git -C $cloneDir worktree list --porcelain 2>&1
     if ($LASTEXITCODE -eq 0) {
       $staleCount = 0
@@ -84,12 +86,14 @@ foreach ($repo in $Repositories) {
 
   # ── Branch analysis ───────────────────────────────────────────────────────
   Write-Host "  Fetching branches and open PRs..."
-  $branchesJson = & gh api "repos/$repo/branches" --paginate 2>&1
+  $branchesRaw = & gh api "repos/$repo/branches" --paginate 2>&1
   if ($LASTEXITCODE -ne 0) {
     Write-Host "  WARNING: could not fetch branches for $repo" -ForegroundColor Yellow
     continue
   }
-  $branches = $branchesJson | ConvertFrom-Json | ForEach-Object { $_.name }
+  # --paginate concatenates JSON arrays; wrap them so ConvertFrom-Json handles multi-page output
+  $branchesJson = "[$($branchesRaw -join ',')]" -replace '\]\s*,?\s*\[', ','
+  $branches = ($branchesJson | ConvertFrom-Json) | ForEach-Object { $_.name }
 
   $openPRsJson = & gh pr list --repo $repo --state open --json headRefName --limit 500 2>&1
   $openPRBranches = if ($LASTEXITCODE -eq 0) {
