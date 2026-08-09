@@ -34,10 +34,17 @@ jobs:
             } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
           }
 
+<<<<<<< HEAD
           function Get-ProviderFromReviewer([string]$Login) {
             $value = $Login.ToLowerInvariant()
             if ($value -in @('chatgpt-codex-connector','chatgpt-codex-connector[bot]')) { return 'codex' }
             if ($value -in @('copilot-pull-request-reviewer','copilot-pull-request-reviewer[bot]')) { return 'copilot' }
+=======
+          function Get-ProviderFromLogin([string]$Login) {
+            $value = $Login.ToLowerInvariant()
+            if ($value -in @('chatgpt-codex-connector','chatgpt-codex-connector[bot]')) { return 'codex' }
+            if ($value -in @('copilot-pull-request-reviewer','copilot-pull-request-reviewer[bot]','copilot','copilot-swe-agent[bot]')) { return 'copilot' }
+>>>>>>> origin/main
             return $null
           }
 
@@ -63,13 +70,17 @@ jobs:
           $headSha = [string]$pr.head.sha
           $headRef = [string]$pr.head.ref
           $author = [string]$pr.user.login
+<<<<<<< HEAD
           $prBody = [string]$pr.body
+=======
+>>>>>>> origin/main
 
           if ($pr.draft) {
             Set-AiReviewCheck $headSha failure 'Draft PR: semantic review is intentionally deferred.'
             exit 0
           }
 
+<<<<<<< HEAD
           # LLM identity is accepted only from controlled branch namespaces or recognized bot authors.
           # Editable PR prose may identify a human implementation, but cannot self-attest an LLM provider.
           $implementer = $null
@@ -82,11 +93,28 @@ jobs:
           if (-not $implementer) {
             Set-AiReviewCheck $headSha failure 'Unknown implementation provenance. Agent PRs must use agent/<provider>/... or a recognized provider branch/author; human PRs must declare Implementer: human.'
             exit 0
+=======
+          # Agent provenance is mechanical. Ordinary user-authored branches are deliberately
+          # ambiguous and therefore require BOTH connected providers before automated merge.
+          $implementer = 'unknown'
+          if ($headRef -match '^agent/(chatgpt|codex|claude|copilot)/') { $implementer = $Matches[1].ToLowerInvariant() }
+          elseif ($headRef -match '^claude/') { $implementer = 'claude' }
+          elseif ($headRef -match '^copilot/' -or $author -eq 'Copilot') { $implementer = 'copilot' }
+          elseif ($author -match '^chatgpt-codex-connector(?:\[bot\])?$') { $implementer = 'codex' }
+
+          $requiredProviders = switch ($implementer) {
+            'codex' { @('copilot') }
+            'chatgpt' { @('copilot') }
+            'copilot' { @('codex') }
+            'claude' { @('codex') }
+            default { @('codex','copilot') }
+>>>>>>> origin/main
           }
 
           $reviewsRaw = & gh api "repos/$repo/pulls/$prNumber/reviews?per_page=100" 2>&1
           if ($LASTEXITCODE -ne 0) { throw ($reviewsRaw -join "`n") }
           $reviews = @(($reviewsRaw -join "`n") | ConvertFrom-Json)
+<<<<<<< HEAD
           $current = @($reviews | Where-Object {
             $provider = Get-ProviderFromReviewer ([string]$_.user.login)
             $_.commit_id -eq $headSha -and $_.state -notin @('DISMISSED','PENDING') -and $provider -and ($implementer -eq 'human' -or $provider -ne $implementer)
@@ -104,3 +132,51 @@ jobs:
           }
 
           Set-AiReviewCheck $headSha success "Current head $headSha has an independent review by $($latest.user.login); implementer: $implementer. Review-thread resolution is separately required by the branch ruleset."
+=======
+
+          $commentsRaw = & gh api "repos/$repo/issues/$prNumber/comments?per_page=100" 2>&1
+          if ($LASTEXITCODE -ne 0) { throw ($commentsRaw -join "`n") }
+          $comments = @(($commentsRaw -join "`n") | ConvertFrom-Json)
+
+          $passed = @{}
+          $failed = @{}
+          foreach ($provider in @('codex','copilot')) {
+            $providerReviews = @($reviews | Where-Object {
+              (Get-ProviderFromLogin ([string]$_.user.login)) -eq $provider -and
+              $_.commit_id -eq $headSha -and $_.state -notin @('DISMISSED','PENDING')
+            } | Sort-Object submitted_at)
+            if ($providerReviews.Count -gt 0) {
+              $latest = $providerReviews[-1]
+              if ($latest.state -eq 'CHANGES_REQUESTED') { $failed[$provider] = "formal review by $($latest.user.login) requests changes" }
+              else { $passed[$provider] = "formal review by $($latest.user.login)" }
+            }
+          }
+
+          # Copilot coding-agent fallback may return a structured issue comment instead of a formal review.
+          $structured = @($comments | Where-Object {
+            (Get-ProviderFromLogin ([string]$_.user.login)) -eq 'copilot' -and
+            $_.body -match '(?im)^\s*AI-REVIEW\s+(PASS|FAIL)\b' -and
+            $_.body -match [regex]::Escape($headSha)
+          } | Sort-Object created_at)
+          if ($structured.Count -gt 0) {
+            $latestComment = $structured[-1]
+            if ($latestComment.body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') { $failed['copilot'] = 'structured Copilot fallback reported material findings' }
+            elseif (-not $failed.ContainsKey('copilot')) { $passed['copilot'] = 'structured Copilot fallback' }
+          }
+
+          foreach ($provider in $requiredProviders) {
+            if ($failed.ContainsKey($provider)) {
+              Set-AiReviewCheck $headSha failure "Required $provider review failed: $($failed[$provider])."
+              exit 0
+            }
+          }
+
+          $missing = @($requiredProviders | Where-Object { -not $passed.ContainsKey($_) })
+          if ($missing.Count -gt 0) {
+            Set-AiReviewCheck $headSha failure "Missing current-head required review provider(s): $($missing -join ', '). Implementer provenance: $implementer."
+            exit 0
+          }
+
+          $proof = @($requiredProviders | ForEach-Object { "$_=$($passed[$_])" }) -join '; '
+          Set-AiReviewCheck $headSha success "Current head $headSha satisfies required review providers for implementer=$implementer. $proof"
+>>>>>>> origin/main
