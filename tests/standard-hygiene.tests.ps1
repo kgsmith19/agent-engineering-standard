@@ -153,6 +153,11 @@ Assert-NotContains 'bootstrap does not overwrite automatic args' 'scripts/bootst
 Assert-Contains 'bootstrap removes native CODEOWNERS' 'scripts/bootstrap-repo.ps1' 'Remove-Item .*\.github/CODEOWNERS'
 Assert-Contains 'upgrade installs AI Review' 'scripts/upgrade-repos.ps1' 'templates/AI_REVIEW\.yml'
 Assert-Contains 'upgrade installs PR Automation' 'scripts/upgrade-repos.ps1' 'templates/PR_AUTOMATION\.yml'
+Assert-Contains 'upgrade derives each live default branch' 'scripts/upgrade-repos.ps1' 'default_branch'
+Assert-Contains 'upgrade targets the derived default branch' 'scripts/upgrade-repos.ps1' '--base \$defaultBranch'
+Assert-NotContains 'upgrade never hardcodes a main base' 'scripts/upgrade-repos.ps1' '--base main'
+Assert-Contains 'upgrade fails closed when any repository fails' 'scripts/upgrade-repos.ps1' 'ROLLOUT FAILED'
+Assert-Contains 'doctor pins repositories to the approved design note' 'scripts/doctor.ps1' 'all-13-github-automation-design'
 Assert-Contains 'upgrade removes native CODEOWNERS' 'scripts/upgrade-repos.ps1' "Remove-Item '.github/CODEOWNERS'"
 Assert-Contains 'upgrade normalizes PR Gate name' 'scripts/upgrade-repos.ps1' 'name: PR Gate'
 Assert-Contains 'upgrade normalizes lowercase ci names' 'scripts/upgrade-repos.ps1' '\(\?im\)\^name:\\s\*ci'

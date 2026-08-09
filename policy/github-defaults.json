@@ -90,6 +90,11 @@
     "toolbelt",
     "lifeos",
     "lifeos-ui",
-    "network-checker"
+    "network-checker",
+    "2048Game",
+    "ShaesChicDesignsWeb",
+    "PitchRandomizer",
+    "AutoHit",
+    "AccountPortal"
   ]
 }

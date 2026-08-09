@@ -31,6 +31,7 @@ function Render-Template {
   Set-Content $Destination $text -Encoding utf8 -NoNewline
 }
 
+$failures = New-Object System.Collections.Generic.List[string]
 foreach ($name in $config.repositories) {
   if ($name -eq 'agent-engineering-standard') { continue }
   $repo = "$owner/$name"
@@ -39,6 +40,12 @@ foreach ($name in $config.repositories) {
   Write-Host "`n=== $repo ===" -ForegroundColor Cyan
 
   try {
+    # Repositories differ in default branch (e.g. master); never assume main.
+    $metaRaw = & gh api "repos/$repo" 2>&1
+    if ($LASTEXITCODE -ne 0) { throw ($metaRaw -join "`n") }
+    $defaultBranch = [string]((($metaRaw -join "`n") | ConvertFrom-Json).default_branch)
+    if (-not $defaultBranch) { throw "cannot resolve live default branch for $repo" }
+
     $existingRaw = & gh pr list --repo $repo --state open --head $branch --json number,url 2>&1
     if ($LASTEXITCODE -ne 0) { throw ($existingRaw -join "`n") }
     $existingPr = @(($existingRaw -join "`n") | ConvertFrom-Json)
@@ -129,7 +136,7 @@ Pins the shared engineering standard to $StandardSha and installs exact-SHA `AI 
 
 Risk: R3 control-plane dependency update. This bootstrap rollout is manually integrated because it changes the caller that will govern later unattended merges.
 "@
-      $prUrl = (& gh pr create --repo $repo --base main --head $branch --title "Upgrade autonomous engineering standard to $short" --body $body 2>&1 | Out-String).Trim()
+      $prUrl = (& gh pr create --repo $repo --base $defaultBranch --head $branch --title "Upgrade autonomous engineering standard to $short" --body $body 2>&1 | Out-String).Trim()
       if ($LASTEXITCODE -ne 0 -or -not $prUrl) { throw 'PR creation failed' }
       $createdRaw = & gh pr view $prUrl --repo $repo --json number,url,isDraft 2>&1
       if ($LASTEXITCODE -ne 0) { throw "PR created but its ready-at-creation postcondition could not be verified: $prUrl" }
@@ -143,8 +150,12 @@ Risk: R3 control-plane dependency update. This bootstrap rollout is manually int
   }
   catch {
     Write-Warning "$repo : $($_.Exception.Message)"
+    $failures.Add("${repo}: $($_.Exception.Message)")
   }
   finally {
     Remove-Item -Recurse -Force $temp -ErrorAction SilentlyContinue
   }
 }
+
+if ($failures.Count -gt 0) { throw "ROLLOUT FAILED for $($failures.Count) repositories:`n$($failures -join "`n")" }
+Write-Host 'ROLLOUT COMPLETE: every configured repository succeeded.' -ForegroundColor Green

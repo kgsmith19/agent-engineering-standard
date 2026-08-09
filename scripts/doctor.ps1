@@ -67,6 +67,14 @@ foreach ($gateName in @('control_plane','R4')) {
   Assert-ManualGateJustification $gate | Out-Null
 }
 
+# The approved all-13 design note is the source of truth for the managed set;
+# policy must list exactly those repositories, in the note's order.
+$designNotePath = Join-Path $root 'docs/superpowers/specs/2026-08-09-all-13-github-automation-design.md'
+if (-not (Test-Path $designNotePath)) { throw 'Approved all-13 design note is missing.' }
+$notedRepos = @([regex]::Matches((Get-Content $designNotePath -Raw),'(?m)^\d+\.\s+`([^`]+)`\s*$') | ForEach-Object { [string]$_.Groups[1].Value })
+if ($notedRepos.Count -ne 13) { throw "Design note must name exactly 13 repositories; found $($notedRepos.Count)." }
+if ((@($config.repositories) -join ',') -ne ($notedRepos -join ',')) { throw 'Policy repositories drifted from the approved all-13 design note.' }
+
 $parseFailures = New-Object System.Collections.Generic.List[string]
 foreach ($file in @(Get-ChildItem (Join-Path $root 'scripts') -Recurse -Filter '*.ps1') + @(Get-ChildItem (Join-Path $root 'tests') -Recurse -Filter '*.ps1')) {
   $tokens = $null; $errors = $null
