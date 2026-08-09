@@ -78,6 +78,10 @@ foreach ($name in $targets) {
     if ($LASTEXITCODE -ne 0) { Write-Warning "Could not create/update label $($label.name) in $repo" }
   }
 
+  $requiredChecks = @(@{ context=$config.required_status_context; integration_id=$actionsAppId })
+  if ([bool]$config.independent_review.required_for_auto_merge) {
+    $requiredChecks += @{ context=$config.required_ai_review_context; integration_id=$actionsAppId }
+  }
   $rules = @(
     @{ type='deletion' },
     @{ type='non_fast_forward' },
@@ -97,10 +101,7 @@ foreach ($name in $targets) {
       parameters=@{
         do_not_enforce_on_create=$true
         strict_required_status_checks_policy=[bool]$config.strict_required_status_checks_policy
-        required_status_checks=@(
-          @{ context=$config.required_status_context; integration_id=$actionsAppId },
-          @{ context=$config.required_ai_review_context; integration_id=$actionsAppId }
-        )
+        required_status_checks=$requiredChecks
       }
     }
   )
@@ -155,7 +156,7 @@ foreach ($name in $targets) {
 
   Write-Host 'repo settings: auto-merge/update-branch/squash/delete-branch configured'
   Write-Host 'workflow token default: read; PR approvals by workflow token disabled'
-  Write-Host 'ruleset: 0 human approvals, stale reviews dismissed, resolved threads, PR Gate + AI Review'
+  Write-Host "ruleset: 0 human approvals, stale reviews dismissed, required checks: $(@($requiredChecks | ForEach-Object { $_.context }) -join ' + ')"
 }
 
 Write-Host "`nDone. Run doctor.ps1 -Remote; do not claim readiness until every repo reports READY." -ForegroundColor Green
