@@ -47,26 +47,24 @@ A narrowly scoped GitHub App installation token is the write identity for agent 
 
 ## Coordination and branch ownership
 
-Claude currently owns the implementation lane in PR #44, branch `agent/chatgpt/43-state-machine-exhaustiveness`. Codex must not push to that branch or edit its commits.
+Claude owns PR #44, branch `agent/chatgpt/43-state-machine-exhaustiveness`. Codex must not push to that branch, rewrite its commits, or edit it through another identity. Codex owns PR #42, branch `codex/issue-41-ai-review-canary`.
 
-PR #42, branch `codex/issue-41-ai-review-canary`, remains the dispatch-disabled RED contract. It is not merged or made Ready until its implementation is complete and its exact head is green.
+Coordination uses a GitHub-backed lease comment containing owner, branch, exact base SHA, exact head SHA, intended paths and behaviors, and a six-hour expiry. Expiry never transfers ownership automatically; it forces a fresh state check and acknowledgement.
 
-Before every implementation batch, the worker must re-fetch:
+Claude may finish #44 to one declared stable exact head. Codex does not begin overlapping #42 production changes until that declaration. The #44 head is then frozen while Codex completes and merges #42. Claude, and only Claude, merges the resulting post-#42 `main` into #44 without rebasing or rewriting history. If Claude is unavailable, integration occurs on a new branch from post-#42 `main`; Codex still does not push to #44.
 
-- current `main` SHA;
-- open PR heads and changed files;
-- new comments and reviews on #42 and #44;
-- active branches touching the intended files.
+Immediately before every push, Ready transition, or merge, the worker performs compare-and-swap checks for the expected `main` SHA, branch head SHA, and unchanged overlap manifest. A mismatch stops the action and renews coordination.
 
-If another active branch touches the same behavior, Codex pauses that file set and works on a non-overlapping phase. No force-push, cross-agent commit rewriting, or direct edits to another agent's branch are allowed.
+One lease owner controls central policy, templates, and workflows at a time. Rollout agents receive mutually exclusive repository assignments recorded in the tracking Issue.
 
 The convergence order is fixed:
 
-1. Complete the minimal #42 dispatch kill switch and remove Projects.
-2. Rebase the completed #44 state-machine changes onto that result.
-3. Add Issue/inbox execution.
-4. Prove E2E review and repair.
-5. Roll the proven standard to all 13 repositories.
+1. Stabilize and lease #44 without merging it.
+2. Complete the minimal #42 dispatch kill switch and remove Projects.
+3. Merge post-#42 `main` into #44 and prove all #42 safety invariants still hold.
+4. Add Issue/inbox execution.
+5. Prove E2E review and repair.
+6. Roll the proven standard to all 13 repositories.
 
 ## Control-plane safety baseline
 
@@ -74,12 +72,15 @@ Until the E2E review canary passes:
 
 - `independent_review.dispatch_mode` is `disabled_pending_e2e`;
 - no workflow posts a reviewer request or repair request;
-- `AI Review` reports `neutral`, which is accepted only for the constrained canary lane;
+- `AI Review` reports `neutral`, which is accepted only for the dispatch-disabled R0 canary;
+- a manually started canary is bound to one repository, PR number, head SHA, and base SHA;
 - unattended auto-merge is capped at R2;
 - Projects policy, scripts, switches, and guidance are removed;
 - PR #42 and all control-plane changes remain manual integration gates.
 
-PR #44 must make current-head decisions exhaustive, cover full-PR reviewer provenance, fail closed for forks, invalidate stale evidence after material edits, and bound cancelled/stale reruns. The three known post-merge P2 defects are included: paginate beyond 100, inspect all open PRs, and make timeout behavior match the documented value.
+PR #44 must make current-head decisions exhaustive, cover full-PR reviewer provenance, fail closed for forks, invalidate stale evidence after material edits or base advancement, and bound cancelled/stale reruns. Required checks use strict up-to-date mode and evidence records both head SHA and base SHA. A base-SHA change invalidates prior `PR Gate` and `AI Review` evidence.
+
+The three known post-merge P2 defects are included: consume every pagination page, inspect every open PR, and make timeout behavior match the documented value. A literal `per_page=100` request is not proof of pagination.
 
 ## Issue and inbox intake
 
@@ -100,7 +101,7 @@ Untrusted public mentions never launch a write-capable agent.
 
 When Kyle is requested as reviewer on routine R0-R3 work, automation removes the request, records why, and routes an independent AI review. When Kyle is tagged or assigned an eligible Issue, the router classifies it and dispatches the implementation agent. It tags Kyle again only for R4 authority, a control-plane integration decision, missing requirements that change the outcome, or exhausted repair budgets.
 
-Each work item is deduplicated by `repository + item number + head SHA + stage`. State is represented by authenticated GitHub evidence and bounded labels, not a second database.
+Each work item is deduplicated by `repository + item type + item number + stage + source revision`. Issue stages use the issue update/delivery identity; PR stages use head SHA plus base SHA. At most one active implementation PR may exist for an Issue. State is represented by authenticated GitHub evidence and bounded labels, not a second database.
 
 ## Agent collaboration contract
 
@@ -110,12 +111,16 @@ Default routing:
 
 - Codex-authored PR -> Copilot review.
 - Copilot-authored PR -> Codex review.
-- Human or Claude-authored PR -> Codex review, with Copilot fallback only if independent.
+- Unknown or human-authored PR -> Codex review, with Copilot fallback only if independent.
 - Both Codex and Copilot contributed -> no connected independent reviewer; fail closed.
+
+Only authenticated GitHub actor metadata establishes provider provenance. Branch names, PR prose, commit-message co-author lines, and labels never establish Claude, Codex, or Copilot identity.
 
 P0 and P1 findings fail the required `AI Review` check. P2-only findings create or update one deduplicated advisory Issue and do not block.
 
-A repair returns to the original implementer provider. The reviewer does not implement its own finding. The repaired commit must produce a new head SHA, trigger a fresh `PR Gate`, and receive a new independent review. One review-repair head is allowed. A second blocking head stops.
+A repair returns to the authenticated original implementer when that provider is callable and did not produce the blocking review. For unknown or human work, the router selects a supported fixer that is not the reviewer, then recomputes reviewer eligibility across the complete commit history. The reviewer never implements its own finding. If no independent fixer-reviewer pair exists, automation stops.
+
+The repaired commit must produce a new head SHA, trigger a fresh `PR Gate` against the current base SHA, and receive a new independent review. One review-repair head is allowed. A second blocking head stops.
 
 Provider invocation is enabled only after a real GitHub canary proves that the invocation creates authenticated exact-head evidence. If workflow-authored native `@codex` dispatch fails that canary, the implementation uses a full-SHA-pinned `openai/codex-action` with a scoped secret. No unproven mention is treated as authoritative.
 
@@ -129,16 +134,17 @@ Every managed repository must have:
 - Issues enabled and Projects automation absent;
 - squash merge only;
 - auto-merge, update branch, and delete-head-branch enabled;
-- one canonical default-branch ruleset requiring `PR Gate`, `AI Review`, and resolved conversations;
+- one canonical default-branch ruleset requiring strict/up-to-date `PR Gate`, `AI Review`, and resolved conversations;
 - zero human approvals for R0-R3;
-- no requested Kyle reviewer and no native CODEOWNERS approval dependency;
+- no requested Kyle reviewer and no `.github/CODEOWNERS` file;
 - default workflow token read-only and least-privileged job permissions;
 - no bypass actor;
 - force-push and default-branch deletion blocked;
-- an exact default branch, including legacy `master` repositories;
+- an exact default branch, including `2048Game`, `AutoHit`, and `AccountPortal` on `master`;
+- Dependabot configured for every detected package ecosystem and GitHub Actions, with weekly grouped minor/patch updates and isolated major updates;
 - no `bootstrap-only` gate at acceptance.
 
-The rollout script must derive each repository's live default branch instead of assuming `main`.
+The rollout script must derive each repository's live default branch instead of assuming `main`. Portfolio application fails nonzero if any repository, label, setting, ruleset, caller, or lock update fails; warnings cannot produce a ready result.
 
 ## State and failure behavior
 
@@ -156,6 +162,8 @@ The router is idempotent and serialized per repository/item. Every transition ha
 
 An agent push uses the scoped GitHub App token so the new SHA starts fresh workflows. Re-running an old workflow is not evidence for a changed head.
 
+R4 and control-plane classification is derived from live changed paths and settings and overrides labels, Issue text, PR text, and agent output. Untrusted content cannot downgrade a manual-authority gate.
+
 ## SDD and verification
 
 Each behavior change follows RED -> GREEN -> REFACTOR:
@@ -172,22 +180,29 @@ Required automated evidence:
 - workflow event and permission structure tests;
 - exact-SHA caller and lock tests;
 - default-branch `main` and `master` rollout tests;
-- pagination, deduplication, attempt-budget, and actor-trust tests;
+- pagination fixtures with more than 100 commits and more than 100 open PRs, proving page-2 data changes the decision;
+- deduplication, one-active-PR, attempt-budget, and actor-trust tests;
+- a fake-`gh` integration harness proving portfolio mutation errors propagate as nonzero failure;
+- exact manifest/count tests for the 13 repositories and their live default branches;
+- structural tests proving App tokens are minted only in trusted jobs, never printed, and denied to forks;
+- tests proving labels and untrusted text cannot downgrade R4 or control-plane risk;
 - local doctor;
 - remote doctor for all 13 repositories.
 
 Required live canaries, in order:
 
 1. Dispatch-disabled R0 PR reaches `PR Gate`, neutral `AI Review`, and native auto-merge.
-2. Trusted Issue dispatch creates a same-repository PR.
-3. Independent review returns clean evidence for the exact head.
-4. Controlled P1 finding routes to the implementer, creates a new SHA, reruns CI, receives a clean re-review, and auto-merges.
-5. Kyle review request is removed and replaced by the independent agent route.
+2. Trusted Issue dispatch creates one same-repository PR.
+3. A manually started, exact-PR canary override obtains clean independent review evidence for the exact head and base.
+4. The canary override injects a controlled P1 finding, routes it to an independent fixer, creates a new SHA, reruns CI, receives a clean re-review, and auto-merges.
+5. In the same canary repository, a Kyle review request is removed and replaced by the independent agent route.
 6. Six-hour reconciliation repairs one deliberately stranded eligible item.
 
-Review dispatch stays disabled portfolio-wide until canaries 1 through 5 pass.
+Review dispatch remains disabled by default. After canary 1, only one explicit canary repository and exact PR/head/base tuple may dispatch for canaries 2 through 5. Portfolio-wide dispatch is enabled only after canaries 1 through 5 pass.
 
 ## Rollout phases
+
+Each phase receives its own child spec, implementation plan, branch, and independently reviewable PR. No implementation PR spans phases.
 
 ### Phase 1: Control-plane convergence
 
@@ -219,18 +234,25 @@ Bootstrap meaningful stack-specific gates and roll out the same pinned contract 
 - `AutoHit`
 - `AccountPortal`
 
-### Phase 5: Acceptance and cleanup
+### Phase 5: Dependency and security automation
 
-Run remote doctor across all 13, record exact-head canary links, close superseded Projects work, close completed trackers, and enable review dispatch only at the proven standard SHA.
+Enable the lean Dependabot contract across all detected ecosystems. Dependency PRs use the same risk, CI, independent-review, repair, and auto-merge state machine. Enable repository-native Dependabot alerts/security updates and secret-scanning controls where the repository plan supports them; unsupported controls are recorded as not applicable, not silently skipped.
+
+### Phase 6: Acceptance and cleanup
+
+Run remote doctor across all 13, record exact-head and base-SHA canary links, close superseded Projects work, close completed trackers, and enable review dispatch only at the proven standard SHA.
 
 ## Acceptance criteria
 
 The work is complete only when:
 
-- policy lists exactly all 13 non-archived repositories;
+- policy lists exactly all 13 non-archived repositories and asserts the count;
 - all 13 pass remote doctor without warnings;
-- all 13 expose the exact required checks and squash-only live settings;
+- the GitHub App is installed on all 13 with only the required repository permissions;
+- trusted-job-only token minting, fork denial, token non-disclosure, and default-branch write protection are verified;
+- all 13 expose strict/up-to-date required checks and squash-only live settings;
 - every caller is pinned to the same proven standard SHA;
+- every detected package ecosystem and GitHub Actions has the approved Dependabot schedule/grouping;
 - Projects automation and stale Projects trackers are removed or closed;
 - no routine PR requests Kyle as reviewer;
 - Issue, tag, requested-review, review-repair, fresh-CI, reconciliation, and native auto-merge canaries are linked from #17;
