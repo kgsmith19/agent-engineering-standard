@@ -87,7 +87,7 @@ Assert-True 'orchestrator blocks Copilot-owned PRs' ($orchestrator -match 'copil
 Assert-True 'orchestrator uses Copilot only to repair existing PR' ($orchestrator -match '@copilot investigate and fix')
 Assert-True 'blocked state disables auto-merge' ($orchestrator -match '(?s)function Set-Blocked.*?Disable-AutoMerge')
 Assert-True 'automation blocks have recovery markers' ($orchestrator -match 'automation:resolve:')
-Assert-True 'short review timeout stays recoverable' ($orchestrator -match 'short polling window expiring is not a blocker')
+Assert-True 'short review timeout stays recoverable' ($orchestrator -match '(?i)short polling window expiring is not a blocker')
 Assert-True 'absolute reviewer timeout is enforced by watchdog' ($orchestrator -match 'absolute_timeout_minutes')
 Assert-True 'orchestrator has bounded CI repair' ($orchestrator -match 'max_ci_fix_attempts')
 Assert-True 'orchestrator has bounded review repair' ($orchestrator -match 'max_review_fix_attempts')
