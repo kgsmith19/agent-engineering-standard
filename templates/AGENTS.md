@@ -4,74 +4,95 @@ This repository follows `kgsmith19/agent-engineering-standard`, pinned in `.agen
 
 ## Product truth
 
-Read only the context needed for the assigned work, in this order:
+Read only the context needed for the assigned work:
 
-1. `PRD.md` — what/why/outcomes/requirements
-2. relevant `specs/` — exact behavior when nontrivial
-3. relevant `docs/adr/` — consequential architecture constraints
-4. the assigned GitHub Issue — durable work scope
+1. `PRD.md`
+2. relevant `specs/`
+3. relevant `docs/adr/`
+4. assigned GitHub Issue
 
-Do not invent a consequential product decision when the source truth is missing or contradictory. Record the blocker and stop that slice.
+Do not invent consequential product decisions. Record a real blocker and stop that slice when source truth is missing or contradictory.
 
 ## Lean delivery loop
 
-`Issue → SPEC if needed → thin slice → RED/minimum GREEN → local verification → draft PR → PR Gate → independent AI Review → merge/release`
+`Issue → SPEC only if needed → thin slice → RED/minimum GREEN → local verification → draft PR → Ready → PR Gate → exact-head AI Review → automatic squash merge → release`
 
-- Work one thin slice at a time; scope widening becomes another slice/Issue.
-- Use the smallest correct implementation. Avoid speculative abstractions and unrelated refactors.
-- Write/adjust behavioral proof before implementation when practical; RED must fail for the missing behavior, not setup noise.
-- Never weaken tests, evaluators, required checks, security boundaries, or thresholds merely to obtain GREEN.
+- Work one thin slice at a time; scope widening becomes another slice or Issue.
+- Prefer the smallest correct implementation. Avoid speculative abstractions, dependencies, and unrelated refactors.
+- Write or adjust behavioral proof before implementation when practical.
+- RED must fail for missing behavior, not setup noise.
+- Never weaken tests, evaluators, required checks, security boundaries, or thresholds to obtain GREEN.
 - Update affected product/engineering truth in the same PR.
 
 ## Isolation and parallelism
 
-- Every write-capable task uses its own branch/worktree. Never share a working directory between concurrent writers.
-- Controlled agent branches use `agent/<provider>/<issue-or-work>` when the harness allows it.
-- Read-only research/review may fan out in parallel.
+- Every writer uses its own branch/worktree; concurrent writers never share a directory.
+- Read-only research/review may fan out.
 - Parallel writers require disjoint file scopes and separate worktrees. Default maximum: 3.
-- One coordinator integrates results and runs final verification.
+- One coordinator integrates and runs final verification.
 
 ## Risk and authority
 
-Use the shared R0–R4 scale. The implementing agent may raise risk, never lower it.
+Use R0–R4. The implementing agent may raise risk, never lower it.
 
 - Control-plane changes are at least R3.
-- R4 never auto-merges; the manual step authorizes the destructive/financial/privileged/irreversible consequence.
-- Any manual gate must state: failure class prevented, why automation is insufficient, decision owner, and measurable gate-removal condition.
+- R4 never auto-merges.
+- Any manual authority gate must state the failure prevented, why automation is insufficient, decision owner, and measurable removal condition.
+- Kyle may be tagged for authority, but must never be assigned as a routine GitHub reviewer.
 
-## CI and repair
+## Draft and Ready
 
-Keep active implementation in a draft PR. Run fast local checks before pushing coherent changes.
+Keep active implementation draft so micro-pushes do not spend semantic-review budget or arm merge.
 
-When `PR Gate` fails:
+When coherent and locally verified, add `status:ready`. Automation marks the PR Ready and removes the label. Converting back to draft pauses the lane again.
 
-1. classify the failure: implementation, specification/oracle, environment, flaky, or policy
-2. fix implementation/environment failures at the root cause
-3. retry a genuinely flaky failure once
-4. do not silently override specification/policy conflicts
-5. stop after 3 failed fix attempts for the same cause and record the blocker
+Copilot cloud agent may repair an existing non-Copilot PR. Do not let Copilot cloud agent own/create a PR intended for unattended merge because GitHub requires those PRs to be human-reviewed and merged.
 
-Do not push cosmetic or empty commits just to retrigger CI.
+## PR Gate and repair
 
-## Independent review and merge
+`PR Gate` is the cheapest sufficient repo-specific objective evidence.
 
-Writing code is not completion.
+On failure:
 
-- A semantic reviewer must be independent of the implementing agent/session; use another provider when practical and mechanically supported.
-- Use the shared review automation when available, but never claim review success unless GitHub records the required `AI Review` evidence on the current head SHA.
-- A later push invalidates prior exact-head semantic evidence.
-- Resolve review threads only after the finding is fixed or explicitly demonstrated to be a false positive.
-- Auto-merge is allowed only when the current head has required `PR Gate` + `AI Review`, review threads are resolved, risk is eligible, and no justified authority gate applies.
+1. classify root cause
+2. read complete logs
+3. fix the cause, not the symptom
+4. never weaken the judge
+5. retry through the normal PR flow
+6. stop at the bounded repair budget and apply `status:blocked`
+
+Do not push empty commits merely to retrigger CI.
+
+## Machine AI Review
+
+After `PR Gate` passes, automation requests one fresh machine review task/session for the exact head SHA.
+
+- Codex is primary for ordinary PRs.
+- Copilot is the bounded fallback and the required reviewer for a PR authored by the Codex GitHub App.
+- Branch names and PR prose do not prove implementation identity.
+- One review covers correctness/security, requirement fit, business ROI, systems optimization, and strict leanness.
+- Any P0–P2 finding fails `AI Review` and triggers bounded repair on the same PR.
+- A fix creates a new SHA; both gates repeat.
+- Never reviewer-shop around a material finding.
+
+## Merge
+
+Routine auto-merge requires:
+
+- non-draft, non-Copilot-owned PR
+- eligible R0–R3 risk
+- no `status:blocked`
+- no self-modifying control-plane path
+- no requested reviewer `kgsmith19`
+- current-head `PR Gate` success
+- current-head `AI Review` success
+- resolved review threads
+- live squash-only zero-human ruleset
+
+GitHub performs the squash merge and deletes the branch.
 
 ## Hygiene
 
-- `.worktrees/` and `.superpowers/` are local scratch state and must stay ignored.
-- Remove merged/abandoned branches and stale worktree metadata only when no unique or dirty work can be lost.
-- If a manual workaround is likely to recur, automate it when small/safe or log one bounded automation/research candidate with evidence and a next experiment.
-
-## Reviewer rules
-
-- Flag requirement/spec mismatches even when tests pass.
-- Flag tests that can pass without proving the claimed behavior.
-- Flag weakened authority/security/evaluator boundaries and unnecessary complexity.
-- For UI changes, require appropriate user-visible evidence such as a focused Playwright journey unless stronger evidence is justified.
+- `.worktrees/` and `.superpowers/` remain ignored.
+- Never destroy dirty work or branches with unique commits.
+- Automate recurring manual toil when safe; otherwise record one bounded research candidate with evidence and a next experiment.
