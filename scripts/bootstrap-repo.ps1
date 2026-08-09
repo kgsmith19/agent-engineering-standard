@@ -40,6 +40,19 @@ New-Item -ItemType Directory -Force (Join-Path $target 'docs/adr') | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $target '.github/ISSUE_TEMPLATE') | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $target '.github/workflows') | Out-Null
 
+$gitignorePath = Join-Path $target '.gitignore'
+if (-not (Test-Path $gitignorePath)) {
+  Copy-Item (Join-Path $standardRoot 'templates/.gitignore') $gitignorePath -Force
+} else {
+  $gitignoreText = Get-Content $gitignorePath -Raw
+  foreach ($entry in @('.worktrees/','.superpowers/')) {
+    if ($gitignoreText -notmatch "(?m)^$([regex]::Escape($entry))\s*$") {
+      Add-Content $gitignorePath $entry -Encoding utf8
+      $gitignoreText += "`n$entry"
+    }
+  }
+}
+
 Copy-Item (Join-Path $standardRoot 'templates/AGENTS.md') (Join-Path $target 'AGENTS.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/PRD.md') (Join-Path $target 'PRD.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/ISSUE.md') (Join-Path $target '.github/ISSUE_TEMPLATE/work-item.md') -Force
@@ -80,7 +93,7 @@ ci:
 
 Push-Location $target
 try {
-  & git add AGENTS.md CLAUDE.md PRD.md specs docs/adr .agent .github
+  & git add .gitignore AGENTS.md CLAUDE.md PRD.md specs docs/adr .agent .github
   & git commit -m 'chore: bootstrap lean agent engineering standard'
   if ($LASTEXITCODE -ne 0) { throw 'Initial bootstrap commit failed.' }
   & git push origin HEAD
