@@ -42,20 +42,25 @@ $preferred = Get-PreferredMachineReviewer `
   -PrAuthorLogin $prAuthor
 
 $reviews = @(Get-Paged "repos/$Repo/pulls/$Pr/reviews?per_page=100")
+$inlineComments = @(Get-Paged "repos/$Repo/pulls/$Pr/comments?per_page=100")
 $comments = @(Get-Paged "repos/$Repo/issues/$Pr/comments?per_page=100")
+$passes = New-Object System.Collections.Generic.List[string]
+$failures = New-Object System.Collections.Generic.List[string]
 
-$currentMachineReviews = @($reviews | Where-Object {
-  (Get-MachineReviewProvider -Login ([string]$_.user.login)) -and
-  $_.commit_id -eq $headSha -and $_.state -notin @('DISMISSED','PENDING')
-})
-foreach ($review in $currentMachineReviews) {
-  if ($review.state -eq 'CHANGES_REQUESTED' -or (Test-MaterialAiReviewBody -Body ([string]$review.body))) {
-    throw "Current head $headSha has material machine-review findings; fix them before requesting another reviewer."
-  }
+foreach ($review in $reviews) {
   $reviewProvider = Get-MachineReviewProvider -Login ([string]$review.user.login)
-  if ($acceptedProviders -contains $reviewProvider) {
-    Write-Host "MACHINE REVIEW ALREADY SATISFIED: $reviewProvider formal review for $headSha" -ForegroundColor Green
-    exit 0
+  if (-not $reviewProvider -or $review.commit_id -ne $headSha -or $review.state -in @('DISMISSED','PENDING')) { continue }
+  if ($review.state -eq 'CHANGES_REQUESTED' -or (Test-MaterialAiReviewBody -Body ([string]$review.body))) {
+    $failures.Add("$reviewProvider formal review contains material findings")
+  } elseif ($acceptedProviders -contains $reviewProvider) {
+    $passes.Add("$reviewProvider formal review")
+  }
+}
+foreach ($inline in $inlineComments) {
+  $inlineProvider = Get-MachineReviewProvider -Login ([string]$inline.user.login)
+  if (-not $inlineProvider -or [string]$inline.commit_id -ne $headSha) { continue }
+  if (Test-MaterialAiReviewBody -Body ([string]$inline.body)) {
+    $failures.Add("$inlineProvider inline comment #$($inline.id) contains a material finding")
   }
 }
 
@@ -65,11 +70,19 @@ $structured = @($comments | Where-Object {
   $_.body -match [regex]::Escape($headSha)
 } | Sort-Object created_at)
 if ($structured.Count -gt 0) {
-  if ($structured[-1].body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') { throw "Current head $headSha has material Copilot findings; fix them first." }
-  if ($acceptedProviders -contains 'copilot') {
-    Write-Host "MACHINE REVIEW ALREADY SATISFIED: Copilot exact-head PASS for $headSha" -ForegroundColor Green
-    exit 0
+  if ($structured[-1].body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') {
+    $failures.Add('Copilot structured exact-head review contains material findings')
+  } elseif ($acceptedProviders -contains 'copilot') {
+    $passes.Add('Copilot structured exact-head PASS')
   }
+}
+
+if ($failures.Count -gt 0) {
+  throw "Current head $headSha has material machine-review findings: $(($failures | Select-Object -Unique) -join '; '). Fix them before requesting another reviewer."
+}
+if ($passes.Count -gt 0) {
+  Write-Host "MACHINE REVIEW ALREADY SATISFIED: $(($passes | Select-Object -Unique) -join '; ') for $headSha" -ForegroundColor Green
+  exit 0
 }
 
 $requestHeads = @{}
