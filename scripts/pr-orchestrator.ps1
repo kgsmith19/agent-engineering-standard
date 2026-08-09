@@ -321,7 +321,7 @@ function Wait-ForReview {
     Invoke-AiReview $Number
     $failures = @(Get-ReviewFailures $Number $current)
     if ($failures.Count -gt 0) {
-      Request-Repair review $Number $current
+      # AI Review Gate is the sole review-repair launcher.
       return 'failed'
     }
     if ((Get-CheckConclusion $Head 'AI Review') -eq 'success') { return 'success' }
