@@ -18,7 +18,7 @@ function Assert-NotContains {
 $required = @(
   '.gitignore','docs/AUTONOMOUS-PR-STATE-MACHINE.md',
   '.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation-reusable.yml','.github/workflows/pr-automation.yml',
-  'scripts/evaluate-ai-review.ps1','scripts/request-machine-review.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/pr-orchestrator.ps1','scripts/prune-portfolio.ps1',
+  'scripts/evaluate-ai-review.ps1','scripts/request-machine-review.ps1','scripts/request-review-repair.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/pr-orchestrator.ps1','scripts/prune-portfolio.ps1',
   'templates/.gitignore','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/dependabot.yml'
 )
 foreach ($relative in $required) { Assert-True "required file $relative" (Test-Path (Join-Path $root $relative)) }
@@ -43,6 +43,7 @@ Assert-Contains 'Dependabot groups patch updates' 'templates/dependabot.yml' '(?
 Assert-Contains 'standard workflow named PR Gate' '.github/workflows/ci.yml' '(?m)^name:\s*PR Gate\s*$'
 Assert-Contains 'standard job context named PR Gate' '.github/workflows/ci.yml' '(?m)^\s+name:\s*PR Gate\s*$'
 Assert-Contains 'AI Review delegates to evaluator' '.github/workflows/ai-review-reusable.yml' 'scripts/evaluate-ai-review\.ps1'
+Assert-Contains 'AI Review requests bounded repair' '.github/workflows/ai-review-reusable.yml' 'scripts/request-review-repair\.ps1'
 Assert-Contains 'AI Review reconciles stale machine threads' '.github/workflows/ai-review-reusable.yml' 'scripts/reconcile-machine-review-threads\.ps1'
 Assert-NotContains 'AI reusable does not duplicate provider map' '.github/workflows/ai-review-reusable.yml' 'chatgpt-codex-connector|copilot-pull-request-reviewer'
 
@@ -50,8 +51,9 @@ foreach ($templateName in @('AI_REVIEW.yml','PR_AUTOMATION.yml')) {
   Assert-Contains "$templateName has exact SHA placeholder" "templates/$templateName" '__STANDARD_SHA__'
   Assert-NotContains "$templateName does not follow moving main" "templates/$templateName" '@main\b'
 }
-Assert-Contains 'draft AI Review runner is skipped' 'templates/AI_REVIEW.yml' 'github\.event\.pull_request\.draft == false'
-Assert-Contains 'AI Review can reconcile threads' 'templates/AI_REVIEW.yml' 'pull-requests:\s*write'
+Assert-Contains 'AI Review reacts to inline evidence' 'templates/AI_REVIEW.yml' 'pull_request_review_comment:'
+Assert-Contains 'AI Review can post bounded repair' 'templates/AI_REVIEW.yml' 'issues:\s*write'
+Assert-NotContains 'AI Review does not run on ordinary pull-request pushes' 'templates/AI_REVIEW.yml' '(?m)^\s*pull_request:'
 Assert-Contains 'watchdog is low frequency' 'templates/PR_AUTOMATION.yml' 'cron:\s*"17 \*/12 \* \* \*"'
 Assert-Contains 'gate automation can write AI Review' 'templates/PR_AUTOMATION.yml' '(?s)gate-result:.*?checks:\s*write'
 Assert-Contains 'review automation can remove reviewers' 'templates/PR_AUTOMATION.yml' '(?s)review-event:.*?pull-requests:\s*write'
@@ -60,8 +62,13 @@ Assert-Contains 'review policy derives latest-head implementer' 'scripts/lib/rev
 Assert-Contains 'review policy returns independent providers' 'scripts/lib/review-policy.ps1' 'Get-AcceptedMachineReviewProviders'
 Assert-Contains 'review request reads current head commit' 'scripts/request-machine-review.ps1' 'repos/\$Repo/commits/\$headSha'
 Assert-Contains 'fallback must be independent' 'scripts/request-machine-review.ps1' "acceptedProviders -contains 'copilot'"
+Assert-Contains 'review request blocks inline reviewer-shopping' 'scripts/request-machine-review.ps1' 'pulls/\$Pr/comments\?per_page=100'
 Assert-Contains 'evaluator reads current head commit' 'scripts/evaluate-ai-review.ps1' 'repos/\$Repo/commits/\$headSha'
 Assert-Contains 'evaluator uses independent providers' 'scripts/evaluate-ai-review.ps1' 'Get-AcceptedMachineReviewProviders'
+Assert-Contains 'evaluator checks inline comments' 'scripts/evaluate-ai-review.ps1' 'inline review comment'
+Assert-Contains 'repair script has bounded review budget' 'scripts/request-review-repair.ps1' 'max_review_fix_attempts'
+Assert-Contains 'repair script launches Copilot on existing PR' 'scripts/request-review-repair.ps1' '@copilot address all material machine-review findings'
+Assert-Contains 'repair exhaustion disables auto-merge' 'scripts/request-review-repair.ps1' '--disable-auto'
 
 $orchestrator = Read-Text 'scripts/pr-orchestrator.ps1'
 Assert-True 'orchestrator removes forbidden reviewers' ($orchestrator -match 'requested_reviewers' -and $orchestrator -match 'forbidden_requested_reviewers')
@@ -98,6 +105,8 @@ Assert-Contains 'upgrade installs AI Review' 'scripts/upgrade-repos.ps1' 'templa
 Assert-Contains 'upgrade installs PR Automation' 'scripts/upgrade-repos.ps1' 'templates/PR_AUTOMATION\.yml'
 Assert-Contains 'upgrade removes native CODEOWNERS' 'scripts/upgrade-repos.ps1' "Remove-Item '.github/CODEOWNERS'"
 Assert-Contains 'upgrade normalizes PR Gate name' 'scripts/upgrade-repos.ps1' 'name: PR Gate'
+Assert-Contains 'upgrade labels rollout R3' 'scripts/upgrade-repos.ps1' "--add-label 'risk:R3'"
+Assert-Contains 'upgrade reuses existing rollout PR' 'scripts/upgrade-repos.ps1' 'existing rollout PR'
 
 Assert-Contains 'doctor checks Copilot workflow approval' 'scripts/doctor.ps1' 'require_actions_workflow_approval'
 Assert-Contains 'doctor checks requested reviewers' 'scripts/doctor.ps1' 'requested_reviewers'
