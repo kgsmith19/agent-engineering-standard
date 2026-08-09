@@ -20,15 +20,15 @@ $config = Get-Content (Join-Path $PSScriptRoot '..\policy\github-defaults.json')
 
 $prRaw = & gh pr view $Pr --repo $Repo --json isDraft,state,labels,baseRefName,headRefName,author 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
-$pr = ($prRaw -join "`n") | ConvertFrom-Json
-if ($pr.state -ne 'OPEN') { throw "PR #$Pr is not open." }
-if ($pr.isDraft) { throw "Ready-at-creation policy violation: $Repo PR #$Pr is draft. Auto-merge was not attempted." }
-if (@($pr.labels | ForEach-Object { $_.name }) -contains 'status:blocked') { throw "PR #$Pr is status:blocked." }
-if ([string]$pr.author.login -eq 'Copilot' -or [string]$pr.headRefName -like 'copilot/*') {
+$prData = ($prRaw -join "`n") | ConvertFrom-Json
+if ($prData.state -ne 'OPEN') { throw "PR #$Pr is not open." }
+if ($prData.isDraft) { throw "Ready-at-creation policy violation: $Repo PR #$Pr is draft. Auto-merge was not attempted." }
+if (@($prData.labels | ForEach-Object { $_.name }) -contains 'status:blocked') { throw "PR #$Pr is status:blocked." }
+if ([string]$prData.author.login -eq 'Copilot' -or [string]$prData.headRefName -like 'copilot/*') {
   throw 'Copilot-cloud-agent-owned PRs require human review/merge by GitHub platform policy and cannot use the unattended lane.'
 }
 
-$labelRisk = Get-RiskFromLabels @($pr.labels | ForEach-Object { $_.name })
+$labelRisk = Get-RiskFromLabels @($prData.labels | ForEach-Object { $_.name })
 if ($Risk -ne $labelRisk) { throw "Risk mismatch: caller supplied $Risk but PR labels resolve to $labelRisk." }
 $riskNumber = [int]$Risk.Substring(1)
 $maxRisk = [int]([string]$config.auto_merge_max_risk).Substring(1)
@@ -54,7 +54,7 @@ if ($controlPlane -and [bool]$config.manual_gates.control_plane.required) {
 $metaRaw = Invoke-WithAdminToken { & gh api "repos/$Repo" 2>&1 }
 if ($LASTEXITCODE -ne 0) { throw "Cannot inspect live repository settings for $Repo." }
 $meta = ($metaRaw -join "`n") | ConvertFrom-Json
-if ($pr.baseRefName -ne $meta.default_branch) { throw "PR targets '$($pr.baseRefName)', not protected default branch '$($meta.default_branch)'." }
+if ($prData.baseRefName -ne $meta.default_branch) { throw "PR targets '$($prData.baseRefName)', not protected default branch '$($meta.default_branch)'." }
 if (-not $meta.allow_auto_merge) { throw 'Live GitHub setting drift: auto-merge is off.' }
 if (-not $meta.allow_update_branch) { throw 'Live GitHub setting drift: update branch is off.' }
 if (-not $meta.allow_squash_merge -or $meta.allow_merge_commit -or $meta.allow_rebase_merge) { throw 'Live GitHub merge policy is not squash-only.' }
