@@ -17,8 +17,7 @@ Idea
 → Thin Slice
 → RED → Minimum GREEN
 → Local Verification
-→ Draft PR
-→ `status:ready`
+→ Ready PR (`draft: false`)
 → `PR Gate`
 → automatic squash merge
 → Release / Runtime Proof
@@ -83,8 +82,8 @@ pwsh -NoProfile -File .\scripts\prune-portfolio.ps1
 Managed repositories use:
 
 - GitHub Issues as durable work items
-- draft PRs during implementation
-- `status:ready` for automatic promotion to Ready
+- Ready PRs at creation; API/SDK/connector calls set `draft: false`, and `gh pr create` omits `--draft`
+- fail-closed workflow enforcement if a PR is ever opened or converted to draft
 - exact workflow and status name `PR Gate` — the sole required context (machine review is advisory-only per ADR 0002)
 - zero required human approvals
 - no native `CODEOWNERS`

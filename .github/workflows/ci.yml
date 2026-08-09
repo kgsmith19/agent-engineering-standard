@@ -2,7 +2,7 @@ name: PR Gate
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
     branches: [main]
   merge_group:
@@ -17,11 +17,16 @@ concurrency:
 jobs:
   pr-gate:
     name: PR Gate
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Enforce Ready at creation
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft
+        shell: bash
+        run: |
+          echo '::error::Ready-at-creation policy violation. Create PRs with draft:false; gh callers must omit --draft.'
+          exit 1
       - name: Test legacy branch-protection logic
         shell: pwsh
         run: ./tests/legacy-protection.tests.ps1
@@ -31,6 +36,12 @@ jobs:
       - name: Test machine review policy
         shell: pwsh
         run: ./tests/review-policy.tests.ps1
+      - name: Test ready-at-creation enforcement
+        shell: pwsh
+        run: ./tests/draft-prevention.tests.ps1
+      - name: Lint PR creation contract
+        shell: pwsh
+        run: ./scripts/lint-pr-creation.ps1
       - name: Test standard hygiene
         shell: pwsh
         run: ./tests/standard-hygiene.tests.ps1

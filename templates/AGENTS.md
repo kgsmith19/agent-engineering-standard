@@ -15,7 +15,7 @@ Do not invent consequential product decisions. Record a real blocker and stop th
 
 ## Lean delivery loop
 
-`Issue → SPEC only if needed → thin slice → RED/minimum GREEN → local verification → draft PR → Ready → PR Gate → exact-head AI Review → automatic squash merge → release`
+`Issue → SPEC only if needed → thin slice → RED/minimum GREEN → local verification → Ready PR → PR Gate → exact-head AI Review → automatic squash merge → release`
 
 - Work one thin slice at a time; scope widening becomes another slice or Issue.
 - Prefer the smallest correct implementation. Avoid speculative abstractions, dependencies, and unrelated refactors.
@@ -40,11 +40,14 @@ Use R0–R4. The implementing agent may raise risk, never lower it.
 - Any manual authority gate must state the failure prevented, why automation is insufficient, decision owner, and measurable removal condition.
 - Kyle may be tagged for authority, but must never be assigned as a routine GitHub reviewer.
 
-## Draft and Ready
+## PR creation contract
 
-Keep active implementation draft so micro-pushes do not spend semantic-review budget or arm merge.
+Complete and verify the coherent slice locally before opening its PR. Every PR is Ready at creation.
 
-When coherent and locally verified, add `status:ready`. Automation marks the PR Ready and removes the label. Converting back to draft pauses the lane again.
+- REST, SDK, GraphQL, and connector calls set `draft: false` and verify the returned state.
+- `gh pr create` omits `--draft`, then `gh pr view --json isDraft --jq .isDraft` must return `false`.
+- Never convert a Ready PR to draft and never use `gh pr ready` as a pipeline transition.
+- A draft is a policy failure: automation blocks it and never attempts auto-merge.
 
 Copilot cloud agent may repair an existing non-Copilot PR. Do not let Copilot cloud agent own/create a PR intended for unattended merge because GitHub requires those PRs to be human-reviewed and merged.
 
@@ -79,7 +82,7 @@ After `PR Gate` passes, automation requests one fresh machine review task/sessio
 
 Routine auto-merge requires:
 
-- non-draft, non-Copilot-owned PR
+- Ready-at-creation, non-Copilot-owned PR
 - eligible R0–R3 risk
 - no `status:blocked`
 - no self-modifying control-plane path

@@ -41,7 +41,7 @@ $labels = @(
   @{ name='risk:R2'; color='F1C40F'; description='normal product/API change' },
   @{ name='risk:R3'; color='E67E22'; description='sensitive/control-plane boundary' },
   @{ name='risk:R4'; color='C0392B'; description='destructive/financial/privileged/irreversible' },
-  @{ name='status:ready'; color='0E8A16'; description='promote a coherent draft into the automated merge lane' },
+  @{ name='status:ready'; color='0E8A16'; description='Issue is approved for autonomous execution' },
   @{ name='status:blocked'; color='B60205'; description='bounded automation stopped on a real dependency/decision' }
 )
 

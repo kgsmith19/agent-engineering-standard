@@ -22,7 +22,7 @@ $prRaw = & gh api "repos/$Repo/pulls/$Pr" 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
 $pr = ($prRaw -join "`n") | ConvertFrom-Json
 if ($pr.state -ne 'open') { throw "PR #$Pr is not open." }
-if ($pr.draft) { throw "PR #$Pr is draft; machine review is deferred until Ready." }
+if ($pr.draft) { throw "Ready-at-creation policy violation: $Repo PR #$Pr is draft." }
 
 $headSha = [string]$pr.head.sha
 $commitRaw = & gh api "repos/$Repo/commits/$headSha" 2>&1

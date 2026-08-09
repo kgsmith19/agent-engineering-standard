@@ -72,7 +72,7 @@ Assert-Equal 'Post-fix finding head exhausts one-repair budget' (Get-ReviewRepai
 Assert-Throws 'Repair budget must be positive' { Get-ReviewRepairDecision -HeadSha $head -AttemptedHeadShas @() -MaxAttempts 0 -HasFindings $true }
 
 Assert-Equal 'No risk label defaults to R2' (Get-RiskFromLabels @()) 'R2'
-Assert-Equal 'Single risk label is parsed' (Get-RiskFromLabels @('risk:R3','status:ready')) 'R3'
+Assert-Equal 'Single risk label is parsed' (Get-RiskFromLabels @('risk:R3','status:blocked')) 'R3'
 Assert-Throws 'Multiple risk labels fail closed' { Get-RiskFromLabels @('risk:R1','risk:R3') }
 
 Assert-Equal 'Workflow is control plane' (Test-ControlPlanePath '.github/workflows/pr-gate.yml') $true

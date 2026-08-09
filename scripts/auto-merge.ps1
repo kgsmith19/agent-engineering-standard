@@ -22,7 +22,7 @@ $prRaw = & gh pr view $Pr --repo $Repo --json isDraft,state,labels,baseRefName,h
 if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
 $pr = ($prRaw -join "`n") | ConvertFrom-Json
 if ($pr.state -ne 'OPEN') { throw "PR #$Pr is not open." }
-if ($pr.isDraft) { throw "PR #$Pr is draft." }
+if ($pr.isDraft) { throw "Ready-at-creation policy violation: $Repo PR #$Pr is draft. Auto-merge was not attempted." }
 if (@($pr.labels | ForEach-Object { $_.name }) -contains 'status:blocked') { throw "PR #$Pr is status:blocked." }
 if ([string]$pr.author.login -eq 'Copilot' -or [string]$pr.headRefName -like 'copilot/*') {
   throw 'Copilot-cloud-agent-owned PRs require human review/merge by GitHub platform policy and cannot use the unattended lane.'

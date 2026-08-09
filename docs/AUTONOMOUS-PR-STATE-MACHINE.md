@@ -22,12 +22,13 @@ This is the authoritative decision map for routine pull-request integration acro
 14. Temporary reviewer latency remains recoverable; pending review pauses auto-merge and the 12-hour safety timeout is checked by an hourly watchdog.
 15. Automation state/budget/request markers are authoritative only when posted by a trusted automation author.
 16. If a trusted base predates the evaluator/orchestrator during the one-time bootstrap, reusable workflows execute no proposed PR scripts and remain on the explicit external authority path.
+17. Every PR is Ready at creation. Draft state is a policy violation, not an implementation state.
 
 ## States
 
 | State | Meaning | Exit condition |
 |---|---|---|
-| `DRAFT` | Implementation is still changing | `status:ready` or explicit Ready |
+| `PR_CONTRACT_BLOCKED` | A PR was opened or converted to draft | explicit Ready state followed by fresh evaluation |
 | `READY_UNVERIFIED` | Merge intent exists; current head is unproven | `PR Gate` starts |
 | `GATE_RUNNING` | Deterministic evidence is running | pass, failure, timeout, skip, approval block, newer head |
 | `CI_REPAIR` | Copilot is repairing deterministic failure on the existing PR | new head or retry exhaustion |
@@ -49,12 +50,8 @@ flowchart TD
     B --> C{Copilot-owned PR?}
     C -- Yes --> C1[BLOCKED: re-home into non-Copilot PR]
     C -- No --> D{Draft?}
-    D -- Yes --> E[Disable auto-merge; spend no AI review]
-    E --> F{status:ready added?}
-    F -- No --> E
-    F -- Yes --> G[Mark Ready and remove status:ready]
+    D -- Yes --> E[BLOCKED: fail ready-at-creation contract]
     D -- No --> H[Classify risk and changed paths]
-    G --> H
     H --> I{Conflict?}
     I -- Yes --> J[Dependabot rebase or Copilot conflict repair]
     J --> A
@@ -88,11 +85,11 @@ flowchart TD
 
 | Event or condition | Detection | Automated action | Result |
 |---|---|---|---|
-| Draft opened | `pull_request_target.opened` | Remove forbidden reviewers; auto-merge off; no AI runner | `DRAFT` |
+| Draft opened | `pull_request_target.opened` | Disable auto-merge; apply `status:blocked`; post one diagnostic; fail workflow | `PR_CONTRACT_BLOCKED` |
 | Ready opened | PR event | Classify risk/path and arm auto-merge if eligible | `READY_UNVERIFIED` |
-| `status:ready` on draft | label event | Mark Ready; remove label | `READY_UNVERIFIED` |
-| Converted back to draft | `converted_to_draft` | Disable auto-merge; semantic runner stays idle | `DRAFT` |
-| Push while draft | `synchronize` | No semantic spend | `DRAFT` |
+| Converted to draft | `converted_to_draft` | Disable auto-merge; apply block; fail workflow; never auto-convert | `PR_CONTRACT_BLOCKED` |
+| Legacy draft explicitly made Ready | `ready_for_review` | Resolve the draft block and re-evaluate all current facts | `READY_UNVERIFIED` |
+| Push while draft | `synchronize` | Repeat the visible contract failure; never spend semantic-review budget | `PR_CONTRACT_BLOCKED` |
 | Push while Ready | new SHA | Old evidence becomes irrelevant; state restarts | `READY_UNVERIFIED` |
 | `kgsmith19` requested as reviewer | `review_requested` | Immediately remove requested reviewer; tag only later if authority is truly required | routine lane |
 | Stale workflow result | event SHA != current SHA | Ignore | unchanged |
@@ -173,6 +170,7 @@ This is not a generic waiting state. It means a concrete fact exists:
 - required workflow/check missing or skipped
 - reviewer safety timeout exceeded
 - risk labels contradictory
+- PR is draft or was converted to draft
 - no connected reviewer remains independent of all detected latest-head machine actors
 - PR is Copilot-owned and therefore platform-human-merge-only
 
@@ -193,8 +191,8 @@ That is intentionally different from GitHub requested-reviewer state.
 
 The implementation is incomplete until these canaries succeed:
 
-1. Draft: checks/review/merge remain paused.
-2. Ready label: `status:ready` promotes the draft.
+1. Ready-at-creation: a Ready canary enters `PR Gate` immediately.
+2. Draft rejection: a deliberate draft receives `status:blocked`, a failing contract diagnostic, no `gh pr ready`, and no auto-merge attempt.
 3. Happy path: gate passes, independent machine reviewer passes, GitHub auto-merges with no human action.
 4. Finding: deliberate formal or inline finding blocks; Copilot repairs existing PR; new head is independently reviewed; merge completes.
 5. CI failure: deliberate failure creates one bounded repair task and never weakens the gate.

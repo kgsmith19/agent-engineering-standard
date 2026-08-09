@@ -48,7 +48,7 @@ if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
 $prData = ($prRaw -join "`n") | ConvertFrom-Json
 $headSha = [string]$prData.head.sha
 if ($prData.draft) {
-  Set-AiReviewCheck $headSha failure 'Draft PR: machine review is intentionally deferred until Ready.'
+  Set-AiReviewCheck $headSha failure 'Ready-at-creation policy violation: draft PRs are forbidden.'
   exit 0
 }
 
