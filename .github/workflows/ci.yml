@@ -2,6 +2,7 @@ name: PR Gate
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
   push:
     branches: [main]
   merge_group:
