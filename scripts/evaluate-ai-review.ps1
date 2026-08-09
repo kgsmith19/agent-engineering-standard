@@ -57,7 +57,10 @@ if ([string]$prData.head.repo.full_name -ne $Repo) {
 }
 # Machine-readable evidence scope: a dispatch_policy_version bump invalidates
 # every older neutral/success, so re-enabling dispatch forces fresh evaluation.
-$dispatchEvidence = "dispatch-evidence repo=$Repo pr=$Pr head=$headSha base=$baseSha mode=$([string]$config.independent_review.dispatch_mode) policy_version=$([int]$config.independent_review.dispatch_policy_version)"
+# risk records what the labels resolved to at evaluation time; contradictory
+# labels record 'unknown' and are blocked separately by the orchestrator.
+try { $evidenceRisk = Get-RiskFromLabels @($prData.labels | ForEach-Object { [string]$_.name }) } catch { $evidenceRisk = 'unknown' }
+$dispatchEvidence = "dispatch-evidence repo=$Repo pr=$Pr head=$headSha base=$baseSha risk=$evidenceRisk mode=$([string]$config.independent_review.dispatch_mode) policy_version=$([int]$config.independent_review.dispatch_policy_version)"
 if ($prData.draft) {
   Set-AiReviewCheck $headSha failure 'Ready-at-creation policy violation: draft PRs are forbidden.'
   exit 0

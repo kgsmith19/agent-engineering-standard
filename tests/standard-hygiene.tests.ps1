@@ -92,8 +92,9 @@ Assert-Contains 'evaluator searches prior advisory Issues across heads' 'scripts
 # $headSha to empty (backslash is not an escape in PowerShell strings), leaving
 # an unsatisfiable two-space literal. Single quotes preserve the intended regex.
 Assert-Contains 'evaluator exposes disabled dispatch with neutral check' 'scripts/evaluate-ai-review.ps1' 'Set-AiReviewCheck \$headSha neutral'
-Assert-Contains 'evaluator embeds machine-readable dispatch evidence' 'scripts/evaluate-ai-review.ps1' 'dispatch-evidence repo=\$Repo pr=\$Pr head=\$headSha base=\$baseSha mode='
+Assert-Contains 'evaluator embeds machine-readable dispatch evidence' 'scripts/evaluate-ai-review.ps1' 'dispatch-evidence repo=\$Repo pr=\$Pr head=\$headSha base=\$baseSha risk=\$evidenceRisk mode='
 Assert-Contains 'evaluator scopes evidence to dispatch policy version' 'scripts/evaluate-ai-review.ps1' 'policy_version='
+Assert-Contains 'evidence risk derives from PR labels' 'scripts/evaluate-ai-review.ps1' 'Get-RiskFromLabels'
 Assert-Contains 'orchestrator re-evaluates stale policy-version evidence' 'scripts/pr-orchestrator.ps1' 'Test-CurrentDispatchEvidence'
 Assert-Contains 'doctor pins dispatch policy version to a positive integer' 'scripts/doctor.ps1' 'dispatch_policy_version'
 Assert-Contains 'repair script has bounded review budget' 'scripts/request-review-repair.ps1' 'max_review_fix_attempts'
