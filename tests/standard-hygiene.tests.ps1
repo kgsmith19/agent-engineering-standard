@@ -96,6 +96,8 @@ Assert-Contains 'evaluator embeds machine-readable dispatch evidence' 'scripts/e
 Assert-Contains 'evaluator scopes evidence to dispatch policy version' 'scripts/evaluate-ai-review.ps1' 'policy_version='
 Assert-Contains 'evidence risk derives from PR labels' 'scripts/evaluate-ai-review.ps1' 'Get-RiskFromLabels'
 Assert-Contains 'orchestrator re-evaluates stale policy-version evidence' 'scripts/pr-orchestrator.ps1' 'Test-CurrentDispatchEvidence'
+Assert-Contains 'auto-merge verifies current dispatch policy version' 'scripts/auto-merge.ps1' 'Test-CurrentDispatchEvidence'
+Assert-Contains 'policy-version evidence check is shared from the lib' 'scripts/lib/review-policy.ps1' 'function Test-CurrentDispatchEvidence'
 Assert-Contains 'doctor pins dispatch policy version to a positive integer' 'scripts/doctor.ps1' 'dispatch_policy_version'
 Assert-Contains 'repair script has bounded review budget' 'scripts/request-review-repair.ps1' 'max_review_fix_attempts'
 Assert-Contains 'repair script uses centralized decision' 'scripts/request-review-repair.ps1' 'Get-ReviewRepairDecision'

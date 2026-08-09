@@ -206,13 +206,11 @@ function Get-CheckRun {
   return $latest[0]
 }
 function Get-CheckConclusion { param([string]$Head,[string]$Name) $run=Get-CheckRun $Head $Name; if(-not$run){return $null}; return [string]$run.conclusion }
-function Test-CurrentDispatchEvidence {
-  # Evidence not carrying the CURRENT dispatch_policy_version is stale: bumping
-  # the version on re-enable invalidates every open neutral (swarm-activation gate).
+function Test-HeadDispatchEvidence {
   param([string]$Head)
   $run=Get-CheckRun $Head 'AI Review'
   if(-not $run){return $false}
-  return [string]$run.output.summary -match "policy_version=$([int]$reviewPolicy.dispatch_policy_version)(\D|$)"
+  return Test-CurrentDispatchEvidence -Summary ([string]$run.output.summary) -PolicyVersion ([int]$reviewPolicy.dispatch_policy_version)
 }
 function Get-FirstReviewRequestTime {
   param([int]$Number,[string]$Head)
@@ -266,7 +264,7 @@ function Ensure-PrState {
     if ((Get-CheckConclusion $head 'PR Gate') -ne 'success') { return $prData }
     $allowedReview = if ($dispatchDisabled) { @('neutral','success') } else { @('success') }
     if ((Get-CheckConclusion $head 'AI Review') -notin $allowedReview) { return $prData }
-    if (-not (Test-CurrentDispatchEvidence $head)) { return $prData }
+    if (-not (Test-HeadDispatchEvidence $head)) { return $prData }
     & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'auto-merge.ps1') -Repo $Repo -Pr $Number -Risk $risk
     if ($LASTEXITCODE -ne 0) { Set-Blocked $Number 'auto-merge-settings' 'Auto-merge could not be armed. Reconcile live repository settings and ruleset with setup-portfolio.ps1.' $prData; return $prData }
     $prData = Get-Pr $Number
@@ -309,7 +307,7 @@ function Run-ReviewCycle {
   # evaluates existing evidence only). Stale policy_version evidence is
   # re-evaluated so a dispatch_policy_version bump invalidates every open neutral.
   $head=[string]$prData.headRefOid
-  if(-not((Test-AiReviewPassingConclusion (Get-CheckConclusion $head 'AI Review'))-and(Test-CurrentDispatchEvidence $head))){Invoke-AiReview $Number}
+  if(-not((Test-AiReviewPassingConclusion (Get-CheckConclusion $head 'AI Review'))-and(Test-HeadDispatchEvidence $head))){Invoke-AiReview $Number}
   if(@(Get-ReviewFailures $Number $prData).Count-gt 0){return}
   if(-not $reviewSolicit -or [string]$reviewPolicy.dispatch_mode-eq'disabled_pending_e2e'){Complete-ReviewSuccess $Number;return}
   if(Test-AiReviewPassingConclusion (Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review')){Complete-ReviewSuccess $Number;return}

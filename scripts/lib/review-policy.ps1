@@ -107,6 +107,15 @@ function Test-AiReviewPassingConclusion {
   return $Conclusion -in @('success','neutral')
 }
 
+function Test-CurrentDispatchEvidence {
+  # Evidence whose summary does not carry the CURRENT dispatch_policy_version is
+  # stale: bumping the version on re-enable invalidates every open neutral (the
+  # swarm-activation gate). Pure text check; callers fetch the check run.
+  param([AllowNull()][string]$Summary,[Parameter(Mandatory)][int]$PolicyVersion)
+  if ([string]::IsNullOrWhiteSpace($Summary)) { return $false }
+  return $Summary -match "policy_version=$PolicyVersion(\D|$)"
+}
+
 function Get-TrustedAiReviewAdvisoryIssueNumber {
   param(
     [object[]]$Comments = @(),

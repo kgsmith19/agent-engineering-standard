@@ -79,6 +79,7 @@ $dispatchDisabled = [string]$config.independent_review.dispatch_mode -eq 'disabl
 $allowedReview = if ($dispatchDisabled) { @('neutral','success') } else { @('success') }
 $reviewRun = Get-LatestActionsCheckRun $headSha 'AI Review'
 if (-not $reviewRun -or [string]$reviewRun.conclusion -notin $allowedReview) { throw "Auto-merge refused: exact-head 'AI Review' must conclude $($allowedReview -join '/') for $headSha in dispatch_mode '$($config.independent_review.dispatch_mode)'." }
+if (-not (Test-CurrentDispatchEvidence -Summary ([string]$reviewRun.output.summary) -PolicyVersion ([int]$config.independent_review.dispatch_policy_version))) { throw "Auto-merge refused: exact-head 'AI Review' evidence does not carry current dispatch_policy_version $($config.independent_review.dispatch_policy_version) for $headSha." }
 
 $actionsAppRaw = & gh api /apps/github-actions 2>&1
 if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve GitHub Actions App identity.' }

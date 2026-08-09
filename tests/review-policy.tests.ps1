@@ -96,6 +96,12 @@ Assert-Equal 'Neutral is a passing required-check conclusion' (Test-AiReviewPass
 Assert-Equal 'Success is a passing required-check conclusion' (Test-AiReviewPassingConclusion 'success') $true
 Assert-Equal 'Failure is not a passing required-check conclusion' (Test-AiReviewPassingConclusion 'failure') $false
 
+Assert-Equal 'Current policy-version evidence is accepted' (Test-CurrentDispatchEvidence -Summary 'dispatch-evidence policy_version=1' -PolicyVersion 1) $true
+Assert-Equal 'Stale policy-version evidence is rejected' (Test-CurrentDispatchEvidence -Summary 'dispatch-evidence policy_version=1' -PolicyVersion 2) $false
+Assert-Equal 'Prefix-collision policy version is rejected' (Test-CurrentDispatchEvidence -Summary 'dispatch-evidence policy_version=12' -PolicyVersion 1) $false
+Assert-Equal 'Missing evidence line is rejected' (Test-CurrentDispatchEvidence -Summary 'no evidence here' -PolicyVersion 1) $false
+Assert-Equal 'Empty summary is rejected' (Test-CurrentDispatchEvidence -Summary '' -PolicyVersion 1) $false
+
 Assert-Equal 'No blocking findings need no repair' (Get-ReviewRepairDecision -HeadSha $head -AttemptedHeadShas @() -MaxAttempts 1 -HasBlockingFindings $false) 'none'
 Assert-Equal 'First blocking finding head requests repair' (Get-ReviewRepairDecision -HeadSha $head -AttemptedHeadShas @() -MaxAttempts 1 -HasBlockingFindings $true) 'request'
 Assert-Equal 'Same blocking finding head remains pending instead of exhausting' (Get-ReviewRepairDecision -HeadSha $head -AttemptedHeadShas @($head) -MaxAttempts 1 -HasBlockingFindings $true) 'pending'
