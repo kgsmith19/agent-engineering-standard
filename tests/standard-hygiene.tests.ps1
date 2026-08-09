@@ -8,9 +8,13 @@ function Assert-True {
 
 foreach ($relative in @(
   '.gitignore',
+  '.github/workflows/auto-merge-reusable.yml',
+  '.github/workflows/pr-automation.yml',
+  '.github/workflows/request-review-reusable.yml',
   'scripts/prune-portfolio.ps1',
   'templates/.gitignore',
-  'templates/dependabot.yml'
+  'templates/dependabot.yml',
+  'templates/PR_AUTOMATION.yml'
 )) {
   Assert-True "required file $relative" (Test-Path (Join-Path $root $relative))
 }
@@ -40,9 +44,19 @@ if ($agentsLines -gt 120) { throw "templates/AGENTS.md exceeded lean 120-line bu
 $bootstrap = Get-Content (Join-Path $root 'scripts/bootstrap-repo.ps1') -Raw
 Assert-True 'bootstrap manages scratch ignore' ($bootstrap -match 'templates/\.gitignore')
 Assert-True 'bootstrap installs Dependabot default' ($bootstrap -match 'templates/dependabot\.yml')
+Assert-True 'bootstrap installs AI Review caller' ($bootstrap -match 'templates/AI_REVIEW\.yml')
+Assert-True 'bootstrap installs PR Automation caller' ($bootstrap -match 'templates/PR_AUTOMATION\.yml')
 
-$tokens = $null; $errors = $null
-[System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'scripts/prune-portfolio.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
-if ($errors.Count -gt 0) { throw "prune-portfolio.ps1 parse failed: $($errors[0].Message)" }
+$automation = Get-Content (Join-Path $root 'templates/PR_AUTOMATION.yml') -Raw
+Assert-True 'PR Automation reacts to ready PRs' ($automation -match 'ready_for_review')
+Assert-True 'PR Automation waits for PR Gate workflow' ($automation -match 'workflows:\s*\["PR Gate"\]')
+Assert-True 'PR Automation delegates auto-merge centrally' ($automation -match 'auto-merge-reusable\.yml@main')
+Assert-True 'PR Automation delegates review centrally' ($automation -match 'request-review-reusable\.yml@main')
+
+foreach ($relative in @('scripts/prune-portfolio.ps1','scripts/bootstrap-repo.ps1')) {
+  $tokens = $null; $errors = $null
+  [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root $relative), [ref]$tokens, [ref]$errors) | Out-Null
+  if ($errors.Count -gt 0) { throw "$relative parse failed: $($errors[0].Message)" }
+}
 
 Write-Host 'standard-hygiene tests: PASS' -ForegroundColor Green
