@@ -21,12 +21,12 @@
     "required_for_auto_merge": true,
     "preferred_provider": "codex",
     "local_codex_model": "gpt-5.4-mini",
-    "max_codex_reviews_per_pr": 2,
+    "max_codex_reviews_per_pr": 3,
     "copilot_fallback": true,
     "copilot_effort": "low",
     "copilot_review_drafts": false,
     "copilot_review_on_push": false,
-    "max_copilot_reviews_per_pr": 1,
+    "max_copilot_reviews_per_pr": 3,
     "same_provider_counts_as_independent": false
   },
   "manual_gate_required_fields": [
