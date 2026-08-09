@@ -24,7 +24,9 @@ function Get-Comments {
 
 function Add-CommentOnce {
   param([string]$Marker,[string]$Body,$Comments)
-  if (@($Comments | Where-Object { [string]$_.body -like "*$Marker*" }).Count -gt 0) { return }
+  if (@($Comments | Where-Object {
+    (Test-TrustedAutomationComment -Comment $_ -OwnerLogin ([string]$config.owner)) -and [string]$_.body -like "*$Marker*"
+  }).Count -gt 0) { return }
   & gh pr comment $Pr --repo $Repo --body "$Body`n`n$Marker" | Out-Host
   if ($LASTEXITCODE -ne 0) { throw "Could not comment on $Repo PR #$Pr." }
 }
