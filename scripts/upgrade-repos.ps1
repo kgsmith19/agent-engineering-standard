@@ -65,7 +65,13 @@ pinned_by: upgrade-repos.ps1
         Set-Content $project $p -Encoding utf8 -NoNewline
       }
 
-      $paths = @($lock)
+      New-Item -ItemType Directory -Force '.github/workflows' | Out-Null
+      $aiReview = '.github/workflows/ai-review.yml'
+      $prAutomation = '.github/workflows/pr-automation.yml'
+      Copy-Item (Join-Path $standardRoot 'templates/AI_REVIEW.yml') $aiReview -Force
+      Copy-Item (Join-Path $standardRoot 'templates/PR_AUTOMATION.yml') $prAutomation -Force
+
+      $paths = @($lock, $aiReview, $prAutomation)
       if (Test-Path $project) { $paths += $project }
       & git add -- $paths
       if ($LASTEXITCODE -ne 0) { throw 'git add failed' }
@@ -77,7 +83,7 @@ pinned_by: upgrade-repos.ps1
         if ($LASTEXITCODE -ne 0) { throw 'commit failed' }
         & git push -u origin $branch | Out-Host
         if ($LASTEXITCODE -ne 0) { throw 'push failed' }
-        $body = "Pins the shared engineering standard to $StandardSha. No product behavior change. Review as an R3 control-plane dependency update; existing repo-specific quality gates remain authoritative."
+        $body = "Pins the shared engineering standard to $StandardSha and refreshes the canonical AI Review + PR Automation callers. No product behavior change. Review as an R3 control-plane dependency update; the repo-specific PR Gate remains authoritative."
         & gh pr create --repo $repo --base main --head $branch --title "Upgrade agent engineering standard to $short" --body $body | Out-Host
         if ($LASTEXITCODE -ne 0) { throw 'PR creation failed' }
       }
