@@ -12,13 +12,18 @@ function Assert-Equal {
   if ($Actual -cne $Expected) { throw "$Name failed: expected '$Expected', got '$Actual'." }
 }
 
-# Material PR mutations must wake authority reconciliation immediately.
+# Material PR mutations must wake authority reconciliation immediately. The
+# per-event split routes each trigger family to its own workflow file.
 foreach ($path in @('templates/PR_AUTOMATION.yml','.github/workflows/pr-automation.yml')) {
   Assert-Contains "$path handles PR edited" $path '(?s)pull_request_target:.*?types:\s*\[[^\]]*\bedited\b'
   Assert-Contains "$path handles auto-merge enabled" $path '(?s)pull_request_target:.*?types:\s*\[[^\]]*\bauto_merge_enabled\b'
   Assert-Contains "$path handles auto-merge disabled" $path '(?s)pull_request_target:.*?types:\s*\[[^\]]*\bauto_merge_disabled\b'
+}
+foreach ($path in @('templates/PR_AUTOMATION_REVIEW_EVENT.yml','.github/workflows/pr-automation-review-event.yml')) {
   Assert-Contains "$path handles edited formal reviews" $path '(?s)pull_request_review:.*?types:\s*\[[^\]]*\bedited\b'
   Assert-Contains "$path handles inline review lifecycle" $path '(?s)pull_request_review_comment:.*?types:\s*\[[^\]]*created[^\]]*edited[^\]]*deleted'
+}
+foreach ($path in @('templates/PR_AUTOMATION_COMMENT_EVENT.yml','.github/workflows/pr-automation-comment-event.yml')) {
   Assert-Contains "$path handles structured comment deletion" $path '(?s)issue_comment:.*?types:\s*\[[^\]]*\bdeleted\b'
 }
 
@@ -55,7 +60,7 @@ Assert-Contains 'gate-result router reruns one workflow run' 'scripts/gate-resul
 Assert-Contains 'gate-result router records trusted rerun marker' 'scripts/gate-result-router.ps1' 'auto-rerun:v1:gate:'
 Assert-Contains 'gate-result router blocks repeat rerun exhaustion' 'scripts/gate-result-router.ps1' 'gate-rerun-exhausted'
 Assert-Contains 'gate rerun exhaustion preserves current PR state' 'scripts/gate-result-router.ps1' 'gate-rerun-exhausted.*\$prData'
-foreach ($path in @('templates/PR_AUTOMATION.yml','.github/workflows/pr-automation.yml')) {
+foreach ($path in @('templates/PR_AUTOMATION_GATE_RESULT.yml','.github/workflows/pr-automation-gate-result.yml')) {
   Assert-Contains "$path scopes Actions write to gate-result" $path '(?s)gate-result:.*?permissions:.*?actions:\s*write'
 }
 Assert-Contains 'gate rerun budget is one' 'policy/github-defaults.json' '"max_gate_rerun_attempts"\s*:\s*1'
@@ -84,9 +89,17 @@ Assert-Contains 'requester paginates all PR commits for independence' 'scripts/r
 Assert-Contains 'evaluator uses actor-set reviewer policy' 'scripts/evaluate-ai-review.ps1' 'Get-AcceptedMachineReviewProvidersForActors'
 Assert-Contains 'requester uses actor-set reviewer policy' 'scripts/request-machine-review.ps1' 'Get-AcceptedMachineReviewProvidersForActors'
 
-# Evaluator and orchestrator share one repo-wide non-canceling authority lock;
-# the deterministic PR Gate keeps its own per-PR concurrency group.
-foreach ($path in @('.github/workflows/ai-review.yml','.github/workflows/pr-automation.yml','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml')) {
+# Evaluator and orchestrator share one repo-wide non-canceling authority lock —
+# every per-event automation workflow carries it; the deterministic PR Gate
+# keeps its own per-PR concurrency group.
+foreach ($path in @(
+  '.github/workflows/ai-review.yml','templates/AI_REVIEW.yml',
+  '.github/workflows/pr-automation.yml','templates/PR_AUTOMATION.yml',
+  '.github/workflows/pr-automation-gate-result.yml','templates/PR_AUTOMATION_GATE_RESULT.yml',
+  '.github/workflows/pr-automation-review-event.yml','templates/PR_AUTOMATION_REVIEW_EVENT.yml',
+  '.github/workflows/pr-automation-comment-event.yml','templates/PR_AUTOMATION_COMMENT_EVENT.yml',
+  '.github/workflows/pr-automation-watchdog.yml','templates/PR_AUTOMATION_WATCHDOG.yml'
+)) {
   Assert-Contains "$path uses the shared authority lock" $path '(?s)concurrency:\s*\r?\n\s*group:\s*automation-authority-\$\{\{ github\.repository \}\}\s*\r?\n\s*cancel-in-progress:\s*false'
 }
 Assert-Contains 'PR Gate keeps its per-PR concurrency group' '.github/workflows/ci.yml' 'group:\s*pr-gate-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}'
@@ -100,7 +113,7 @@ foreach ($path in @('scripts/pr-orchestrator.ps1','scripts/gate-result-router.ps
   Assert-Contains "$path denies fork PRs" $path 'FORK-DENIED'
 }
 Assert-Contains 'orchestrator blocks fork PRs machine-readably' 'scripts/pr-orchestrator.ps1' "'fork-pr'"
-foreach ($path in @('templates/PR_AUTOMATION.yml','.github/workflows/pr-automation.yml')) {
+foreach ($path in @('templates/PR_AUTOMATION.yml','.github/workflows/pr-automation.yml','templates/PR_AUTOMATION_REVIEW_EVENT.yml','.github/workflows/pr-automation-review-event.yml')) {
   Assert-Contains "$path guards jobs against fork payloads" $path 'github\.event\.pull_request == null \|\| github\.event\.pull_request\.head\.repo\.full_name == github\.repository'
 }
 

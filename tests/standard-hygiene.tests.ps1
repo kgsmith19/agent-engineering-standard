@@ -9,9 +9,11 @@ function Assert-NotContains { param([string]$Name,[string]$Path,[string]$Pattern
 $required = @(
   '.gitignore','docs/AUTONOMOUS-PR-STATE-MACHINE.md',
   '.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation-reusable.yml','.github/workflows/pr-automation.yml',
+  '.github/workflows/pr-automation-gate-result.yml','.github/workflows/pr-automation-review-event.yml','.github/workflows/pr-automation-comment-event.yml','.github/workflows/pr-automation-watchdog.yml',
   'scripts/evaluate-ai-review.ps1','scripts/request-machine-review.ps1','scripts/request-review-repair.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/pr-orchestrator.ps1','scripts/gate-result-router.ps1','scripts/review-metrics.ps1','scripts/lint-pr-creation.ps1','scripts/prune-portfolio.ps1',
   'tests/draft-prevention.tests.ps1','tests/state-machine-exhaustiveness.tests.ps1',
-  'templates/.gitignore','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/dependabot.yml'
+  'templates/.gitignore','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/dependabot.yml',
+  'templates/PR_AUTOMATION_GATE_RESULT.yml','templates/PR_AUTOMATION_REVIEW_EVENT.yml','templates/PR_AUTOMATION_COMMENT_EVENT.yml','templates/PR_AUTOMATION_WATCHDOG.yml'
 )
 foreach ($relative in $required) { Assert-True "required file $relative" (Test-Path (Join-Path $root $relative)) }
 Assert-True 'standard native CODEOWNERS absent' (-not (Test-Path (Join-Path $root '.github/CODEOWNERS')))
@@ -37,7 +39,7 @@ Assert-NotContains 'AI reusable does not duplicate provider map' '.github/workfl
 Assert-Contains 'standard AI Review uses trusted PR base evaluator' '.github/workflows/ai-review.yml' 'github\.event\.pull_request\.base\.sha \|\| github\.sha'
 Assert-Contains 'standard AI Review ignores ordinary issue comments' '.github/workflows/ai-review.yml' 'AI-REVIEW PASS'
 
-foreach ($templateName in @('AI_REVIEW.yml','PR_AUTOMATION.yml')) {
+foreach ($templateName in @('AI_REVIEW.yml','PR_AUTOMATION.yml','PR_AUTOMATION_GATE_RESULT.yml','PR_AUTOMATION_REVIEW_EVENT.yml','PR_AUTOMATION_COMMENT_EVENT.yml','PR_AUTOMATION_WATCHDOG.yml')) {
   Assert-Contains "$templateName has exact SHA placeholder" "templates/$templateName" '__STANDARD_SHA__'
   Assert-NotContains "$templateName does not follow moving main" "templates/$templateName" '@main\b'
 }
@@ -47,15 +49,16 @@ Assert-NotContains 'AI Review does not run on ordinary pull-request pushes' 'tem
 Assert-Contains 'product AI Review ignores ordinary issue comments' 'templates/AI_REVIEW.yml' 'AI-REVIEW PASS'
 # Expected cron updated 2026-08-09 with policy watchdog_interval_minutes 60->360
 # per the approved all-13 design: six-hourly reconciliation is the convergence
-# net and stays under the 720-minute absolute review timeout.
-Assert-Contains 'watchdog runs six-hourly, before absolute review timeout' 'templates/PR_AUTOMATION.yml' 'cron:\s*"17 \*/6 \* \* \*"'
-Assert-Contains 'standard watchdog runs six-hourly' '.github/workflows/pr-automation.yml' 'cron:\s*"17 \*/6 \* \* \*"'
+# net and stays under the 720-minute absolute review timeout. The per-event
+# split routes each invariant to the workflow file that now carries it.
+Assert-Contains 'watchdog runs six-hourly, before absolute review timeout' 'templates/PR_AUTOMATION_WATCHDOG.yml' 'cron:\s*"17 \*/6 \* \* \*"'
+Assert-Contains 'standard watchdog runs six-hourly' '.github/workflows/pr-automation-watchdog.yml' 'cron:\s*"17 \*/6 \* \* \*"'
 Assert-Contains 'review_requested cleanup is immediate' 'templates/PR_AUTOMATION.yml' 'review_requested'
-Assert-Contains 'gate automation can write AI Review' 'templates/PR_AUTOMATION.yml' '(?s)gate-result:.*?checks:\s*write'
-Assert-Contains 'review automation can remove reviewers' 'templates/PR_AUTOMATION.yml' '(?s)review-event:.*?pull-requests:\s*write'
+Assert-Contains 'gate automation can write AI Review' 'templates/PR_AUTOMATION_GATE_RESULT.yml' '(?s)gate-result:.*?checks:\s*write'
+Assert-Contains 'review automation can remove reviewers' 'templates/PR_AUTOMATION_REVIEW_EVENT.yml' '(?s)review-event:.*?pull-requests:\s*write'
 Assert-Contains 'PR target lane is contents read only' 'templates/PR_AUTOMATION.yml' '(?s)pr-event:.*?contents:\s*read.*?pull-requests:\s*write'
 Assert-Contains 'standard review_requested cleanup is immediate' '.github/workflows/pr-automation.yml' 'review_requested'
-Assert-Contains 'standard review orchestration uses trusted base code' '.github/workflows/pr-automation.yml' 'github\.event\.pull_request\.base\.sha'
+Assert-Contains 'standard review orchestration uses trusted base code' '.github/workflows/pr-automation-review-event.yml' 'github\.event\.pull_request\.base\.sha'
 Assert-Contains 'AI Review handles missing trusted evaluator without proposed-code execution' '.github/workflows/ai-review-reusable.yml' 'Trusted evaluator unavailable'
 Assert-Contains 'PR Automation handles missing trusted orchestrator without proposed-code execution' '.github/workflows/pr-automation-reusable.yml' 'Trusted orchestrator unavailable'
 

@@ -68,8 +68,18 @@ Copy-Item (Join-Path $standardRoot 'templates/PR_GATE.yml') (Join-Path $target '
 
 $aiReview = (Get-Content (Join-Path $standardRoot 'templates/AI_REVIEW.yml') -Raw).Replace('__STANDARD_SHA__',$standardSha)
 Set-Content (Join-Path $target '.github/workflows/ai-review.yml') $aiReview -Encoding utf8 -NoNewline
-$prAutomation = (Get-Content (Join-Path $standardRoot 'templates/PR_AUTOMATION.yml') -Raw).Replace('__STANDARD_SHA__',$standardSha)
-Set-Content (Join-Path $target '.github/workflows/pr-automation.yml') $prAutomation -Encoding utf8 -NoNewline
+# Per-event PR Automation callers: one workflow per trigger so no PR shows
+# permanently-skipped sibling jobs in its check panel.
+foreach ($caller in @(
+  @('templates/PR_AUTOMATION.yml','.github/workflows/pr-automation.yml'),
+  @('templates/PR_AUTOMATION_GATE_RESULT.yml','.github/workflows/pr-automation-gate-result.yml'),
+  @('templates/PR_AUTOMATION_REVIEW_EVENT.yml','.github/workflows/pr-automation-review-event.yml'),
+  @('templates/PR_AUTOMATION_COMMENT_EVENT.yml','.github/workflows/pr-automation-comment-event.yml'),
+  @('templates/PR_AUTOMATION_WATCHDOG.yml','.github/workflows/pr-automation-watchdog.yml')
+)) {
+  $prAutomation = (Get-Content (Join-Path $standardRoot $caller[0]) -Raw).Replace('__STANDARD_SHA__',$standardSha)
+  Set-Content (Join-Path $target $caller[1]) $prAutomation -Encoding utf8 -NoNewline
+}
 
 # Native CODEOWNERS can automatically request Kyle and create an accidental
 # human bottleneck. Path sensitivity is enforced by machine policy instead.
@@ -135,7 +145,7 @@ Replace the bootstrap-only PR Gate with the smallest objective gate appropriate 
 ## Acceptance
 - Detect and record verified build/test/type/lint/E2E commands in `.agent/project.yaml`.
 - Replace `.github/workflows/pr-gate.yml` so workflow name and required job context remain exactly `PR Gate`.
-- Preserve exact-SHA-pinned `.github/workflows/ai-review.yml` and `.github/workflows/pr-automation.yml`.
+- Preserve exact-SHA-pinned `.github/workflows/ai-review.yml` and the five per-event `.github/workflows/pr-automation*.yml` callers.
 - Extend `.github/dependabot.yml` only with package ecosystems this repo actually uses; group patch/minor updates when it reduces CI/review noise.
 - Keep native `.github/CODEOWNERS` absent so Kyle is never auto-requested as a routine reviewer.
 - Finish the coherent slice locally, then create the PR Ready. REST/SDK/connector callers set `draft:false`; CLI callers use the Ready default.

@@ -23,10 +23,10 @@ function Add-Problem {
 
 $required = @(
   'README.md','LIFECYCLE.md','AGENT_RULES.md','QUALITY_RULES.md','SECURITY_RISK_AUTONOMY.md','DELIVERY_GITHUB.md','EVIDENCE_LEARNING.md','AGENTS.md','docs/AUTONOMOUS-PR-STATE-MACHINE.md',
-  '.github/workflows/ci.yml','.github/workflows/ai-review.yml','.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation.yml','.github/workflows/pr-automation-reusable.yml','policy/github-defaults.json',
+  '.github/workflows/ci.yml','.github/workflows/ai-review.yml','.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation.yml','.github/workflows/pr-automation-gate-result.yml','.github/workflows/pr-automation-review-event.yml','.github/workflows/pr-automation-comment-event.yml','.github/workflows/pr-automation-watchdog.yml','.github/workflows/pr-automation-reusable.yml','policy/github-defaults.json',
   'scripts/setup-portfolio.ps1','scripts/apply-github-standard.ps1','scripts/codex-review.ps1','scripts/request-independent-review.ps1','scripts/request-machine-review.ps1','scripts/evaluate-ai-review.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/auto-merge.ps1','scripts/pr-orchestrator.ps1','scripts/gate-result-router.ps1','scripts/promote-external-draft.ps1','scripts/review-metrics.ps1','scripts/lint-pr-creation.ps1','scripts/bootstrap-repo.ps1','scripts/upgrade-repos.ps1','scripts/prune-portfolio.ps1',
   'scripts/lib/standard-lock.ps1','scripts/lib/review-policy.ps1','tests/legacy-protection.tests.ps1','tests/standard-lock.tests.ps1','tests/review-policy.tests.ps1','tests/draft-prevention.tests.ps1','tests/standard-hygiene.tests.ps1',
-  'templates/.gitignore','templates/AGENTS.md','templates/PR_GATE.yml','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/dependabot.yml','templates/PRD.md','templates/SPEC.md','templates/ADR.md','templates/ISSUE.md','templates/PULL_REQUEST.md'
+  'templates/.gitignore','templates/AGENTS.md','templates/PR_GATE.yml','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/PR_AUTOMATION_GATE_RESULT.yml','templates/PR_AUTOMATION_REVIEW_EVENT.yml','templates/PR_AUTOMATION_COMMENT_EVENT.yml','templates/PR_AUTOMATION_WATCHDOG.yml','templates/dependabot.yml','templates/PRD.md','templates/SPEC.md','templates/ADR.md','templates/ISSUE.md','templates/PULL_REQUEST.md'
 )
 foreach ($relative in $required) {
   if (-not (Test-Path (Join-Path $root $relative))) { throw "Missing required file: $relative" }
@@ -136,7 +136,7 @@ foreach ($name in $config.repositories) {
   if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot list workflows' }
   else {
     $workflows = @(($workflowsRaw -join "`n") | ConvertFrom-Json | Select-Object -ExpandProperty workflows)
-    $requiredWorkflows = @('PR Gate','PR Automation')
+    $requiredWorkflows = @('PR Gate','PR Automation','PR Automation Gate Result','PR Automation Review Event','PR Automation Comment Event','PR Automation Watchdog')
     if ([bool]$review.required_for_auto_merge -or [bool]$review.solicit_reviews) { $requiredWorkflows += 'AI Review Gate' }
     foreach ($workflowName in $requiredWorkflows) {
       $matches = @($workflows | Where-Object { $_.name -eq $workflowName -and $_.state -eq 'active' })
@@ -151,7 +151,7 @@ foreach ($name in $config.repositories) {
     else {
       try { $pinnedSha = Get-StandardLockRevision ($lockRaw -join "`n") }
       catch { $pinnedSha = $null; Add-Problem $problems 'standard.lock revision unreadable' }
-      foreach ($caller in @('ai-review.yml','pr-automation.yml')) {
+      foreach ($caller in @('ai-review.yml','pr-automation.yml','pr-automation-gate-result.yml','pr-automation-review-event.yml','pr-automation-comment-event.yml','pr-automation-watchdog.yml')) {
         $callerRaw = & gh api -H 'Accept: application/vnd.github.raw+json' "repos/$repo/contents/.github/workflows/$caller?ref=$($meta.default_branch)" 2>&1
         if ($LASTEXITCODE -ne 0) { Add-Problem $problems "$caller missing"; continue }
         $callerText = $callerRaw -join "`n"

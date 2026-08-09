@@ -94,7 +94,13 @@ pinned_by: upgrade-repos.ps1
       }
 
       Render-Template (Join-Path $standardRoot 'templates/AI_REVIEW.yml') '.github/workflows/ai-review.yml'
+      # Per-event PR Automation callers: one workflow per trigger so no PR shows
+      # permanently-skipped sibling jobs in its check panel.
       Render-Template (Join-Path $standardRoot 'templates/PR_AUTOMATION.yml') '.github/workflows/pr-automation.yml'
+      Render-Template (Join-Path $standardRoot 'templates/PR_AUTOMATION_GATE_RESULT.yml') '.github/workflows/pr-automation-gate-result.yml'
+      Render-Template (Join-Path $standardRoot 'templates/PR_AUTOMATION_REVIEW_EVENT.yml') '.github/workflows/pr-automation-review-event.yml'
+      Render-Template (Join-Path $standardRoot 'templates/PR_AUTOMATION_COMMENT_EVENT.yml') '.github/workflows/pr-automation-comment-event.yml'
+      Render-Template (Join-Path $standardRoot 'templates/PR_AUTOMATION_WATCHDOG.yml') '.github/workflows/pr-automation-watchdog.yml'
       Remove-Item '.github/CODEOWNERS' -Force -ErrorAction SilentlyContinue
 
       if (-not (Test-Path '.github/dependabot.yml')) {
