@@ -64,6 +64,7 @@ Copy-Item (Join-Path $standardRoot 'templates/ISSUE.md') (Join-Path $target '.gi
 Copy-Item (Join-Path $standardRoot 'templates/PULL_REQUEST.md') (Join-Path $target '.github/PULL_REQUEST_TEMPLATE.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/PR_GATE.yml') (Join-Path $target '.github/workflows/pr-gate.yml') -Force
 Copy-Item (Join-Path $standardRoot 'templates/AI_REVIEW.yml') (Join-Path $target '.github/workflows/ai-review.yml') -Force
+Copy-Item (Join-Path $standardRoot 'templates/PR_AUTOMATION.yml') (Join-Path $target '.github/workflows/pr-automation.yml') -Force
 Copy-Item (Join-Path $standardRoot 'templates/CODEOWNERS') (Join-Path $target '.github/CODEOWNERS') -Force
 
 @"
@@ -87,11 +88,12 @@ work_tracking:
 ci:
   required_check: "PR Gate"
   ai_review_check: "AI Review"
+  automation_workflow: "PR Automation"
   gate_profile: bootstrap-only
 
 # Before product code lands, replace the bootstrap-only PR Gate with the cheapest
 # repo-specific objective build/test/acceptance evidence for the detected stack.
-# Keep the shared AI Review caller intact unless the control-plane design changes.
+# Keep the shared AI Review and PR Automation callers intact unless the control-plane design changes.
 "@ | Set-Content (Join-Path $target '.agent/project.yaml') -Encoding utf8
 
 '@AGENTS.md' | Set-Content (Join-Path $target 'CLAUDE.md') -Encoding utf8
@@ -114,8 +116,9 @@ Replace the bootstrap-only PR Gate with the smallest objective gate appropriate 
 
 ## Acceptance
 - Detect and record verified build/test/type/lint/E2E commands in `.agent/project.yaml`.
-- Replace `.github/workflows/pr-gate.yml` so `PR Gate` executes the cheapest sufficient independent evidence.
+- Replace `.github/workflows/pr-gate.yml` so its workflow name remains `PR Gate` and its `PR Gate` job executes the cheapest sufficient independent evidence.
 - Preserve `.github/workflows/ai-review.yml` so the required exact-head `AI Review` context continues to run.
+- Preserve `.github/workflows/pr-automation.yml` so Ready PRs arm safe auto-merge and successful deterministic gates trigger bounded independent review automatically.
 - Extend `.github/dependabot.yml` only with package ecosystems this repo actually uses; group patch/minor updates when it reduces CI/review noise and keep majors separate unless compatibility evidence justifies a batch.
 - Extend `.github/CODEOWNERS` with the small repo-specific gate entrypoints whose weakening could make `PR Gate` falsely green; keep the canonical control-plane ownership rules as the final non-comment rules.
 - Keep draft iteration local; ready PR and `merge_group` must produce the real `PR Gate`.
