@@ -105,6 +105,8 @@ Assert-Contains 'doctor detects conflicting default-branch rulesets' 'scripts/do
 Assert-Contains 'auto-merge checks effective default-branch rulesets' 'scripts/auto-merge.ps1' 'rules/branches/\$defaultBranchEncoded'
 Assert-Contains 'auto-merge rejects conflicting default-branch rulesets' 'scripts/auto-merge.ps1' 'Auto-merge refused: conflicting active default-branch ruleset'
 Assert-Contains 'ruleset authority checks paginate' 'scripts/auto-merge.ps1' 'rules/branches/\$\{defaultBranchEncoded\}\?per_page=100'
+Assert-Contains 'setup authority check paginates' 'scripts/apply-github-standard.ps1' 'rules/branches/\$\{defaultBranchEncoded\}\?per_page=100'
+Assert-Contains 'doctor authority check paginates' 'scripts/doctor.ps1' 'rules/branches/\$\{defaultBranchEncoded\}\?per_page=100'
 Assert-Contains 'workflow token is read-only' 'scripts/apply-github-standard.ps1' "default_workflow_permissions = 'read'"
 Assert-Contains 'workflow cannot approve reviews' 'scripts/apply-github-standard.ps1' 'can_approve_pull_request_reviews = \$false'
 Assert-Contains 'legacy branch protection is deleted' 'scripts/apply-github-standard.ps1' 'branches/\$\(\$meta\.default_branch\)/protection'

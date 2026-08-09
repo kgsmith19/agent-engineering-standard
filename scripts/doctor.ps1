@@ -143,190 +143,10 @@ foreach ($name in $config.repositories) {
           if ($usesPins.Count -eq 0 -or @($usesPins | Where-Object { $_ -ne $pinnedSha.ToLowerInvariant() }).Count -gt 0) {
             Add-Problem $problems "$caller reusable-workflow ref not pinned to standard.lock"
           }
-          $standardShaInputs = @([regex]::Matches($callerText,'(?m)^\s*standard_sha:\s*(.*?)\s*        }
-      }
-    }
-  }
-
-  $rulesetsRaw = & gh api "repos/$repo/rulesets" 2>&1
-  if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot read rulesets' }
-  else {
-    $rulesetSummaries = @(($rulesetsRaw -join "`n") | ConvertFrom-Json)
-    $summary = ($rulesetSummaries | Where-Object { $_.name -eq $config.ruleset_name } | Select-Object -First 1)
-
-    $defaultBranchEncoded = [uri]::EscapeDataString([string]$meta.default_branch)
-    $effectiveRulesRaw = & gh api "repos/$repo/rules/branches/$defaultBranchEncoded" 2>&1
-    if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot verify effective default-branch rulesets' }
-    else {
-      $canonicalId = if ($summary) { [long]$summary.id } else { [long]-1 }
-      $conflictingIds = @((($effectiveRulesRaw -join "`n") | ConvertFrom-Json) |
-        ForEach-Object { [long]$_.ruleset_id } |
-        Where-Object { $_ -gt 0 -and $_ -ne $canonicalId } |
-        Select-Object -Unique)
-      foreach ($id in $conflictingIds) {
-        $match = $rulesetSummaries | Where-Object { [long]$_.id -eq $id } | Select-Object -First 1
-        $description = if ($match) { "$($match.name) (#$id)" } else { "ruleset #$id" }
-        Add-Problem $problems "conflicting active default-branch ruleset: $description"
-      }
-    }
-
-    if (-not $summary) { Add-Problem $problems 'canonical ruleset missing' }
-    else {
-      $detailRaw = & gh api "repos/$repo/rulesets/$($summary.id)" 2>&1
-      if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot read canonical ruleset' }
-      else {
-        $detail = ($detailRaw -join "`n") | ConvertFrom-Json
-        if ($detail.enforcement -ne 'active') { Add-Problem $problems 'ruleset not active' }
-        if ($detail.bypass_actors -and @($detail.bypass_actors).Count -gt 0) { Add-Problem $problems 'ruleset has bypass actors' }
-        if (-not (@($detail.conditions.ref_name.include) -contains '~DEFAULT_BRANCH')) { Add-Problem $problems 'ruleset misses default branch' }
-        $types = @($detail.rules | ForEach-Object { $_.type })
-        foreach ($requiredType in @('deletion','non_fast_forward','pull_request','required_status_checks')) {
-          if ($types -notcontains $requiredType) { Add-Problem $problems "missing rule: $requiredType" }
-        }
-
-        $prRule = $detail.rules | Where-Object { $_.type -eq 'pull_request' } | Select-Object -First 1
-        if (-not $prRule) { Add-Problem $problems 'pull-request rule missing' }
-        else {
-          if ([int]$prRule.parameters.required_approving_review_count -ne 0) { Add-Problem $problems 'human approvals not zero' }
-          if ([bool]$prRule.parameters.require_code_owner_review) { Add-Problem $problems 'Code Owner review required' }
-          if ([bool]$prRule.parameters.require_last_push_approval) { Add-Problem $problems 'last-push approval required' }
-          if (-not [bool]$prRule.parameters.dismiss_stale_reviews_on_push) { Add-Problem $problems 'stale reviews not dismissed' }
-          if (-not [bool]$prRule.parameters.required_review_thread_resolution) { Add-Problem $problems 'thread resolution not required' }
-          $methods = @($prRule.parameters.allowed_merge_methods)
-          if ($methods.Count -ne 1 -or $methods[0] -ne 'squash') { Add-Problem $problems 'ruleset not squash-only' }
-        }
-
-        $statusRule = $detail.rules | Where-Object { $_.type -eq 'required_status_checks' } | Select-Object -First 1
-        if (-not $statusRule) { Add-Problem $problems 'required-status rule missing' }
-        else {
-          $checks = @($statusRule.parameters.required_status_checks)
-          $expected = @($config.required_status_context,$config.required_ai_review_context)
-          if ($checks.Count -ne $expected.Count) { Add-Problem $problems 'extra or missing required status checks' }
-          foreach ($context in $expected) {
-            $check = @($checks | Where-Object { $_.context -eq $context } | Select-Object -First 1)
-            if ($check.Count -eq 0) { Add-Problem $problems "required context missing: $context" }
-            elseif ([int]$check[0].integration_id -ne $actionsAppId) { Add-Problem $problems "$context not bound to GitHub Actions" }
-          }
-        }
-      }
-    }
-  }
-
-  $legacyRaw = & gh api "repos/$repo/branches/$($meta.default_branch)/protection" 2>&1
-  if ($LASTEXITCODE -eq 0) { Add-Problem $problems 'legacy branch protection still present' }
-  elseif (-not (($legacyRaw -join "`n") -match '(?i)branch not protected|\b404\b|not found')) { Add-Problem $problems 'cannot verify legacy protection absence' }
-
-  try { $openPrs = @(Get-Paged "repos/$repo/pulls?state=open&per_page=100") }
-  catch { $openPrs = @(); Add-Problem $problems 'cannot inspect open PR blockers' }
-  foreach ($openPr in $openPrs) {
-    $forbidden = @($openPr.requested_reviewers | ForEach-Object { [string]$_.login } | Where-Object { @($config.forbidden_requested_reviewers) -contains $_ })
-    if ($forbidden.Count -gt 0) { Add-Problem $problems "PR #$($openPr.number) requests forbidden reviewer: $($forbidden -join ', ')" }
-    if ([string]$openPr.user.login -eq 'Copilot' -or [string]$openPr.head.ref -like 'copilot/*') { Add-Problem $problems "PR #$($openPr.number) is Copilot-owned and cannot be unattended" }
-  }
-
-  if ($problems.Count -eq 0) { Write-Host "${repo} : READY" -ForegroundColor Green }
-  else {
-    Write-Host "${repo} : $($problems -join ', ')" -ForegroundColor Yellow
-    foreach ($problem in $problems) { $remoteFailures.Add("${repo}: $problem") }
-  }
-}
-
-if ($remoteFailures.Count -gt 0) { throw "REMOTE: DRIFT DETECTED`n$($remoteFailures -join "`n")" }
-Write-Host 'REMOTE: READY' -ForegroundColor Green
-))
+          $standardShaInputs = @([regex]::Matches($callerText,'(?m)^\s*standard_sha:\s*(.*?)\s*$'))
           if ($standardShaInputs.Count -eq 0 -or @($standardShaInputs | Where-Object {
             $value = [string]$_.Groups[1].Value
-            $value -notmatch '^[0-9a-fA-F]{40}        }
-      }
-    }
-  }
-
-  $rulesetsRaw = & gh api "repos/$repo/rulesets" 2>&1
-  if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot read rulesets' }
-  else {
-    $rulesetSummaries = @(($rulesetsRaw -join "`n") | ConvertFrom-Json)
-    $summary = ($rulesetSummaries | Where-Object { $_.name -eq $config.ruleset_name } | Select-Object -First 1)
-
-    $defaultBranchEncoded = [uri]::EscapeDataString([string]$meta.default_branch)
-    $effectiveRulesRaw = & gh api "repos/$repo/rules/branches/$defaultBranchEncoded" 2>&1
-    if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot verify effective default-branch rulesets' }
-    else {
-      $canonicalId = if ($summary) { [long]$summary.id } else { [long]-1 }
-      $conflictingIds = @((($effectiveRulesRaw -join "`n") | ConvertFrom-Json) |
-        ForEach-Object { [long]$_.ruleset_id } |
-        Where-Object { $_ -gt 0 -and $_ -ne $canonicalId } |
-        Select-Object -Unique)
-      foreach ($id in $conflictingIds) {
-        $match = $rulesetSummaries | Where-Object { [long]$_.id -eq $id } | Select-Object -First 1
-        $description = if ($match) { "$($match.name) (#$id)" } else { "ruleset #$id" }
-        Add-Problem $problems "conflicting active default-branch ruleset: $description"
-      }
-    }
-
-    if (-not $summary) { Add-Problem $problems 'canonical ruleset missing' }
-    else {
-      $detailRaw = & gh api "repos/$repo/rulesets/$($summary.id)" 2>&1
-      if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot read canonical ruleset' }
-      else {
-        $detail = ($detailRaw -join "`n") | ConvertFrom-Json
-        if ($detail.enforcement -ne 'active') { Add-Problem $problems 'ruleset not active' }
-        if ($detail.bypass_actors -and @($detail.bypass_actors).Count -gt 0) { Add-Problem $problems 'ruleset has bypass actors' }
-        if (-not (@($detail.conditions.ref_name.include) -contains '~DEFAULT_BRANCH')) { Add-Problem $problems 'ruleset misses default branch' }
-        $types = @($detail.rules | ForEach-Object { $_.type })
-        foreach ($requiredType in @('deletion','non_fast_forward','pull_request','required_status_checks')) {
-          if ($types -notcontains $requiredType) { Add-Problem $problems "missing rule: $requiredType" }
-        }
-
-        $prRule = $detail.rules | Where-Object { $_.type -eq 'pull_request' } | Select-Object -First 1
-        if (-not $prRule) { Add-Problem $problems 'pull-request rule missing' }
-        else {
-          if ([int]$prRule.parameters.required_approving_review_count -ne 0) { Add-Problem $problems 'human approvals not zero' }
-          if ([bool]$prRule.parameters.require_code_owner_review) { Add-Problem $problems 'Code Owner review required' }
-          if ([bool]$prRule.parameters.require_last_push_approval) { Add-Problem $problems 'last-push approval required' }
-          if (-not [bool]$prRule.parameters.dismiss_stale_reviews_on_push) { Add-Problem $problems 'stale reviews not dismissed' }
-          if (-not [bool]$prRule.parameters.required_review_thread_resolution) { Add-Problem $problems 'thread resolution not required' }
-          $methods = @($prRule.parameters.allowed_merge_methods)
-          if ($methods.Count -ne 1 -or $methods[0] -ne 'squash') { Add-Problem $problems 'ruleset not squash-only' }
-        }
-
-        $statusRule = $detail.rules | Where-Object { $_.type -eq 'required_status_checks' } | Select-Object -First 1
-        if (-not $statusRule) { Add-Problem $problems 'required-status rule missing' }
-        else {
-          $checks = @($statusRule.parameters.required_status_checks)
-          $expected = @($config.required_status_context,$config.required_ai_review_context)
-          if ($checks.Count -ne $expected.Count) { Add-Problem $problems 'extra or missing required status checks' }
-          foreach ($context in $expected) {
-            $check = @($checks | Where-Object { $_.context -eq $context } | Select-Object -First 1)
-            if ($check.Count -eq 0) { Add-Problem $problems "required context missing: $context" }
-            elseif ([int]$check[0].integration_id -ne $actionsAppId) { Add-Problem $problems "$context not bound to GitHub Actions" }
-          }
-        }
-      }
-    }
-  }
-
-  $legacyRaw = & gh api "repos/$repo/branches/$($meta.default_branch)/protection" 2>&1
-  if ($LASTEXITCODE -eq 0) { Add-Problem $problems 'legacy branch protection still present' }
-  elseif (-not (($legacyRaw -join "`n") -match '(?i)branch not protected|\b404\b|not found')) { Add-Problem $problems 'cannot verify legacy protection absence' }
-
-  try { $openPrs = @(Get-Paged "repos/$repo/pulls?state=open&per_page=100") }
-  catch { $openPrs = @(); Add-Problem $problems 'cannot inspect open PR blockers' }
-  foreach ($openPr in $openPrs) {
-    $forbidden = @($openPr.requested_reviewers | ForEach-Object { [string]$_.login } | Where-Object { @($config.forbidden_requested_reviewers) -contains $_ })
-    if ($forbidden.Count -gt 0) { Add-Problem $problems "PR #$($openPr.number) requests forbidden reviewer: $($forbidden -join ', ')" }
-    if ([string]$openPr.user.login -eq 'Copilot' -or [string]$openPr.head.ref -like 'copilot/*') { Add-Problem $problems "PR #$($openPr.number) is Copilot-owned and cannot be unattended" }
-  }
-
-  if ($problems.Count -eq 0) { Write-Host "${repo} : READY" -ForegroundColor Green }
-  else {
-    Write-Host "${repo} : $($problems -join ', ')" -ForegroundColor Yellow
-    foreach ($problem in $problems) { $remoteFailures.Add("${repo}: $problem") }
-  }
-}
-
-if ($remoteFailures.Count -gt 0) { throw "REMOTE: DRIFT DETECTED`n$($remoteFailures -join "`n")" }
-Write-Host 'REMOTE: READY' -ForegroundColor Green
- -or $value.ToLowerInvariant() -ne $pinnedSha.ToLowerInvariant()
+            $value -notmatch '^[0-9a-fA-F]{40}$' -or $value.ToLowerInvariant() -ne $pinnedSha.ToLowerInvariant()
           }).Count -gt 0) {
             Add-Problem $problems "$caller standard_sha input not pinned to standard.lock"
           }
@@ -335,18 +155,18 @@ Write-Host 'REMOTE: READY' -ForegroundColor Green
     }
   }
 
-  $rulesetsRaw = & gh api "repos/$repo/rulesets" 2>&1
-  if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot read rulesets' }
-  else {
-    $rulesetSummaries = @(($rulesetsRaw -join "`n") | ConvertFrom-Json)
+  $rulesetSummaries = $null
+  try { $rulesetSummaries = @(Get-Paged "repos/$repo/rulesets?per_page=100") }
+  catch { Add-Problem $problems 'cannot read rulesets' }
+  if ($null -ne $rulesetSummaries) {
     $summary = ($rulesetSummaries | Where-Object { $_.name -eq $config.ruleset_name } | Select-Object -First 1)
 
     $defaultBranchEncoded = [uri]::EscapeDataString([string]$meta.default_branch)
-    $effectiveRulesRaw = & gh api "repos/$repo/rules/branches/$defaultBranchEncoded" 2>&1
-    if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot verify effective default-branch rulesets' }
-    else {
+    try { $effectiveRules = @(Get-Paged "repos/$repo/rules/branches/${defaultBranchEncoded}?per_page=100") }
+    catch { $effectiveRules = $null; Add-Problem $problems 'cannot verify effective default-branch rulesets' }
+    if ($null -ne $effectiveRules) {
       $canonicalId = if ($summary) { [long]$summary.id } else { [long]-1 }
-      $conflictingIds = @((($effectiveRulesRaw -join "`n") | ConvertFrom-Json) |
+      $conflictingIds = @($effectiveRules |
         ForEach-Object { [long]$_.ruleset_id } |
         Where-Object { $_ -gt 0 -and $_ -ne $canonicalId } |
         Select-Object -Unique)
