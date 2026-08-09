@@ -18,6 +18,14 @@ Assert-Equal 'ChatGPT implementation routes to Copilot' (Get-PreferredIndependen
 Assert-Equal 'Claude implementation routes to Codex' (Get-PreferredIndependentReviewer -Implementer claude) 'codex'
 Assert-Equal 'Copilot implementation routes to Codex' (Get-PreferredIndependentReviewer -Implementer copilot) 'codex'
 Assert-Equal 'Codex implementation routes to Copilot' (Get-PreferredIndependentReviewer -Implementer codex) 'copilot'
+<<<<<<< HEAD
+Assert-Throws 'Codex without Copilot is blocked instead of pretending Claude is connected' {
+  Get-PreferredIndependentReviewer -Implementer codex -CopilotAvailable $false
+}
+Assert-Throws 'Codex cannot review Codex when it is the only provider' {
+  Get-PreferredIndependentReviewer -Implementer codex -CopilotAvailable $false -CodexAvailable $true
+}
+=======
 Assert-Equal 'Unknown provenance starts with Codex' (Get-PreferredIndependentReviewer -Implementer unknown) 'codex'
 Assert-Equal 'Human/user-authored provenance starts with Codex' (Get-PreferredIndependentReviewer -Implementer human) 'codex'
 Assert-Throws 'Codex without Copilot is blocked instead of pretending Claude is connected' { Get-PreferredIndependentReviewer -Implementer codex -CopilotAvailable $false }
@@ -27,15 +35,22 @@ Assert-Equal 'Unknown provenance requires two providers' $unknownProviders.Count
 Assert-Equal 'Unknown first provider is Codex' $unknownProviders[0] 'codex'
 Assert-Equal 'Unknown second provider is Copilot' $unknownProviders[1] 'copilot'
 Assert-Equal 'ChatGPT requires Copilot specifically' (@(Get-RequiredReviewProviders -Implementer chatgpt)[0]) 'copilot'
+>>>>>>> origin/main
 
 Assert-Equal 'Codex bot login recognized' (Get-ReviewProviderFromLogin -Login 'chatgpt-codex-connector[bot]') 'codex'
 Assert-Equal 'Copilot bot login recognized' (Get-ReviewProviderFromLogin -Login 'copilot-pull-request-reviewer[bot]') 'copilot'
 Assert-Equal 'Copilot coding-agent login recognized' (Get-ReviewProviderFromLogin -Login 'copilot-swe-agent[bot]') 'copilot'
 Assert-Equal 'unknown reviewer ignored' (Get-ReviewProviderFromLogin -Login 'random-bot[bot]') $null
+<<<<<<< HEAD
+Assert-Equal 'different provider is independent' (Test-IndependentReview -Implementer claude -ReviewerProvider codex) $true
+Assert-Equal 'same provider is not independent' (Test-IndependentReview -Implementer codex -ReviewerProvider codex) $false
+Assert-Equal 'human implementation accepts an AI reviewer' (Test-IndependentReview -Implementer human -ReviewerProvider codex) $true
+=======
 Assert-Equal 'Claude-Codex pair is valid' (Test-IndependentReview -Implementer claude -ReviewerProvider codex) $true
 Assert-Equal 'Codex-Codex pair is invalid' (Test-IndependentReview -Implementer codex -ReviewerProvider codex) $false
 Assert-Equal 'ChatGPT-Codex is not accepted as cross-provider' (Test-IndependentReview -Implementer chatgpt -ReviewerProvider codex) $false
 Assert-Equal 'ChatGPT-Copilot is cross-provider' (Test-IndependentReview -Implementer chatgpt -ReviewerProvider copilot) $true
+>>>>>>> origin/main
 
 $validGate = [pscustomobject]@{
   failure_class_prevented = 'irreversible production data loss'
