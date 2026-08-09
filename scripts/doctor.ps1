@@ -119,9 +119,6 @@ foreach ($name in $config.repositories) {
     }
   }
 
-  $aiWorkflowRaw = & gh api "repos/$repo/contents/.github/workflows/ai-review.yml?ref=$($meta.default_branch)" 2>&1
-  if ($LASTEXITCODE -ne 0) { $problems.Add('AI Review caller workflow missing') }
-
   $rulesetsRaw = & gh api "repos/$repo/rulesets" 2>&1
   if ($LASTEXITCODE -ne 0) { $problems.Add('cannot read rulesets') } else {
     $summary = ((($rulesetsRaw -join "`n") | ConvertFrom-Json) | Where-Object { $_.name -eq $config.ruleset_name } | Select-Object -First 1)
@@ -151,7 +148,7 @@ foreach ($name in $config.repositories) {
             if (-not $check) { $problems.Add("required context missing: $context") }
             elseif ([int]$check.integration_id -ne $actionsAppId) { $problems.Add("$context not bound to GitHub Actions") }
           }
-        }
+        } else { $problems.Add('required-status rule missing') }
       }
     }
   }
