@@ -12,9 +12,10 @@ function Get-RequiredReviewProviders {
 
   switch ($Implementer) {
     'codex' { return @('copilot') }
-    'chatgpt' { return @('copilot') }
+    'chatgpt' { return @('codex') }
     'copilot' { return @('codex') }
     'claude' { return @('codex') }
+    'human' { return @('codex') }
     default { return @('codex','copilot') }
   }
 }
@@ -30,7 +31,7 @@ function Get-PreferredIndependentReviewer {
     if ($provider -eq 'codex' -and $CodexAvailable) { return 'codex' }
     if ($provider -eq 'copilot' -and $CopilotAvailable) { return 'copilot' }
   }
-  throw "No required connected reviewer is available for implementer '$Implementer'."
+  throw "No required connected AI reviewer is available for implementer '$Implementer'."
 }
 
 function Test-IndependentReview {
