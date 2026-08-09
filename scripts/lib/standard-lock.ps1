@@ -69,3 +69,50 @@ function Update-StandardProjectContent {
   $replacement = $match.Groups['prefix'].Value + $StandardSha + $match.Groups['suffix'].Value
   return $Content.Substring(0, $match.Index) + $replacement + $Content.Substring($match.Index + $match.Length)
 }
+
+function Update-ProjectWorkTrackingContent {
+  param(
+    [Parameter(Mandatory)][AllowEmptyString()][string]$Content,
+    [Parameter(Mandatory)][string]$ProjectTitle
+  )
+
+  if ([string]::IsNullOrWhiteSpace($ProjectTitle) -or $ProjectTitle -match '[\r\n"]') {
+    throw 'ProjectTitle must be a non-empty single-line value without double quotes.'
+  }
+
+  $newline = if ($Content.Contains("`r`n")) { "`r`n" } else { "`n" }
+  $desired = [ordered]@{
+    system = 'github-projects'
+    project = '"' + $ProjectTitle + '"'
+    backing_record = 'github-issues'
+  }
+
+  $blockPattern = '(?ms)^(?<header>work_tracking:[ \t]*(?:#.*)?\r?\n)(?<body>(?:[ \t]+[^\r\n]*(?:\r?\n|$))*)'
+  $block = [regex]::Match($Content, $blockPattern)
+  if (-not $block.Success) {
+    $prefix = $Content
+    if ($prefix.Length -gt 0 -and -not ($prefix.EndsWith("`n") -or $prefix.EndsWith("`r"))) { $prefix += $newline }
+    if ($prefix.Length -gt 0 -and -not $prefix.EndsWith($newline + $newline)) { $prefix += $newline }
+    $body = @($desired.GetEnumerator() | ForEach-Object { "  $($_.Key): $($_.Value)" }) -join $newline
+    return $prefix + 'work_tracking:' + $newline + $body + $newline
+  }
+
+  $body = $block.Groups['body'].Value
+  foreach ($entry in $desired.GetEnumerator()) {
+    $keyPattern = "(?m)^(?<prefix>[ \t]+$([regex]::Escape($entry.Key)):[ \t]*)(?<value>[^#\r\n]*?)(?<suffix>[ \t]*(?:#.*)?\r?)$"
+    $matches = [regex]::Matches($body, $keyPattern)
+    if ($matches.Count -gt 1) { throw "project.yaml work_tracking contains duplicate '$($entry.Key)' fields." }
+    if ($matches.Count -eq 1) {
+      $match = $matches[0]
+      $replacement = $match.Groups['prefix'].Value + $entry.Value + $match.Groups['suffix'].Value
+      $body = $body.Substring(0, $match.Index) + $replacement + $body.Substring($match.Index + $match.Length)
+    }
+    else {
+      if ($body.Length -gt 0 -and -not $body.EndsWith("`n")) { $body += $newline }
+      $body += "  $($entry.Key): $($entry.Value)$newline"
+    }
+  }
+
+  $replacementBlock = $block.Groups['header'].Value + $body
+  return $Content.Substring(0, $block.Index) + $replacementBlock + $Content.Substring($block.Index + $block.Length)
+}
