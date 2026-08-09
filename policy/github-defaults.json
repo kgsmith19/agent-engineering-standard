@@ -25,7 +25,7 @@
     "review_stall_minutes": 3,
     "primary_wait_minutes": 3,
     "fallback_wait_minutes": 3,
-    "absolute_timeout_minutes": 120,
+    "absolute_timeout_minutes": 720,
     "poll_seconds": 20,
     "max_review_heads_per_pr": 2,
     "copilot_effort": "low",
@@ -36,7 +36,7 @@
     "draft_ready_label": "status:ready",
     "blocked_label": "status:blocked",
     "max_ci_fix_attempts": 3,
-    "max_review_fix_attempts": 2,
+    "max_review_fix_attempts": 1,
     "max_conflict_fix_attempts": 2,
     "watchdog_interval_minutes": 720
   },
