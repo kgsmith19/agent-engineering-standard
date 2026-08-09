@@ -11,7 +11,7 @@ on:
   issue_comment:
     types: [created, edited]
   schedule:
-    - cron: "17 * * * *"
+    - cron: "17 */12 * * *"
 
 concurrency:
   group: pr-automation-${{ github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.pull_requests[0].number || github.repository }}
@@ -36,6 +36,7 @@ jobs:
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.pull_requests[0] != null
     permissions:
+      checks: write
       contents: write
       issues: write
       pull-requests: write
@@ -51,9 +52,10 @@ jobs:
   review-event:
     if: github.event_name == 'pull_request_review'
     permissions:
+      checks: write
       contents: read
       issues: write
-      pull-requests: read
+      pull-requests: write
     uses: kgsmith19/agent-engineering-standard/.github/workflows/pr-automation-reusable.yml@__STANDARD_SHA__
     with:
       mode: review-event
@@ -63,9 +65,10 @@ jobs:
   comment-event:
     if: github.event_name == 'issue_comment' && github.event.issue.pull_request != null
     permissions:
+      checks: write
       contents: read
       issues: write
-      pull-requests: read
+      pull-requests: write
     uses: kgsmith19/agent-engineering-standard/.github/workflows/pr-automation-reusable.yml@__STANDARD_SHA__
     with:
       mode: comment-event
@@ -75,6 +78,7 @@ jobs:
   watchdog:
     if: github.event_name == 'schedule'
     permissions:
+      checks: write
       contents: write
       issues: write
       pull-requests: write
