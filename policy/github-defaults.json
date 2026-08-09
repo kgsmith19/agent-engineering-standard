@@ -36,6 +36,7 @@
   },
   "pr_automation": {
     "blocked_label": "status:blocked",
+    "external_draft_promotion": true,
     "max_ci_fix_attempts": 3,
     "max_review_fix_attempts": 1,
     "max_conflict_fix_attempts": 2,

@@ -208,10 +208,23 @@ function Ensure-PrState {
   if ($prData.state -ne 'OPEN') { return $prData }
   $labels = @($prData.labels | ForEach-Object { $_.name })
   if ($prData.isDraft) {
+    $draftAuthor = [string]$prData.author.login
+    if ([bool]$automation.external_draft_promotion -and $draftAuthor -ne [string]$config.owner -and $draftAuthor -notin @('github-actions[bot]','github-actions')) {
+      # External agents (dependabot, copilot agents, ...) open drafts by platform
+      # behavior; promotion needs the dedicated automation identity, never a human.
+      if ([string]::IsNullOrWhiteSpace($env:GH_TOKEN_ADMIN)) {
+        Write-Host 'PROMOTION-BLOCKED: automation-identity-missing'
+        Set-Blocked $Number 'automation-identity-missing' 'External draft promotion requires the dedicated automation identity (GH_TOKEN_ADMIN); it is not configured. Fail closed until the owner provisions it.' $prData
+        return $prData
+      }
+      & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'promote-external-draft.ps1') -Repo $Repo -Pr $Number
+      if ($LASTEXITCODE -ne 0) { throw "External draft promotion failed for $Repo PR #$Number." }
+      return $prData
+    }
     Set-Blocked $Number 'draft-pr' 'Ready-at-creation policy violation. Agents must create pull requests with draft:false; gh callers must omit --draft.' $prData
     throw "Ready-at-creation policy violation: $Repo PR #$Number is draft."
   }
-  Resolve-Block $Number 'draft-pr' 'The pull request is Ready.' $prData
+  foreach ($readyCode in @('draft-pr','automation-identity-missing')) { Resolve-Block $Number $readyCode 'The pull request is Ready.' $prData }
   if ([string]$prData.author.login -eq 'Copilot' -or [string]$prData.headRefName -like 'copilot/*') {
     Set-Blocked $Number 'copilot-owned-pr' 'GitHub requires human review and merge for pull requests created by Copilot cloud agent. Use Copilot only on an existing non-Copilot PR, or re-home this work through a non-Copilot implementation lane.' $prData
     return $prData

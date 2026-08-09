@@ -98,6 +98,18 @@ Assert-Contains 'repair script launches Copilot on existing PR' 'scripts/request
 Assert-Contains 'repair exhaustion disables auto-merge' 'scripts/request-review-repair.ps1' '--disable-auto'
 Assert-Contains 'repair script refuses repair while reviewer dispatch is disabled' 'scripts/request-review-repair.ps1' 'disabled_pending_e2e'
 
+# External-agent drafts are promoted only with the dedicated automation identity;
+# owner/steady-state drafts keep the hard ready-at-creation block.
+Assert-Contains 'promotion requires the dedicated automation identity' 'scripts/promote-external-draft.ps1' 'PROMOTION-BLOCKED: automation-identity-missing'
+Assert-Contains 'promotion uses the GraphQL ready mutation' 'scripts/promote-external-draft.ps1' 'markPullRequestReadyForReview'
+Assert-Contains 'promotion refetch loop is bounded' 'scripts/promote-external-draft.ps1' '\$poll -le 5'
+Assert-Contains 'promotion never acts for the owner' 'scripts/promote-external-draft.ps1' 'ready-at-creation policy applies unchanged'
+Assert-Contains 'orchestrator routes external drafts to promotion' 'scripts/pr-orchestrator.ps1' 'promote-external-draft\.ps1'
+Assert-Contains 'orchestrator fails closed without the automation identity' 'scripts/pr-orchestrator.ps1' "'automation-identity-missing'"
+Assert-Contains 'external draft promotion is a policy switch' 'policy/github-defaults.json' '"external_draft_promotion"\s*:\s*(true|false)'
+Assert-Contains 'doctor types the promotion switch' 'scripts/doctor.ps1' 'external_draft_promotion'
+Assert-Contains 'doctor requires the promotion script' 'scripts/doctor.ps1' 'scripts/promote-external-draft\.ps1'
+
 $orchestrator = Read-Text 'scripts/pr-orchestrator.ps1'
 Assert-True 'orchestrator removes forbidden reviewers' ($orchestrator -match 'requested_reviewers' -and $orchestrator -match 'forbidden_requested_reviewers')
 Assert-True 'orchestrator blocks Copilot-owned PRs' ($orchestrator -match 'copilot-owned-pr')
