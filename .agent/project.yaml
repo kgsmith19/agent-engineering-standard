@@ -6,7 +6,6 @@ commands:
   fast_verify: pwsh -NoProfile -File scripts/doctor.ps1
   remote_verify: pwsh -NoProfile -File scripts/doctor.ps1 -Remote
   apply_github: pwsh -NoProfile -File scripts/apply-github-standard.ps1
-  sync_project: pwsh -NoProfile -File scripts/sync-agentic-project.ps1
   bootstrap_repo: pwsh -NoProfile -File scripts/bootstrap-repo.ps1 -Name <repo>
   upgrade_repos: pwsh -NoProfile -File scripts/upgrade-repos.ps1
   codex_review: pwsh -NoProfile -File scripts/codex-review.ps1
