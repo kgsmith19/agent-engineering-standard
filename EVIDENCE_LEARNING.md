@@ -11,7 +11,7 @@ Prefer machine-generated evidence over agent-written claims.
 Record enough to reconstruct important runs, including:
 
 - commit/base SHA
-- issue/spec/slice
+- Project item / Issue / spec / slice
 - risk profile
 - checks run/results
 - important capabilities granted
@@ -62,4 +62,4 @@ Do not solve recurring failures by repeatedly telling the agent to try harder.
 
 Telemetry may propose new ideas or maintenance work.
 
-A proposal must still pass the normal Shape / Research → Outcome / Bet process before becoming product work.
+A proposal must still pass the normal Shape / Research → Outcome / Bet process before becoming a Project-backed Issue for product work.
