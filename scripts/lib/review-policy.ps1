@@ -19,6 +19,18 @@ function Get-RequiredReviewProviders {
   }
 }
 
+function Get-NextRequiredReviewProvider {
+  param(
+    [Parameter(Mandatory)][string[]]$RequiredProviders,
+    [string[]]$PassedProviders = @()
+  )
+
+  foreach ($provider in $RequiredProviders) {
+    if ($PassedProviders -notcontains $provider) { return $provider }
+  }
+  return $null
+}
+
 function Get-PreferredIndependentReviewer {
   param(
     [Parameter(Mandatory)][ValidateSet('chatgpt','claude','copilot','codex','human','unknown')][string]$Implementer,
@@ -26,11 +38,11 @@ function Get-PreferredIndependentReviewer {
     [bool]$CopilotAvailable = $true
   )
 
-  foreach ($provider in @(Get-RequiredReviewProviders -Implementer $Implementer)) {
-    if ($provider -eq 'codex' -and $CodexAvailable) { return 'codex' }
-    if ($provider -eq 'copilot' -and $CopilotAvailable) { return 'copilot' }
-  }
-  throw "No required connected reviewer is available for implementer '$Implementer'."
+  $required = @(Get-RequiredReviewProviders -Implementer $Implementer)
+  $provider = Get-NextRequiredReviewProvider -RequiredProviders $required
+  if ($provider -eq 'codex' -and $CodexAvailable) { return 'codex' }
+  if ($provider -eq 'copilot' -and $CopilotAvailable) { return 'copilot' }
+  throw "Next required reviewer '$provider' is unavailable for implementer '$Implementer'."
 }
 
 function Test-IndependentReview {
