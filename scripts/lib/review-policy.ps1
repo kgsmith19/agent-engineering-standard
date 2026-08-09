@@ -12,7 +12,7 @@ function Get-RequiredReviewProviders {
 
   switch ($Implementer) {
     'codex' { return @('copilot') }
-    'chatgpt' { return @('codex') }
+    'chatgpt' { return @('copilot') }
     'copilot' { return @('codex') }
     'claude' { return @('codex') }
     default { return @('codex','copilot') }
