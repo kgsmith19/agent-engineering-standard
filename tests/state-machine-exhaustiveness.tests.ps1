@@ -84,6 +84,13 @@ Assert-Contains 'requester paginates all PR commits for independence' 'scripts/r
 Assert-Contains 'evaluator uses actor-set reviewer policy' 'scripts/evaluate-ai-review.ps1' 'Get-AcceptedMachineReviewProvidersForActors'
 Assert-Contains 'requester uses actor-set reviewer policy' 'scripts/request-machine-review.ps1' 'Get-AcceptedMachineReviewProvidersForActors'
 
+# Evaluator and orchestrator share one repo-wide non-canceling authority lock;
+# the deterministic PR Gate keeps its own per-PR concurrency group.
+foreach ($path in @('.github/workflows/ai-review.yml','.github/workflows/pr-automation.yml','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml')) {
+  Assert-Contains "$path uses the shared authority lock" $path '(?s)concurrency:\s*\r?\n\s*group:\s*automation-authority-\$\{\{ github\.repository \}\}\s*\r?\n\s*cancel-in-progress:\s*false'
+}
+Assert-Contains 'PR Gate keeps its per-PR concurrency group' '.github/workflows/ci.yml' 'group:\s*pr-gate-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}'
+
 # The watchdog must consume every pagination page of open PRs, not a capped list.
 Assert-Contains 'watchdog paginates all open PRs' 'scripts/pr-orchestrator.ps1' 'Get-Paged "repos/\$Repo/pulls\?state=open&per_page=100"'
 

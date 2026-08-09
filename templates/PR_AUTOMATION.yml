@@ -15,8 +15,9 @@ on:
   schedule:
     - cron: "17 */6 * * *"
 
+# One repo-wide non-canceling authority lock shared by evaluator and orchestrator; GitHub keeps only the newest pending run per group and the six-hourly watchdog is the convergence net.
 concurrency:
-  group: pr-automation-${{ github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.pull_requests[0].number || github.repository }}
+  group: automation-authority-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
