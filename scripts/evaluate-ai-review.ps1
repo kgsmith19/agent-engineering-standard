@@ -50,6 +50,10 @@ if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
 $prData = ($prRaw -join "`n") | ConvertFrom-Json
 $headSha = [string]$prData.head.sha
 $baseSha = [string]$prData.base.sha
+if ([string]$prData.head.repo.full_name -ne $Repo) {
+  Write-Host "FORK-DENIED: $Repo PR #$Pr head repository '$([string]$prData.head.repo.full_name)' is not the target repository; no check run or Issue is written for fork heads."
+  exit 0
+}
 # Machine-readable evidence scope: a dispatch_policy_version bump invalidates
 # every older neutral/success, so re-enabling dispatch forces fresh evaluation.
 $dispatchEvidence = "dispatch-evidence repo=$Repo pr=$Pr head=$headSha base=$baseSha mode=$([string]$config.independent_review.dispatch_mode) policy_version=$([int]$config.independent_review.dispatch_policy_version)"

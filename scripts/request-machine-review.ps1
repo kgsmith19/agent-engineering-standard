@@ -25,6 +25,10 @@ function Get-Paged {
 $prRaw = & gh api "repos/$Repo/pulls/$Pr" 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
 $pr = ($prRaw -join "`n") | ConvertFrom-Json
+if ([string]$pr.head.repo.full_name -ne $Repo) {
+  Write-Host "FORK-DENIED: $Repo PR #$Pr head repository '$([string]$pr.head.repo.full_name)' is not the target repository; no reviewer is requested for fork heads."
+  exit 0
+}
 if ($pr.state -ne 'open') { throw "PR #$Pr is not open." }
 if ($pr.draft) { throw "Ready-at-creation policy violation: $Repo PR #$Pr is draft." }
 

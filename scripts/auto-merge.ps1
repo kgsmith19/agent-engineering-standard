@@ -134,6 +134,9 @@ foreach ($context in $requiredContexts) {
   if ([int]$required.integration_id -ne $actionsAppId) { throw "Required '$context' is not bound to GitHub Actions." }
 }
 
+# The arming identity is the fine-grained AUTOMATION_TOKEN PAT and requires
+# Administration:read + Contents:write + Pull requests:write. No GitHub App
+# exists; provisioning one is an owner authority item, deliberately not built here.
 # Draft/ready races: re-verify the exact PR immediately before arming.
 for ($attempt = 1; $attempt -le 3; $attempt++) {
   $freshRaw = & gh api "repos/$Repo/pulls/$Pr" 2>&1

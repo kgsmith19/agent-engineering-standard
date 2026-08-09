@@ -40,9 +40,19 @@ function Get-Paged {
 }
 function Get-Pr {
   param([int]$Number)
-  $raw = & gh pr view $Number --repo $Repo --json number,state,isDraft,labels,headRefOid,headRefName,baseRefName,author,autoMergeRequest,mergeable,title,updatedAt 2>&1
+  $raw = & gh pr view $Number --repo $Repo --json number,state,isDraft,labels,headRefOid,headRefName,headRepository,headRepositoryOwner,baseRefName,author,autoMergeRequest,mergeable,title,updatedAt 2>&1
   if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
   return (($raw -join "`n") | ConvertFrom-Json)
+}
+function Deny-ForkPr {
+  # Fail closed before any privileged mutation: fork heads never enter the lane.
+  param([int]$Number)
+  $prData = Get-Pr $Number
+  $headRepo = "$([string]$prData.headRepositoryOwner.login)/$([string]$prData.headRepository.name)"
+  if ($headRepo -eq $Repo) { return $false }
+  Write-Host "FORK-DENIED: $Repo PR #$Number head repository '$headRepo' is not the target repository; unattended automation refuses cross-repository PRs."
+  Set-Blocked $Number 'fork-pr' "Cross-repository (fork) PR from '$headRepo'. Re-home this change into a branch of the managed repository; the unattended lane never runs privileged automation for fork heads." $prData
+  return $true
 }
 function Get-Comments { param([int]$Number) return @(Get-Paged "repos/$Repo/issues/$Number/comments?per_page=100") }
 function Add-CommentOnce {
@@ -331,6 +341,7 @@ function Handle-Watchdog {
   foreach($item in @(($raw-join"`n")|ConvertFrom-Json)){
     $number=[int]$item.number
     try{
+      if(Deny-ForkPr $number){continue}
       $prData=Ensure-PrState $number
       if($prData.state-ne'OPEN'-or$prData.isDraft){continue}
       $head=[string]$prData.headRefOid
@@ -351,9 +362,9 @@ function Handle-Watchdog {
 }
 
 switch($Mode){
-  'pr-event'{if($Pr-le 0){throw'Pr is required.'};Ensure-PrState $Pr|Out-Null}
-  'gate-result'{if($Pr-le 0){throw'Pr is required.'};Handle-GateResult $Pr}
-  'review-event'{if($Pr-le 0){throw'Pr is required.'};Handle-ReviewEvent $Pr}
-  'comment-event'{if($Pr-le 0){throw'Pr is required.'};Handle-ReviewEvent $Pr}
+  'pr-event'{if($Pr-le 0){throw'Pr is required.'};if(Deny-ForkPr $Pr){exit 0};Ensure-PrState $Pr|Out-Null}
+  'gate-result'{if($Pr-le 0){throw'Pr is required.'};if(Deny-ForkPr $Pr){exit 0};Handle-GateResult $Pr}
+  'review-event'{if($Pr-le 0){throw'Pr is required.'};if(Deny-ForkPr $Pr){exit 0};Handle-ReviewEvent $Pr}
+  'comment-event'{if($Pr-le 0){throw'Pr is required.'};if(Deny-ForkPr $Pr){exit 0};Handle-ReviewEvent $Pr}
   'watchdog'{Handle-Watchdog}
 }

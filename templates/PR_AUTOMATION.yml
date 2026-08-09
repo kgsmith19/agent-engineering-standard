@@ -21,7 +21,9 @@ concurrency:
 
 jobs:
   pr-event:
-    if: github.event_name == 'pull_request_target'
+    if: >-
+      github.event_name == 'pull_request_target' &&
+      (github.event.pull_request == null || github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       contents: read
       issues: write
@@ -57,7 +59,9 @@ jobs:
       automation_token: ${{ secrets.AUTOMATION_TOKEN }}
 
   review-event:
-    if: github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment'
+    if: >-
+      (github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment') &&
+      (github.event.pull_request == null || github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       checks: write
       contents: read

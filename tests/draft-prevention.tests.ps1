@@ -19,7 +19,7 @@ set -euo pipefail
 printf '%s\n' "$*" >> "$GH_FAKE_LOG"
 
 if [[ "$1 $2" == "pr view" ]]; then
-  printf '%s\n' '{"number":17,"state":"OPEN","isDraft":true,"labels":[{"name":"status:ready"}],"headRefOid":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","headRefName":"agent/17-test","baseRefName":"main","author":{"login":"kgsmith19"},"autoMergeRequest":null,"mergeable":"MERGEABLE","title":"draft contract test","updatedAt":"2026-08-09T00:00:00Z"}'
+  printf '%s\n' '{"number":17,"state":"OPEN","isDraft":true,"labels":[{"name":"status:ready"}],"headRefOid":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","headRefName":"agent/17-test","headRepository":{"name":"example"},"headRepositoryOwner":{"login":"kgsmith19"},"baseRefName":"main","author":{"login":"kgsmith19"},"autoMergeRequest":null,"mergeable":"MERGEABLE","title":"draft contract test","updatedAt":"2026-08-09T00:00:00Z"}'
 elif [[ "$1" == "api" && "$*" == *"requested_reviewers"* ]]; then
   printf '%s\n' '{"users":[]}'
 elif [[ "$1" == "api" && "$*" == *"issues/17/comments"* ]]; then

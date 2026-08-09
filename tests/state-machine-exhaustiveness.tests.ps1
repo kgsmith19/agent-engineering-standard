@@ -84,4 +84,14 @@ Assert-Contains 'requester paginates all PR commits for independence' 'scripts/r
 Assert-Contains 'evaluator uses actor-set reviewer policy' 'scripts/evaluate-ai-review.ps1' 'Get-AcceptedMachineReviewProvidersForActors'
 Assert-Contains 'requester uses actor-set reviewer policy' 'scripts/request-machine-review.ps1' 'Get-AcceptedMachineReviewProvidersForActors'
 
+# Fork heads must be refused with a machine-readable denial before any privileged
+# mutation, in every entry path that operates on a PR (PROP-005).
+foreach ($path in @('scripts/pr-orchestrator.ps1','scripts/gate-result-router.ps1','scripts/evaluate-ai-review.ps1','scripts/request-machine-review.ps1')) {
+  Assert-Contains "$path denies fork PRs" $path 'FORK-DENIED'
+}
+Assert-Contains 'orchestrator blocks fork PRs machine-readably' 'scripts/pr-orchestrator.ps1' "'fork-pr'"
+foreach ($path in @('templates/PR_AUTOMATION.yml','.github/workflows/pr-automation.yml')) {
+  Assert-Contains "$path guards jobs against fork payloads" $path 'github\.event\.pull_request == null \|\| github\.event\.pull_request\.head\.repo\.full_name == github\.repository'
+}
+
 Write-Host 'state-machine exhaustiveness tests: PASS' -ForegroundColor Green

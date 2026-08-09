@@ -22,7 +22,7 @@ function Get-Paged {
 }
 
 function Get-PrData {
-  $raw = & gh pr view $Pr --repo $Repo --json state,isDraft,headRefOid,autoMergeRequest 2>&1
+  $raw = & gh pr view $Pr --repo $Repo --json state,isDraft,headRefOid,headRepository,headRepositoryOwner,autoMergeRequest 2>&1
   if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
   return (($raw -join "`n") | ConvertFrom-Json)
 }
@@ -53,6 +53,11 @@ function Set-GateBlock {
 $prData = Get-PrData
 if ($prData.state -ne 'OPEN' -or $prData.isDraft) { exit 0 }
 if ([string]$prData.headRefOid -ne $GateHeadSha) { exit 0 }
+$headRepo = "$([string]$prData.headRepositoryOwner.login)/$([string]$prData.headRepository.name)"
+if ($headRepo -ne $Repo) {
+  Write-Host "FORK-DENIED: $Repo PR #$Pr head repository '$headRepo' is not the target repository; gate-result automation refuses cross-repository PRs."
+  exit 0
+}
 
 $decision = Get-GateConclusionDecision -Conclusion $GateConclusion
 if ($decision -in @('success','repair','block-workflow-approval','block-gate-skipped')) {
