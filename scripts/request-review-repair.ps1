@@ -89,24 +89,44 @@ foreach ($comment in $comments) {
     $failures.Add('Copilot structured review')
   }
 }
-if ($failures.Count -eq 0) { exit 0 }
 
-$attempts = @($comments | Where-Object { [string]$_.body -match '<!-- auto-fix:review:' }).Count
-if ($attempts -ge $limit) {
-  $autoRaw = & gh pr view $Pr --repo $Repo --json autoMergeRequest 2>&1
-  if ($LASTEXITCODE -eq 0 -and (($autoRaw -join "`n") | ConvertFrom-Json).autoMergeRequest) {
-    & gh pr merge $Pr --repo $Repo --disable-auto 2>&1 | Out-Null
+$attemptedHeads = New-Object System.Collections.Generic.List[string]
+foreach ($comment in $comments) {
+  if ([string]$comment.body -match '<!-- auto-fix:review:([0-9a-f]{40}):\d+ -->' -and -not $attemptedHeads.Contains($Matches[1])) {
+    $attemptedHeads.Add($Matches[1])
   }
-  & gh pr edit $Pr --repo $Repo --add-label $config.pr_automation.blocked_label 2>&1 | Out-Null
-  $marker = "<!-- automation:block:review-budget:$head -->"
-  $body = "@$($config.owner) AUTOMATION-BLOCKED: the single batched review-repair attempt is exhausted and material findings remain on head $head. You are tagged for the decision, never assigned as reviewer."
-  Add-CommentOnce $marker $body $comments
-  exit 0
+}
+$decision = Get-ReviewRepairDecision `
+  -HeadSha $head `
+  -AttemptedHeadShas @($attemptedHeads) `
+  -MaxAttempts $limit `
+  -HasFindings ($failures.Count -gt 0)
+
+switch ($decision) {
+  'none' { exit 0 }
+  'pending' {
+    Write-Host "REVIEW REPAIR PENDING: an agent was already asked to repair current head $head." -ForegroundColor Yellow
+    exit 0
+  }
+  'block' {
+    $autoRaw = & gh pr view $Pr --repo $Repo --json autoMergeRequest 2>&1
+    if ($LASTEXITCODE -eq 0 -and (($autoRaw -join "`n") | ConvertFrom-Json).autoMergeRequest) {
+      & gh pr merge $Pr --repo $Repo --disable-auto 2>&1 | Out-Null
+    }
+    & gh pr edit $Pr --repo $Repo --add-label $config.pr_automation.blocked_label 2>&1 | Out-Null
+    $marker = "<!-- automation:block:review-budget:$head -->"
+    $body = "@$($config.owner) AUTOMATION-BLOCKED: the bounded review-repair attempt produced a new head that still has material findings. You are tagged for the decision, never assigned as reviewer."
+    Add-CommentOnce $marker $body $comments
+    exit 0
+  }
+  'request' { }
+  default { throw "Unexpected review-repair decision '$decision'." }
 }
 
 Resolve-TransientReviewBlocks $head $comments
 $comments = @(Get-Comments)
-$marker = "<!-- auto-fix:review:${head}:$($attempts + 1) -->"
+$attemptNumber = $attemptedHeads.Count + 1
+$marker = "<!-- auto-fix:review:${head}:$attemptNumber -->"
 $evidence = (($failures | Select-Object -Unique) -join '; ')
-$body = "@copilot address all material machine-review findings on CURRENT head $head ($evidence). Read the full formal and inline review evidence before editing. Follow AGENTS.md and the linked Issue/SPEC. For nontrivial work, create a thin Superpowers-style plan/spec first. Make one batched root-cause fix, never weaken tests/policies/evaluators, verify, and update this existing PR. The new head must pass PR Gate and a different exact-head machine reviewer. Attempt $($attempts + 1)/$limit."
+$body = "@copilot address all material machine-review findings on CURRENT head $head ($evidence). Read the full formal and inline review evidence before editing. Follow AGENTS.md and the linked Issue/SPEC. For nontrivial work, create a thin Superpowers-style plan/spec first. Make one batched root-cause fix, never weaken tests/policies/evaluators, verify, and update this existing PR. The new head must pass PR Gate and a different exact-head machine reviewer. Attempt $attemptNumber/$limit."
 Add-CommentOnce $marker $body $comments
