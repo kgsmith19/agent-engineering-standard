@@ -118,6 +118,7 @@ Assert-Contains 'upgrade installs AI Review' 'scripts/upgrade-repos.ps1' 'templa
 Assert-Contains 'upgrade installs PR Automation' 'scripts/upgrade-repos.ps1' 'templates/PR_AUTOMATION\.yml'
 Assert-Contains 'upgrade removes native CODEOWNERS' 'scripts/upgrade-repos.ps1' "Remove-Item '.github/CODEOWNERS'"
 Assert-Contains 'upgrade normalizes PR Gate name' 'scripts/upgrade-repos.ps1' 'name: PR Gate'
+Assert-Contains 'upgrade normalizes lowercase ci names' 'scripts/upgrade-repos.ps1' '\(\?im\)\^name:\\s\*ci'
 Assert-Contains 'upgrade labels rollout R3' 'scripts/upgrade-repos.ps1' "--add-label 'risk:R3'"
 Assert-Contains 'upgrade reuses existing rollout PR' 'scripts/upgrade-repos.ps1' 'existing rollout PR'
 
