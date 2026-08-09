@@ -12,12 +12,13 @@ This is the authoritative decision map for routine pull-request integration acro
 6. The only required status contexts are `PR Gate` and `AI Review`, both produced by GitHub Actions.
 7. Both checks apply to the current head SHA.
 8. A push invalidates prior semantic evidence.
-9. The reviewer must differ from the latest head commit's detected machine implementer.
-10. Auto-merge is squash-only and never applies to R4 or self-modifying control-plane changes.
-11. Repairs are bounded; exhaustion becomes explicit `status:blocked`, never an infinite loop.
-12. Copilot may repair an existing non-Copilot PR, but a Copilot-owned PR is outside the unattended lane because GitHub requires human review and merge.
-13. A material finding cannot be bypassed by reviewer-shopping on the same head.
-14. Temporary reviewer latency remains recoverable; only the absolute timeout becomes blocked.
+9. The reviewer differs from the latest head commit's detected machine implementer.
+10. Formal review summaries and inline review comments are both evidence.
+11. Auto-merge is squash-only and never applies to R4 or self-modifying control-plane changes.
+12. Repairs are bounded; exhaustion becomes explicit `status:blocked`, never an infinite loop.
+13. Copilot may repair an existing non-Copilot PR, but a Copilot-owned PR is outside the unattended lane because GitHub requires human review and merge.
+14. A material finding cannot be bypassed by reviewer-shopping on the same head.
+15. Temporary reviewer latency remains recoverable; only the low-frequency absolute-timeout check blocks.
 
 ## States
 
@@ -26,14 +27,14 @@ This is the authoritative decision map for routine pull-request integration acro
 | `DRAFT` | Implementation is still changing | `status:ready` or explicit Ready |
 | `READY_UNVERIFIED` | Merge intent exists; current head is unproven | `PR Gate` starts |
 | `GATE_RUNNING` | Deterministic evidence is running | pass, failure, timeout, skip, approval block, newer head |
-| `CI_REPAIR` | Copilot is repairing deterministic failure on the existing PR | new head or retry exhaustion |
+| `CI_REPAIR` | Copilot repairs deterministic failure on the existing PR | new head or retry exhaustion |
 | `REVIEW_REQUESTED` | Independent exact-head review was requested | pass, finding, stall, newer head |
 | `REVIEW_FALLBACK` | Primary reviewer stalled; one independent fallback was requested | pass, finding, absolute timeout, newer head |
-| `REVIEW_REPAIR` | Copilot is repairing material P0-P2 findings | new head or retry exhaustion |
+| `REVIEW_REPAIR` | Copilot performs one batched repair of material P0-P2 findings | new head or budget exhaustion |
 | `MERGE_PENDING` | Auto-merge is armed and gates are waiting/green | GitHub merges or a blocker appears |
-| `CONFLICT_REPAIR` | Dependabot/Copilot is resolving a conflict | new head or retry exhaustion |
+| `CONFLICT_REPAIR` | Dependabot/Copilot resolves a conflict | new head or retry exhaustion |
 | `AUTHORITY_REQUIRED` | Machine evidence may finish, but intent/authority cannot be inferred | Kyle explicitly decides; no reviewer assignment |
-| `BLOCKED` | A true bounded/configuration failure exists | evidence proves recovery or the blocker is deliberately cleared |
+| `BLOCKED` | A true bounded/configuration failure exists | evidence proves recovery or blocker is deliberately cleared |
 | `MERGED` | GitHub completed squash merge | release/deploy/observe |
 | `CLOSED` | Rejected, superseded, or abandoned | explicit reopen |
 
@@ -64,15 +65,15 @@ flowchart TD
     O -- Approval required --> Q[BLOCKED: disable Copilot workflow approval]
     O -- Skipped or missing --> R[BLOCKED: repair workflow trigger]
     O -- Success --> S[Detect latest-head implementer]
-    S --> T[Request different machine reviewer]
-    T --> U{Review result}
+    S --> T[Request a different machine reviewer]
+    T --> U{Review evidence}
     U -- Clean --> V[AI Review success]
-    U -- P0-P2 finding --> W[Copilot review repair, max 2]
+    U -- P0-P2 summary or inline finding --> W[One batched Copilot repair]
     W --> A
     U -- Primary stalled --> X{Independent fallback available?}
     X -- Yes --> Y[Request one fallback]
     Y --> U
-    X -- No --> Z[Remain pending until evidence or absolute timeout]
+    X -- No --> Z[Remain pending until evidence or watchdog timeout]
     V --> AA[Resolve only stale machine-only threads]
     AA --> AB{Human/current-head thread remains?}
     AB -- Yes --> AC[GitHub thread rule keeps merge pending]
@@ -90,8 +91,8 @@ flowchart TD
 | Converted back to draft | `converted_to_draft` | Disable auto-merge; semantic runner stays idle | `DRAFT` |
 | Push while draft | `synchronize` | No semantic spend | `DRAFT` |
 | Push while Ready | new SHA | Old evidence becomes irrelevant; state restarts | `READY_UNVERIFIED` |
-| Stale workflow result | event SHA != current SHA | Ignore | unchanged |
-| PR Gate passes | `workflow_run.success` | Recover prior gate blocks; request independent exact-head reviewer | `REVIEW_REQUESTED` |
+| Stale workflow result | event SHA differs from current SHA | Ignore | unchanged |
+| PR Gate passes | `workflow_run.success` | Recover gate blocks; request independent exact-head reviewer | `REVIEW_REQUESTED` |
 | PR Gate fails/times out/startup fails | workflow conclusion | Copilot root-cause repair, max 3 | `CI_REPAIR` |
 | PR Gate cancelled by newer push | `cancelled` | Ignore old run | unchanged |
 | Workflow approval required | `action_required` | Disable auto-merge; block with exact UI setting | `BLOCKED` |
@@ -103,19 +104,21 @@ flowchart TD
 | Clean formal review | exact commit ID, no P0-P2 | Set `AI Review` success | `MERGE_PENDING` |
 | Codex thumbs-up | reaction after exact-head request | Set `AI Review` success | `MERGE_PENDING` |
 | Structured Copilot PASS | exact SHA in response | Set `AI Review` success | `MERGE_PENDING` |
-| P0-P2 finding | exact-head review/comment | Set failure; Copilot repair, max 2 | `REVIEW_REPAIR` |
+| P0-P2 formal finding | exact-head review body/state | Set failure; one Copilot repair | `REVIEW_REPAIR` |
+| P0-P2 inline finding | `pull_request_review_comment` | Set failure; same bounded repair | `REVIEW_REPAIR` |
+| Review summary clean but inline finding exists | combined evidence evaluation | Failure wins; no false-green formal pass | `REVIEW_REPAIR` |
 | Primary reviewer stalls for 3 minutes | request timestamp | Request one independent fallback when available | `REVIEW_FALLBACK` |
-| Fast primary+fallback windows expire | bounded polling | Remain pending; late review events still recover | review waiting |
-| Review exceeds 120 minutes | 12-hour watchdog sees age >= absolute timeout | Disable auto-merge; add `status:blocked` | `BLOCKED` |
+| Fast primary/fallback windows expire | bounded polling | Remain pending; late review events still recover | review waiting |
+| Review request age reaches 12 hours | first 12-hour watchdog pass after threshold | Disable auto-merge; add `status:blocked` | `BLOCKED` |
 | Late valid review after timeout block | review/comment event | Set success, resolve automation block, re-arm auto-merge | `MERGE_PENDING` |
-| Review dismissed | review event | Re-evaluate; withdraw success when proof disappears | review waiting/blocking |
+| Review dismissed or inline finding deleted | review event | Re-evaluate all current-head evidence | appropriate review state |
 | New push after clean review | new SHA | Prior review cannot authorize it; repeat full cycle | `READY_UNVERIFIED` |
 | Old machine-only thread remains | successful new-head review + GraphQL audit | Resolve only if all participants are recognized machines and no comment belongs to current head | thread cleared |
 | Human participated in thread | thread audit | Never auto-resolve | merge pending |
 | Current-head machine thread remains | thread audit | Never auto-resolve | review/fix required |
 | Ordinary merge conflict | mergeability | Copilot semantic resolution, max 2 | `CONFLICT_REPAIR` |
 | Dependabot conflict | author identity | `@dependabot rebase`, max 2 | `CONFLICT_REPAIR` |
-| Conflict disappears after manual/agent update | PR event | Resolve automation conflict block | normal lane resumes |
+| Conflict disappears after update | PR event | Resolve automation conflict block | normal lane resumes |
 | Auto-merge disabled by contributor push | PR event/live state | Revalidate and re-arm | `MERGE_PENDING` |
 | Base branch not default | auto-merge validator | Refuse auto-merge | blocked/correct target |
 | Multiple risk labels | risk parser | Fail closed | `BLOCKED` |
@@ -127,13 +130,13 @@ flowchart TD
 | Any standard-repo PR | repository identity | Self-modifying control plane | `AUTHORITY_REQUIRED` |
 | `kgsmith19` requested as reviewer | requested-reviewer API | Remove request; post explanation | routine lane continues |
 | Copilot-owned PR | PR author/branch | Disable auto-merge; require re-home | `BLOCKED` |
-| Copilot edits existing non-Copilot PR | PR identity unchanged | Full gates repeat; latest head is then reviewed by Codex | routine lane |
+| Copilot edits existing non-Copilot PR | latest commit actor | Full gates repeat; Codex reviews the new head | routine lane |
 | Dependabot patch/minor PR | dependency PR | Full gates; eligible if risk is appropriate | routine lane |
 | Dependabot major PR | dependency scope | Must be separately risk-classified | R2/R3/block |
 | CI repair reaches 3 | markers | Disable auto-merge and block | `BLOCKED` |
-| Review repair reaches 2 | markers | Disable auto-merge and block | `BLOCKED` |
+| Post-fix review still has P0-P2 | second reviewed head | Disable auto-merge and block | `BLOCKED` |
 | Conflict repair reaches 2 | markers | Disable auto-merge and block | `BLOCKED` |
-| Automation evidence later proves recovery | success event/current facts | Post recovery marker; remove block label when no active block remains | normal lane resumes |
+| Automation evidence later proves recovery | success event/current facts | Post recovery marker; remove label when no active automation block remains | normal lane resumes |
 | Manually applied `status:blocked` with no automation marker | label | Treat as authoritative; never auto-clear | `BLOCKED` |
 | Checks green but unresolved thread | ruleset | GitHub refuses merge | merge pending |
 | Checks and threads clear | GitHub auto-merge | Squash merge; delete branch | `MERGED` |
@@ -145,13 +148,14 @@ flowchart TD
 | Lane | Bound | Reason |
 |---|---:|---|
 | CI repair | 3 | root cause, correction, final attempt without loops |
-| Review repair | 2 | finding fix plus one correction |
+| Review repair | 1 batched repair | two reviewed heads total: initial plus post-fix |
 | Conflict repair | 2 | resolution plus one correction |
 | Reviewed head SHAs | 2 | coherent head plus one post-fix head |
-| Fallback reviewer | 1 per head | fallback, not a default second review |
+| Fallback reviewer | 1 per head when independent | fallback, not a default second review |
 | Fast review polling | 3 + 3 minutes | catch reaction-only review without indefinite runner use |
-| Absolute review timeout | 120 minutes | true service-stall boundary |
+| Reviewer safety timeout | 12 hours | service-stall boundary checked by low-frequency watchdog |
 | Watchdog | every 12 hours | safety net; normal operation is event-driven |
+| AI Review workflow | review/review-comment/comment events only | no runner on ordinary PR pushes |
 
 ## `status:blocked`
 
@@ -161,7 +165,7 @@ This is not a generic waiting state. It means a concrete fact exists:
 - required settings/ruleset invalid
 - workflow approval remains manual
 - required workflow/check missing or skipped
-- absolute reviewer timeout exceeded
+- reviewer safety timeout exceeded
 - risk labels contradictory
 - PR is Copilot-owned and therefore platform-human-merge-only
 
@@ -185,7 +189,7 @@ The implementation is incomplete until these canaries succeed:
 1. Draft: checks/review/merge remain paused.
 2. Ready label: `status:ready` promotes the draft.
 3. Happy path: gate passes, different machine reviewer passes, GitHub auto-merges with no human action.
-4. Finding: deliberate material finding blocks; Copilot repairs existing PR; new head is reviewed by Codex; merge completes.
+4. Finding: deliberate formal or inline finding blocks; Copilot repairs existing PR; new head is reviewed by Codex; merge completes.
 5. CI failure: deliberate failure creates one bounded repair task and never weakens the gate.
 6. Conflict: controlled conflict enters repair lane and cannot merge stale code.
 7. Dependabot: safe dependency PR follows the same gates.
