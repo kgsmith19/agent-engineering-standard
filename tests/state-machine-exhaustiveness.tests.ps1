@@ -49,4 +49,14 @@ foreach ($case in $gateCases) {
   Assert-Equal "gate conclusion $($case[0])" (Get-GateConclusionDecision -Conclusion $case[0]) $case[1]
 }
 
+# Cancelled/stale gate recovery is deterministic, bounded, and the only lane with Actions write.
+Assert-Contains 'gate-result router exists in reusable workflow' '.github/workflows/pr-automation-reusable.yml' 'gate-result-router\.ps1'
+Assert-Contains 'gate-result router reruns one workflow run' 'scripts/gate-result-router.ps1' 'actions/runs/\$GateRunId/rerun'
+Assert-Contains 'gate-result router records trusted rerun marker' 'scripts/gate-result-router.ps1' 'auto-rerun:gate:'
+Assert-Contains 'gate-result router blocks repeat rerun exhaustion' 'scripts/gate-result-router.ps1' 'gate-rerun-exhausted'
+foreach ($path in @('templates/PR_AUTOMATION.yml','.github/workflows/pr-automation.yml')) {
+  Assert-Contains "$path scopes Actions write to gate-result" $path '(?s)gate-result:.*?permissions:.*?actions:\s*write'
+}
+Assert-Contains 'gate rerun budget is one' 'policy/github-defaults.json' '"max_gate_rerun_attempts"\s*:\s*1'
+
 Write-Host 'state-machine exhaustiveness tests: PASS' -ForegroundColor Green
