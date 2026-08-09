@@ -20,9 +20,6 @@ function Get-HeadImplementerProviders {
     $provider = Get-MachineReviewProvider -Login $login
     if ($provider -and -not $providers.Contains($provider)) { $providers.Add($provider) }
   }
-
-  # PR author is only a fallback when the head commit itself has no detected
-  # machine actor. This prevents an old PR creator from masking the current head.
   if ($providers.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($PrAuthorLogin)) {
     $provider = Get-MachineReviewProvider -Login $PrAuthorLogin
     if ($provider) { $providers.Add($provider) }
@@ -31,45 +28,21 @@ function Get-HeadImplementerProviders {
 }
 
 function Get-HeadImplementerProvider {
-  param(
-    [string]$HeadAuthorLogin = '',
-    [string]$HeadCommitterLogin = '',
-    [string]$PrAuthorLogin = ''
-  )
-
-  $providers = @(Get-HeadImplementerProviders `
-    -HeadAuthorLogin $HeadAuthorLogin `
-    -HeadCommitterLogin $HeadCommitterLogin `
-    -PrAuthorLogin $PrAuthorLogin)
+  param([string]$HeadAuthorLogin = '',[string]$HeadCommitterLogin = '',[string]$PrAuthorLogin = '')
+  $providers = @(Get-HeadImplementerProviders -HeadAuthorLogin $HeadAuthorLogin -HeadCommitterLogin $HeadCommitterLogin -PrAuthorLogin $PrAuthorLogin)
   if ($providers.Count -eq 0) { return $null }
   return ($providers -join '+')
 }
 
 function Get-AcceptedMachineReviewProviders {
-  param(
-    [string]$HeadAuthorLogin = '',
-    [string]$HeadCommitterLogin = '',
-    [string]$PrAuthorLogin = ''
-  )
-
-  $implementers = @(Get-HeadImplementerProviders `
-    -HeadAuthorLogin $HeadAuthorLogin `
-    -HeadCommitterLogin $HeadCommitterLogin `
-    -PrAuthorLogin $PrAuthorLogin)
+  param([string]$HeadAuthorLogin = '',[string]$HeadCommitterLogin = '',[string]$PrAuthorLogin = '')
+  $implementers = @(Get-HeadImplementerProviders -HeadAuthorLogin $HeadAuthorLogin -HeadCommitterLogin $HeadCommitterLogin -PrAuthorLogin $PrAuthorLogin)
   return @(@('codex','copilot') | Where-Object { $implementers -notcontains $_ })
 }
 
 function Get-PreferredMachineReviewer {
-  param(
-    [string]$HeadAuthorLogin = '',
-    [string]$HeadCommitterLogin = '',
-    [string]$PrAuthorLogin = ''
-  )
-
-  $accepted = @(Get-AcceptedMachineReviewProviders `
-    -HeadAuthorLogin $HeadAuthorLogin `
-    -HeadCommitterLogin $HeadCommitterLogin `
-    -PrAuthorLogin $PrAuthorLogin)
+  param([string]$HeadAuthorLogin = '',[string]$HeadCommitterLogin = '',[string]$PrAuthorLogin = '')
+  $accepted = @(Get-AcceptedMachineReviewProviders -HeadAuthorLogin $HeadAuthorLogin -HeadCommitterLogin $HeadCommitterLogin -PrAuthorLogin $PrAuthorLogin)
   if ($accepted.Count -eq 0) { throw 'No connected machine reviewer is independent of every detected latest-head implementer.' }
   return $accepted[0]
 }
@@ -78,9 +51,6 @@ function Test-MaterialAiReviewBody {
   param([AllowNull()][string]$Body)
   if ([string]::IsNullOrWhiteSpace($Body)) { return $false }
   if ($Body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') { return $true }
-
-  # Match badges, bracketed findings, and ordinary P0-P2 headings without
-  # matching prose such as "No P0-P2 findings".
   if ($Body -match '(?im)!\[P[0-2]\s+Badge\]') { return $true }
   if ($Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?\[P[0-2]\](?:\*\*)?\s*\S') { return $true }
   return $Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?P[0-2]\b[^\r\n]{0,120}?(?:\*\*)?\s*(?::|—)\s*\S'
@@ -89,6 +59,30 @@ function Test-MaterialAiReviewBody {
 function Test-TrustedAutomationComment {
   param([Parameter(Mandatory)]$Comment,[Parameter(Mandatory)][string]$OwnerLogin)
   return [string]$Comment.user.login -in @('github-actions[bot]', $OwnerLogin)
+}
+
+function Get-TrustedStructuredCopilotReview {
+  param(
+    [object[]]$Comments = @(),
+    [Parameter(Mandatory)][string]$HeadSha,
+    [Parameter(Mandatory)][string]$OwnerLogin
+  )
+
+  $requests = @($Comments | Where-Object {
+    (Test-TrustedAutomationComment -Comment $_ -OwnerLogin $OwnerLogin) -and
+    [string]$_.body -like "*ai-review-request:copilot:$HeadSha*"
+  } | Sort-Object created_at)
+  if ($requests.Count -eq 0) { return $null }
+
+  $requestTime = [datetimeoffset]$requests[-1].created_at
+  $responses = @($Comments | Where-Object {
+    (Get-MachineReviewProvider -Login ([string]$_.user.login)) -eq 'copilot' -and
+    [string]$_.body -match '(?im)^\s*AI-REVIEW\s+(PASS|FAIL)\b' -and
+    [string]$_.body -match [regex]::Escape($HeadSha) -and
+    ([datetimeoffset]$_.created_at) -ge $requestTime
+  } | Sort-Object created_at)
+  if ($responses.Count -eq 0) { return $null }
+  return $responses[-1]
 }
 
 function Get-ReviewRepairDecision {
@@ -101,13 +95,8 @@ function Get-ReviewRepairDecision {
 
   if ($MaxAttempts -lt 1) { throw 'MaxAttempts must be at least 1.' }
   if (-not $HasFindings) { return 'none' }
-
   $attempted = @($AttemptedHeadShas | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
-  if ($attempted -contains $HeadSha) {
-    # The repair agent was already asked to fix this exact head. Re-triggering
-    # on the request comment itself must not consume another attempt or block.
-    return 'pending'
-  }
+  if ($attempted -contains $HeadSha) { return 'pending' }
   if ($attempted.Count -ge $MaxAttempts) { return 'block' }
   return 'request'
 }
@@ -132,12 +121,9 @@ function Test-ControlPlanePath {
 
 function Assert-ManualGateJustification {
   param([Parameter(Mandatory)]$Justification)
-
   foreach ($field in @('failure_class_prevented','why_automation_is_insufficient','decision_owner','gate_removal_condition')) {
     $property = $Justification.PSObject.Properties[$field]
-    if (-not $property -or [string]::IsNullOrWhiteSpace([string]$property.Value)) {
-      throw "Manual gate is not justified: missing '$field'."
-    }
+    if (-not $property -or [string]::IsNullOrWhiteSpace([string]$property.Value)) { throw "Manual gate is not justified: missing '$field'." }
   }
   return $true
 }
