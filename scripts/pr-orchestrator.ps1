@@ -14,6 +14,10 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh
 $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $automation = $config.pr_automation
 $reviewPolicy = $config.independent_review
+# Deterministic-only merge authority: when review is neither required nor solicited,
+# the review lane is fully inert and PR Gate alone gates the squash merge.
+$reviewRequired = [bool]$reviewPolicy.required_for_auto_merge
+$reviewSolicit = $reviewRequired -or [bool]$reviewPolicy.solicit_reviews
 $ownerTag = "@$($config.owner)"
 
 function Invoke-GhJson {
@@ -180,14 +184,10 @@ function Ensure-PrState {
   if ($prData.state -ne 'OPEN') { return $prData }
   $labels = @($prData.labels | ForEach-Object { $_.name })
   if ($prData.isDraft) {
-    Disable-AutoMerge $Number $prData
-    if ($labels -notcontains $automation.draft_ready_label) { return $prData }
-    & gh pr ready $Number --repo $Repo | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "Could not mark $Repo PR #$Number Ready." }
-    & gh pr edit $Number --repo $Repo --remove-label $automation.draft_ready_label 2>&1 | Out-Null
-    $prData = Get-Pr $Number
-    $labels = @($prData.labels | ForEach-Object { $_.name })
+    Set-Blocked $Number 'draft-pr' 'Ready-at-creation policy violation. Agents must create pull requests with draft:false; gh callers must omit --draft.' $prData
+    throw "Ready-at-creation policy violation: $Repo PR #$Number is draft."
   }
+  Resolve-Block $Number 'draft-pr' 'The pull request is Ready.' $prData
   if ([string]$prData.author.login -eq 'Copilot' -or [string]$prData.headRefName -like 'copilot/*') {
     Set-Blocked $Number 'copilot-owned-pr' 'GitHub requires human review and merge for pull requests created by Copilot cloud agent. Use Copilot only on an existing non-Copilot PR, or re-home this work through a non-Copilot implementation lane.' $prData
     return $prData
@@ -237,6 +237,7 @@ function Complete-ReviewSuccess {
 
 function Run-ReviewCycle {
   param([int]$Number)
+  if(-not $reviewSolicit){return}
   $prData=Get-Pr $Number
   if($prData.state-ne'OPEN'-or$prData.isDraft){return}
   Invoke-AiReview $Number
@@ -244,9 +245,11 @@ function Run-ReviewCycle {
   if((Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review')-eq'success'){Complete-ReviewSuccess $Number;return}
 
   & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto
-  if($LASTEXITCODE-ne 0){Set-Blocked $Number 'review-request' 'No budgeted machine reviewer could be requested.' $prData;return}
-  & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'pause-pending-review.ps1') -Repo $Repo -Pr $Number
-  if($LASTEXITCODE-ne 0){throw'Could not pause auto-merge while machine review is pending.'}
+  if($LASTEXITCODE-ne 0){if($reviewRequired){Set-Blocked $Number 'review-request' 'No budgeted machine reviewer could be requested.' $prData};return}
+  if($reviewRequired){
+    & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'pause-pending-review.ps1') -Repo $Repo -Pr $Number
+    if($LASTEXITCODE-ne 0){throw'Could not pause auto-merge while machine review is pending.'}
+  }
 
   $result=Wait-ForReview $Number ([string]$prData.headRefOid) ([int]$reviewPolicy.primary_wait_minutes)
   if($result-eq'success'){Complete-ReviewSuccess $Number;return}
@@ -257,7 +260,7 @@ function Run-ReviewCycle {
   if(@(Get-ReviewFailures $Number (Get-Pr $Number)).Count-gt 0){return}
 
   & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto
-  if($LASTEXITCODE-ne 0){Set-Blocked $Number 'review-fallback' 'Primary machine review stalled and no fallback reviewer was available.' $prData;return}
+  if($LASTEXITCODE-ne 0){if($reviewRequired){Set-Blocked $Number 'review-fallback' 'Primary machine review stalled and no fallback reviewer was available.' $prData};return}
   $result=Wait-ForReview $Number ([string]$prData.headRefOid) ([int]$reviewPolicy.fallback_wait_minutes)
   if($result-eq'success'){Complete-ReviewSuccess $Number}
 }
@@ -302,10 +305,11 @@ function Handle-Watchdog {
       $gate=Get-CheckConclusion $head 'PR Gate'
       if($gate-eq'success'){
         Resolve-GateBlocks $number $prData
+        if(-not $reviewSolicit){continue}
         Invoke-AiReview $number
         if((Get-CheckConclusion $head 'AI Review')-eq'success'){Complete-ReviewSuccess $number;continue}
         $requestTime=Get-FirstReviewRequestTime $number $head
-        if($requestTime-and([datetimeoffset]::UtcNow-$requestTime).TotalMinutes-ge[int]$reviewPolicy.absolute_timeout_minutes){Set-Blocked $number 'review-timeout' "Machine review exceeded the absolute $($reviewPolicy.absolute_timeout_minutes)-minute timeout." $prData}
+        if($requestTime-and([datetimeoffset]::UtcNow-$requestTime).TotalMinutes-ge[int]$reviewPolicy.absolute_timeout_minutes){if($reviewRequired){Set-Blocked $number 'review-timeout' "Machine review exceeded the absolute $($reviewPolicy.absolute_timeout_minutes)-minute timeout." $prData}}
         else{Run-ReviewCycle $number}
       } elseif($gate-in@('failure','timed_out','startup_failure')){Request-Repair ci $number $prData}
       elseif(-not$gate){Set-Blocked $number 'missing-pr-gate' 'No current-head PR Gate check exists.' $prData}

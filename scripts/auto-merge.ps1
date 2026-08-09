@@ -22,7 +22,7 @@ $prRaw = & gh pr view $Pr --repo $Repo --json isDraft,state,labels,baseRefName,h
 if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
 $pr = ($prRaw -join "`n") | ConvertFrom-Json
 if ($pr.state -ne 'OPEN') { throw "PR #$Pr is not open." }
-if ($pr.isDraft) { throw "PR #$Pr is draft." }
+if ($pr.isDraft) { throw "Ready-at-creation policy violation: $Repo PR #$Pr is draft. Auto-merge was not attempted." }
 if (@($pr.labels | ForEach-Object { $_.name }) -contains 'status:blocked') { throw "PR #$Pr is status:blocked." }
 if ([string]$pr.author.login -eq 'Copilot' -or [string]$pr.headRefName -like 'copilot/*') {
   throw 'Copilot-cloud-agent-owned PRs require human review/merge by GitHub platform policy and cannot use the unattended lane.'
@@ -51,7 +51,7 @@ if ($controlPlane -and [bool]$config.manual_gates.control_plane.required) {
   throw "Auto-merge refused by justified control-plane gate. Removal condition: $($config.manual_gates.control_plane.gate_removal_condition)"
 }
 
-$metaRaw = & gh api "repos/$Repo" 2>&1
+$metaRaw = Invoke-WithAdminToken { & gh api "repos/$Repo" 2>&1 }
 if ($LASTEXITCODE -ne 0) { throw "Cannot inspect live repository settings for $Repo." }
 $meta = ($metaRaw -join "`n") | ConvertFrom-Json
 if ($pr.baseRefName -ne $meta.default_branch) { throw "PR targets '$($pr.baseRefName)', not protected default branch '$($meta.default_branch)'." }
@@ -63,7 +63,7 @@ $actionsAppRaw = & gh api /apps/github-actions 2>&1
 if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve GitHub Actions App identity.' }
 $actionsAppId = [int]((($actionsAppRaw -join "`n") | ConvertFrom-Json).id)
 
-$rulesetSummaries = @(Get-Paged "repos/$Repo/rulesets?per_page=100")
+$rulesetSummaries = @(Invoke-WithAdminToken { Get-Paged "repos/$Repo/rulesets?per_page=100" })
 $summary = ($rulesetSummaries | Where-Object { $_.name -eq $config.ruleset_name -and $_.target -eq 'branch' -and $_.enforcement -eq 'active' } | Select-Object -First 1)
 if (-not $summary) { throw "Live active branch ruleset '$($config.ruleset_name)' is missing." }
 
@@ -72,7 +72,7 @@ if (-not $summary) { throw "Live active branch ruleset '$($config.ruleset_name)'
 # default branch, because it may silently retain approvals/checks that the
 # canonical policy intentionally removed.
 $defaultBranchEncoded = [uri]::EscapeDataString([string]$meta.default_branch)
-$effectiveRules = @(Get-Paged "repos/$Repo/rules/branches/${defaultBranchEncoded}?per_page=100")
+$effectiveRules = @(Invoke-WithAdminToken { Get-Paged "repos/$Repo/rules/branches/${defaultBranchEncoded}?per_page=100" })
 $conflictingIds = @($effectiveRules |
   ForEach-Object { [long]$_.ruleset_id } |
   Where-Object { $_ -gt 0 -and $_ -ne [long]$summary.id } |
@@ -86,7 +86,7 @@ if ($conflictingIds.Count -gt 0) {
   throw "Auto-merge refused: conflicting active default-branch ruleset(s): $conflicts. Reconcile live policy first."
 }
 
-$detailRaw = & gh api "repos/$Repo/rulesets/$($summary.id)" 2>&1
+$detailRaw = Invoke-WithAdminToken { & gh api "repos/$Repo/rulesets/$($summary.id)" 2>&1 }
 if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect live ruleset details.' }
 $detail = ($detailRaw -join "`n") | ConvertFrom-Json
 if ($detail.enforcement -ne 'active') { throw 'Live ruleset is not active.' }
@@ -99,18 +99,20 @@ if ([int]$prRule.parameters.required_approving_review_count -ne 0) { throw 'Huma
 if ([bool]$prRule.parameters.require_code_owner_review) { throw 'Code Owner review requirement is enabled.' }
 if ([bool]$prRule.parameters.require_last_push_approval) { throw 'Last-push human approval requirement is enabled.' }
 if (-not [bool]$prRule.parameters.dismiss_stale_reviews_on_push) { throw 'Stale reviews are not dismissed on push.' }
-if (-not [bool]$prRule.parameters.required_review_thread_resolution) { throw 'Review-thread resolution is not required.' }
+if ([bool]$prRule.parameters.required_review_thread_resolution -ne [bool]$config.required_review_thread_resolution) { throw 'Review-thread resolution requirement drifted from policy.' }
 $methods = @($prRule.parameters.allowed_merge_methods)
 if ($methods.Count -ne 1 -or $methods[0] -ne 'squash') { throw 'Ruleset is not squash-only.' }
 
 $statusRule = $detail.rules | Where-Object { $_.type -eq 'required_status_checks' } | Select-Object -First 1
 if (-not $statusRule) { throw 'Live ruleset has no required-status-check rule.' }
-foreach ($context in @($config.required_status_context,$config.required_ai_review_context)) {
+$requiredContexts = @([string]$config.required_status_context)
+if ([bool]$config.independent_review.required_for_auto_merge) { $requiredContexts += [string]$config.required_ai_review_context }
+foreach ($context in $requiredContexts) {
   $required = @($statusRule.parameters.required_status_checks) | Where-Object { $_.context -eq $context } | Select-Object -First 1
   if (-not $required) { throw "Live ruleset does not require '$context'." }
   if ([int]$required.integration_id -ne $actionsAppId) { throw "Required '$context' is not bound to GitHub Actions." }
 }
 
-& gh pr merge $Pr --repo $Repo --auto --squash
+Invoke-WithAdminToken { & gh pr merge $Pr --repo $Repo --auto --squash }
 if ($LASTEXITCODE -ne 0) { throw "Could not enable auto-merge for $Repo PR #$Pr." }
-Write-Host "AUTO-MERGE ARMED: $Repo PR #$Pr ($Risk). GitHub must receive latest-head PR Gate + AI Review and resolved review threads before squash merge." -ForegroundColor Green
+Write-Host "AUTO-MERGE ARMED: $Repo PR #$Pr ($Risk). GitHub must receive a latest-head $($requiredContexts -join ' + ') success before squash merge." -ForegroundColor Green

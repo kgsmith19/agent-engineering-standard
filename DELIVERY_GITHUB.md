@@ -8,7 +8,9 @@ Use GitHub as the protected integration plane while keeping feedback fast, model
 
 GitHub Issues are the durable work-item source. A PR is the smallest coherent integration unit.
 
-`Issue → SPEC only if needed → thin slices → draft PR → Ready → PR Gate → exact-head AI Review → GitHub auto-merge → release → observe`
+`Issue → SPEC only if needed → thin slices → PR (opened Ready, risk label at creation) → PR Gate → GitHub auto-merge → release → observe`
+
+Open every PR Ready with its `risk:R*` label already applied. REST, SDK, GraphQL, and connector calls set `draft: false`; `gh pr create` omits `--draft`. Verify the returned state before any auto-merge call.
 
 Do not enlarge PRs merely to save CI minutes. Save minutes through local slice verification, fewer pushes, cancellation, caching, and path/risk-aware tests.
 
@@ -36,10 +38,11 @@ Product callers never follow moving `@main`. Updating shared behavior is an expl
 
 ## 3. Required checks and settings
 
-Every managed repository requires these latest-head GitHub Actions contexts:
+Every managed repository requires this latest-head GitHub Actions context:
 
 - `PR Gate`: deterministic repo-specific evidence
-- `AI Review`: one fresh machine review task/session for the exact head
+
+`AI Review` is advisory-only and off by default (ADR 0002): `independent_review.required_for_auto_merge` restores it as a required context; `solicit_reviews` runs it informationally without gating.
 
 Repository defaults:
 
@@ -48,7 +51,7 @@ Repository defaults:
 - Code Owner approval: off
 - native `.github/CODEOWNERS`: absent
 - `kgsmith19`: forbidden from requested-reviewer state
-- review-thread resolution required
+- review-thread resolution not required (no required reviewer exists to resolve a stray thread; ADR 0002)
 - stale reviews dismissed after a push
 - auto-merge and update branch enabled
 - squash only; merge commits and rebase disabled
@@ -64,22 +67,18 @@ The canonical ruleset is the sole default-branch authority. Legacy branch protec
 
 ```mermaid
 flowchart TD
-    A[PR opened or updated] --> B{Copilot-owned PR?}
-    B -- Yes --> C[Block: re-home to a non-Copilot PR]
-    B -- No --> D{Draft?}
-    D -- Yes --> E[No AI review and no auto-merge]
-    E --> F{status:ready added?}
-    F -- No --> E
-    F -- Yes --> G[Mark Ready automatically]
+    A[PR opened or updated] --> B{Draft?}
+    B -- Yes --> C[Block: ready-at-creation violation]
+    B -- No --> D{Copilot-owned PR?}
+    D -- Yes --> E[Block: re-home to a non-Copilot PR]
     D -- No --> H[Classify risk and changed paths]
-    G --> H
     H --> I{R4 or self-modifying control plane?}
     I -- Yes --> J[Run machine evidence; tag Kyle for justified authority]
     I -- No --> K[Validate live ruleset and arm squash auto-merge]
     K --> L[Run PR Gate]
     L --> M{PR Gate result}
     M -- Pass --> N[Detect latest-head machine implementer]
-    M -- Fail --> O[Copilot root-cause repair, max 3]
+    M -- Fail --> O[Copilot root-cause repair, max 7]
     O --> L
     N --> P[Request a different machine reviewer]
     P --> Q{Review evidence}
@@ -96,19 +95,17 @@ flowchart TD
 
 A push always creates a new decision cycle. Old `AI Review` evidence cannot authorize a new head.
 
-## 5. Draft PR rules
+## 5. Ready-at-creation rules
 
-Drafts are the low-cost implementation workspace:
+Draft PRs are not part of the autonomous state machine. GitHub natively refuses to merge them, so adding conversion creates an avoidable state and race.
 
-- repository `PR Gate` may defer draft checks
-- no semantic reviewer is requested
-- the AI Review workflow does not run on ordinary pushes
-- auto-merge is disabled
-- pushes do not consume review budget
+- Complete and verify the coherent slice locally before creating the PR.
+- REST, SDK, GraphQL, and connector callers set `draft: false` and verify the returned state.
+- `gh pr create` callers omit `--draft`, then verify `isDraft == false`.
+- A draft event fails `PR Gate`, applies `status:blocked`, posts one actionable diagnostic, and never reaches auto-merge.
+- Legacy manual conversion to Ready may clear the block, but automated conversion is forbidden.
 
-When coherent, the agent adds `status:ready`. `PR Automation` marks the draft Ready, removes the label, arms auto-merge when eligible, and begins the normal gate sequence.
-
-GitHub cannot merge a draft. Automatic promotion is the correct solution; eliminating drafts would increase review and CI spend.
+`status:ready` remains an Issue-queue label only. It never changes PR draft state.
 
 ## 6. Machine review rules
 
@@ -138,11 +135,11 @@ The AI Review runner wakes only when semantic evidence changes: formal review, i
 
 | Condition | Automated action | Budget | Final stop condition |
 |---|---|---:|---|
-| PR Gate fails | Copilot reads complete logs and fixes root cause | 3 | `status:blocked` |
+| PR Gate fails | Copilot reads complete logs and fixes root cause | 7 | `status:blocked` |
 | Formal or inline review finds P0-P2 | Copilot performs one batched repair | 1 | second reviewed head still fails |
 | Codex review stalls | independent Copilot review fallback when allowed | 1 per head | 12-hour reviewer safety timeout |
-| Merge conflict | Dependabot rebase or Copilot semantic conflict resolution | 2 | `status:blocked` |
-| Draft ready for integration | `status:ready` promotes to Ready | 1 state change | remains draft without label |
+| Merge conflict | Dependabot rebase or Copilot semantic conflict resolution | 6 | `status:blocked` |
+| Draft opened or conversion attempted | fail workflow, apply `status:blocked`, stop before auto-merge | none | Ready state is restored explicitly |
 | New push after green review | invalidate old review and restart | max 2 reviewed heads | `status:blocked` |
 | R4 | automated evidence, then human authority | none | explicit authorization |
 | Self-modifying control plane | automated evidence, then owner integration | none | external immutable judge exists |
@@ -152,13 +149,13 @@ A stop never silently assigns Kyle as reviewer. It posts the exact blocker and t
 ## 8. Actions and model efficiency
 
 - deterministic checks before model review
-- no draft or every-push AI review
+- no AI review for policy-invalid drafts or every-push chatter
 - one batched multi-lens response
 - initial reviewed head plus one post-fix reviewed head
 - cancel superseded deterministic/evaluator runs
 - exact-head markers suppress duplicate requests
 - 3-minute primary polling plus 3-minute fallback polling
-- 12-hour low-frequency safety watchdog, not continuous polling
+- hourly safety watchdog (12-hour reviewer timeout when review is enabled), not continuous polling
 - path filters and safe caches where useful
 - expensive matrices, mutation, load, and broad E2E only when risk/path/release requires them
 - measure latency, Actions minutes, model responses, findings caught, and false-positive rate before expanding review

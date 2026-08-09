@@ -25,6 +25,10 @@ on:
       standard_sha:
         required: true
         type: string
+    secrets:
+      automation_token:
+        description: Fine-grained PAT (Administration:read) for admin reads and arming; never exposed to PR code.
+        required: false
 
 jobs:
   orchestrate:
@@ -32,46 +36,27 @@ jobs:
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ github.token }}
+      GH_TOKEN_ADMIN: ${{ secrets.automation_token }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: kgsmith19/agent-engineering-standard
           ref: ${{ inputs.standard_sha }}
           path: .standard
-      - name: Detect trusted control script
+      - name: Detect trusted orchestrator
         id: trusted_standard
         shell: bash
-        env:
-          MODE: ${{ inputs.mode }}
         run: |
-          if [[ "$MODE" == "gate-result" ]]; then
-            REQUIRED=.standard/scripts/gate-result-router.ps1
-            TITLE='Trusted gate-result router unavailable'
-          else
-            REQUIRED=.standard/scripts/pr-orchestrator.ps1
-            TITLE='Trusted orchestrator unavailable'
-          fi
-          if [[ -f "$REQUIRED" ]]; then
+          if [[ -f .standard/scripts/pr-orchestrator.ps1 ]]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=$TITLE::The trusted standard SHA predates the required control script. This bootstrap control-plane PR remains on the documented external authority path."
-            echo "### $TITLE" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning title=Trusted orchestrator unavailable::The trusted standard SHA predates automation. This bootstrap control-plane PR remains on the documented external authority path."
+            echo "### Trusted orchestrator unavailable" >> "$GITHUB_STEP_SUMMARY"
             echo "No proposed PR script was executed. Use the documented external authority path for this bootstrap control-plane PR." >> "$GITHUB_STEP_SUMMARY"
           fi
-      - name: Run bounded gate-result recovery
-        if: steps.trusted_standard.outputs.available == 'true' && inputs.mode == 'gate-result'
-        shell: pwsh
-        run: |
-          & pwsh -NoProfile -File .standard/scripts/gate-result-router.ps1 `
-            -Repo '${{ github.repository }}' `
-            -Pr ${{ inputs.pr_number }} `
-            -GateConclusion '${{ inputs.gate_conclusion }}' `
-            -GateHeadSha '${{ inputs.gate_head_sha }}' `
-            -GateRunId ${{ inputs.gate_run_id }}
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run bounded PR state machine
-        if: steps.trusted_standard.outputs.available == 'true' && inputs.mode != 'gate-result'
+        if: steps.trusted_standard.outputs.available == 'true'
         shell: pwsh
         run: |
           & pwsh -NoProfile -File .standard/scripts/pr-orchestrator.ps1 `

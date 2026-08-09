@@ -131,6 +131,10 @@ Risk: R3 control-plane dependency update. This bootstrap rollout is manually int
 "@
       $prUrl = (& gh pr create --repo $repo --base main --head $branch --title "Upgrade autonomous engineering standard to $short" --body $body 2>&1 | Out-String).Trim()
       if ($LASTEXITCODE -ne 0 -or -not $prUrl) { throw 'PR creation failed' }
+      $createdRaw = & gh pr view $prUrl --repo $repo --json number,url,isDraft 2>&1
+      if ($LASTEXITCODE -ne 0) { throw "PR created but its ready-at-creation postcondition could not be verified: $prUrl" }
+      $created = ($createdRaw -join "`n") | ConvertFrom-Json
+      if ([bool]$created.isDraft) { throw "Ready-at-creation policy violation: rollout PR #$($created.number) is draft: $($created.url)" }
       & gh pr edit $prUrl --add-label 'risk:R3' | Out-Host
       if ($LASTEXITCODE -ne 0) { throw "PR created but risk:R3 could not be applied: $prUrl" }
       Write-Host "created $prUrl" -ForegroundColor Green

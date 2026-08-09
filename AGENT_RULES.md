@@ -42,14 +42,18 @@ Do not repeat the same failing strategy indefinitely. Escalate consequential amb
 
 ## 6. Automated PR state machine
 
-Keep a PR draft while implementation is changing. Drafts deliberately do not spend semantic-review budget and cannot auto-merge. Add `status:ready` only when the coherent PR should be promoted to Ready automatically.
+Finish and verify one coherent slice locally, then open its PR Ready. Draft PRs are forbidden because GitHub cannot merge them and a conversion step introduces a race before auto-merge.
 
-Every unattended merge requires two GitHub checks on the **latest head SHA**:
+- REST, SDK, GraphQL, and connector creation calls set `draft: false` and verify the returned PR is not draft.
+- `gh pr create` callers omit `--draft` and verify `gh pr view --json isDraft --jq .isDraft` returns `false`.
+- Never use `gh pr ready` or automated draft conversion in the steady-state lane.
+- If a draft is observed, automation applies `status:blocked`, emits the exact contract error, and stops before auto-merge.
+
+Every unattended merge requires one GitHub check on the **latest head SHA**:
 
 1. `PR Gate` — deterministic repo-specific build/test/security evidence
-2. `AI Review` — one fresh machine review task/session over that exact head
 
-A later push invalidates both semantic authorization and any pending merge. The state machine re-runs the deterministic gate, requests a fresh exact-head machine review, and only then allows GitHub auto-merge.
+Machine review is advisory-only and off by default (ADR 0002); when enabled via policy it never replaces the deterministic gate. A later push invalidates prior authorization: the state machine re-runs the deterministic gate against the new head before GitHub auto-merge proceeds.
 
 ### Machine reviewer selection
 
@@ -74,18 +78,18 @@ A clean formal review, structured exact-head Copilot PASS, or exact-head Codex t
 
 - deterministic checks run before model review
 - the AI Review runner wakes only when review evidence changes
-- no AI review for drafts or every micro-push
+- no AI review for policy-invalid drafts or every micro-push
 - normal budget: initial reviewed head plus one post-fix reviewed head
-- CI repair: maximum 3 attempts
+- CI repair: maximum 7 attempts
 - review repair: maximum 1 batched attempt
-- conflict repair: maximum 2 attempts
+- conflict repair: maximum 6 attempts
 - duplicate exact-head requests are suppressed
 - stalled Codex review may use one independent Copilot fallback
 - reviewer timeout is enforced by the low-frequency watchdog, not a permanent busy runner
 
-No routine path requests Kyle as a GitHub reviewer. Native `CODEOWNERS` is absent, required human approvals are `0`, and machine review is enforced through the `AI Review` status check.
+No routine path requests Kyle as a GitHub reviewer. Native `CODEOWNERS` is absent and required human approvals are `0`; the deterministic `PR Gate` status check is the sole merge authority (ADR 0002).
 
-R0–R3 may auto-merge when both checks pass, review threads are resolved, and no justified authority gate applies. Control-plane changes remain manually integrated while they can modify the evaluator or merge authority judging themselves. R4 never auto-merges.
+R0–R3 may auto-merge when `PR Gate` passes and no justified authority gate applies. Control-plane changes remain manually integrated while they can modify the evaluator or merge authority judging themselves. R4 never auto-merges.
 
 ## 7. Manual gates must earn their existence
 

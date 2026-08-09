@@ -2,7 +2,7 @@ name: PR Gate
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, edited]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   merge_group:
 
 permissions:
@@ -14,11 +14,16 @@ concurrency:
 
 jobs:
   bootstrap-gate:
-    name: ${{ github.event.pull_request.draft && 'Draft CI (local only)' || 'PR Gate' }}
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    name: PR Gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Enforce Ready at creation
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft
+        shell: bash
+        run: |
+          echo '::error::Ready-at-creation policy violation. Create PRs with draft:false; gh callers must omit --draft.'
+          exit 1
       - name: Verify bootstrap control files
         shell: bash
         run: |
