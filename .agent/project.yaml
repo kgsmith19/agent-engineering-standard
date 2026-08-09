@@ -10,7 +10,7 @@ commands:
   bootstrap_repo: pwsh -NoProfile -File scripts/bootstrap-repo.ps1 -Name <repo>
   upgrade_repos: pwsh -NoProfile -File scripts/upgrade-repos.ps1
   codex_review: pwsh -NoProfile -File scripts/codex-review.ps1
-  auto_merge_r0_r2: pwsh -NoProfile -File scripts/auto-merge.ps1 -Repo <owner/repo> -Pr <number> -Risk <R0|R1|R2>
+  auto_merge_r0_r3: pwsh -NoProfile -File scripts/auto-merge.ps1 -Repo <owner/repo> -Pr <number> -Risk <R0|R1|R2|R3>
 
 risk:
   default: R3
@@ -23,7 +23,9 @@ risk:
     - .github/workflows/**
 
 work_tracking:
-  system: github-issues
+  system: github-projects
+  project: "Agentic Portfolio"
+  backing_record: github-issues
 
 ci:
   required_check: PR Gate
