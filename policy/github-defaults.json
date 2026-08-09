@@ -22,7 +22,10 @@
     "preferred_provider": "codex",
     "fallback_provider": "copilot",
     "local_codex_model": "gpt-5.4-mini",
-    "review_stall_minutes": 15,
+    "review_stall_minutes": 3,
+    "primary_wait_minutes": 3,
+    "fallback_wait_minutes": 3,
+    "poll_seconds": 20,
     "max_review_heads_per_pr": 2,
     "copilot_effort": "low",
     "review_drafts": false,
@@ -34,7 +37,7 @@
     "max_ci_fix_attempts": 3,
     "max_review_fix_attempts": 2,
     "max_conflict_fix_attempts": 2,
-    "watchdog_interval_minutes": 60
+    "watchdog_interval_minutes": 720
   },
   "manual_gate_required_fields": [
     "failure_class_prevented",
