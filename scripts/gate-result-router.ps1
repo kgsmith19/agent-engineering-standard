@@ -73,7 +73,7 @@ if ($decision -eq 'rerun') {
     [string]$_.body -match "<!-- auto-rerun:gate:$([regex]::Escape($GateHeadSha)):[0-9]+ -->"
   }).Count
   if ($attempts -ge $limit) {
-    Set-GateBlock 'gate-rerun-exhausted' "PR Gate ended '$GateConclusion' again after the bounded automatic rerun."
+    Set-GateBlock 'gate-rerun-exhausted' "PR Gate ended '$GateConclusion' again after the bounded automatic rerun." $prData
     exit 0
   }
 
