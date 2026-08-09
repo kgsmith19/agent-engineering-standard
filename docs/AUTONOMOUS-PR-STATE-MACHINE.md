@@ -3,6 +3,8 @@
 This is the authoritative decision map for routine pull-request integration across the managed portfolio.
 
 > **Amendment (2026-08-09, ADR 0002):** the deterministic `PR Gate` is now the sole required status context. Machine review is advisory-only and off by default (`independent_review.required_for_auto_merge: false`, `solicit_reviews: false`); every review state, event, and invariant below that references `AI Review` applies only when those policy flags re-enable the review lane. Required review-thread resolution is off, repair budgets are 7 (CI) / 6 (conflict), and the watchdog runs hourly.
+>
+> **Canary amendment (#42):** while `independent_review.dispatch_mode` is `disabled_pending_e2e`, no reviewer is dispatched and the evaluator publishes a `neutral` `AI Review` check outcome — a passing conclusion for the lane. Blocking P0/P1 evidence still fails the check; P2-only findings are recorded once as an advisory Issue mapped to the exact head; unreviewed auto-merge stops at `R2`. The live E2E canary drill is the removal condition for this mode.
 
 ## Invariants
 

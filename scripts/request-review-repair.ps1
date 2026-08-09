@@ -8,6 +8,10 @@ $ErrorActionPreference = 'Stop'
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
 $config = Get-Content (Join-Path $PSScriptRoot '..\policy\github-defaults.json') -Raw | ConvertFrom-Json
 $limit = [int]$config.pr_automation.max_review_fix_attempts
+if ([string]$config.independent_review.dispatch_mode -eq 'disabled_pending_e2e') {
+  Write-Host 'REVIEW REPAIR SKIPPED: reviewer dispatch is disabled_pending_e2e; blocking evidence still fails the evaluator and P2-only findings stay advisory.' -ForegroundColor Yellow
+  exit 0
+}
 
 function Get-Paged { param([string]$Endpoint) $raw=& gh api --paginate --slurp $Endpoint 2>&1; if($LASTEXITCODE-ne 0){throw($raw-join"`n")}; $pages=($raw-join"`n")|ConvertFrom-Json; foreach($page in @($pages)){foreach($item in @($page)){$item}} }
 function Get-Comments { return @(Get-Paged "repos/$Repo/issues/$Pr/comments?per_page=100") }
@@ -18,14 +22,14 @@ function Resolve-TransientReviewBlocks { param([string]$Head,$Comments) $active=
 $prRaw=& gh api "repos/$Repo/pulls/$Pr" 2>&1;if($LASTEXITCODE-ne 0){throw($prRaw-join"`n")};$prData=($prRaw-join"`n")|ConvertFrom-Json
 if($prData.state-ne'open'-or$prData.draft){exit 0};$head=[string]$prData.head.sha
 $reviews=@(Get-Paged "repos/$Repo/pulls/$Pr/reviews?per_page=100");$inlineComments=@(Get-Paged "repos/$Repo/pulls/$Pr/comments?per_page=100");$comments=@(Get-Comments);$failures=New-Object System.Collections.Generic.List[string]
-foreach($review in $reviews){$provider=Get-MachineReviewProvider ([string]$review.user.login);if(-not$provider-or$review.commit_id-ne$head-or$review.state-in@('DISMISSED','PENDING')){continue};if($review.state-eq'CHANGES_REQUESTED'-or(Test-MaterialAiReviewBody ([string]$review.body))){$failures.Add("$provider formal review")}}
-foreach($inline in $inlineComments){$provider=Get-MachineReviewProvider ([string]$inline.user.login);if(-not$provider-or[string]$inline.commit_id-ne$head){continue};if(Test-MaterialAiReviewBody ([string]$inline.body)){$failures.Add("$provider inline comment #$($inline.id)")}}
+foreach($review in $reviews){$provider=Get-MachineReviewProvider ([string]$review.user.login);if(-not$provider-or$review.commit_id-ne$head-or$review.state-in@('DISMISSED','PENDING')){continue};if(Test-BlockingAiReviewEvidence -Body ([string]$review.body) -ReviewState ([string]$review.state)){$failures.Add("$provider formal review")}}
+foreach($inline in $inlineComments){$provider=Get-MachineReviewProvider ([string]$inline.user.login);if(-not$provider-or[string]$inline.commit_id-ne$head){continue};if(Test-BlockingAiReviewBody ([string]$inline.body)){$failures.Add("$provider inline comment #$($inline.id)")}}
 $structured=Get-TrustedStructuredCopilotReview -Comments $comments -HeadSha $head -OwnerLogin ([string]$config.owner)
 if($structured-and[string]$structured.body-match'(?im)^\s*AI-REVIEW\s+FAIL\b'){$failures.Add('Copilot structured review')}
 
 $attemptedHeads=New-Object System.Collections.Generic.List[string]
 foreach($comment in $comments){if((Test-TrustedAutomationComment $comment ([string]$config.owner))-and[string]$comment.body-match'<!-- auto-fix:review:([0-9a-f]{40}):\d+ -->'-and-not$attemptedHeads.Contains($Matches[1])){$attemptedHeads.Add($Matches[1])}}
-$decision=Get-ReviewRepairDecision -HeadSha $head -AttemptedHeadShas @($attemptedHeads) -MaxAttempts $limit -HasFindings ($failures.Count-gt 0)
+$decision=Get-ReviewRepairDecision -HeadSha $head -AttemptedHeadShas @($attemptedHeads) -MaxAttempts $limit -HasBlockingFindings ($failures.Count-gt 0)
 switch($decision){
   'none'{exit 0}
   'pending'{Write-Host "REVIEW REPAIR PENDING: an agent was already asked to repair current head $head." -ForegroundColor Yellow;exit 0}

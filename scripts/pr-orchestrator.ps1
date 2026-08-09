@@ -147,11 +147,16 @@ function Get-ReviewFailures {
   foreach ($review in @(Get-Paged "repos/$Repo/pulls/$Number/reviews?per_page=100")) {
     $provider = Get-MachineReviewProvider ([string]$review.user.login)
     if (-not $provider -or $review.commit_id -ne $head -or $review.state -in @('DISMISSED','PENDING')) { continue }
-    if ($review.state -eq 'CHANGES_REQUESTED' -or (Test-MaterialAiReviewBody ([string]$review.body))) { $failures.Add($provider) }
+    if (Test-BlockingAiReviewEvidence -Body ([string]$review.body) -ReviewState ([string]$review.state)) { $failures.Add($provider) }
+  }
+  foreach ($inline in @(Get-Paged "repos/$Repo/pulls/$Number/comments?per_page=100")) {
+    $provider = Get-MachineReviewProvider ([string]$inline.user.login)
+    if (-not $provider -or [string]$inline.commit_id -ne $head) { continue }
+    if (Test-BlockingAiReviewBody ([string]$inline.body)) { $failures.Add($provider) }
   }
   $comments = @(Get-Comments $Number)
   $structured = Get-TrustedStructuredCopilotReview -Comments $comments -HeadSha $head -OwnerLogin ([string]$config.owner)
-  if ($structured -and [string]$structured.body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') { $failures.Add('copilot') }
+  if ($structured -and (Test-BlockingAiReviewBody ([string]$structured.body))) { $failures.Add('copilot') }
   return @($failures | Select-Object -Unique)
 }
 function Invoke-AiReview {
@@ -220,7 +225,7 @@ function Wait-ForReview {
     if($current.state-ne'OPEN'-or$current.isDraft-or[string]$current.headRefOid-ne$Head){return 'changed'}
     Invoke-AiReview $Number
     if(@(Get-ReviewFailures $Number $current).Count-gt 0){return 'failed'}
-    if((Get-CheckConclusion $Head 'AI Review')-eq'success'){return 'success'}
+    if(Test-AiReviewPassingConclusion (Get-CheckConclusion $Head 'AI Review')){return 'success'}
   } while([datetimeoffset]::UtcNow-lt$deadline)
   return 'timeout'
 }
@@ -240,9 +245,16 @@ function Run-ReviewCycle {
   if(-not $reviewSolicit){return}
   $prData=Get-Pr $Number
   if($prData.state-ne'OPEN'-or$prData.isDraft){return}
+  if([string]$reviewPolicy.dispatch_mode-eq'disabled_pending_e2e'){
+    # Canary mode: the evaluator publishes a neutral (passing) outcome and P2-only
+    # advisories become Issues; no reviewer is dispatched until the live E2E proves it.
+    Invoke-AiReview $Number
+    if(@(Get-ReviewFailures $Number $prData).Count-eq 0){Complete-ReviewSuccess $Number}
+    return
+  }
   Invoke-AiReview $Number
   if(@(Get-ReviewFailures $Number $prData).Count-gt 0){return}
-  if((Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review')-eq'success'){Complete-ReviewSuccess $Number;return}
+  if(Test-AiReviewPassingConclusion (Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review')){Complete-ReviewSuccess $Number;return}
 
   & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto
   if($LASTEXITCODE-ne 0){if($reviewRequired){Set-Blocked $Number 'review-request' 'No budgeted machine reviewer could be requested.' $prData};return}
@@ -256,7 +268,7 @@ function Run-ReviewCycle {
   if($result-ne'timeout'){return}
 
   Invoke-AiReview $Number
-  if((Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review')-eq'success'){Complete-ReviewSuccess $Number;return}
+  if(Test-AiReviewPassingConclusion (Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review')){Complete-ReviewSuccess $Number;return}
   if(@(Get-ReviewFailures $Number (Get-Pr $Number)).Count-gt 0){return}
 
   & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto
@@ -291,7 +303,7 @@ function Handle-ReviewEvent {
   if($prData.state-ne'OPEN'-or$prData.isDraft){return}
   Invoke-AiReview $Number
   if(@(Get-ReviewFailures $Number $prData).Count-gt 0){return}
-  if((Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review')-eq'success'){Complete-ReviewSuccess $Number}
+  if(Test-AiReviewPassingConclusion (Get-CheckConclusion ([string]$prData.headRefOid) 'AI Review')){Complete-ReviewSuccess $Number}
 }
 function Handle-Watchdog {
   $raw=& gh pr list --repo $Repo --state open --limit 100 --json number 2>&1
@@ -307,7 +319,7 @@ function Handle-Watchdog {
         Resolve-GateBlocks $number $prData
         if(-not $reviewSolicit){continue}
         Invoke-AiReview $number
-        if((Get-CheckConclusion $head 'AI Review')-eq'success'){Complete-ReviewSuccess $number;continue}
+        if(Test-AiReviewPassingConclusion (Get-CheckConclusion $head 'AI Review')){Complete-ReviewSuccess $number;continue}
         $requestTime=Get-FirstReviewRequestTime $number $head
         if($requestTime-and([datetimeoffset]::UtcNow-$requestTime).TotalMinutes-ge[int]$reviewPolicy.absolute_timeout_minutes){if($reviewRequired){Set-Blocked $number 'review-timeout' "Machine review exceeded the absolute $($reviewPolicy.absolute_timeout_minutes)-minute timeout." $prData}}
         else{Run-ReviewCycle $number}
