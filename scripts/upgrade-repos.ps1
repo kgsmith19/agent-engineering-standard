@@ -21,6 +21,7 @@ if ($StandardSha -notmatch '^[0-9a-fA-F]{40}$') { throw 'StandardSha must be a f
 
 $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $owner = $config.owner
+$projectTitle = $config.project_title
 $short = $StandardSha.Substring(0,8)
 $pinnedAt = Get-Date -Format yyyy-MM-dd
 
@@ -59,11 +60,12 @@ pinned_by: upgrade-repos.ps1
       }
 
       $project = '.agent/project.yaml'
-      if ((Test-Path $project) -and $previousStandardSha) {
-        $p = Get-Content $project -Raw
-        $p = Update-StandardProjectContent -Content $p -PreviousStandardSha $previousStandardSha -StandardSha $StandardSha
-        Set-Content $project $p -Encoding utf8 -NoNewline
+      $projectText = if (Test-Path $project) { Get-Content $project -Raw } else { '' }
+      if ($previousStandardSha -and $projectText) {
+        $projectText = Update-StandardProjectContent -Content $projectText -PreviousStandardSha $previousStandardSha -StandardSha $StandardSha
       }
+      $projectText = Update-ProjectWorkTrackingContent -Content $projectText -ProjectTitle $projectTitle
+      Set-Content $project $projectText -Encoding utf8 -NoNewline
 
       New-Item -ItemType Directory -Force '.github/workflows' | Out-Null
       $aiReview = '.github/workflows/ai-review.yml'
@@ -71,8 +73,7 @@ pinned_by: upgrade-repos.ps1
       Copy-Item (Join-Path $standardRoot 'templates/AI_REVIEW.yml') $aiReview -Force
       Copy-Item (Join-Path $standardRoot 'templates/PR_AUTOMATION.yml') $prAutomation -Force
 
-      $paths = @($lock, $aiReview, $prAutomation)
-      if (Test-Path $project) { $paths += $project }
+      $paths = @($lock, $project, $aiReview, $prAutomation)
       & git add -- $paths
       if ($LASTEXITCODE -ne 0) { throw 'git add failed' }
 
@@ -83,12 +84,12 @@ pinned_by: upgrade-repos.ps1
         if ($LASTEXITCODE -ne 0) { throw 'commit failed' }
         & git push -u origin $branch | Out-Host
         if ($LASTEXITCODE -ne 0) { throw 'push failed' }
-        $body = "Pins the shared engineering standard to $StandardSha and refreshes the canonical AI Review + PR Automation callers. No product behavior change. Review as an R3 control-plane dependency update; the repo-specific PR Gate remains authoritative."
+        $body = "Pins the shared engineering standard to $StandardSha, migrates work tracking to the '$projectTitle' Project with Issues as durable backing records, and refreshes the canonical AI Review + PR Automation callers. No product behavior change. Review as an R3 control-plane dependency update; the repo-specific PR Gate remains authoritative."
         & gh pr create --repo $repo --base main --head $branch --title "Upgrade agent engineering standard to $short" --body $body | Out-Host
         if ($LASTEXITCODE -ne 0) { throw 'PR creation failed' }
       }
       else {
-        Write-Host 'already pinned; no PR needed'
+        Write-Host 'already converged; no PR needed'
       }
     }
     finally { Pop-Location }
