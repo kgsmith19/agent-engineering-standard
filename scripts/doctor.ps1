@@ -95,8 +95,6 @@ foreach ($name in $config.repositories) {
   if ($meta.allow_merge_commit) { $problems.Add('merge commits enabled') }
   if ($meta.allow_rebase_merge) { $problems.Add('rebase enabled') }
 
-<<<<<<< HEAD
-=======
   $actionsRaw = & gh api "repos/$repo/actions/permissions" 2>&1
   if ($LASTEXITCODE -ne 0) { $problems.Add('cannot read Actions permissions') }
   else {
@@ -104,13 +102,10 @@ foreach ($name in $config.repositories) {
     if (-not [bool]$actions.enabled) { $problems.Add('Actions disabled') }
   }
 
->>>>>>> origin/main
   $codeownersRaw = & gh api -H 'Accept: application/vnd.github.raw+json' "repos/$repo/contents/.github/CODEOWNERS?ref=$($meta.default_branch)" 2>&1
   if ($LASTEXITCODE -ne 0) { $problems.Add('CODEOWNERS missing') } else {
     $expectedTail = if ($name -eq 'agent-engineering-standard') { $standardTail } else { $appTail }
     if (-not (Test-CodeownersTail -Content ($codeownersRaw -join "`n") -ExpectedTail $expectedTail)) { $problems.Add('CODEOWNERS ownership map drift') }
-<<<<<<< HEAD
-=======
   }
 
   $aiWorkflowRaw = & gh api "repos/$repo/contents/.github/workflows/ai-review.yml?ref=$($meta.default_branch)" 2>&1
@@ -122,7 +117,6 @@ foreach ($name in $config.repositories) {
       $workflowState = ($workflowStateRaw -join "`n") | ConvertFrom-Json
       if ($workflowState.state -ne 'active') { $problems.Add("AI Review workflow not active: $($workflowState.state)") }
     }
->>>>>>> origin/main
   }
 
   $aiWorkflowRaw = & gh api "repos/$repo/contents/.github/workflows/ai-review.yml?ref=$($meta.default_branch)" 2>&1
@@ -138,17 +132,12 @@ foreach ($name in $config.repositories) {
         if ($detail.enforcement -ne 'active') { $problems.Add('ruleset not active') }
         if ($detail.bypass_actors -and @($detail.bypass_actors).Count -gt 0) { $problems.Add('ruleset has bypass actors') }
         if (-not (@($detail.conditions.ref_name.include) -contains '~DEFAULT_BRANCH')) { $problems.Add('ruleset does not target default branch') }
-<<<<<<< HEAD
-        $prRule = $detail.rules | Where-Object { $_.type -eq 'pull_request' } | Select-Object -First 1
-        if (-not $prRule) { $problems.Add('pull-request rule missing') } else {
-=======
         $types = @($detail.rules | ForEach-Object { $_.type })
         foreach ($requiredType in @('deletion','non_fast_forward','pull_request','required_status_checks')) {
           if ($types -notcontains $requiredType) { $problems.Add("missing rule: $requiredType") }
         }
         $prRule = $detail.rules | Where-Object { $_.type -eq 'pull_request' } | Select-Object -First 1
         if ($prRule) {
->>>>>>> origin/main
           if ([int]$prRule.parameters.required_approving_review_count -ne 0) { $problems.Add('human approval requirement is not zero') }
           if ([bool]$prRule.parameters.require_code_owner_review -ne $expectedCodeOwnerReview) { $problems.Add('CODEOWNERS review policy drift') }
           if (-not $prRule.parameters.required_review_thread_resolution) { $problems.Add('review-thread resolution not required') }
@@ -156,11 +145,7 @@ foreach ($name in $config.repositories) {
           if ($allowed.Count -ne 1 -or $allowed[0] -ne 'squash') { $problems.Add('ruleset not squash-only') }
         }
         $statusRule = $detail.rules | Where-Object { $_.type -eq 'required_status_checks' } | Select-Object -First 1
-<<<<<<< HEAD
-        if (-not $statusRule) { $problems.Add('required-status rule missing') } else {
-=======
         if ($statusRule) {
->>>>>>> origin/main
           foreach ($context in @($config.required_status_context,$config.required_ai_review_context)) {
             $check = @($statusRule.parameters.required_status_checks) | Where-Object { $_.context -eq $context } | Select-Object -First 1
             if (-not $check) { $problems.Add("required context missing: $context") }

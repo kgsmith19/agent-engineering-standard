@@ -5,11 +5,6 @@ on:
     types: [opened, reopened, synchronize, ready_for_review, edited]
   pull_request_review:
     types: [submitted, dismissed]
-<<<<<<< HEAD
-
-jobs:
-  update-ai-review:
-=======
   issue_comment:
     types: [created, edited]
 
@@ -20,15 +15,10 @@ concurrency:
 jobs:
   update-ai-review:
     if: github.event_name != 'issue_comment' || github.event.issue.pull_request != null
->>>>>>> origin/main
     permissions:
       checks: write
       contents: read
       pull-requests: read
     uses: ./.github/workflows/ai-review-reusable.yml
     with:
-<<<<<<< HEAD
-      pr_number: ${{ github.event.pull_request.number }}
-=======
       pr_number: ${{ github.event.pull_request.number || github.event.issue.number }}
->>>>>>> origin/main
