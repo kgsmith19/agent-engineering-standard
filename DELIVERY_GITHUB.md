@@ -40,7 +40,7 @@ Product callers never follow moving `@main`. Updating shared behavior is an expl
 
 Every managed repository requires this latest-head GitHub Actions context:
 
-- `PR Gate`: deterministic repo-specific evidence (the workflow/job are renamed `Gate: Deterministic CI`; a fail-closed `pr-gate-bridge` job keeps this required context green until the owner flips the ruleset per the context-rename runbook)
+- `PR Gate`: deterministic repo-specific evidence. The workflow name and job name are both exactly `PR Gate` — a single check-list entry, not a separate workflow/job pair (ADR 0005 reverted the earlier `Gate: Deterministic CI` taxonomy rename because it produced a second, redundant checks-tab entry for one gate).
 
 `AI Review` is advisory-only and off by default (ADR 0002): `independent_review.required_for_auto_merge` restores it as a required context; `solicit_reviews` runs it informationally without gating. Independent of both flags, `independent_review.dispatch_mode: disabled_pending_e2e` (ADR 0003) keeps the evaluator reachable and merge-gating without ever soliciting a reviewer: every current head still gets an `Advisory: AI Review` check, a structured threat verdict still fails it, and a head with no blocking evidence concludes `neutral` — a passing conclusion `auto-merge.ps1` accepts alongside `success`. Unreviewed auto-merge is capped at `auto_merge_max_risk: R2` while this mode is active.
 

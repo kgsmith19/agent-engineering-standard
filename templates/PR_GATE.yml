@@ -1,4 +1,4 @@
-name: "Gate: Deterministic CI"
+name: "PR Gate"
 
 on:
   pull_request:
@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   gate:
-    name: "Gate: Deterministic CI"
+    name: "PR Gate"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -26,7 +26,7 @@ jobs:
           exit 1
       # Replace this bootstrap step with the repository's real stack-specific
       # deterministic evidence (build/test/lint), keeping the workflow and job
-      # names exactly "Gate: Deterministic CI".
+      # names exactly "PR Gate".
       - name: "Gate: Bootstrap Control Files"
         shell: bash
         run: |
@@ -42,15 +42,3 @@ jobs:
               exit 1
             fi
           fi
-
-  # Transitional bridge: exists only until the owner flips the ruleset's required
-  # context from 'PR Gate' to 'Gate: Deterministic CI'. Fail-closed by design —
-  # a gate failure skips this job, the required 'PR Gate' context goes missing,
-  # and the merge stays blocked.
-  pr-gate-bridge:
-    name: PR Gate
-    needs: [gate]
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - run: exit 0

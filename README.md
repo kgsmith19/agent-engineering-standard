@@ -18,7 +18,7 @@ Idea
 → RED → Minimum GREEN
 → Local Verification
 → Ready PR (`draft: false`)
-→ `Gate: Deterministic CI`
+→ `PR Gate`
 → automatic squash merge
 → Release / Runtime Proof
 → Observe / Learn
@@ -62,7 +62,7 @@ The Copilot workflow-approval note that used to live here is moot while Copilot'
 pwsh -NoProfile -File .\scripts\bootstrap-repo.ps1 -Name my-app
 ```
 
-Bootstrap creates the lean repository contract, the exact-SHA-pinned `Advisory: AI Review` and five per-event `Orchestrator:` callers, a bootstrap `Gate: Deterministic CI` (with the transitional `PR Gate` bridge job), settings/ruleset, and one Issue to replace the bootstrap gate with the repository's real stack-specific checks.
+Bootstrap creates the lean repository contract, the exact-SHA-pinned `Advisory: AI Review` and five per-event `Orchestrator:` callers, a bootstrap `PR Gate`, settings/ruleset, and one Issue to replace the bootstrap gate with the repository's real stack-specific checks.
 
 ## Core commands
 
@@ -90,7 +90,7 @@ Managed repositories use:
 - GitHub Issues as durable work items
 - Ready PRs at creation; API/SDK/connector calls set `draft: false`, and `gh pr create` omits `--draft`
 - fail-closed workflow enforcement if a PR is ever opened or converted to draft
-- deterministic gate `Gate: Deterministic CI` as the sole merge authority; the ruleset-required context is migrating from `PR Gate` via a fail-closed bridge job ([runbook](docs/notes/2026-08-09-context-rename-runbook.md)), and machine review stays advisory-only per ADR 0002
+- deterministic gate `PR Gate` as the sole merge authority (the only check-producing status on the PR besides `Advisory: AI Review`), and machine review stays advisory-only per ADR 0002
 - zero required human approvals
 - no native `CODEOWNERS`
 - `kgsmith19` forbidden from requested-reviewer state

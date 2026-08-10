@@ -105,16 +105,15 @@ work_tracking:
 
 ci:
   required_check: "PR Gate"
-  required_check_next: "Gate: Deterministic CI"
   ai_review_check: "Advisory: AI Review"
   automation_workflow: "Orchestrator: PR Lifecycle"
   gate_profile: bootstrap-only
 
 # Before product code lands, replace the bootstrap-only deterministic gate with
 # the cheapest repo-specific objective build/test/acceptance evidence for the
-# detected stack. Keep the Advisory: AI Review and Orchestrator callers pinned
-# to standard.sha. required_check flips to required_check_next when the owner
-# updates the ruleset (see the context-rename runbook).
+# detected stack, keeping the workflow and required job context named exactly
+# "PR Gate". Keep the Advisory: AI Review and Orchestrator callers pinned to
+# standard.sha.
 "@ | Set-Content (Join-Path $target '.agent/project.yaml') -Encoding utf8
 
 '@AGENTS.md' | Set-Content (Join-Path $target 'CLAUDE.md') -Encoding utf8
