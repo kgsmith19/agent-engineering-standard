@@ -108,6 +108,7 @@ fi
   New-Item -ItemType Directory -Path (Join-Path $fixture 'policy') -Force | Out-Null
   Copy-Item (Join-Path $root 'scripts/request-machine-review.ps1') (Join-Path $fixture 'scripts/request-machine-review.ps1')
   Copy-Item (Join-Path $root 'scripts/lib/review-policy.ps1') (Join-Path $fixture 'scripts/lib/review-policy.ps1')
+  Copy-Item (Join-Path $root 'scripts/lib/gh-api.ps1') (Join-Path $fixture 'scripts/lib/gh-api.ps1')
   $enabledConfig = Get-Content (Join-Path $root 'policy/github-defaults.json') -Raw | ConvertFrom-Json
   $enabledConfig.independent_review.dispatch_mode = 'enabled'
   $enabledConfig | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $fixture 'policy/github-defaults.json') -Encoding utf8
