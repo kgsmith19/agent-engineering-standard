@@ -42,10 +42,15 @@ Three small, targeted changes, all in this repo:
 
 3. **Idempotent rollout PRs.** `upgrade-repos.ps1` now searches for ANY open PR in the
    target repo whose head branch matches the glob `chore/standard-*`, not just the exact
-   new branch name. If one exists, the regenerated content is force-pushed onto that same
-   branch instead of opening a new branch/PR. If none exists, behavior is unchanged:
-   create `chore/standard-<short-sha>` and open a new PR. One rollout PR stays open per
-   repo, ever, and it always carries the current standard.
+   new branch name. If one exists, the script fetches and checks out that existing remote
+   branch (`git fetch origin <branch>` + `git checkout -B <branch> FETCH_HEAD`) so the
+   regeneration commit lands as a genuine descendant of whatever is already on the branch
+   -- including any manual fixup commit -- and pushes normally (a real fast-forward, no
+   force). Recreating the branch from the default branch's HEAD and force-pushing over it
+   was considered and rejected: it silently discards any history already on the branch. If
+   no such PR exists, behavior is unchanged: create `chore/standard-<short-sha>` from the
+   default branch and open a new PR. One rollout PR stays open per repo, ever, and it
+   always carries the current standard.
 
 ## Auto-merge posture
 
@@ -78,6 +83,20 @@ across the fleet, so it is not itself eligible for unattended auto-merge.
   workflow triggers on push to `main`, that `setup-portfolio.ps1` invokes
   `upgrade-repos.ps1`, and that the rollout label is `risk:R2`.
 - `tests/upgrade-repos.tests.ps1`: behavioral coverage against a fake `gh` and a real local
-  git remote -- an existing open `chore/standard-*` PR on a different sha's branch gets a
-  force-push onto that branch and no new PR; no existing PR still creates
-  `chore/standard-<short-sha>` and opens a new PR labeled `risk:R2`.
+  git remote -- an existing open `chore/standard-*` PR on a different sha's branch gets the
+  regenerated content pushed onto that same branch (no new PR); a manual fixup commit
+  already on that branch survives the run (regression test for the history-preservation
+  fix below); no existing PR still creates `chore/standard-<short-sha>` and opens a new PR
+  labeled `risk:R2`.
+
+## Amendment (same day): history-preservation fix
+
+Independent review caught a data-loss bug in the first version of point 3 above: the
+script set `$branch` to the existing PR's branch name but still ran `git switch -c
+$branch` against the freshly cloned *default* branch's HEAD, then force-pushed that
+unrelated history over the existing remote branch -- silently destroying any commit
+already on it (verified experimentally with a manual fixup commit). Fixed by checking out
+the existing branch's actual tip before regenerating, and dropping `--force` entirely
+since the resulting push is then a genuine fast-forward. See the updated point 3 text
+above (already reflects the fix) and the new regression test in
+`tests/upgrade-repos.tests.ps1`.

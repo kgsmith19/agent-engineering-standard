@@ -75,8 +75,21 @@ foreach ($name in $config.repositories) {
       # CI runners carry no global git identity; the commit below needs a local one.
       & git config user.email 'automation@agent-engineering-standard.invalid'
       & git config user.name 'agent-engineering-standard-bot'
-      & git switch -c $branch | Out-Host
-      if ($LASTEXITCODE -ne 0) { throw 'branch creation failed' }
+      if ($reuseExisting) {
+        # Preserve the existing rollout branch's real history (including any
+        # manual fixup commits already pushed to it) instead of recreating the
+        # branch from the freshly cloned default branch's HEAD -- that would
+        # make the regeneration commit unrelated history and silently discard
+        # everything already on the branch when pushed.
+        & git fetch origin $branch | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw 'fetch of existing rollout branch failed' }
+        & git checkout -B $branch FETCH_HEAD | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw 'checkout of existing rollout branch failed' }
+      }
+      else {
+        & git switch -c $branch | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw 'branch creation failed' }
+      }
 
       $lock = '.agent/standard.lock'
       $previousStandardSha = $null
@@ -140,9 +153,11 @@ pinned_by: upgrade-repos.ps1
 
       & git commit -m "chore: upgrade agent engineering standard to $short" | Out-Host
       if ($LASTEXITCODE -ne 0) { throw 'commit failed' }
-      $pushArgs = @('-u', 'origin', $branch)
-      if ($reuseExisting) { $pushArgs += '--force' }
-      & git push @pushArgs | Out-Host
+      # Reuse checks out the existing branch's real tip (git checkout -B ...
+      # FETCH_HEAD above), so this commit is a genuine descendant and the push
+      # is a normal fast-forward -- no force needed, and none used, so any
+      # manual commit already on the branch is preserved, not overwritten.
+      & git push -u origin $branch | Out-Host
       if ($LASTEXITCODE -ne 0) { throw 'push failed' }
 
       if ($reuseExisting) {

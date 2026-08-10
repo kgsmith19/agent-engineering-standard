@@ -10,12 +10,13 @@ function Assert-True {
 }
 
 # Idempotent-rollout smoke: upgrade-repos.ps1 must reuse ANY open PR whose head
-# branch matches chore/standard-* (regardless of which sha it names) by force-
-# pushing regenerated content onto that same branch, rather than opening a new
+# branch matches chore/standard-* (regardless of which sha it names) by pushing
+# regenerated content onto that same branch, rather than opening a new
 # branch/PR per standard commit -- which is exactly what orphaned 3 real rollout
-# PRs before this fix. Covers both the reuse path and the unchanged no-existing-
-# PR path, against a real local git remote so the push/force-push is verified,
-# not just the gh call shape.
+# PRs before this fix. Covers the reuse path (including a manual-commit
+# preservation regression check), and the unchanged no-existing-PR path,
+# against a real local git remote so the actual push is verified, not just the
+# gh call shape.
 function New-FakeRemote {
   param([string]$Dir, [switch]$WithStaleBranch)
   $remote = Join-Path $Dir 'remote.git'
@@ -26,6 +27,7 @@ function New-FakeRemote {
   & git init --quiet -b main $seed | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'seed init failed' }
 
+  $manualSha = $null
   Push-Location $seed
   try {
     & git config user.email 'test@example.com'
@@ -48,6 +50,16 @@ pinned_by: upgrade-repos.ps1
     if ($WithStaleBranch) {
       & git switch --quiet -c chore/standard-cafebabe
       if ($LASTEXITCODE -ne 0) { throw 'stale branch creation failed' }
+      # A manual fixup commit -- not authored by the automation -- already on
+      # the rollout branch. The regression this guards against: the script
+      # used to recreate the branch from main's HEAD and force-push over this,
+      # silently destroying it.
+      'manual fixup, not from the automation' | Set-Content 'MANUAL_FIXUP.md' -Encoding utf8
+      & git add -A
+      if ($LASTEXITCODE -ne 0) { throw 'manual commit add failed' }
+      & git commit --quiet -m 'manual: hotfix applied directly to the rollout PR'
+      if ($LASTEXITCODE -ne 0) { throw 'manual commit failed' }
+      $manualSha = (& git rev-parse HEAD | Out-String).Trim()
       & git push --quiet origin chore/standard-cafebabe
       if ($LASTEXITCODE -ne 0) { throw 'stale branch push failed' }
       & git switch --quiet main
@@ -56,7 +68,7 @@ pinned_by: upgrade-repos.ps1
   finally { Pop-Location }
 
   & git -C $remote symbolic-ref HEAD refs/heads/main | Out-Null
-  return $remote
+  return [pscustomobject]@{ Remote = $remote; ManualCommitSha = $manualSha }
 }
 
 function Get-RemoteBranchSha {
@@ -136,9 +148,12 @@ exit 91
   # branch. The script must push onto that same branch instead of creating one.
   $remote1Dir = Join-Path $temp 'scenario1'
   New-Item -ItemType Directory -Path $remote1Dir | Out-Null
-  $remote1 = New-FakeRemote -Dir $remote1Dir -WithStaleBranch
+  $remote1Info = New-FakeRemote -Dir $remote1Dir -WithStaleBranch
+  $remote1 = $remote1Info.Remote
+  $manualSha = $remote1Info.ManualCommitSha
   $staleShaBefore = Get-RemoteBranchSha -Remote $remote1 -Branch 'chore/standard-cafebabe'
   Assert-True 'scenario1 stale branch exists before run' ($null -ne $staleShaBefore)
+  Assert-True 'scenario1 manual commit is the branch tip before run' ($staleShaBefore -eq $manualSha)
 
   $prListFile1 = Join-Path $temp 'prlist1.json'
   '[{"number":123,"url":"https://example.invalid/pull/123","headRefName":"chore/standard-cafebabe"}]' | Set-Content $prListFile1 -Encoding utf8
@@ -156,7 +171,15 @@ exit 91
   Assert-True 'reuse-scenario lists open PRs' ($calls1 -match '(?m)^pr list --repo acct/example --state open')
 
   $staleShaAfter = Get-RemoteBranchSha -Remote $remote1 -Branch 'chore/standard-cafebabe'
-  Assert-True 'reuse-scenario force-pushed onto the existing branch' ($staleShaAfter -and $staleShaAfter -ne $staleShaBefore)
+  Assert-True 'reuse-scenario pushed a new commit onto the existing branch' ($staleShaAfter -and $staleShaAfter -ne $staleShaBefore)
+
+  # Regression check for the history-preservation fix: the manual fixup commit
+  # that was already on the branch must still be an ancestor of the new tip,
+  # not discarded by a force-push over unrelated history.
+  & git -C $remote1 merge-base --is-ancestor $manualSha $staleShaAfter
+  Assert-True "reuse-scenario preserves the pre-existing manual commit $manualSha in branch history" ($LASTEXITCODE -eq 0)
+  $branchLog1 = (& git -C $remote1 log 'chore/standard-cafebabe' --format='%H %s' | Out-String)
+  Assert-True "reuse-scenario branch history still contains the manual commit message (log: $branchLog1)" ($branchLog1 -match 'manual: hotfix applied directly to the rollout PR')
 
   $newBranches1 = (& git -C $remote1 for-each-ref --format='%(refname:short)' 'refs/heads/chore/standard-*' | Out-String)
   $newBranchCount1 = @($newBranches1 -split "`r?`n" | Where-Object { $_ -and $_ -ne 'chore/standard-cafebabe' }).Count
@@ -166,7 +189,7 @@ exit 91
   # chore/standard-<short-sha> branch is created and a PR opened on it.
   $remote2Dir = Join-Path $temp 'scenario2'
   New-Item -ItemType Directory -Path $remote2Dir | Out-Null
-  $remote2 = New-FakeRemote -Dir $remote2Dir
+  $remote2 = (New-FakeRemote -Dir $remote2Dir).Remote
 
   $prListFile2 = Join-Path $temp 'prlist2.json'
   '[]' | Set-Content $prListFile2 -Encoding utf8
