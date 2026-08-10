@@ -72,6 +72,9 @@ foreach ($name in $config.repositories) {
 
     Push-Location $temp
     try {
+      # CI runners carry no global git identity; the commit below needs a local one.
+      & git config user.email 'automation@agent-engineering-standard.invalid'
+      & git config user.name 'agent-engineering-standard-bot'
       & git switch -c $branch | Out-Host
       if ($LASTEXITCODE -ne 0) { throw 'branch creation failed' }
 

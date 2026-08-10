@@ -238,6 +238,7 @@ Assert-Contains 'upgrade normalizes gate workflow name to taxonomy' 'scripts/upg
 Assert-Contains 'upgrade normalizes legacy ci and PR Gate names' 'scripts/upgrade-repos.ps1' '\(\?im\)\^name:\\s\*\(ci\|PR Gate\)'
 Assert-Contains 'upgrade labels rollout R2' 'scripts/upgrade-repos.ps1' "--add-label 'risk:R2'"
 Assert-Contains 'upgrade reuses existing rollout PR' 'scripts/upgrade-repos.ps1' 'existing rollout PR'
+Assert-Contains 'upgrade sets a local git identity before committing' 'scripts/upgrade-repos.ps1' 'git config user\.email'
 Assert-Contains 'setup portfolio invokes upgrade-repos' 'scripts/setup-portfolio.ps1' 'upgrade-repos\.ps1'
 
 Assert-Contains 'doctor checks Copilot workflow approval' 'scripts/doctor.ps1' 'require_actions_workflow_approval'
