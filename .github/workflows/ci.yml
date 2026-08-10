@@ -1,4 +1,4 @@
-name: PR Gate
+name: "Gate: Deterministic CI"
 
 on:
   pull_request:
@@ -15,42 +15,63 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  pr-gate:
-    name: PR Gate
+  gate:
+    name: "Gate: Deterministic CI"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - name: Enforce Ready at creation
+      - name: "Gate: Ready-at-Creation Policy"
         if: github.event_name == 'pull_request' && github.event.pull_request.draft
         shell: bash
         run: |
           echo '::error::Ready-at-creation policy violation. Create PRs with draft:false; gh callers must omit --draft.'
           exit 1
-      - name: Test legacy branch-protection logic
+      - name: "Gate: Legacy Branch-Protection Tests"
         shell: pwsh
         run: ./tests/legacy-protection.tests.ps1
-      - name: Test standard-lock upgrades
+      - name: "Gate: Standard-Lock Tests"
         shell: pwsh
         run: ./tests/standard-lock.tests.ps1
-      - name: Test machine review policy
+      - name: "Gate: Review Policy Tests"
         shell: pwsh
         run: ./tests/review-policy.tests.ps1
-      - name: Test ready-at-creation enforcement
+      - name: "Gate: Ready-at-Creation Tests"
         shell: pwsh
         run: ./tests/draft-prevention.tests.ps1
-      - name: Test automation entrypoints
+      - name: "Gate: Unconditional Advisory Evaluation Tests"
+        shell: pwsh
+        run: ./tests/unconditional-evaluation.tests.ps1
+      - name: "Gate: Script Smoke Tests"
+        shell: pwsh
+        run: ./tests/script-smoke.tests.ps1
+      - name: "Gate: Automation Entrypoint Tests"
         shell: pwsh
         run: ./tests/automation-entrypoints.tests.ps1
-      - name: Lint PR creation contract
+      - name: "Gate: One-Pass Arming Test"
+        shell: pwsh
+        run: ./tests/gate-result-arming.tests.ps1
+      - name: "Audit: PR Creation Lint"
         shell: pwsh
         run: ./scripts/lint-pr-creation.ps1
-      - name: Test standard hygiene
+      - name: "Gate: Standard Hygiene Tests"
         shell: pwsh
         run: ./tests/standard-hygiene.tests.ps1
-      - name: Test state-machine exhaustiveness
+      - name: "Gate: State-Machine Exhaustiveness Tests"
         shell: pwsh
         run: ./tests/state-machine-exhaustiveness.tests.ps1
-      - name: Validate standard
+      - name: "Gate: Standard Validation (doctor)"
         shell: pwsh
         run: ./scripts/doctor.ps1
+
+  # Transitional bridge: exists only until the owner flips the ruleset's required
+  # context from 'PR Gate' to 'Gate: Deterministic CI'. Fail-closed by design —
+  # a gate failure skips this job, the required 'PR Gate' context goes missing,
+  # and the merge stays blocked.
+  pr-gate-bridge:
+    name: PR Gate
+    needs: [gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: exit 0

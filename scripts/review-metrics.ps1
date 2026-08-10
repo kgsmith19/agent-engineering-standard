@@ -26,18 +26,18 @@ $prs = ($prsRaw -join "`n") | ConvertFrom-Json
 $rows = New-Object System.Collections.Generic.List[object]
 foreach ($pr in @($prs)) {
   $head = [string]$pr.headRefOid
-  $encoded = [uri]::EscapeDataString('AI Review')
+  $encoded = [uri]::EscapeDataString('Advisory: AI Review')
   $checkRaw = & gh api -H 'Accept: application/vnd.github+json' "repos/$Repo/commits/$head/check-runs?check_name=$encoded" 2>&1
   $conclusion = ''
   if ($LASTEXITCODE -eq 0) {
     $runs = (($checkRaw -join "`n") | ConvertFrom-Json).check_runs
-    $latest = @($runs | Where-Object { $_.name -eq 'AI Review' -and $_.app.slug -eq 'github-actions' } | Sort-Object id | Select-Object -Last 1)
+    $latest = @($runs | Where-Object { $_.name -eq 'Advisory: AI Review' -and $_.app.slug -eq 'github-actions' } | Sort-Object id | Select-Object -Last 1)
     if ($latest.Count -gt 0) { $conclusion = [string]$latest[0].conclusion }
   }
 
   $comments = @(Get-Paged "repos/$Repo/issues/$($pr.number)/comments?per_page=100")
   $requests = @($comments | Where-Object {
-    (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match "ai-review-request:(?:codex|copilot):$head"
+    (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match "ai-review-request:(?:v\d+:)?(?:codex|copilot):$head"
   } | Sort-Object created_at)
   $verdict = Get-TrustedStructuredCopilotReview -Comments $comments -HeadSha $head -OwnerLogin ([string]$config.owner)
   $latencyMinutes = ''

@@ -68,8 +68,18 @@ Copy-Item (Join-Path $standardRoot 'templates/PR_GATE.yml') (Join-Path $target '
 
 $aiReview = (Get-Content (Join-Path $standardRoot 'templates/AI_REVIEW.yml') -Raw).Replace('__STANDARD_SHA__',$standardSha)
 Set-Content (Join-Path $target '.github/workflows/ai-review.yml') $aiReview -Encoding utf8 -NoNewline
-$prAutomation = (Get-Content (Join-Path $standardRoot 'templates/PR_AUTOMATION.yml') -Raw).Replace('__STANDARD_SHA__',$standardSha)
-Set-Content (Join-Path $target '.github/workflows/pr-automation.yml') $prAutomation -Encoding utf8 -NoNewline
+# Per-event PR Automation callers: one workflow per trigger so no PR shows
+# permanently-skipped sibling jobs in its check panel.
+foreach ($caller in @(
+  @('templates/PR_AUTOMATION.yml','.github/workflows/pr-automation.yml'),
+  @('templates/PR_AUTOMATION_GATE_RESULT.yml','.github/workflows/pr-automation-gate-result.yml'),
+  @('templates/PR_AUTOMATION_REVIEW_EVENT.yml','.github/workflows/pr-automation-review-event.yml'),
+  @('templates/PR_AUTOMATION_COMMENT_EVENT.yml','.github/workflows/pr-automation-comment-event.yml'),
+  @('templates/PR_AUTOMATION_WATCHDOG.yml','.github/workflows/pr-automation-watchdog.yml')
+)) {
+  $prAutomation = (Get-Content (Join-Path $standardRoot $caller[0]) -Raw).Replace('__STANDARD_SHA__',$standardSha)
+  Set-Content (Join-Path $target $caller[1]) $prAutomation -Encoding utf8 -NoNewline
+}
 
 # Native CODEOWNERS can automatically request Kyle and create an accidental
 # human bottleneck. Path sensitivity is enforced by machine policy instead.
@@ -95,13 +105,16 @@ work_tracking:
 
 ci:
   required_check: "PR Gate"
-  ai_review_check: "AI Review"
-  automation_workflow: "PR Automation"
+  required_check_next: "Gate: Deterministic CI"
+  ai_review_check: "Advisory: AI Review"
+  automation_workflow: "Orchestrator: PR Lifecycle"
   gate_profile: bootstrap-only
 
-# Before product code lands, replace the bootstrap-only PR Gate with the cheapest
-# repo-specific objective build/test/acceptance evidence for the detected stack.
-# Keep AI Review and PR Automation pinned to standard.sha.
+# Before product code lands, replace the bootstrap-only deterministic gate with
+# the cheapest repo-specific objective build/test/acceptance evidence for the
+# detected stack. Keep the Advisory: AI Review and Orchestrator callers pinned
+# to standard.sha. required_check flips to required_check_next when the owner
+# updates the ruleset (see the context-rename runbook).
 "@ | Set-Content (Join-Path $target '.agent/project.yaml') -Encoding utf8
 
 '@AGENTS.md' | Set-Content (Join-Path $target 'CLAUDE.md') -Encoding utf8
@@ -135,7 +148,7 @@ Replace the bootstrap-only PR Gate with the smallest objective gate appropriate 
 ## Acceptance
 - Detect and record verified build/test/type/lint/E2E commands in `.agent/project.yaml`.
 - Replace `.github/workflows/pr-gate.yml` so workflow name and required job context remain exactly `PR Gate`.
-- Preserve exact-SHA-pinned `.github/workflows/ai-review.yml` and `.github/workflows/pr-automation.yml`.
+- Preserve exact-SHA-pinned `.github/workflows/ai-review.yml` and the five per-event `.github/workflows/pr-automation*.yml` callers.
 - Extend `.github/dependabot.yml` only with package ecosystems this repo actually uses; group patch/minor updates when it reduces CI/review noise.
 - Keep native `.github/CODEOWNERS` absent so Kyle is never auto-requested as a routine reviewer.
 - Finish the coherent slice locally, then create the PR Ready. REST/SDK/connector callers set `draft:false`; CLI callers use the Ready default.

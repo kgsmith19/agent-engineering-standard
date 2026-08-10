@@ -8,20 +8,18 @@ function Get-MachineReviewProvider {
 }
 
 function Get-MachineImplementerProvidersForActors {
+  # The PR author's recognized provider is ALWAYS unioned with commit actors:
+  # an author whose commits carry other identities still owns the change set.
   param(
     [string[]]$ActorLogins = @(),
     [string]$PrAuthorLogin = ''
   )
 
   $providers = New-Object System.Collections.Generic.List[string]
-  foreach ($login in @($ActorLogins)) {
+  foreach ($login in @(@($ActorLogins) + @($PrAuthorLogin))) {
     if ([string]::IsNullOrWhiteSpace([string]$login)) { continue }
     $provider = Get-MachineReviewProvider -Login ([string]$login)
     if ($provider -and -not $providers.Contains($provider)) { $providers.Add($provider) }
-  }
-  if ($providers.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($PrAuthorLogin)) {
-    $provider = Get-MachineReviewProvider -Login $PrAuthorLogin
-    if ($provider) { $providers.Add($provider) }
   }
   return @($providers)
 }
@@ -71,21 +69,42 @@ function Get-PreferredMachineReviewer {
   return Get-PreferredMachineReviewerForActors -ActorLogins @($HeadAuthorLogin,$HeadCommitterLogin) -PrAuthorLogin $PrAuthorLogin
 }
 
+# The only blocking evidence is a structured threat verdict line. The regex
+# enforces the structured format and the enumerated classes; the T4 semantic
+# bar (introduced by this diff, unauthenticated remote reachability, RCE/full
+# auth bypass/cross-tenant access, concrete input) is enforced by the reviewer
+# contract, not the parser.
+$script:BlockingVerdictPattern = '(?m)^\s*BLOCK:\s+(?:T1-INFRA-DELETION|T2-BACKDOOR|T3-HARDCODED-SECRET|T4-CRITICAL-VULN)\s+\S+:\d+\s+—\s+\S[^\r\n]*$'
+
 function Test-BlockingAiReviewBody {
   param([AllowNull()][string]$Body)
   if ([string]::IsNullOrWhiteSpace($Body)) { return $false }
-  if ($Body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') { return $true }
-  if ($Body -match '(?im)!\[P[01]\s+Badge\]') { return $true }
-  if ($Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?\[P[01]\](?:\*\*)?\s*\S') { return $true }
-  return $Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?P[01]\b[^\r\n]{0,120}?(?:\*\*)?\s*(?::|—)\s*\S'
+  return $Body -cmatch $script:BlockingVerdictPattern
+}
+
+function Get-BlockingAiReviewVerdicts {
+  param([AllowNull()][string]$Body)
+  if ([string]::IsNullOrWhiteSpace($Body)) { return @() }
+  return @([regex]::Matches($Body,$script:BlockingVerdictPattern) | ForEach-Object { $_.Value.Trim() })
 }
 
 function Test-AdvisoryAiReviewBody {
+  # P0-P2 prose classifications are advisory: they flow into the per-PR
+  # advisory Issue and never block (owner-directed demotion; ADR 0003).
   param([AllowNull()][string]$Body)
   if ([string]::IsNullOrWhiteSpace($Body)) { return $false }
-  if ($Body -match '(?im)!\[P2\s+Badge\]') { return $true }
-  if ($Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?\[P2\](?:\*\*)?\s*\S') { return $true }
-  return $Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?P2\b[^\r\n]{0,120}?(?:\*\*)?\s*(?::|—)\s*\S'
+  if ($Body -match '(?im)!\[P[0-2]\s+Badge\]') { return $true }
+  if ($Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?\[P[0-2]\](?:\*\*)?\s*\S') { return $true }
+  return $Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?P[0-2]\b[^\r\n]{0,120}?(?:\*\*)?\s*(?::|—)\s*\S'
+}
+
+function Test-SevereAdvisoryAiReviewBody {
+  # P0/P1-shaped prose: advisory, but flagged prominently in the follow-up Issue.
+  param([AllowNull()][string]$Body)
+  if ([string]::IsNullOrWhiteSpace($Body)) { return $false }
+  if ($Body -match '(?im)!\[P[01]\s+Badge\]') { return $true }
+  if ($Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?\[P[01]\](?:\*\*)?\s*\S') { return $true }
+  return $Body -match '(?im)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?P[01]\b[^\r\n]{0,120}?(?:\*\*)?\s*(?::|—)\s*\S'
 }
 
 function Test-AdvisoryOnlyAiReviewBody {
@@ -94,13 +113,9 @@ function Test-AdvisoryOnlyAiReviewBody {
 }
 
 function Test-BlockingAiReviewEvidence {
-  # A CHANGES_REQUESTED review with no P0-P2 classification fails closed;
-  # a P2-only classification is advisory and never blocks the merge lane.
+  # Owner-directed demotion: a CHANGES_REQUESTED review without a structured
+  # BLOCK verdict is advisory — the old unclassified fail-closed branch is gone.
   param([AllowNull()][string]$Body,[string]$ReviewState = '')
-  if ($ReviewState -eq 'CHANGES_REQUESTED') {
-    if (Test-BlockingAiReviewBody $Body) { return $true }
-    return -not (Test-AdvisoryOnlyAiReviewBody $Body)
-  }
   return Test-BlockingAiReviewBody $Body
 }
 
@@ -109,13 +124,22 @@ function Test-AiReviewPassingConclusion {
   return $Conclusion -in @('success','neutral')
 }
 
+function Test-CurrentDispatchEvidence {
+  # Evidence whose summary does not carry the CURRENT dispatch_policy_version is
+  # stale: bumping the version on re-enable invalidates every open neutral (the
+  # swarm-activation gate). Pure text check; callers fetch the check run.
+  param([AllowNull()][string]$Summary,[Parameter(Mandatory)][int]$PolicyVersion)
+  if ([string]::IsNullOrWhiteSpace($Summary)) { return $false }
+  return $Summary -match "policy_version=$PolicyVersion(\D|$)"
+}
+
 function Get-TrustedAiReviewAdvisoryIssueNumber {
   param(
     [object[]]$Comments = @(),
     [Parameter(Mandatory)][string]$HeadSha,
     [Parameter(Mandatory)][string]$OwnerLogin
   )
-  $pattern = "<!-- ai-review-advisory:$([regex]::Escape($HeadSha)):([0-9]+) -->"
+  $pattern = "<!-- ai-review-advisory:(?:v\d+:)?$([regex]::Escape($HeadSha)):([0-9]+) -->"
   $maps = @($Comments | Where-Object {
     (Test-TrustedAutomationComment -Comment $_ -OwnerLogin $OwnerLogin) -and
     [string]$_.body -match $pattern
@@ -123,6 +147,25 @@ function Get-TrustedAiReviewAdvisoryIssueNumber {
   if ($maps.Count -eq 0) { return $null }
   [string]$maps[-1].body -match $pattern | Out-Null
   return [int]$Matches[1]
+}
+
+function Get-TrustedAiReviewAdvisoryIssueNumbers {
+  # Every advisory Issue ever mapped to this PR by a trusted marker, any head,
+  # newest mapping first — the dedup source for one-open-Issue-per-PR.
+  param(
+    [object[]]$Comments = @(),
+    [Parameter(Mandatory)][string]$OwnerLogin
+  )
+  $pattern = '<!-- ai-review-advisory:(?:v\d+:)?[0-9a-f]{40}:([0-9]+) -->'
+  $numbers = New-Object System.Collections.Generic.List[int]
+  foreach ($comment in @($Comments | Where-Object {
+    (Test-TrustedAutomationComment -Comment $_ -OwnerLogin $OwnerLogin) -and [string]$_.body -match $pattern
+  } | Sort-Object created_at -Descending)) {
+    [string]$comment.body -match $pattern | Out-Null
+    $number = [int]$Matches[1]
+    if (-not $numbers.Contains($number)) { $numbers.Add($number) }
+  }
+  return @($numbers)
 }
 
 function Test-TrustedAutomationComment {
@@ -139,7 +182,7 @@ function Get-TrustedStructuredCopilotReview {
 
   $requests = @($Comments | Where-Object {
     (Test-TrustedAutomationComment -Comment $_ -OwnerLogin $OwnerLogin) -and
-    [string]$_.body -like "*ai-review-request:copilot:$HeadSha*"
+    [string]$_.body -match "ai-review-request:(?:v\d+:)?copilot:$([regex]::Escape($HeadSha))"
   } | Sort-Object created_at)
   if ($requests.Count -eq 0) { return $null }
 

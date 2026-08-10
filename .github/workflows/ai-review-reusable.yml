@@ -1,4 +1,4 @@
-name: Reusable AI Review Gate
+name: "Advisory: AI Review (Reusable)"
 
 on:
   workflow_call:

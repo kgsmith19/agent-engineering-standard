@@ -12,6 +12,7 @@ $ErrorActionPreference = 'Stop'
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
 $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $automation = $config.pr_automation
+$dispatchDisabled = [string]$config.independent_review.dispatch_mode -eq 'disabled_pending_e2e'
 
 function Get-Paged {
   param([string]$Endpoint)
@@ -22,7 +23,7 @@ function Get-Paged {
 }
 
 function Get-PrData {
-  $raw = & gh pr view $Pr --repo $Repo --json state,isDraft,headRefOid,autoMergeRequest 2>&1
+  $raw = & gh pr view $Pr --repo $Repo --json state,isDraft,headRefOid,headRepository,headRepositoryOwner,autoMergeRequest 2>&1
   if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
   return (($raw -join "`n") | ConvertFrom-Json)
 }
@@ -30,15 +31,28 @@ function Get-PrData {
 function Get-Comments { return @(Get-Paged "repos/$Repo/issues/$Pr/comments?per_page=100") }
 
 function Add-TrustedCommentOnce {
-  param([string]$Marker,[string]$Body)
+  # MatchPattern deduplicates against both versioned and legacy marker forms.
+  param([string]$Marker,[string]$Body,[string]$MatchPattern = '')
+  if (-not $MatchPattern) { $MatchPattern = [regex]::Escape($Marker) }
   if (@(Get-Comments | Where-Object {
     (Test-TrustedAutomationComment -Comment $_ -OwnerLogin ([string]$config.owner)) -and
-    [string]$_.body -like "*$Marker*"
+    [string]$_.body -match $MatchPattern
   }).Count -gt 0) { return }
   & gh pr comment $Pr --repo $Repo --body "$Body`n`n$Marker" | Out-Host
   if ($LASTEXITCODE -ne 0) { throw "Could not comment on $Repo PR #$Pr." }
 }
 
+function Get-GateBlockAdvice {
+  param([string]$Code)
+  $advice = @{
+    'gate-rerun-exhausted'='inspect the workflow run for the repeated cancellation/staleness cause, fix it, and push or re-run manually; the bounded automatic rerun is spent.'
+    'gate-rerun-failed'='re-run the workflow manually from the Actions tab and fix whatever made GitHub refuse the automatic rerun.'
+    'gate-neutral'='make the deterministic gate produce success or an actionable failure; a neutral required gate cannot authorize a merge.'
+    'gate-unknown'='inspect the new conclusion value and teach Get-GateConclusionDecision an explicit decision for it.'
+  }
+  if ($advice.ContainsKey($Code)) { return [string]$advice[$Code] }
+  return 'inspect the reason above, fix the underlying condition, and the next gate run re-evaluates.'
+}
 function Set-GateBlock {
   param([string]$Code,[string]$Reason,$PrData)
   if ($PrData.autoMergeRequest) {
@@ -47,12 +61,20 @@ function Set-GateBlock {
   }
   & gh pr edit $Pr --repo $Repo --add-label $automation.blocked_label 2>&1 | Out-Null
   if ($LASTEXITCODE -ne 0) { throw "Could not add $($automation.blocked_label) to $Repo PR #$Pr." }
-  Add-TrustedCommentOnce "<!-- automation:block:${Code}:$GateHeadSha -->" "@$($config.owner) AUTOMATION-BLOCKED: $Reason`n`nYou are tagged for the decision, not assigned as a reviewer."
+  # While dispatch is disabled no comment @-mentions a human; the owner is named.
+  $ownerReference = if ($dispatchDisabled) { "the owner ($($config.owner))" } else { "@$($config.owner)" }
+  $body = "Automation put this PR on hold ($Code): $Reason`n`nNext step: $(Get-GateBlockAdvice $Code)`n`nDecision contact: $ownerReference — named for the decision, never assigned as a reviewer."
+  Add-TrustedCommentOnce "<!-- automation:v1:block:${Code}:$GateHeadSha -->" $body "<!-- automation:(?:v\d+:)?block:${Code}:$GateHeadSha -->"
 }
 
 $prData = Get-PrData
 if ($prData.state -ne 'OPEN' -or $prData.isDraft) { exit 0 }
 if ([string]$prData.headRefOid -ne $GateHeadSha) { exit 0 }
+$headRepo = "$([string]$prData.headRepositoryOwner.login)/$([string]$prData.headRepository.name)"
+if ($headRepo -ne $Repo) {
+  Write-Host "FORK-DENIED: $Repo PR #$Pr head repository '$headRepo' is not the target repository; gate-result automation refuses cross-repository PRs."
+  exit 0
+}
 
 $decision = Get-GateConclusionDecision -Conclusion $GateConclusion
 if ($decision -in @('success','repair','block-workflow-approval','block-gate-skipped')) {
@@ -70,7 +92,7 @@ if ($decision -eq 'rerun') {
   $limit = [int]$automation.max_gate_rerun_attempts
   $attempts = @(Get-Comments | Where-Object {
     (Test-TrustedAutomationComment -Comment $_ -OwnerLogin ([string]$config.owner)) -and
-    [string]$_.body -match "<!-- auto-rerun:gate:$([regex]::Escape($GateHeadSha)):[0-9]+ -->"
+    [string]$_.body -match "<!-- auto-rerun:(?:v\d+:)?gate:$([regex]::Escape($GateHeadSha)):[0-9]+ -->"
   }).Count
   if ($attempts -ge $limit) {
     Set-GateBlock 'gate-rerun-exhausted' "PR Gate ended '$GateConclusion' again after the bounded automatic rerun." $prData
@@ -82,7 +104,7 @@ if ($decision -eq 'rerun') {
     Set-GateBlock 'gate-rerun-failed' "PR Gate ended '$GateConclusion' and GitHub refused the automatic rerun: $($raw -join ' ')" $prData
     exit 0
   }
-  Add-TrustedCommentOnce "<!-- auto-rerun:gate:${GateHeadSha}:${GateRunId} -->" "AUTOMATION-RECOVERY: PR Gate ended '$GateConclusion' on the current head, so GitHub reran the same workflow once before escalating."
+  Add-TrustedCommentOnce "<!-- auto-rerun:v1:gate:${GateHeadSha}:${GateRunId} -->" "AUTOMATION-RECOVERY: PR Gate ended '$GateConclusion' on the current head, so GitHub reran the same workflow once before escalating." "<!-- auto-rerun:(?:v\d+:)?gate:${GateHeadSha}:${GateRunId} -->"
   exit 0
 }
 

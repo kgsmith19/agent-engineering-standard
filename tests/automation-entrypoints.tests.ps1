@@ -21,7 +21,13 @@ printf '%s\n' "$*" >> "$GH_FAKE_LOG"
 
 if [[ "$GH_FAKE_SCENARIO" == "auto-merge-drift" || "$GH_FAKE_SCENARIO" == "auto-merge-ready" ]]; then
   if [[ "$1 $2" == "pr view" ]]; then
-    printf '%s\n' '{"state":"OPEN","isDraft":false,"labels":[{"name":"risk:R2"}],"baseRefName":"main","headRefName":"dependabot/npm_and_yarn/example","author":{"login":"dependabot[bot]"}}'
+    printf '%s\n' '{"state":"OPEN","isDraft":false,"labels":[{"name":"risk:R2"}],"baseRefName":"main","headRefName":"dependabot/npm_and_yarn/example","headRefOid":"1717171717171717171717171717171717171717","author":{"login":"dependabot[bot]"}}'
+  elif [[ "$1" == "api" && "$*" == *"check-runs?check_name=PR%20Gate"* ]]; then
+    printf '%s\n' '{"check_runs":[{"id":41,"name":"PR Gate","app":{"slug":"github-actions"},"conclusion":"success","output":{"summary":"deterministic"}}]}'
+  elif [[ "$1" == "api" && "$*" == *"check-runs?check_name="* ]]; then
+    printf '%s\n' '{"check_runs":[{"id":42,"name":"Advisory: AI Review","app":{"slug":"github-actions"},"conclusion":"neutral","output":{"summary":"dispatch-evidence repo=kgsmith19/example pr=17 head=1717171717171717171717171717171717171717 base=e risk=R2 mode=disabled_pending_e2e policy_version=1"}}]}'
+  elif [[ "$*" == "api repos/kgsmith19/example/pulls/17" ]]; then
+    printf '%s\n' '{"number":17,"state":"open","draft":false,"node_id":"PR_x","head":{"sha":"1717171717171717171717171717171717171717","repo":{"full_name":"kgsmith19/example"}},"base":{"sha":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","repo":{"owner":{"login":"kgsmith19"}}},"user":{"login":"dependabot[bot]"},"labels":[{"name":"risk:R2"}]}'
   elif [[ "$1" == "api" && "$*" == *"requested_reviewers"* ]]; then
     printf '%s\n' '{"users":[]}'
   elif [[ "$1" == "api" && "$*" == *"pulls/17/files"* ]]; then
@@ -48,7 +54,7 @@ if [[ "$GH_FAKE_SCENARIO" == "auto-merge-drift" || "$GH_FAKE_SCENARIO" == "auto-
   fi
 elif [[ "$GH_FAKE_SCENARIO" == "review-request" ]]; then
   if [[ "$*" == "api repos/kgsmith19/example/pulls/17" ]]; then
-    printf '%s\n' '{"state":"open","draft":false,"head":{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"user":{"login":"dependabot[bot]"}}'
+    printf '%s\n' '{"state":"open","draft":false,"head":{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","repo":{"full_name":"kgsmith19/example"}},"user":{"login":"dependabot[bot]"}}'
   elif [[ "$1" == "api" && "$*" == *"pulls/17/commits"* ]]; then
     printf '%s\n' '[[{"author":{"login":"dependabot[bot]"},"committer":{"login":"dependabot[bot]"}}]]'
   elif [[ "$1" == "api" && "$*" == *"pulls/17/reviews"* ]]; then

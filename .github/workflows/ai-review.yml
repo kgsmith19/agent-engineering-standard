@@ -1,4 +1,4 @@
-name: AI Review Gate
+name: "Advisory: AI Review"
 
 on:
   pull_request_review:
@@ -8,9 +8,10 @@ on:
   issue_comment:
     types: [created, edited, deleted]
 
+# One repo-wide non-canceling authority lock shared by evaluator and orchestrator; GitHub keeps only the newest pending run per group and the six-hourly watchdog is the convergence net.
 concurrency:
-  group: ai-review-${{ github.repository }}-${{ github.event.pull_request.number || github.event.issue.number }}
-  cancel-in-progress: true
+  group: automation-authority-${{ github.repository }}
+  cancel-in-progress: false
 
 jobs:
   update-ai-review:

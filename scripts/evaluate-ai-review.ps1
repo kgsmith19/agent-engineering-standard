@@ -1,13 +1,14 @@
 param(
   [Parameter(Mandatory)][string]$Repo,
-  [Parameter(Mandatory)][int]$Pr
+  [Parameter(Mandatory)][int]$Pr,
+  [string]$ConfigPath = (Join-Path $PSScriptRoot '..\policy\github-defaults.json')
 )
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib/review-policy.ps1')
 
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
-$config = Get-Content (Join-Path $PSScriptRoot '..\policy\github-defaults.json') -Raw | ConvertFrom-Json
+$config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $dispatchDisabled = [string]$config.independent_review.dispatch_mode -eq 'disabled_pending_e2e'
 
 function Invoke-GhJson {
@@ -31,16 +32,16 @@ function Get-Paged {
 
 function Set-AiReviewCheck {
   param([string]$HeadSha,[ValidateSet('success','failure','neutral')][string]$Conclusion,[string]$Summary)
-  $encoded = [uri]::EscapeDataString('AI Review')
+  $encoded = [uri]::EscapeDataString('Advisory: AI Review')
   $raw = & gh api -H 'Accept: application/vnd.github+json' "repos/$Repo/commits/$HeadSha/check-runs?check_name=$encoded" 2>&1
   if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
   $runs = (($raw -join "`n") | ConvertFrom-Json).check_runs
-  $existing = @($runs | Where-Object { $_.name -eq 'AI Review' -and $_.app.slug -eq 'github-actions' } | Sort-Object id | Select-Object -Last 1)
-  $body = @{ status='completed'; conclusion=$Conclusion; output=@{ title='AI Review'; summary=$Summary } }
+  $existing = @($runs | Where-Object { $_.name -eq 'Advisory: AI Review' -and $_.app.slug -eq 'github-actions' } | Sort-Object id | Select-Object -Last 1)
+  $body = @{ status='completed'; conclusion=$Conclusion; output=@{ title='Advisory: AI Review'; summary=$Summary } }
   if ($existing.Count -gt 0) {
     Invoke-GhJson PATCH "repos/$Repo/check-runs/$($existing[0].id)" $body | Out-Null
   } else {
-    $body.name = 'AI Review'; $body.head_sha = $HeadSha
+    $body.name = 'Advisory: AI Review'; $body.head_sha = $HeadSha
     Invoke-GhJson POST "repos/$Repo/check-runs" $body | Out-Null
   }
 }
@@ -49,6 +50,17 @@ $prRaw = & gh api "repos/$Repo/pulls/$Pr" 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
 $prData = ($prRaw -join "`n") | ConvertFrom-Json
 $headSha = [string]$prData.head.sha
+$baseSha = [string]$prData.base.sha
+if ([string]$prData.head.repo.full_name -ne $Repo) {
+  Write-Host "FORK-DENIED: $Repo PR #$Pr head repository '$([string]$prData.head.repo.full_name)' is not the target repository; no check run or Issue is written for fork heads."
+  exit 0
+}
+# Machine-readable evidence scope: a dispatch_policy_version bump invalidates
+# every older neutral/success, so re-enabling dispatch forces fresh evaluation.
+# risk records what the labels resolved to at evaluation time; contradictory
+# labels record 'unknown' and are blocked separately by the orchestrator.
+try { $evidenceRisk = Get-RiskFromLabels @($prData.labels | ForEach-Object { [string]$_.name }) } catch { $evidenceRisk = 'unknown' }
+$dispatchEvidence = "dispatch-evidence repo=$Repo pr=$Pr head=$headSha base=$baseSha risk=$evidenceRisk mode=$([string]$config.independent_review.dispatch_mode) policy_version=$([int]$config.independent_review.dispatch_policy_version)"
 if ($prData.draft) {
   Set-AiReviewCheck $headSha failure 'Ready-at-creation policy violation: draft PRs are forbidden.'
   exit 0
@@ -67,16 +79,19 @@ $inlineComments = @(Get-Paged "repos/$Repo/pulls/$Pr/comments?per_page=100")
 $comments = @(Get-Paged "repos/$Repo/issues/$Pr/comments?per_page=100")
 $passes = New-Object System.Collections.Generic.List[string]
 $failures = New-Object System.Collections.Generic.List[string]
+$verdictLines = New-Object System.Collections.Generic.List[string]
 
 $advisories = New-Object System.Collections.Generic.List[string]
+function Add-Advisory { param([string]$Source,[string]$Body) $severity = if (Test-SevereAdvisoryAiReviewBody $Body) { '[P0/P1] ' } else { '' }; $advisories.Add("$severity$Source") }
 
 foreach ($review in $reviews) {
   $provider = Get-MachineReviewProvider ([string]$review.user.login)
   if (-not $provider -or $review.commit_id -ne $headSha -or $review.state -in @('DISMISSED','PENDING')) { continue }
   if (Test-BlockingAiReviewEvidence -Body ([string]$review.body) -ReviewState ([string]$review.state)) {
-    $failures.Add("$provider review by $($review.user.login) contains blocking P0/P1 findings")
+    $failures.Add("$provider review by $($review.user.login) carries a structured threat verdict")
+    foreach ($verdict in @(Get-BlockingAiReviewVerdicts ([string]$review.body))) { $verdictLines.Add($verdict) }
   } else {
-    if (Test-AdvisoryAiReviewBody ([string]$review.body)) { $advisories.Add("$provider formal review by $($review.user.login)") }
+    if (Test-AdvisoryAiReviewBody ([string]$review.body)) { Add-Advisory "$provider formal review by $($review.user.login)" ([string]$review.body) }
     if ($acceptedProviders -contains $provider) { $passes.Add("$provider formal review by $($review.user.login)") }
   }
 }
@@ -84,24 +99,29 @@ foreach ($inline in $inlineComments) {
   $provider = Get-MachineReviewProvider ([string]$inline.user.login)
   if (-not $provider -or [string]$inline.commit_id -ne $headSha) { continue }
   if (Test-BlockingAiReviewBody ([string]$inline.body)) {
-    $failures.Add("$provider inline review comment #$($inline.id) contains a blocking current-head finding")
+    $failures.Add("$provider inline review comment #$($inline.id) carries a structured threat verdict")
+    foreach ($verdict in @(Get-BlockingAiReviewVerdicts ([string]$inline.body))) { $verdictLines.Add($verdict) }
   } elseif (Test-AdvisoryOnlyAiReviewBody ([string]$inline.body)) {
-    $advisories.Add("$provider inline review comment #$($inline.id)")
+    Add-Advisory "$provider inline review comment #$($inline.id)" ([string]$inline.body)
   }
 }
 
 $structured = Get-TrustedStructuredCopilotReview -Comments $comments -HeadSha $headSha -OwnerLogin $ownerLogin
 if ($structured) {
   if (Test-BlockingAiReviewBody ([string]$structured.body)) {
-    $failures.Add('Copilot structured exact-head review contains blocking findings')
+    $failures.Add('Copilot structured exact-head review carries a structured threat verdict')
+    foreach ($verdict in @(Get-BlockingAiReviewVerdicts ([string]$structured.body))) { $verdictLines.Add($verdict) }
+  } elseif ([string]$structured.body -match '(?im)^\s*AI-REVIEW\s+FAIL\b') {
+    # A FAIL signal without a structured verdict is advisory, never blocking.
+    Add-Advisory 'Copilot structured exact-head FAIL without a structured threat verdict' ([string]$structured.body)
   } else {
-    if (Test-AdvisoryAiReviewBody ([string]$structured.body)) { $advisories.Add('Copilot structured exact-head review') }
+    if (Test-AdvisoryAiReviewBody ([string]$structured.body)) { Add-Advisory 'Copilot structured exact-head review' ([string]$structured.body) }
     if ($acceptedProviders -contains 'copilot') { $passes.Add('Copilot structured exact-head PASS') }
   }
 }
 
 $codexRequests = @($comments | Where-Object {
-  (Test-TrustedAutomationComment $_ $ownerLogin) -and [string]$_.body -like "*ai-review-request:codex:$headSha*"
+  (Test-TrustedAutomationComment $_ $ownerLogin) -and [string]$_.body -match "ai-review-request:(?:v\d+:)?codex:$headSha"
 } | Sort-Object created_at)
 foreach ($request in $codexRequests) {
   foreach ($reaction in @(Get-Paged "repos/$Repo/issues/comments/$($request.id)/reactions?per_page=100")) {
@@ -120,24 +140,39 @@ if ($codexRequests.Count -gt 0 -and $acceptedProviders -contains 'codex') {
 }
 
 function Ensure-AdvisoryIssue {
-  # P2-only findings never block; they are recorded exactly once as a follow-up
-  # Issue mapped to this head by a trusted marker comment.
+  # Advisory findings (P0-P2 prose; non-blocking under the structured threat-
+  # verdict contract) never block; one OPEN advisory Issue per PR carries them.
+  # A new head updates the existing open Issue instead of minting another, and
+  # each head's mapping is recorded by a trusted marker comment.
   param([string]$HeadSha,[string[]]$Advisories,$Comments,[string]$OwnerLogin)
   $existing = Get-TrustedAiReviewAdvisoryIssueNumber -Comments $Comments -HeadSha $HeadSha -OwnerLogin $OwnerLogin
   if ($existing) { return [int]$existing }
-  $issueBody = "Advisory (P2-only) machine-review findings for ``$Repo`` PR #$Pr at head ``$HeadSha``:`n`n" +
+  $severeNote = if (@($Advisories | Where-Object { $_ -match '^\[P0/P1\]' }).Count -gt 0) { "**Severe (P0/P1-classified) advisory findings are present — triage these first.**`n`n" } else { '' }
+  $issueBody = $severeNote + "Advisory machine-review findings for ``$Repo`` PR #$Pr at head ``$HeadSha``:`n`n" +
     (@($Advisories | Select-Object -Unique | ForEach-Object { "- $_" }) -join "`n") +
     "`n`nThese findings did not block the merge lane. Address or explicitly discard them."
-  $issueRaw = & gh issue create --repo $Repo --title "AI review advisory (P2) follow-ups for PR #$Pr @ $($HeadSha.Substring(0,8))" --body $issueBody 2>&1
-  if ($LASTEXITCODE -ne 0) { throw ($issueRaw -join "`n") }
-  $issueNumber = [int](([string]($issueRaw -join "`n")) -replace '.*/(\d+)\s*$','$1')
-  & gh pr comment $Pr --repo $Repo --body "Recorded P2-only advisory findings as Issue #$issueNumber.`n`n<!-- ai-review-advisory:${HeadSha}:${issueNumber} -->" | Out-Host
+  $issueNumber = 0
+  foreach ($prior in @(Get-TrustedAiReviewAdvisoryIssueNumbers -Comments $Comments -OwnerLogin $OwnerLogin)) {
+    $stateRaw = & gh issue view $prior --repo $Repo --json state 2>&1
+    if ($LASTEXITCODE -ne 0) { throw ($stateRaw -join "`n") }
+    if ((($stateRaw -join "`n") | ConvertFrom-Json).state -ne 'OPEN') { continue }
+    & gh issue edit $prior --repo $Repo --body $issueBody | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "Could not update advisory Issue #$prior for $Repo PR #$Pr." }
+    $issueNumber = [int]$prior
+    break
+  }
+  if ($issueNumber -eq 0) {
+    $issueRaw = & gh issue create --repo $Repo --title "AI review advisory (P2) follow-ups for PR #$Pr" --body $issueBody 2>&1
+    if ($LASTEXITCODE -ne 0) { throw ($issueRaw -join "`n") }
+    $issueNumber = [int](([string]($issueRaw -join "`n")) -replace '.*/(\d+)\s*$','$1')
+  }
+  & gh pr comment $Pr --repo $Repo --body "Recorded P2-only advisory findings as Issue #$issueNumber.`n`n<!-- ai-review-advisory:v1:${HeadSha}:${issueNumber} -->" | Out-Host
   if ($LASTEXITCODE -ne 0) { throw "Could not record the advisory Issue mapping on $Repo PR #$Pr." }
   return $issueNumber
 }
 
 if ($failures.Count -gt 0) {
-  Set-AiReviewCheck $headSha failure ("Blocking machine-review finding(s): " + (($failures | Select-Object -Unique) -join '; '))
+  Set-AiReviewCheck $headSha failure ("Structured threat verdict(s): " + (($verdictLines | Select-Object -Unique) -join ' | ') + ". Sources: " + (($failures | Select-Object -Unique) -join '; ') + "`n`n$dispatchEvidence")
   exit 0
 }
 $advisoryNote = ''
@@ -146,12 +181,14 @@ if ($advisories.Count -gt 0) {
   $advisoryNote = "; P2-only advisory findings recorded in Issue #$advisoryIssue"
 }
 if ($dispatchDisabled) {
-  Set-AiReviewCheck $headSha neutral ("Reviewer dispatch is disabled_pending_e2e; no machine review was solicited for $headSha$advisoryNote")
+  Set-AiReviewCheck $headSha neutral ("Reviewer dispatch is disabled_pending_e2e; no machine review was solicited for $headSha$advisoryNote`n`n$dispatchEvidence")
   exit 0
 }
 if ($passes.Count -eq 0) {
+  # Advisory review is evaluated, not obeyed: a head with no accepted review yet
+  # concludes neutral; failure is reserved for structured threat verdicts.
   $implementerText = if ($implementer) { $implementer } else { 'unknown/human' }
-  Set-AiReviewCheck $headSha failure ("Awaiting exact-head reviewer independent of current-PR implementers=$implementerText. Accepted: " + ($acceptedProviders -join ', '))
+  Set-AiReviewCheck $headSha neutral ("No accepted exact-head machine review yet (current-PR implementers=$implementerText; accepted: " + ($acceptedProviders -join ', ') + ")$advisoryNote`n`n$dispatchEvidence")
   exit 0
 }
-Set-AiReviewCheck $headSha success ("Exact head $headSha passed machine review; current-PR implementers=$implementer; evidence=" + (($passes | Select-Object -Unique) -join '; ') + $advisoryNote)
+Set-AiReviewCheck $headSha success ("Exact head $headSha passed machine review; current-PR implementers=$implementer; evidence=" + (($passes | Select-Object -Unique) -join '; ') + $advisoryNote + "`n`n$dispatchEvidence")

@@ -1,4 +1,4 @@
-name: PR Gate
+name: "Gate: Deterministic CI"
 
 on:
   pull_request:
@@ -13,18 +13,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  bootstrap-gate:
-    name: PR Gate
+  gate:
+    name: "Gate: Deterministic CI"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - name: Enforce Ready at creation
+      - name: "Gate: Ready-at-Creation Policy"
         if: github.event_name == 'pull_request' && github.event.pull_request.draft
         shell: bash
         run: |
           echo '::error::Ready-at-creation policy violation. Create PRs with draft:false; gh callers must omit --draft.'
           exit 1
-      - name: Verify bootstrap control files
+      # Replace this bootstrap step with the repository's real stack-specific
+      # deterministic evidence (build/test/lint), keeping the workflow and job
+      # names exactly "Gate: Deterministic CI".
+      - name: "Gate: Bootstrap Control Files"
         shell: bash
         run: |
           test -s AGENTS.md
@@ -34,8 +37,20 @@ jobs:
           if grep -Eq '^  gate_profile: bootstrap-only$' .agent/project.yaml; then
             PRODUCT_FILES=$(git ls-files | grep -Ev '^(AGENTS\.md|CLAUDE\.md|PRD\.md|README\.md|LICENSE|\.gitignore|\.agent/|\.github/|docs/|specs/)$' || true)
             if [ -n "$PRODUCT_FILES" ]; then
-              echo '::error::Product files exist while PR Gate is still bootstrap-only. Configure the real stack-specific objective gate first.'
+              echo '::error::Product files exist while the gate is still bootstrap-only. Configure the real stack-specific objective gate first.'
               printf '%s\n' "$PRODUCT_FILES"
               exit 1
             fi
           fi
+
+  # Transitional bridge: exists only until the owner flips the ruleset's required
+  # context from 'PR Gate' to 'Gate: Deterministic CI'. Fail-closed by design —
+  # a gate failure skips this job, the required 'PR Gate' context goes missing,
+  # and the merge stays blocked.
+  pr-gate-bridge:
+    name: PR Gate
+    needs: [gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: exit 0

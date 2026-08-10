@@ -2,7 +2,8 @@
   "owner": "kgsmith19",
   "ruleset_name": "Lean PR Gate",
   "required_status_context": "PR Gate",
-  "required_ai_review_context": "AI Review",
+  "required_status_context_next": "Gate: Deterministic CI",
+  "required_ai_review_context": "Advisory: AI Review",
   "strict_required_status_checks_policy": false,
   "required_approving_review_count": 0,
   "require_code_owner_review": false,
@@ -20,10 +21,11 @@
     "required_for_auto_merge": false,
     "solicit_reviews": false,
     "dispatch_mode": "disabled_pending_e2e",
+    "dispatch_policy_version": 1,
     "preferred_provider": "codex",
     "fallback_provider": "copilot",
     "local_codex_model": "gpt-5.4-mini",
-    "review_stall_minutes": 3,
+    "review_stall_minutes": 2,
     "primary_wait_minutes": 2,
     "fallback_wait_minutes": 2,
     "absolute_timeout_minutes": 720,
@@ -35,11 +37,12 @@
   },
   "pr_automation": {
     "blocked_label": "status:blocked",
-    "max_ci_fix_attempts": 7,
+    "external_draft_promotion": true,
+    "max_ci_fix_attempts": 3,
     "max_review_fix_attempts": 1,
-    "max_conflict_fix_attempts": 6,
+    "max_conflict_fix_attempts": 2,
     "max_gate_rerun_attempts": 1,
-    "watchdog_interval_minutes": 60
+    "watchdog_interval_minutes": 360
   },
   "manual_gate_required_fields": [
     "failure_class_prevented",
@@ -89,6 +92,11 @@
     "toolbelt",
     "lifeos",
     "lifeos-ui",
-    "network-checker"
+    "network-checker",
+    "2048Game",
+    "ShaesChicDesignsWeb",
+    "PitchRandomizer",
+    "AutoHit",
+    "AccountPortal"
   ]
 }

@@ -56,7 +56,7 @@ Reviewer priorities:
 
 Do not spend reviewer budget on formatting or style that deterministic tooling can enforce.
 
-Fresh semantic review is advisory for routine R0-R2 work unless repository policy elevates it. It is required for R3/R4 changes and changes to the engineering control plane before merge.
+Fresh semantic review (`AI Review`) is advisory at every risk tier: the deterministic `PR Gate` is the sole required merge-authority check (ADR 0002). R3/R4 and engineering-control-plane changes still receive that review when the lane is active, and findings still surface as blocking (P0/P1) versus advisory (P2) evidence — but merge for those changes is withheld by an explicit manual authority gate naming the decision owner, not by the review outcome.
 
 ## 5. UI end-to-end evidence
 
