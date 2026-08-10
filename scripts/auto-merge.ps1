@@ -22,9 +22,17 @@ function Get-LatestActionsCheckRun {
   return $latest[0]
 }
 
-$prRaw = & gh pr view $Pr --repo $Repo --json isDraft,state,labels,baseRefName,headRefName,headRefOid,author 2>&1
+$prRaw = & gh pr view $Pr --repo $Repo --json isDraft,state,labels,baseRefName,headRefName,headRefOid,author,headRepositoryOwner,headRepository 2>&1
 if ($LASTEXITCODE -ne 0) { throw ($prRaw -join "`n") }
 $prData = ($prRaw -join "`n") | ConvertFrom-Json
+# Defense-in-depth (#62): pr-orchestrator.ps1 fork-denies before ever calling
+# this script, but auto-merge.ps1 must refuse to arm a fork PR on its own,
+# standalone, so a direct invocation or a future caller that forgets to
+# fork-check first can never arm a cross-repository PR.
+if (Test-ForkPr -PrData $prData -Repo $Repo) {
+  $headRepo = "$([string]$prData.headRepositoryOwner.login)/$([string]$prData.headRepository.name)"
+  throw "Auto-merge refused: PR #$Pr head repository '$headRepo' is not the target repository '$Repo'; fork PRs never enter the unattended lane."
+}
 if ($prData.state -ne 'OPEN') { throw "PR #$Pr is not open." }
 if ($prData.isDraft) { throw "Ready-at-creation policy violation: $Repo PR #$Pr is draft. Auto-merge was not attempted." }
 if (@($prData.labels | ForEach-Object { $_.name }) -contains 'status:blocked') { throw "PR #$Pr is status:blocked." }

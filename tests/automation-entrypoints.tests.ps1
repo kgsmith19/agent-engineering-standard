@@ -19,9 +19,16 @@ try {
 set -euo pipefail
 printf '%s\n' "$*" >> "$GH_FAKE_LOG"
 
-if [[ "$GH_FAKE_SCENARIO" == "auto-merge-drift" || "$GH_FAKE_SCENARIO" == "auto-merge-ready" ]]; then
+if [[ "$GH_FAKE_SCENARIO" == "auto-merge-fork" ]]; then
   if [[ "$1 $2" == "pr view" ]]; then
-    printf '%s\n' '{"state":"OPEN","isDraft":false,"labels":[{"name":"risk:R2"}],"baseRefName":"main","headRefName":"dependabot/npm_and_yarn/example","headRefOid":"1717171717171717171717171717171717171717","author":{"login":"dependabot[bot]"}}'
+    printf '%s\n' '{"state":"OPEN","isDraft":false,"labels":[{"name":"risk:R2"}],"baseRefName":"main","headRefName":"patch-1","headRefOid":"1717171717171717171717171717171717171717","author":{"login":"attacker"},"headRepositoryOwner":{"login":"attacker"},"headRepository":{"name":"example"}}'
+  else
+    printf 'unexpected auto-merge-fork fake gh call: %s\n' "$*" >&2
+    exit 91
+  fi
+elif [[ "$GH_FAKE_SCENARIO" == "auto-merge-drift" || "$GH_FAKE_SCENARIO" == "auto-merge-ready" ]]; then
+  if [[ "$1 $2" == "pr view" ]]; then
+    printf '%s\n' '{"state":"OPEN","isDraft":false,"labels":[{"name":"risk:R2"}],"baseRefName":"main","headRefName":"dependabot/npm_and_yarn/example","headRefOid":"1717171717171717171717171717171717171717","author":{"login":"dependabot[bot]"},"headRepositoryOwner":{"login":"kgsmith19"},"headRepository":{"name":"example"}}'
   elif [[ "$1" == "api" && "$*" == *"check-runs?check_name=PR%20Gate"* ]]; then
     printf '%s\n' '{"check_runs":[{"id":41,"name":"PR Gate","app":{"slug":"github-actions"},"conclusion":"success","output":{"summary":"deterministic"}}]}'
   elif [[ "$1" == "api" && "$*" == *"check-runs?check_name="* ]]; then
@@ -102,6 +109,22 @@ fi
   $readyCalls = Get-Content $log -Raw
   Assert-True 'eligible dependency PR arms native squash auto-merge' ($readyCalls -match 'pr merge 17 --repo kgsmith19/example --auto --squash')
   Assert-True 'arming path verifies the GitHub Actions-bound PR Gate ruleset' ($readyCalls -match 'api repos/kgsmith19/example/rulesets/101')
+
+  # #62: auto-merge.ps1 must refuse a fork PR on its own, standalone, without
+  # relying on pr-orchestrator.ps1's Deny-ForkPr running first.
+  Clear-Content $log
+  $env:GH_FAKE_SCENARIO = 'auto-merge-fork'
+  $forkFailure = $null
+  try {
+    & (Join-Path $root 'scripts/auto-merge.ps1') -Repo 'kgsmith19/example' -Pr 17 -Risk R2
+  }
+  catch { $forkFailure = $_.Exception.Message }
+
+  Assert-True 'auto-merge refuses a fork PR called directly' ($forkFailure -match 'fork')
+  Assert-True 'auto-merge fork refusal names the actual head repository' ($forkFailure -match 'attacker/example')
+  $forkCalls = Get-Content $log -Raw
+  Assert-True 'auto-merge fork refusal happens before any other privileged call' (($forkCalls.Trim() -split "`r?`n").Count -eq 1)
+  Assert-True 'auto-merge never arms merge for a fork PR' ($forkCalls -notmatch 'pr merge')
 
   $fixture = Join-Path $temp 'review-fixture'
   New-Item -ItemType Directory -Path (Join-Path $fixture 'scripts/lib') -Force | Out-Null

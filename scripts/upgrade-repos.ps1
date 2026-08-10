@@ -126,11 +126,6 @@ pinned_by: upgrade-repos.ps1
       Render-Template (Join-Path $standardRoot 'templates/PR_AUTOMATION_WATCHDOG.yml') '.github/workflows/pr-automation-watchdog.yml'
       Remove-Item '.github/CODEOWNERS' -Force -ErrorAction SilentlyContinue
 
-      if (-not (Test-Path '.github/dependabot.yml')) {
-        New-Item -ItemType Directory -Force '.github' | Out-Null
-        Copy-Item (Join-Path $standardRoot 'templates/dependabot.yml') '.github/dependabot.yml' -Force
-      }
-
       # workflow_run identifies the deterministic gate by workflow name, and the
       # ruleset requires it exactly. Preserve a dedicated pr-gate.yml; otherwise
       # normalize a bare "ci" workflow name, or an earlier repo's leftover
@@ -180,7 +175,7 @@ Pins the shared engineering standard to $StandardSha and installs exact-SHA `AI 
 
 - Removes native CODEOWNERS so Kyle is not auto-requested as a routine reviewer.
 - Preserves the repository-specific deterministic gate and normalizes CI/ci workflow name to exact `PR Gate` only when no dedicated `pr-gate.yml` exists.
-- Adds the lean Dependabot default only when absent.
+- Does not add a Dependabot config file: the owner disabled Dependabot fleet-wide, and the rollout no longer fights that removal.
 - No product behavior change.
 
 Risk: R2. This content was already reviewed once, at the standard repo's own gate; propagating identical, deterministically-generated content to product repos is not new independent risk, and the design's documented auto-merge ceiling (unattended auto-merge is capped at R2) already anticipated this exact class of change. upgrade-repos.ps1 only ever writes to known, template-driven paths, never arbitrary content.
