@@ -103,7 +103,8 @@ Draft PRs are not part of the autonomous state machine. GitHub natively refuses 
 - REST, SDK, GraphQL, and connector callers set `draft: false` and verify the returned state.
 - `gh pr create` callers omit `--draft`, then verify `isDraft == false`.
 - A draft event fails `PR Gate`, applies `status:blocked`, posts one actionable diagnostic, and never reaches auto-merge.
-- Legacy manual conversion to Ready may clear the block, but automated conversion is forbidden.
+- For the owner and `github-actions[bot]`, only legacy manual conversion to Ready clears the block; automated conversion is forbidden for these authors.
+- The sole automated exception: an external agent's draft (any author besides the owner or `github-actions[bot]` — Dependabot, Copilot cloud agent, ...), when `pr_automation.external_draft_promotion` is on, is converted to Ready by the identity-gated `promote-external-draft.ps1` (`GH_TOKEN_ADMIN`-only, fork heads refused, not retried). This exists because those platforms open drafts by their own behavior, not by an agent skipping ready-at-creation; see the recovery matrix (§7) and `docs/AUTONOMOUS-PR-STATE-MACHINE.md`.
 
 `status:ready` remains an Issue-queue label only. It never changes PR draft state.
 
