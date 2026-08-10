@@ -46,18 +46,25 @@ foreach ($name in $config.repositories) {
     $defaultBranch = [string]((($metaRaw -join "`n") | ConvertFrom-Json).default_branch)
     if (-not $defaultBranch) { throw "cannot resolve live default branch for $repo" }
 
-    $existingRaw = & gh pr list --repo $repo --state open --head $branch --json number,url 2>&1
-    if ($LASTEXITCODE -ne 0) { throw ($existingRaw -join "`n") }
-    $existingPr = @(($existingRaw -join "`n") | ConvertFrom-Json)
-    if ($existingPr.Count -gt 0) {
-      Write-Host "existing rollout PR #$($existingPr[0].number): $($existingPr[0].url)" -ForegroundColor Yellow
-      continue
+    # One rollout PR open per repo, ever: reuse any open PR whose head branch
+    # matches chore/standard-* (regardless of which sha it names) instead of
+    # spawning a new branch/PR per standard commit, which otherwise leaves
+    # the prior still-open rollout PR stale and orphaned.
+    $openRaw = & gh pr list --repo $repo --state open --json number,url,headRefName 2>&1
+    if ($LASTEXITCODE -ne 0) { throw ($openRaw -join "`n") }
+    $openPrs = @(($openRaw -join "`n") | ConvertFrom-Json)
+    $existingPr = @($openPrs | Where-Object { $_.headRefName -like 'chore/standard-*' } | Select-Object -First 1)
+    $reuseExisting = $existingPr.Count -gt 0
+    if ($reuseExisting) {
+      $branch = $existingPr[0].headRefName
+      Write-Host "existing rollout PR #$($existingPr[0].number): $($existingPr[0].url); updating in place" -ForegroundColor Yellow
     }
-
-    $branchRaw = & gh api "repos/$repo/git/ref/heads/$branch" 2>&1
-    if ($LASTEXITCODE -eq 0) {
-      $branch = "$branch-$(Get-Date -Format yyyyMMddHHmmss)"
-      Write-Host "unused remote branch existed; using $branch" -ForegroundColor Yellow
+    else {
+      $branchRaw = & gh api "repos/$repo/git/ref/heads/$branch" 2>&1
+      if ($LASTEXITCODE -eq 0) {
+        $branch = "$branch-$(Get-Date -Format yyyyMMddHHmmss)"
+        Write-Host "unused remote branch existed; using $branch" -ForegroundColor Yellow
+      }
     }
 
     & gh repo clone $repo $temp -- --quiet
@@ -65,8 +72,24 @@ foreach ($name in $config.repositories) {
 
     Push-Location $temp
     try {
-      & git switch -c $branch | Out-Host
-      if ($LASTEXITCODE -ne 0) { throw 'branch creation failed' }
+      # CI runners carry no global git identity; the commit below needs a local one.
+      & git config user.email 'automation@agent-engineering-standard.invalid'
+      & git config user.name 'agent-engineering-standard-bot'
+      if ($reuseExisting) {
+        # Preserve the existing rollout branch's real history (including any
+        # manual fixup commits already pushed to it) instead of recreating the
+        # branch from the freshly cloned default branch's HEAD -- that would
+        # make the regeneration commit unrelated history and silently discard
+        # everything already on the branch when pushed.
+        & git fetch origin $branch | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw 'fetch of existing rollout branch failed' }
+        & git checkout -B $branch FETCH_HEAD | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw 'checkout of existing rollout branch failed' }
+      }
+      else {
+        & git switch -c $branch | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw 'branch creation failed' }
+      }
 
       $lock = '.agent/standard.lock'
       $previousStandardSha = $null
@@ -130,10 +153,18 @@ pinned_by: upgrade-repos.ps1
 
       & git commit -m "chore: upgrade agent engineering standard to $short" | Out-Host
       if ($LASTEXITCODE -ne 0) { throw 'commit failed' }
+      # Reuse checks out the existing branch's real tip (git checkout -B ...
+      # FETCH_HEAD above), so this commit is a genuine descendant and the push
+      # is a normal fast-forward -- no force needed, and none used, so any
+      # manual commit already on the branch is preserved, not overwritten.
       & git push -u origin $branch | Out-Host
       if ($LASTEXITCODE -ne 0) { throw 'push failed' }
 
-      $body = @"
+      if ($reuseExisting) {
+        Write-Host "updated existing rollout PR #$($existingPr[0].number) with $short" -ForegroundColor Green
+      }
+      else {
+        $body = @"
 Pins the shared engineering standard to $StandardSha and installs exact-SHA `AI Review` + `PR Automation` callers.
 
 - Removes native CODEOWNERS so Kyle is not auto-requested as a routine reviewer.
@@ -141,17 +172,18 @@ Pins the shared engineering standard to $StandardSha and installs exact-SHA `AI 
 - Adds the lean Dependabot default only when absent.
 - No product behavior change.
 
-Risk: R3 control-plane dependency update. This bootstrap rollout is manually integrated because it changes the caller that will govern later unattended merges.
+Risk: R2. This content was already reviewed once, at the standard repo's own gate; propagating identical, deterministically-generated content to product repos is not new independent risk, and the design's documented auto-merge ceiling (unattended auto-merge is capped at R2) already anticipated this exact class of change. upgrade-repos.ps1 only ever writes to known, template-driven paths, never arbitrary content.
 "@
-      $prUrl = (& gh pr create --repo $repo --base $defaultBranch --head $branch --title "Upgrade autonomous engineering standard to $short" --body $body 2>&1 | Out-String).Trim()
-      if ($LASTEXITCODE -ne 0 -or -not $prUrl) { throw 'PR creation failed' }
-      $createdRaw = & gh pr view $prUrl --repo $repo --json number,url,isDraft 2>&1
-      if ($LASTEXITCODE -ne 0) { throw "PR created but its ready-at-creation postcondition could not be verified: $prUrl" }
-      $created = ($createdRaw -join "`n") | ConvertFrom-Json
-      if ([bool]$created.isDraft) { throw "Ready-at-creation policy violation: rollout PR #$($created.number) is draft: $($created.url)" }
-      & gh pr edit $prUrl --add-label 'risk:R3' | Out-Host
-      if ($LASTEXITCODE -ne 0) { throw "PR created but risk:R3 could not be applied: $prUrl" }
-      Write-Host "created $prUrl" -ForegroundColor Green
+        $prUrl = (& gh pr create --repo $repo --base $defaultBranch --head $branch --title "Upgrade autonomous engineering standard to $short" --body $body 2>&1 | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0 -or -not $prUrl) { throw 'PR creation failed' }
+        $createdRaw = & gh pr view $prUrl --repo $repo --json number,url,isDraft 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "PR created but its ready-at-creation postcondition could not be verified: $prUrl" }
+        $created = ($createdRaw -join "`n") | ConvertFrom-Json
+        if ([bool]$created.isDraft) { throw "Ready-at-creation policy violation: rollout PR #$($created.number) is draft: $($created.url)" }
+        & gh pr edit $prUrl --add-label 'risk:R2' | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "PR created but risk:R2 could not be applied: $prUrl" }
+        Write-Host "created $prUrl" -ForegroundColor Green
+      }
     }
     finally { Pop-Location }
   }

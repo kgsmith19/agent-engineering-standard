@@ -45,6 +45,9 @@ jobs:
       - name: "Gate: Script Smoke Tests"
         shell: pwsh
         run: ./tests/script-smoke.tests.ps1
+      - name: "Gate: Upgrade-Repos Rollout Tests"
+        shell: pwsh
+        run: ./tests/upgrade-repos.tests.ps1
       - name: "Gate: Automation Entrypoint Tests"
         shell: pwsh
         run: ./tests/automation-entrypoints.tests.ps1
