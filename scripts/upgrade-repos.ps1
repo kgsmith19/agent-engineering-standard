@@ -131,14 +131,25 @@ pinned_by: upgrade-repos.ps1
         Copy-Item (Join-Path $standardRoot 'templates/dependabot.yml') '.github/dependabot.yml' -Force
       }
 
-      # workflow_run identifies the deterministic gate by workflow name. Preserve
-      # a dedicated pr-gate.yml; otherwise normalize CI/ci to the taxonomy name
-      # "Gate: Deterministic CI" (the gate-result trigger listens for it) without
-      # changing the repository-specific jobs, commands, or the PR Gate job context.
+      # workflow_run identifies the deterministic gate by workflow name, and the
+      # ruleset requires it exactly. Preserve a dedicated pr-gate.yml; otherwise
+      # normalize a bare "ci" workflow name, or an earlier repo's leftover
+      # "Gate: Deterministic CI" taxonomy name (ADR 0005 reverted that rename
+      # fleet-wide before any ruleset flipped), to "PR Gate" without changing
+      # the repository-specific jobs or commands.
+      #
+      # Confirming evidence before rewriting, so an unrelated legitimately
+      # named ci.yml is never silently repurposed as the fleet gate: a
+      # "Gate: Deterministic CI" name is itself proof this is the fleet gate
+      # (only our own taxonomy rename ever produced that exact name); a bare
+      # "ci" name additionally requires the file to already mention "PR Gate"
+      # (its bridge/job context) somewhere.
       if (-not (Test-Path '.github/workflows/pr-gate.yml') -and (Test-Path '.github/workflows/ci.yml')) {
         $ci = Get-Content '.github/workflows/ci.yml' -Raw
-        if ($ci -match '(?im)^name:\s*(ci|PR Gate)\s*$' -and $ci -match 'PR Gate') {
-          $ci = [regex]::Replace($ci,'(?im)^name:\s*(ci|PR Gate)\s*$','name: "Gate: Deterministic CI"',1)
+        $isTaxonomyName = $ci -match '(?im)^name:\s*"?Gate: Deterministic CI"?\s*$'
+        $isBareCiWithGateEvidence = ($ci -match '(?im)^name:\s*ci\s*$') -and ($ci -match 'PR Gate')
+        if ($isTaxonomyName -or $isBareCiWithGateEvidence) {
+          $ci = [regex]::Replace($ci,'(?im)^name:\s*(ci|"?Gate: Deterministic CI"?)\s*$','name: "PR Gate"',1)
           Set-Content '.github/workflows/ci.yml' $ci -Encoding utf8 -NoNewline
         }
       }

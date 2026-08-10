@@ -1,4 +1,4 @@
-name: "Gate: Deterministic CI"
+name: "PR Gate"
 
 on:
   pull_request:
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   gate:
-    name: "Gate: Deterministic CI"
+    name: "PR Gate"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -66,15 +66,3 @@ jobs:
       - name: "Gate: Standard Validation (doctor)"
         shell: pwsh
         run: ./scripts/doctor.ps1
-
-  # Transitional bridge: exists only until the owner flips the ruleset's required
-  # context from 'PR Gate' to 'Gate: Deterministic CI'. Fail-closed by design —
-  # a gate failure skips this job, the required 'PR Gate' context goes missing,
-  # and the merge stays blocked.
-  pr-gate-bridge:
-    name: PR Gate
-    needs: [gate]
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - run: exit 0

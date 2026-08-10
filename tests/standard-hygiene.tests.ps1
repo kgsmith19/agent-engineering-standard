@@ -30,15 +30,20 @@ Assert-Contains 'Dependabot GitHub Actions ecosystem' 'templates/dependabot.yml'
 Assert-Contains 'Dependabot groups minor updates' 'templates/dependabot.yml' '(?m)^\s*-\s*minor\s*$'
 Assert-Contains 'Dependabot groups patch updates' 'templates/dependabot.yml' '(?m)^\s*-\s*patch\s*$'
 
-# Pipeline taxonomy: the deterministic gate carries the new name while the
-# fail-closed pr-gate-bridge job keeps the legacy required 'PR Gate' context
-# green until the owner flips the ruleset (context-rename runbook).
-Assert-Contains 'gate workflow carries taxonomy name' '.github/workflows/ci.yml' '(?m)^name:\s*"Gate: Deterministic CI"\s*$'
-Assert-Contains 'gate job carries taxonomy name' '.github/workflows/ci.yml' '(?m)^\s+name:\s*"Gate: Deterministic CI"\s*$'
-Assert-Contains 'bridge job keeps legacy PR Gate context' '.github/workflows/ci.yml' '(?m)^\s+name:\s*PR Gate\s*$'
-Assert-Contains 'bridge is fail-closed via needs' '.github/workflows/ci.yml' '(?s)pr-gate-bridge:.*?needs:\s*\[gate\]'
-Assert-Contains 'policy names the transition target context' 'policy/github-defaults.json' '"required_status_context_next"\s*:\s*"Gate: Deterministic CI"'
-Assert-Contains 'gate template carries taxonomy name and bridge' 'templates/PR_GATE.yml' '(?s)^name:\s*"Gate: Deterministic CI".*pr-gate-bridge:'
+# Single-check contract (reverts the incomplete taxonomy rename): the PR
+# checks list must show exactly one entry for the deterministic gate, named
+# 'PR Gate', with no separate bridge job or transitional alias.
+Assert-Contains 'gate workflow carries the sole context name' '.github/workflows/ci.yml' '(?m)^name:\s*"PR Gate"\s*$'
+Assert-Contains 'gate job carries the sole context name' '.github/workflows/ci.yml' '(?m)^\s+name:\s*"PR Gate"\s*$'
+Assert-NotContains 'gate workflow has no transitional bridge job' '.github/workflows/ci.yml' 'pr-gate-bridge:'
+Assert-NotContains 'policy does not carry a transition target context' 'policy/github-defaults.json' 'required_status_context_next'
+Assert-Contains 'gate template carries the sole context name' 'templates/PR_GATE.yml' '(?m)^name:\s*"PR Gate"\s*$'
+Assert-NotContains 'gate template has no transitional bridge job' 'templates/PR_GATE.yml' 'pr-gate-bridge:'
+# Gate Result routes on workflow_run and identifies its upstream run purely by
+# workflow name; a drifted name here silently stops gate-result routing
+# (exactly the field this change touches), so pin it exactly.
+Assert-Contains 'gate-result workflow_run listens for exactly PR Gate' '.github/workflows/pr-automation-gate-result.yml' '(?m)^\s*workflows:\s*\["PR Gate"\]\s*$'
+Assert-Contains 'gate-result template workflow_run listens for exactly PR Gate' 'templates/PR_AUTOMATION_GATE_RESULT.yml' '(?m)^\s*workflows:\s*\["PR Gate"\]\s*$'
 # Ops lane: manual + weekly portfolio bootstrap that fails closed without the
 # dedicated automation identity (it writes live settings and rulesets).
 Assert-Contains 'ops bootstrap is dispatchable and scheduled' '.github/workflows/ops-portfolio-bootstrap.yml' '(?s)workflow_dispatch:.*schedule:'
@@ -234,8 +239,8 @@ Assert-NotContains 'upgrade never hardcodes a main base' 'scripts/upgrade-repos.
 Assert-Contains 'upgrade fails closed when any repository fails' 'scripts/upgrade-repos.ps1' 'ROLLOUT FAILED'
 Assert-Contains 'doctor pins repositories to the approved design note' 'scripts/doctor.ps1' 'all-13-github-automation-design'
 Assert-Contains 'upgrade removes native CODEOWNERS' 'scripts/upgrade-repos.ps1' "Remove-Item '.github/CODEOWNERS'"
-Assert-Contains 'upgrade normalizes gate workflow name to taxonomy' 'scripts/upgrade-repos.ps1' 'name: "Gate: Deterministic CI"'
-Assert-Contains 'upgrade normalizes legacy ci and PR Gate names' 'scripts/upgrade-repos.ps1' '\(\?im\)\^name:\\s\*\(ci\|PR Gate\)'
+Assert-Contains 'upgrade normalizes gate workflow name to PR Gate' 'scripts/upgrade-repos.ps1' 'name: "PR Gate"'
+Assert-Contains 'upgrade normalizes legacy ci and taxonomy names' 'scripts/upgrade-repos.ps1' '\(\?im\)\^name:\\s\*\(ci\|"\?Gate: Deterministic CI"\?\)'
 Assert-Contains 'upgrade labels rollout R2' 'scripts/upgrade-repos.ps1' "--add-label 'risk:R2'"
 Assert-Contains 'upgrade reuses existing rollout PR' 'scripts/upgrade-repos.ps1' 'existing rollout PR'
 Assert-Contains 'upgrade sets a local git identity before committing' 'scripts/upgrade-repos.ps1' 'git config user\.email'

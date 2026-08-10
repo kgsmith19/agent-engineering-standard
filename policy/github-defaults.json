@@ -2,7 +2,6 @@
   "owner": "kgsmith19",
   "ruleset_name": "Lean PR Gate",
   "required_status_context": "PR Gate",
-  "required_status_context_next": "Gate: Deterministic CI",
   "required_ai_review_context": "Advisory: AI Review",
   "strict_required_status_checks_policy": false,
   "required_approving_review_count": 0,

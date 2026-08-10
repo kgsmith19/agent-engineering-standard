@@ -28,15 +28,14 @@ if (Test-Path (Join-Path $root '.github/CODEOWNERS')) { throw 'Native CODEOWNERS
 if (Test-Path (Join-Path $root 'templates/CODEOWNERS')) { throw 'Native CODEOWNERS bootstrap template must remain absent.' }
 
 $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
-# Context-rename transition: the ruleset-required context may be the legacy
-# name or the new one; while it is still the legacy name, the gate workflow
-# must carry the fail-closed 'PR Gate' bridge job so no PR becomes unmergeable.
-if ([string]$config.required_status_context -notin @('PR Gate','Gate: Deterministic CI')) { throw 'Required deterministic context drifted.' }
-if ([string]$config.required_status_context_next -ne 'Gate: Deterministic CI') { throw 'Transition target context (required_status_context_next) missing or drifted.' }
+# Single-check contract: the deterministic gate is the sole required context,
+# named exactly 'PR Gate', with no separate transitional alias or bridge job
+# (a second visible check for one gate is exactly the clutter this reverts).
+if ([string]$config.required_status_context -ne 'PR Gate') { throw 'Required deterministic context drifted.' }
 if ($config.required_ai_review_context -ne 'Advisory: AI Review') { throw 'Advisory check context drifted.' }
 $gateWorkflow = Get-Content (Join-Path $root '.github/workflows/ci.yml') -Raw
-if ($gateWorkflow -notmatch '(?m)^name:\s*"Gate: Deterministic CI"\s*$') { throw 'Gate workflow must carry the new taxonomy name.' }
-if ([string]$config.required_status_context -eq 'PR Gate' -and ($gateWorkflow -notmatch 'pr-gate-bridge:' -or $gateWorkflow -notmatch '(?m)^\s+name:\s*PR Gate\s*$')) { throw 'PR Gate bridge job is required while the legacy context is still ruleset-required.' }
+if ($gateWorkflow -notmatch '(?m)^name:\s*"PR Gate"\s*$') { throw 'Gate workflow must carry the sole PR Gate name.' }
+if ($gateWorkflow -match 'pr-gate-bridge:') { throw 'Gate workflow must not carry a transitional bridge job.' }
 if ([int]$config.required_approving_review_count -ne 0) { throw 'Human approval count must remain zero.' }
 if ([bool]$config.require_code_owner_review -or [bool]$config.native_codeowners -or [bool]$config.org_hardening.require_code_owner_review) { throw 'Native/required Code Owner review must remain disabled.' }
 if (@($config.forbidden_requested_reviewers) -notcontains [string]$config.owner) { throw 'Repository owner must be forbidden from requested-reviewer state.' }
@@ -140,7 +139,7 @@ foreach ($name in $config.repositories) {
   if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot list workflows' }
   else {
     $workflows = @(($workflowsRaw -join "`n") | ConvertFrom-Json | Select-Object -ExpandProperty workflows)
-    $requiredWorkflows = @('Gate: Deterministic CI','Orchestrator: PR Lifecycle','Orchestrator: Gate Result','Orchestrator: Review Event','Orchestrator: Comment Event','Orchestrator: Watchdog')
+    $requiredWorkflows = @('PR Gate','Orchestrator: PR Lifecycle','Orchestrator: Gate Result','Orchestrator: Review Event','Orchestrator: Comment Event','Orchestrator: Watchdog')
     if ([bool]$review.required_for_auto_merge -or [bool]$review.solicit_reviews) { $requiredWorkflows += 'Advisory: AI Review' }
     foreach ($workflowName in $requiredWorkflows) {
       $matches = @($workflows | Where-Object { $_.name -eq $workflowName -and $_.state -eq 'active' })
