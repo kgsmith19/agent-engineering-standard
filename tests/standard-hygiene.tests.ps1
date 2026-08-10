@@ -246,6 +246,13 @@ Assert-Contains 'upgrade reuses existing rollout PR' 'scripts/upgrade-repos.ps1'
 Assert-Contains 'upgrade sets a local git identity before committing' 'scripts/upgrade-repos.ps1' 'git config user\.email'
 Assert-Contains 'setup portfolio invokes upgrade-repos' 'scripts/setup-portfolio.ps1' 'upgrade-repos\.ps1'
 
+# Fleet-wide dependabot disable (#65): the owner explicitly removed
+# .github/dependabot.yml from every managed repo, so neither the rollout
+# upgrader nor bootstrap may re-add it as a silent default. Off until
+# explicitly re-enabled, in both existing and newly onboarded repos.
+Assert-NotContains 'upgrade does not re-add dependabot.yml' 'scripts/upgrade-repos.ps1' 'Copy-Item.*dependabot'
+Assert-NotContains 'bootstrap does not add dependabot.yml by default' 'scripts/bootstrap-repo.ps1' 'Copy-Item.*dependabot'
+
 Assert-Contains 'doctor checks Copilot workflow approval' 'scripts/doctor.ps1' 'require_actions_workflow_approval'
 Assert-Contains 'doctor checks requested reviewers' 'scripts/doctor.ps1' 'requested_reviewers'
 Assert-Contains 'doctor validates every reusable workflow ref pin' 'scripts/doctor.ps1' '\$usesRefs'

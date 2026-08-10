@@ -55,11 +55,6 @@ else {
   }
 }
 
-$dependabotPath = Join-Path $target '.github/dependabot.yml'
-if (-not (Test-Path $dependabotPath)) {
-  Copy-Item (Join-Path $standardRoot 'templates/dependabot.yml') $dependabotPath -Force
-}
-
 Copy-Item (Join-Path $standardRoot 'templates/AGENTS.md') (Join-Path $target 'AGENTS.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/PRD.md') (Join-Path $target 'PRD.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/ISSUE.md') (Join-Path $target '.github/ISSUE_TEMPLATE/work-item.md') -Force
@@ -148,7 +143,7 @@ Replace the bootstrap-only PR Gate with the smallest objective gate appropriate 
 - Detect and record verified build/test/type/lint/E2E commands in `.agent/project.yaml`.
 - Replace `.github/workflows/pr-gate.yml` so workflow name and required job context remain exactly `PR Gate`.
 - Preserve exact-SHA-pinned `.github/workflows/ai-review.yml` and the five per-event `.github/workflows/pr-automation*.yml` callers.
-- Extend `.github/dependabot.yml` only with package ecosystems this repo actually uses; group patch/minor updates when it reduces CI/review noise.
+- `.github/dependabot.yml` is deliberately absent (fleet-wide default is off); add it only if the owner explicitly wants Dependabot for this repo, scoped to the package ecosystems actually used.
 - Keep native `.github/CODEOWNERS` absent so Kyle is never auto-requested as a routine reviewer.
 - Finish the coherent slice locally, then create the PR Ready. REST/SDK/connector callers set `draft:false`; CLI callers use the Ready default.
 - Add only tests/tools justified by actual product risk; do not invent a framework for conformity.
