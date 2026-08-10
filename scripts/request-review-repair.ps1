@@ -5,6 +5,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib/review-policy.ps1')
+. (Join-Path $PSScriptRoot 'lib/gh-api.ps1')
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
 $config = Get-Content (Join-Path $PSScriptRoot '..\policy\github-defaults.json') -Raw | ConvertFrom-Json
 $limit = [int]$config.pr_automation.max_review_fix_attempts
@@ -13,7 +14,6 @@ if ([string]$config.independent_review.dispatch_mode -eq 'disabled_pending_e2e')
   exit 0
 }
 
-function Get-Paged { param([string]$Endpoint) $raw=& gh api --paginate --slurp $Endpoint 2>&1; if($LASTEXITCODE-ne 0){throw($raw-join"`n")}; $pages=($raw-join"`n")|ConvertFrom-Json; foreach($page in @($pages)){foreach($item in @($page)){$item}} }
 function Get-Comments { return @(Get-Paged "repos/$Repo/issues/$Pr/comments?per_page=100") }
 function Add-CommentOnce { param([string]$Marker,[string]$Body,$Comments,[string]$MatchPattern='') if(-not$MatchPattern){$MatchPattern=[regex]::Escape($Marker)}; if(@($Comments|Where-Object{(Test-TrustedAutomationComment $_ ([string]$config.owner))-and[string]$_.body-match$MatchPattern}).Count-gt 0){return}; & gh pr comment $Pr --repo $Repo --body "$Body`n`n$Marker"|Out-Host; if($LASTEXITCODE-ne 0){throw"Could not comment on $Repo PR #$Pr."} }
 function Get-ActiveBlockCodes { param($Comments) $active=@{}; foreach($comment in @($Comments|Sort-Object created_at)){if(-not(Test-TrustedAutomationComment $comment ([string]$config.owner))){continue};$body=[string]$comment.body;if($body-match'<!-- automation:(?:v\d+:)?block:([a-z0-9-]+):[0-9a-f]{40} -->'){$active[$Matches[1]]=$true}elseif($body-match'<!-- automation:(?:v\d+:)?resolve:([a-z0-9-]+):[0-9a-f]{40} -->'){$active.Remove($Matches[1])}};return @($active.Keys) }

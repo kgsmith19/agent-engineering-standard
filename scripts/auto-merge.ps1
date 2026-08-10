@@ -6,14 +6,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib/review-policy.ps1')
-
-function Get-Paged {
-  param([string]$Endpoint)
-  $raw = & gh api --paginate --slurp $Endpoint 2>&1
-  if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
-  $pages = ($raw -join "`n") | ConvertFrom-Json
-  foreach ($page in @($pages)) { foreach ($item in @($page)) { $item } }
-}
+. (Join-Path $PSScriptRoot 'lib/gh-api.ps1')
 
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
 $config = Get-Content (Join-Path $PSScriptRoot '..\policy\github-defaults.json') -Raw | ConvertFrom-Json

@@ -278,6 +278,21 @@ foreach ($scriptFile in Get-ChildItem (Join-Path $root 'scripts') -Recurse -Filt
   }
 }
 
+# #61: Invoke-GhJson and Get-Paged must have exactly one definition, in
+# scripts/lib/gh-api.ps1. A second definition anywhere else silently diverges
+# (this happened three times before consolidation) and every other script must
+# consume the shared implementation instead of a local copy.
+foreach ($fn in @('Invoke-GhJson','Get-Paged')) {
+  $definers = @(Get-ChildItem (Join-Path $root 'scripts') -Recurse -Filter '*.ps1' | Where-Object {
+    $_.FullName -ne (Join-Path $root 'scripts/lib/gh-api.ps1') -and (Get-Content $_.FullName -Raw) -match "(?m)^\s*function $fn\b"
+  })
+  if ($definers.Count -gt 0) {
+    throw "function $fn must be defined only in scripts/lib/gh-api.ps1; found duplicate definition(s) in: $(($definers | ForEach-Object { $_.FullName.Substring($root.Length + 1) }) -join ', ')"
+  }
+}
+Assert-Contains 'canonical Invoke-GhJson defined in lib' 'scripts/lib/gh-api.ps1' '(?m)^function Invoke-GhJson\b'
+Assert-Contains 'canonical Get-Paged defined in lib' 'scripts/lib/gh-api.ps1' '(?m)^function Get-Paged\b'
+
 $parseFailures = New-Object System.Collections.Generic.List[string]
 foreach ($file in @(Get-ChildItem (Join-Path $root 'scripts') -Recurse -Filter '*.ps1') + @(Get-ChildItem (Join-Path $root 'tests') -Recurse -Filter '*.ps1')) {
   $tokens=$null;$errors=$null

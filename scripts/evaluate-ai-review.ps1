@@ -6,29 +6,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib/review-policy.ps1')
+. (Join-Path $PSScriptRoot 'lib/gh-api.ps1')
 
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
 $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $dispatchDisabled = [string]$config.independent_review.dispatch_mode -eq 'disabled_pending_e2e'
-
-function Invoke-GhJson {
-  param([string]$Method,[string]$Endpoint,$Body)
-  $tmp = [System.IO.Path]::GetTempFileName()
-  try {
-    $Body | ConvertTo-Json -Depth 10 | Set-Content $tmp -Encoding utf8 -NoNewline
-    $raw = & gh api --method $Method $Endpoint --input $tmp 2>&1
-    if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
-    if ($raw) { return (($raw -join "`n") | ConvertFrom-Json) }
-  } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
-}
-
-function Get-Paged {
-  param([string]$Endpoint)
-  $raw = & gh api --paginate --slurp $Endpoint 2>&1
-  if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
-  $pages = ($raw -join "`n") | ConvertFrom-Json
-  foreach ($page in @($pages)) { foreach ($item in @($page)) { $item } }
-}
 
 function Set-AiReviewCheck {
   param([string]$HeadSha,[ValidateSet('success','failure','neutral')][string]$Conclusion,[string]$Summary)
