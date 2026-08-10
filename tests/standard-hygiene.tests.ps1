@@ -11,7 +11,7 @@ $required = @(
   '.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation-reusable.yml','.github/workflows/pr-automation.yml',
   '.github/workflows/pr-automation-gate-result.yml','.github/workflows/pr-automation-review-event.yml','.github/workflows/pr-automation-comment-event.yml','.github/workflows/pr-automation-watchdog.yml',
   'scripts/evaluate-ai-review.ps1','scripts/request-machine-review.ps1','scripts/request-review-repair.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/pr-orchestrator.ps1','scripts/gate-result-router.ps1','scripts/review-metrics.ps1','scripts/lint-pr-creation.ps1','scripts/prune-portfolio.ps1',
-  'tests/draft-prevention.tests.ps1','tests/state-machine-exhaustiveness.tests.ps1','tests/unconditional-evaluation.tests.ps1','tests/script-smoke.tests.ps1','tests/gate-result-arming.tests.ps1','tests/automation-entrypoints.tests.ps1',
+  'tests/draft-prevention.tests.ps1','tests/state-machine-exhaustiveness.tests.ps1','tests/unconditional-evaluation.tests.ps1','tests/script-smoke.tests.ps1','tests/gate-result-arming.tests.ps1','tests/automation-entrypoints.tests.ps1','tests/upgrade-repos.tests.ps1',
   'templates/.gitignore','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/dependabot.yml',
   'templates/PR_AUTOMATION_GATE_RESULT.yml','templates/PR_AUTOMATION_REVIEW_EVENT.yml','templates/PR_AUTOMATION_COMMENT_EVENT.yml','templates/PR_AUTOMATION_WATCHDOG.yml'
 )
@@ -42,6 +42,7 @@ Assert-Contains 'gate template carries taxonomy name and bridge' 'templates/PR_G
 # Ops lane: manual + weekly portfolio bootstrap that fails closed without the
 # dedicated automation identity (it writes live settings and rulesets).
 Assert-Contains 'ops bootstrap is dispatchable and scheduled' '.github/workflows/ops-portfolio-bootstrap.yml' '(?s)workflow_dispatch:.*schedule:'
+Assert-Contains 'ops bootstrap also triggers on push to main' '.github/workflows/ops-portfolio-bootstrap.yml' '(?s)push:\s*\n\s*branches:\s*\[main\]'
 Assert-Contains 'ops bootstrap requires the automation identity' '.github/workflows/ops-portfolio-bootstrap.yml' 'AUTOMATION-IDENTITY-MISSING'
 Assert-Contains 'ops bootstrap uses the automation token' '.github/workflows/ops-portfolio-bootstrap.yml' 'secrets\.AUTOMATION_TOKEN'
 Assert-Contains 'ops bootstrap pins its checkout action' '.github/workflows/ops-portfolio-bootstrap.yml' 'actions/checkout@11d5960a326750d5838078e36cf38b85af677262'
@@ -235,8 +236,9 @@ Assert-Contains 'doctor pins repositories to the approved design note' 'scripts/
 Assert-Contains 'upgrade removes native CODEOWNERS' 'scripts/upgrade-repos.ps1' "Remove-Item '.github/CODEOWNERS'"
 Assert-Contains 'upgrade normalizes gate workflow name to taxonomy' 'scripts/upgrade-repos.ps1' 'name: "Gate: Deterministic CI"'
 Assert-Contains 'upgrade normalizes legacy ci and PR Gate names' 'scripts/upgrade-repos.ps1' '\(\?im\)\^name:\\s\*\(ci\|PR Gate\)'
-Assert-Contains 'upgrade labels rollout R3' 'scripts/upgrade-repos.ps1' "--add-label 'risk:R3'"
+Assert-Contains 'upgrade labels rollout R2' 'scripts/upgrade-repos.ps1' "--add-label 'risk:R2'"
 Assert-Contains 'upgrade reuses existing rollout PR' 'scripts/upgrade-repos.ps1' 'existing rollout PR'
+Assert-Contains 'setup portfolio invokes upgrade-repos' 'scripts/setup-portfolio.ps1' 'upgrade-repos\.ps1'
 
 Assert-Contains 'doctor checks Copilot workflow approval' 'scripts/doctor.ps1' 'require_actions_workflow_approval'
 Assert-Contains 'doctor checks requested reviewers' 'scripts/doctor.ps1' 'requested_reviewers'
