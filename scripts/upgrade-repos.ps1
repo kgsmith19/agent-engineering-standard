@@ -137,9 +137,18 @@ pinned_by: upgrade-repos.ps1
       # "Gate: Deterministic CI" taxonomy name (ADR 0005 reverted that rename
       # fleet-wide before any ruleset flipped), to "PR Gate" without changing
       # the repository-specific jobs or commands.
+      #
+      # Confirming evidence before rewriting, so an unrelated legitimately
+      # named ci.yml is never silently repurposed as the fleet gate: a
+      # "Gate: Deterministic CI" name is itself proof this is the fleet gate
+      # (only our own taxonomy rename ever produced that exact name); a bare
+      # "ci" name additionally requires the file to already mention "PR Gate"
+      # (its bridge/job context) somewhere.
       if (-not (Test-Path '.github/workflows/pr-gate.yml') -and (Test-Path '.github/workflows/ci.yml')) {
         $ci = Get-Content '.github/workflows/ci.yml' -Raw
-        if ($ci -match '(?im)^name:\s*(ci|"?Gate: Deterministic CI"?)\s*$') {
+        $isTaxonomyName = $ci -match '(?im)^name:\s*"?Gate: Deterministic CI"?\s*$'
+        $isBareCiWithGateEvidence = ($ci -match '(?im)^name:\s*ci\s*$') -and ($ci -match 'PR Gate')
+        if ($isTaxonomyName -or $isBareCiWithGateEvidence) {
           $ci = [regex]::Replace($ci,'(?im)^name:\s*(ci|"?Gate: Deterministic CI"?)\s*$','name: "PR Gate"',1)
           Set-Content '.github/workflows/ci.yml' $ci -Encoding utf8 -NoNewline
         }

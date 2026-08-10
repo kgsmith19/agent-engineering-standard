@@ -39,6 +39,11 @@ Assert-NotContains 'gate workflow has no transitional bridge job' '.github/workf
 Assert-NotContains 'policy does not carry a transition target context' 'policy/github-defaults.json' 'required_status_context_next'
 Assert-Contains 'gate template carries the sole context name' 'templates/PR_GATE.yml' '(?m)^name:\s*"PR Gate"\s*$'
 Assert-NotContains 'gate template has no transitional bridge job' 'templates/PR_GATE.yml' 'pr-gate-bridge:'
+# Gate Result routes on workflow_run and identifies its upstream run purely by
+# workflow name; a drifted name here silently stops gate-result routing
+# (exactly the field this change touches), so pin it exactly.
+Assert-Contains 'gate-result workflow_run listens for exactly PR Gate' '.github/workflows/pr-automation-gate-result.yml' '(?m)^\s*workflows:\s*\["PR Gate"\]\s*$'
+Assert-Contains 'gate-result template workflow_run listens for exactly PR Gate' 'templates/PR_AUTOMATION_GATE_RESULT.yml' '(?m)^\s*workflows:\s*\["PR Gate"\]\s*$'
 # Ops lane: manual + weekly portfolio bootstrap that fails closed without the
 # dedicated automation identity (it writes live settings and rulesets).
 Assert-Contains 'ops bootstrap is dispatchable and scheduled' '.github/workflows/ops-portfolio-bootstrap.yml' '(?s)workflow_dispatch:.*schedule:'
