@@ -7,14 +7,7 @@ $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 . (Join-Path $PSScriptRoot 'lib/review-policy.ps1')
 . (Join-Path $PSScriptRoot 'lib/standard-lock.ps1')
-
-function Get-Paged {
-  param([string]$Endpoint)
-  $raw = & gh api --paginate --slurp $Endpoint 2>&1
-  if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
-  $pages = ($raw -join "`n") | ConvertFrom-Json
-  foreach ($page in @($pages)) { foreach ($item in @($page)) { $item } }
-}
+. (Join-Path $PSScriptRoot 'lib/gh-api.ps1')
 
 function Add-Problem {
   param($List,[string]$Text)
@@ -24,8 +17,8 @@ function Add-Problem {
 $required = @(
   'README.md','LIFECYCLE.md','AGENT_RULES.md','QUALITY_RULES.md','SECURITY_RISK_AUTONOMY.md','DELIVERY_GITHUB.md','EVIDENCE_LEARNING.md','AGENTS.md','docs/AUTONOMOUS-PR-STATE-MACHINE.md',
   '.github/workflows/ci.yml','.github/workflows/ai-review.yml','.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation.yml','.github/workflows/pr-automation-gate-result.yml','.github/workflows/pr-automation-review-event.yml','.github/workflows/pr-automation-comment-event.yml','.github/workflows/pr-automation-watchdog.yml','.github/workflows/pr-automation-reusable.yml','.github/workflows/ops-portfolio-bootstrap.yml','policy/github-defaults.json',
-  'scripts/setup-portfolio.ps1','scripts/apply-github-standard.ps1','scripts/codex-review.ps1','scripts/request-independent-review.ps1','scripts/request-machine-review.ps1','scripts/evaluate-ai-review.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/auto-merge.ps1','scripts/pr-orchestrator.ps1','scripts/gate-result-router.ps1','scripts/promote-external-draft.ps1','scripts/review-metrics.ps1','scripts/lint-pr-creation.ps1','scripts/bootstrap-repo.ps1','scripts/upgrade-repos.ps1','scripts/prune-portfolio.ps1',
-  'scripts/lib/standard-lock.ps1','scripts/lib/review-policy.ps1','tests/legacy-protection.tests.ps1','tests/standard-lock.tests.ps1','tests/review-policy.tests.ps1','tests/draft-prevention.tests.ps1','tests/unconditional-evaluation.tests.ps1','tests/script-smoke.tests.ps1','tests/gate-result-arming.tests.ps1','tests/automation-entrypoints.tests.ps1','tests/standard-hygiene.tests.ps1',
+  'scripts/setup-portfolio.ps1','scripts/apply-github-standard.ps1','scripts/codex-review.ps1','scripts/request-machine-review.ps1','scripts/evaluate-ai-review.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/auto-merge.ps1','scripts/pr-orchestrator.ps1','scripts/gate-result-router.ps1','scripts/promote-external-draft.ps1','scripts/review-metrics.ps1','scripts/lint-pr-creation.ps1','scripts/bootstrap-repo.ps1','scripts/upgrade-repos.ps1','scripts/prune-portfolio.ps1',
+  'scripts/lib/standard-lock.ps1','scripts/lib/review-policy.ps1','scripts/lib/gh-api.ps1','tests/legacy-protection.tests.ps1','tests/standard-lock.tests.ps1','tests/review-policy.tests.ps1','tests/draft-prevention.tests.ps1','tests/unconditional-evaluation.tests.ps1','tests/script-smoke.tests.ps1','tests/gate-result-arming.tests.ps1','tests/automation-entrypoints.tests.ps1','tests/standard-hygiene.tests.ps1',
   'templates/.gitignore','templates/AGENTS.md','templates/PR_GATE.yml','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/PR_AUTOMATION_GATE_RESULT.yml','templates/PR_AUTOMATION_REVIEW_EVENT.yml','templates/PR_AUTOMATION_COMMENT_EVENT.yml','templates/PR_AUTOMATION_WATCHDOG.yml','templates/dependabot.yml','templates/PRD.md','templates/SPEC.md','templates/ADR.md','templates/ISSUE.md','templates/PULL_REQUEST.md'
 )
 foreach ($relative in $required) {

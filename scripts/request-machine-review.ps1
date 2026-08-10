@@ -7,20 +7,13 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib/review-policy.ps1')
+. (Join-Path $PSScriptRoot 'lib/gh-api.ps1')
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
 $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $reviewPolicy = $config.independent_review
 if ([string]$reviewPolicy.dispatch_mode -eq 'disabled_pending_e2e') {
   Write-Host 'MACHINE REVIEW DISPATCH DISABLED: dispatch_mode=disabled_pending_e2e; no reviewer is requested until the live E2E canary re-enables dispatch.' -ForegroundColor Yellow
   exit 0
-}
-
-function Get-Paged {
-  param([string]$Endpoint)
-  $raw = & gh api --paginate --slurp $Endpoint 2>&1
-  if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
-  $pages = ($raw -join "`n") | ConvertFrom-Json
-  foreach ($page in @($pages)) { foreach ($item in @($page)) { $item } }
 }
 
 $prRaw = & gh api "repos/$Repo/pulls/$Pr" 2>&1

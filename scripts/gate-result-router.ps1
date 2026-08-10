@@ -9,18 +9,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib/review-policy.ps1')
+. (Join-Path $PSScriptRoot 'lib/gh-api.ps1')
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
 $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $automation = $config.pr_automation
 $dispatchDisabled = [string]$config.independent_review.dispatch_mode -eq 'disabled_pending_e2e'
-
-function Get-Paged {
-  param([string]$Endpoint)
-  $raw = & gh api --paginate --slurp $Endpoint 2>&1
-  if ($LASTEXITCODE -ne 0) { throw ($raw -join "`n") }
-  $pages = ($raw -join "`n") | ConvertFrom-Json
-  foreach ($page in @($pages)) { foreach ($item in @($page)) { $item } }
-}
 
 function Get-PrData {
   $raw = & gh pr view $Pr --repo $Repo --json state,isDraft,headRefOid,headRepository,headRepositoryOwner,autoMergeRequest 2>&1
