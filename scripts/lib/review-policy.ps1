@@ -237,6 +237,21 @@ function Get-RiskFromLabels {
   return $risk[0].Substring(5)
 }
 
+function Test-ForkPr {
+  # Shared by every privileged entrypoint (#62): a PR whose head repository is
+  # not the target repository is a fork and must never enter unattended
+  # automation. $PrData is the parsed gh pr JSON; both the `gh pr view --json`
+  # shape (headRepositoryOwner.login/headRepository.name) and the REST `gh api
+  # .../pulls/<n>` shape (head.repo.full_name) are accepted so callers using
+  # either fetch style get the identical, single-source-of-truth check.
+  param($PrData,[Parameter(Mandatory)][string]$Repo)
+  $headRepo = [string]$PrData.head.repo.full_name
+  if ([string]::IsNullOrWhiteSpace($headRepo)) {
+    $headRepo = "$([string]$PrData.headRepositoryOwner.login)/$([string]$PrData.headRepository.name)"
+  }
+  return $headRepo -ne $Repo
+}
+
 function Test-ControlPlanePath {
   param([Parameter(Mandatory)][string]$Path)
   $patterns = @(

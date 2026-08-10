@@ -31,11 +31,13 @@ function Get-Pr {
   return (($raw -join "`n") | ConvertFrom-Json)
 }
 function Deny-ForkPr {
-  # Fail closed before any privileged mutation: fork heads never enter the lane.
+  # Fail closed before any privileged mutation: fork heads never enter the
+  # lane. Test-ForkPr (scripts/lib/review-policy.ps1) is the single-source
+  # comparison also used standalone by auto-merge.ps1 (#62).
   param([int]$Number)
   $prData = Get-Pr $Number
+  if (-not (Test-ForkPr -PrData $prData -Repo $Repo)) { return $false }
   $headRepo = "$([string]$prData.headRepositoryOwner.login)/$([string]$prData.headRepository.name)"
-  if ($headRepo -eq $Repo) { return $false }
   Write-Host "FORK-DENIED: $Repo PR #$Number head repository '$headRepo' is not the target repository; unattended automation refuses cross-repository PRs."
   Set-Blocked $Number 'fork-pr' "Cross-repository (fork) PR from '$headRepo'. Re-home this change into a branch of the managed repository; the unattended lane never runs privileged automation for fork heads." $prData
   return $true
