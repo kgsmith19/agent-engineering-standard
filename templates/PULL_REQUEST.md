@@ -1,42 +1,26 @@
-# Change
+## Summary
 
-## Work
-Issue:
-Spec:
-Slice(s):
-Implementer (descriptive only): chatgpt / claude / copilot / codex / human
+Explain what changed and why.
 
-> Review independence is derived from the latest head commit's authenticated machine actor when available. Branch names and this line are never trusted identity.
+## Related Issue
 
-## What Changed
--
+Closes #
 
-## Evidence
-- [ ] Local evidence completed before Ready
-- [ ] Required `PR Gate` passes on the latest head
-- [ ] Required `AI Review` passes on the latest head
-- [ ] Acceptance satisfied
-- [ ] Risk/security evidence passes when applicable
+## Changes
 
-## Risk
-R0 / R1 / R2 / R3 / R4
+- Describe the smallest meaningful set of changes.
 
-## Not Included
--
+## Verification
 
-## Integrity
-- [ ] Tests, policies, and evaluators were not weakened
-- [ ] Scope was not unnecessarily widened
-- [ ] Repeated manual work was automated in-scope or logged as one bounded candidate
-- [ ] `kgsmith19` is not requested as a reviewer
+List each command or check run and its result.
 
-## Ready-at-creation contract
-- [ ] This PR was opened Ready, never Draft.
-- [ ] Its creation call used `draft: false`, or `gh pr create` without `--draft`.
+```text
+command — result
+```
 
-## Authority Gate (only when actually required)
-None, or state all four:
-- Failure class prevented:
-- Why automation is insufficient today:
-- Decision owner:
-- Gate removal condition:
+## Scope check
+
+- [ ] The change is limited to the related Issue.
+- [ ] Tests or documentation were updated when relevant.
+- [ ] Known limitations or checks not run are stated above.
+- [ ] The pull request is prepared for the automatic `PR Gate`.

@@ -1,3 +1,2 @@
-# Local agent scratch state — never commit
+# Local worktrees
 .worktrees/
-.superpowers/

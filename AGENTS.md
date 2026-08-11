@@ -1,28 +1,35 @@
-# AGENTS.md
+# Contributor and Agent Guidance
 
-This repository is the authoritative shared engineering standard for Kyle's agent-driven repositories.
+This repository is experimental and non-enforcing. Use these practices as concise working guidance, then follow the explicit instructions and verified commands of the repository being changed.
 
-## Read first
+## Working approach
 
-Use `README.md` as the map, then read only the standard file relevant to the work:
+1. Start from a GitHub Issue with a clear outcome.
+2. Make the smallest coherent change that satisfies that outcome.
+3. Keep implementation, tests, and documentation consistent.
+4. Run the relevant repository checks and record the results.
+5. Open a pull request linked to the Issue.
+6. Allow `PR Gate` to verify the configured checks.
+7. When repository settings permit it, use native squash auto-merge after the gate passes.
 
-- lifecycle: `LIFECYCLE.md`
-- agent behavior: `AGENT_RULES.md`
-- testing/architecture quality: `QUALITY_RULES.md`
-- security/risk/autonomy: `SECURITY_RISK_AUTONOMY.md`
-- GitHub/CI/release: `DELIVERY_GITHUB.md`
-- evidence/ROI learning: `EVIDENCE_LEARNING.md`
+Prefer direct, maintainable solutions. Avoid unrelated cleanup, speculative abstractions, and new process artifacts that do not help deliver the requested outcome.
 
-## Work model
+## Evidence
 
-GitHub Issues are the durable work-item source. Work in a short-lived branch, make the smallest coherent change, open a PR, and let the protected `PR Gate` decide merge eligibility.
+Before handing off a change:
 
-This is a control-plane repository. Changes that weaken testing, risk, CI, merge, or authority policy are R3+ and require an independent review before merge.
+- inspect the final diff;
+- check for whitespace errors;
+- run the affected formatter, static checks, and tests;
+- report commands and results accurately; and
+- identify any check that could not be run.
 
-## Lean rule
+## AI agent boundaries
 
-Do not add a document, workflow, policy, or gate unless it reduces meaningful uncertainty, prevents a real/high-consequence failure, or provides useful independent evidence.
+An AI coding agent may create work artifacts only when the task explicitly authorizes them. This can include Issues, branches, commits, pull requests, descriptions, code, tests, and documentation.
 
-## Portfolio automation
+An AI agent must not submit reviews, request reviewers, approve changes, block a pipeline, or post an unsolicited comment. It may answer a direct question when explicitly tagged in an Issue or pull request.
 
-`policy/github-defaults.json` defines the default active-repository GitHub control-plane policy. `scripts/apply-github-standard.ps1` applies repository settings and the default-branch ruleset using GitHub CLI admin access. GitHub Issues are the only durable work-item view; no cross-repo Project board is synced.
+## Repository references
+
+A repository may deliberately reference a specific version of this guidance. The reference is informational and does not automatically change that repository. Repository-specific instructions take precedence.

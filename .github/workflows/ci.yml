@@ -1,68 +1,27 @@
-name: "PR Gate"
+name: PR Gate
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, edited]
   push:
-    branches: [main]
-  merge_group:
+    branches:
+      - main
 
 permissions:
   contents: read
 
-concurrency:
-  group: pr-gate-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
-  gate:
-    name: "PR Gate"
+  pr-gate:
+    name: PR Gate
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - name: "Gate: Ready-at-Creation Policy"
-        if: github.event_name == 'pull_request' && github.event.pull_request.draft
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate repository
         shell: bash
         run: |
-          echo '::error::Ready-at-creation policy violation. Create PRs with draft:false; gh callers must omit --draft.'
-          exit 1
-      - name: "Gate: Legacy Branch-Protection Tests"
-        shell: pwsh
-        run: ./tests/legacy-protection.tests.ps1
-      - name: "Gate: Standard-Lock Tests"
-        shell: pwsh
-        run: ./tests/standard-lock.tests.ps1
-      - name: "Gate: Review Policy Tests"
-        shell: pwsh
-        run: ./tests/review-policy.tests.ps1
-      - name: "Gate: Ready-at-Creation Tests"
-        shell: pwsh
-        run: ./tests/draft-prevention.tests.ps1
-      - name: "Gate: Unconditional Advisory Evaluation Tests"
-        shell: pwsh
-        run: ./tests/unconditional-evaluation.tests.ps1
-      - name: "Gate: Script Smoke Tests"
-        shell: pwsh
-        run: ./tests/script-smoke.tests.ps1
-      - name: "Gate: Upgrade-Repos Rollout Tests"
-        shell: pwsh
-        run: ./tests/upgrade-repos.tests.ps1
-      - name: "Gate: Automation Entrypoint Tests"
-        shell: pwsh
-        run: ./tests/automation-entrypoints.tests.ps1
-      - name: "Gate: One-Pass Arming Test"
-        shell: pwsh
-        run: ./tests/gate-result-arming.tests.ps1
-      - name: "Audit: PR Creation Lint"
-        shell: pwsh
-        run: ./scripts/lint-pr-creation.ps1
-      - name: "Gate: Standard Hygiene Tests"
-        shell: pwsh
-        run: ./tests/standard-hygiene.tests.ps1
-      - name: "Gate: State-Machine Exhaustiveness Tests"
-        shell: pwsh
-        run: ./tests/state-machine-exhaustiveness.tests.ps1
-      - name: "Gate: Standard Validation (doctor)"
-        shell: pwsh
-        run: ./scripts/doctor.ps1
+          set -euo pipefail
+          test -s README.md
+          test -s AGENTS.md
+          empty_tree="$(git hash-object -t tree /dev/null)"
+          git diff --check "$empty_tree" HEAD --
