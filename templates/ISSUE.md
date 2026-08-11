@@ -1,22 +1,19 @@
-# Work Item
-
 ## Outcome
-What useful result should exist?
 
-## Source of Intent
-PRD / bug / incident / security / maintenance:
+Describe the user-visible or operational result this Issue should produce.
 
-## Acceptance
-- [ ] 
+## Context
 
-## Risk
-R0 / R1 / R2 / R3 / R4
+Explain the current behavior, the reason for the change, and any facts needed to understand the work.
 
-## Spec / Slices
-Spec needed: Yes / No
-Properties (if a SPEC exists): PROP-NNN, ...
+## Acceptance criteria
 
-- [ ] SL-001:
+- [ ] State each observable condition required for completion.
 
-## Out of Scope
--
+## Scope
+
+List important constraints and anything intentionally excluded.
+
+## Verification
+
+List the checks or evidence that will demonstrate the outcome.
