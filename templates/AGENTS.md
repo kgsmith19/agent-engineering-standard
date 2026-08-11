@@ -1,101 +1,29 @@
-# AGENTS.md
+# Contributor and Agent Guidance
 
-This repository follows `kgsmith19/agent-engineering-standard`, pinned in `.agent/standard.lock`.
+This file provides experimental, non-enforcing guidance. Follow the repository's explicit instructions and verified project commands.
 
-## Product truth
+## Working approach
 
-Read only the context needed for the assigned work:
+1. Start from a GitHub Issue with a clear outcome.
+2. Implement the smallest coherent change that satisfies the Issue.
+3. Keep code, tests, and documentation consistent.
+4. Run the relevant repository checks and record the results.
+5. Open a pull request linked to the Issue.
+6. Allow `PR Gate` to run.
+7. When repository settings permit it, use native squash auto-merge after the gate passes.
 
-1. `PRD.md`
-2. relevant `specs/`
-3. relevant `docs/adr/`
-4. assigned GitHub Issue
+Prefer direct, maintainable solutions. Avoid unrelated cleanup and speculative abstractions.
 
-Do not invent consequential product decisions. Record a real blocker and stop that slice when source truth is missing or contradictory.
+## Evidence
 
-## Lean delivery loop
+Inspect the final diff, check for whitespace errors, run affected formatters and tests, and report the exact commands and results. State clearly when a relevant check could not be run.
 
-`Issue → SPEC only if needed → thin slice → RED/minimum GREEN → local verification → Ready PR → PR Gate → exact-head AI Review → automatic squash merge → release`
+## AI agent boundaries
 
-- Work one thin slice at a time; scope widening becomes another slice or Issue.
-- Prefer the smallest correct implementation. Avoid speculative abstractions, dependencies, and unrelated refactors.
-- Write or adjust behavioral proof before implementation when practical.
-- RED must fail for missing behavior, not setup noise.
-- Never weaken tests, evaluators, required checks, security boundaries, or thresholds to obtain GREEN.
-- Update affected product/engineering truth in the same PR.
+An AI coding agent may create Issues, branches, commits, pull requests, descriptions, code, tests, and documentation only when explicitly tasked.
 
-## Isolation and parallelism
+An AI agent must not submit reviews, request reviewers, approve changes, block a pipeline, or post an unsolicited comment. It may answer a direct question when explicitly tagged in an Issue or pull request.
 
-- Every writer uses its own branch/worktree; concurrent writers never share a directory.
-- Read-only research/review may fan out.
-- Parallel writers require disjoint file scopes and separate worktrees. Default maximum: 3.
-- One coordinator integrates and runs final verification.
+## External guidance
 
-## Risk and authority
-
-Use R0–R4. The implementing agent may raise risk, never lower it.
-
-- Control-plane changes are at least R3.
-- R4 never auto-merges.
-- Any manual authority gate must state the failure prevented, why automation is insufficient, decision owner, and measurable removal condition.
-- Kyle may be tagged for authority, but must never be assigned as a routine GitHub reviewer.
-
-## PR creation contract
-
-Complete and verify the coherent slice locally before opening its PR. Every PR is Ready at creation.
-
-- REST, SDK, GraphQL, and connector calls set `draft: false` and verify the returned state.
-- `gh pr create` omits `--draft`, then `gh pr view --json isDraft --jq .isDraft` must return `false`.
-- Never convert a Ready PR to draft and never use `gh pr ready` as a pipeline transition.
-- A draft is a policy failure: automation blocks it and never attempts auto-merge.
-
-Copilot cloud agent may repair an existing non-Copilot PR. Do not let Copilot cloud agent own/create a PR intended for unattended merge because GitHub requires those PRs to be human-reviewed and merged.
-
-## PR Gate and repair
-
-`PR Gate` is the cheapest sufficient repo-specific objective evidence.
-
-On failure:
-
-1. classify root cause
-2. read complete logs
-3. fix the cause, not the symptom
-4. never weaken the judge
-5. retry through the normal PR flow
-6. stop at the bounded repair budget and apply `status:blocked`
-
-Do not push empty commits merely to retrigger CI.
-
-## Machine AI Review
-
-After `PR Gate` passes, automation requests one fresh machine review task/session for the exact head SHA — unless `independent_review.dispatch_mode` is `disabled_pending_e2e`, in which case no reviewer is dispatched, the `AI Review` check completes `neutral` (passing), and P2-only findings become an advisory Issue.
-
-- Codex is primary for ordinary PRs.
-- Copilot is the bounded fallback and the required reviewer for a PR authored by the Codex GitHub App.
-- Branch names and PR prose do not prove implementation identity.
-- One review covers correctness/security, requirement fit, business ROI, systems optimization, and strict leanness.
-- Blocking requires a structured threat verdict — `BLOCK: <CLASS> <file:line> — <exploit precondition>` with CLASS T1-INFRA-DELETION / T2-BACKDOOR / T3-HARDCODED-SECRET / T4-CRITICAL-VULN; P0–P2 prose findings are advisory and become one deduplicated follow-up Issue.
-- A fix creates a new SHA; both gates repeat.
-- Never reviewer-shop around a material finding.
-
-## Merge
-
-Routine auto-merge requires:
-
-- Ready-at-creation, non-Copilot-owned PR
-- eligible R0–R3 risk
-- no `status:blocked`
-- no self-modifying control-plane path
-- no requested reviewer `kgsmith19`
-- current-head `PR Gate` success
-- current-head `AI Review` passing conclusion (`success`, or `neutral` while dispatch is disabled)
-- resolved review threads
-- live squash-only zero-human ruleset
-
-GitHub performs the squash merge and deletes the branch.
-
-## Hygiene
-
-- `.worktrees/` and `.superpowers/` remain ignored.
-- Never destroy dirty work or branches with unique commits.
-- Automate recurring manual toil when safe; otherwise record one bounded research candidate with evidence and a next experiment.
+A reference to shared guidance is informational. Adoption is deliberate and does not automatically change this repository. Repository-specific instructions take precedence.
