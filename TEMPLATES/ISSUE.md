@@ -1,3 +1,7 @@
+## Classification
+
+`FEAT:` a new capability or behavior change. `BUG:` existing behavior is wrong. Prefix the Issue title with one.
+
 ## Outcome
 
 Describe the user-visible or operational result this Issue should produce.
