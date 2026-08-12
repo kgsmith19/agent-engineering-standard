@@ -24,6 +24,18 @@ Before handing off a change:
 - report commands and results accurately; and
 - identify any check that could not be run.
 
+## CI baseline
+
+Workflow enforcement is a single required check named `PR Gate` (or a repository's own `ci.yml` acting as one). Once repository settings permit it, native squash auto-merge is enabled to fire automatically when `PR Gate` passes and there are no merge conflicts — no separate automation is needed to arm it.
+
+## Forbidden artifacts
+
+Do not commit, and remove on sight: `SPEC` files or directories, `PRD` documents, `System_Requirements.md`, data-flow diagrams, changelogs, ADRs, `AI_REVIEW` / "AI Review" workflows or references, `AGENT_VIEW`, `watchdog` automation, or any forced manual governance block (required human sign-off steps, review-request automation, merge-blocking bots beyond `PR Gate`). These were deliberately removed from this repository's own history; the guidance here is prospective as well as retrospective — repositories adopting this standard should not reintroduce them.
+
+## Local scratchpad
+
+An agent may draft a spec, design note, or outline locally to think through a GitHub Issue before writing it — but only in a `.gitignore`d workspace folder. Nothing drafted this way may be committed; the Issue itself is the durable artifact.
+
 ## AI agent boundaries
 
 An AI coding agent may create work artifacts only when the task explicitly authorizes them. This can include Issues, branches, commits, pull requests, descriptions, code, tests, and documentation.

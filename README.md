@@ -26,6 +26,10 @@ A pull request should make the change, its rationale, and its verification easy 
 - Preserve unrelated work and document any known limitation.
 - Treat a passing gate as evidence that configured checks ran, not as a substitute for engineering judgment.
 
+## Templates
+
+`TEMPLATES/` holds reference material — root docs, a pull request template, an issue template, a test ledger, and a `project.yaml` metadata schema — for a repository to copy and adapt. See `TEMPLATES/README.md`. Copying these files does not create an ongoing dependency; a repository's own `standard.lock` records, informationally, which version of this standard it was drawn from.
+
 ## Use by other repositories
 
 Other repositories may reference a specific version of this repository. Adoption is deliberate and repository-specific; no content here updates another repository automatically. A reference communicates which guidance was considered, but does not impose behavior or replace the repository's own instructions.
