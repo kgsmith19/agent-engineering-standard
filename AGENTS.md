@@ -17,7 +17,7 @@ Use `README.md` as the map, then read only the standard file relevant to the wor
 
 GitHub Issues are the durable work-item source. Work in a short-lived branch, make the smallest coherent change, open a PR, and let the protected `PR Gate` decide merge eligibility.
 
-This is a control-plane repository. Changes that weaken testing, risk, CI, merge, or authority policy are R3+ and require an independent review before merge.
+This is a control-plane repository. Changes that weaken testing, risk, CI, merge, or authority policy are R3+ and require the owner's manual control-plane authority sign-off before merge — never an automated reviewer, and never self-approved by the PR that makes the change.
 
 ## Lean rule
 

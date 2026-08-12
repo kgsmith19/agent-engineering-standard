@@ -12,7 +12,7 @@ $ErrorActionPreference = 'Stop'
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
 $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $automation = $config.pr_automation
-$dispatchDisabled = [string]$config.independent_review.dispatch_mode -eq 'disabled_pending_e2e'
+$dispatchDisabled = -not [bool]$automation.repair_dispatch_enabled
 
 function Get-Paged {
   param([string]$Endpoint)

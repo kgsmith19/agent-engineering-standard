@@ -1,6 +1,6 @@
 # ADR 0002: Deterministic merge authority — machine review demoted to advisory
 
-Status: proposed (2026-08-09). Amends ADR 0001, which remains the record for how a machine reviewer is routed *when one is used*.
+Status: superseded by ADR 0004 (2026-08-11) for the AI-review-demotion decision — AI code review was removed from the blocking path entirely, not merely demoted. This ADR's manual control-plane/R4 authority-gate decision remains in force, unaffected by ADR 0004.
 
 ## Decision
 

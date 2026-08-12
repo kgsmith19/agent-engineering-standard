@@ -61,16 +61,11 @@ Current justified defaults:
 
 The implementing agent must not modify the evaluator, risk policy, required checks, deployment authority, or other controls governing its current run and then use those modified controls to approve itself.
 
-Changes to those controls use a separate authorized path and fresh cross-provider review.
+Changes to those controls use a separate authorized path: the manual control-plane authority gate (owner sign-off), not an automated reviewer.
 
 ## 6. Independent review
 
-Use the cheapest independent reviewer that satisfies the risk after deterministic checks have run.
-
-- Prefer subscription-backed Codex review; local Codex defaults to a small capable model.
-- Copilot is a bounded fallback, not a review-on-every-push tax.
-- The reviewer provider must differ from the implementation provider to count as independent.
-- Re-review only after a substantive fix that changes the evidence, not for unchanged failures.
+Automated inline AI code review was removed from the blocking merge path entirely (ADR 0004) — the deterministic `PR Gate` is the sole required merge authority. `scripts/codex-review.ps1` remains available as an optional, local, manual second opinion when a human wants one; it is never a required or automated check.
 
 ## 7. Security baseline
 

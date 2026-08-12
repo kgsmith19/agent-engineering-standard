@@ -9,17 +9,12 @@ function Assert-True {
   if (-not $Condition) { throw "$Name failed." }
 }
 
-# End-to-end smoke: auto-merge.ps1 and request-machine-review.ps1 must run their
-# full happy path against a fake gh. A typed-numeric-param collision ($pr under
-# [int]$Pr) crashes both before any logic runs, which no structural test catches.
+# End-to-end smoke: auto-merge.ps1 must run its full happy path against a fake
+# gh. A typed-numeric-param collision ($pr under [int]$Pr) crashes it before
+# any logic runs, which no structural test catches.
 try {
   New-Item -ItemType Directory -Path $temp | Out-Null
   $log = Join-Path $temp 'gh.log'
-
-  $config = Get-Content (Join-Path $root 'policy/github-defaults.json') -Raw | ConvertFrom-Json
-  $config.independent_review.dispatch_mode = 'enabled'
-  $configPath = Join-Path $temp 'policy.json'
-  $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding utf8
 
   $fakeGh = Join-Path $temp 'gh'
   @'
@@ -37,7 +32,6 @@ case "$*" in
   *"pulls/22/comments"*) printf '%s\n' '[[]]' ;;
   *"issues/22/comments"*) printf '%s\n' '[[]]' ;;
   *"check-runs?check_name=PR%20Gate"*) printf '%s\n' '{"check_runs":[{"id":31,"name":"PR Gate","app":{"slug":"github-actions"},"conclusion":"success","output":{"summary":"deterministic"}}]}' ;;
-  *"check-runs?check_name="*) printf '%s\n' '{"check_runs":[{"id":32,"name":"Advisory: AI Review","app":{"slug":"github-actions"},"conclusion":"neutral","output":{"summary":"dispatch-evidence repo=kgsmith19/example pr=22 head='"$HEAD"' base=e policy_version=1"}}]}' ;;
   "api /apps/github-actions") printf '%s\n' '{"id":15368}' ;;
   *"repos/kgsmith19/example/rulesets?per_page=100") printf '%s\n' '[[{"id":77,"name":"Lean PR Gate","target":"branch","enforcement":"active"}]]' ;;
   *"rules/branches/main?per_page=100") printf '%s\n' '[[{"ruleset_id":77,"type":"pull_request"}]]' ;;
@@ -59,12 +53,6 @@ esac
   Assert-True "auto-merge smoke run exits clean (output: $armOutput)" ($LASTEXITCODE -eq 0)
   $calls = Get-Content $log -Raw
   Assert-True 'auto-merge armed the squash merge' ($calls -match '(?m)^pr merge 22 --repo kgsmith19/example --auto --squash')
-
-  Set-Content $log '' -NoNewline
-  $reviewOutput = & pwsh -NoProfile -File (Join-Path $root 'scripts/request-machine-review.ps1') -Repo 'kgsmith19/example' -Pr 22 -Provider auto -ConfigPath $configPath 2>&1 | Out-String
-  Assert-True "review request smoke run exits clean (output: $reviewOutput)" ($LASTEXITCODE -eq 0)
-  $calls = Get-Content $log -Raw
-  Assert-True 'review requester posted the reviewer comment' ($calls -match '(?m)^pr comment 22 --repo kgsmith19/example')
 }
 finally {
   $env:PATH = $oldPath

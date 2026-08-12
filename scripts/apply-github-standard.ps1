@@ -79,9 +79,6 @@ foreach ($name in $targets) {
   }
 
   $requiredChecks = @(@{ context=$config.required_status_context; integration_id=$actionsAppId })
-  if ([bool]$config.independent_review.required_for_auto_merge) {
-    $requiredChecks += @{ context=$config.required_ai_review_context; integration_id=$actionsAppId }
-  }
   $rules = @(
     @{ type='deletion' },
     @{ type='non_fast_forward' },

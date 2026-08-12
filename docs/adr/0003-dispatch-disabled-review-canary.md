@@ -1,6 +1,6 @@
 # ADR 0003: Dispatch-disabled AI Review canary
 
-Status: accepted (2026-08-09). Narrows ADR 0002's advisory review lane; superseded once the live no-dispatch canary proves the mechanism and `independent_review.dispatch_mode` moves off `disabled_pending_e2e`.
+Status: superseded by ADR 0004 (2026-08-11) — the canary never proved out; AI code review was removed from the blocking path entirely instead of graduating the canary. Kept as historical record.
 
 ## Decision
 

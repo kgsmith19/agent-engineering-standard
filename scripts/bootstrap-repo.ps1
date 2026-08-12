@@ -36,7 +36,6 @@ elseif (-not (Test-Path $target)) {
 }
 
 New-Item -ItemType Directory -Force (Join-Path $target '.agent') | Out-Null
-New-Item -ItemType Directory -Force (Join-Path $target 'specs') | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $target 'docs/adr') | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $target '.github/ISSUE_TEMPLATE') | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $target '.github/workflows') | Out-Null
@@ -47,17 +46,12 @@ if (-not (Test-Path $gitignorePath)) {
 }
 else {
   $gitignoreText = Get-Content $gitignorePath -Raw
-  foreach ($entry in @('.worktrees/','.superpowers/')) {
+  foreach ($entry in @('.worktrees/','.superpowers/','.specs/')) {
     if ($gitignoreText -notmatch "(?m)^$([regex]::Escape($entry))\s*$") {
       Add-Content $gitignorePath $entry -Encoding utf8
       $gitignoreText += "`n$entry"
     }
   }
-}
-
-$dependabotPath = Join-Path $target '.github/dependabot.yml'
-if (-not (Test-Path $dependabotPath)) {
-  Copy-Item (Join-Path $standardRoot 'templates/dependabot.yml') $dependabotPath -Force
 }
 
 Copy-Item (Join-Path $standardRoot 'templates/AGENTS.md') (Join-Path $target 'AGENTS.md') -Force
@@ -66,15 +60,11 @@ Copy-Item (Join-Path $standardRoot 'templates/ISSUE.md') (Join-Path $target '.gi
 Copy-Item (Join-Path $standardRoot 'templates/PULL_REQUEST.md') (Join-Path $target '.github/PULL_REQUEST_TEMPLATE.md') -Force
 Copy-Item (Join-Path $standardRoot 'templates/PR_GATE.yml') (Join-Path $target '.github/workflows/pr-gate.yml') -Force
 
-$aiReview = (Get-Content (Join-Path $standardRoot 'templates/AI_REVIEW.yml') -Raw).Replace('__STANDARD_SHA__',$standardSha)
-Set-Content (Join-Path $target '.github/workflows/ai-review.yml') $aiReview -Encoding utf8 -NoNewline
 # Per-event PR Automation callers: one workflow per trigger so no PR shows
 # permanently-skipped sibling jobs in its check panel.
 foreach ($caller in @(
   @('templates/PR_AUTOMATION.yml','.github/workflows/pr-automation.yml'),
   @('templates/PR_AUTOMATION_GATE_RESULT.yml','.github/workflows/pr-automation-gate-result.yml'),
-  @('templates/PR_AUTOMATION_REVIEW_EVENT.yml','.github/workflows/pr-automation-review-event.yml'),
-  @('templates/PR_AUTOMATION_COMMENT_EVENT.yml','.github/workflows/pr-automation-comment-event.yml'),
   @('templates/PR_AUTOMATION_WATCHDOG.yml','.github/workflows/pr-automation-watchdog.yml')
 )) {
   $prAutomation = (Get-Content (Join-Path $standardRoot $caller[0]) -Raw).Replace('__STANDARD_SHA__',$standardSha)
@@ -121,7 +111,7 @@ ci:
 
 Push-Location $target
 try {
-  & git add -A -- .gitignore AGENTS.md CLAUDE.md PRD.md specs docs/adr .agent .github
+  & git add -A -- .gitignore AGENTS.md CLAUDE.md PRD.md docs/adr .agent .github
   & git commit -m 'chore: bootstrap lean autonomous engineering standard'
   if ($LASTEXITCODE -ne 0) { throw 'Initial bootstrap commit failed.' }
   & git push origin HEAD
@@ -148,8 +138,7 @@ Replace the bootstrap-only PR Gate with the smallest objective gate appropriate 
 ## Acceptance
 - Detect and record verified build/test/type/lint/E2E commands in `.agent/project.yaml`.
 - Replace `.github/workflows/pr-gate.yml` so workflow name and required job context remain exactly `PR Gate`.
-- Preserve exact-SHA-pinned `.github/workflows/ai-review.yml` and the five per-event `.github/workflows/pr-automation*.yml` callers.
-- Extend `.github/dependabot.yml` only with package ecosystems this repo actually uses; group patch/minor updates when it reduces CI/review noise.
+- Preserve exact-SHA-pinned `.github/workflows/pr-automation*.yml` callers.
 - Keep native `.github/CODEOWNERS` absent so Kyle is never auto-requested as a routine reviewer.
 - Finish the coherent slice locally, then create the PR Ready. REST/SDK/connector callers set `draft:false`; CLI callers use the Ready default.
 - Add only tests/tools justified by actual product risk; do not invent a framework for conformity.

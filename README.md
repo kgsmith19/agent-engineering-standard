@@ -37,11 +37,9 @@ Every artifact, gate, model call, and CI run must reduce meaningful uncertainty,
 - [Evidence and Learning](EVIDENCE_LEARNING.md)
 - [Autonomous PR state machine](docs/AUTONOMOUS-PR-STATE-MACHINE.md)
 
-## Machine review (advisory, evaluated not obeyed)
+## Merge authority
 
-The deterministic gate is the only merge authority. Every gated head also gets an exact-head `Advisory: AI Review` conclusion; arming auto-merge requires that evaluation to exist with current policy-version evidence, and refuses only a `failure` carrying a structured threat verdict — `BLOCK: <CLASS> <file:line> — <exploit precondition>` with CLASS `T1-INFRA-DELETION` / `T2-BACKDOOR` / `T3-HARDCODED-SECRET` / `T4-CRITICAL-VULN`. All P0–P2 prose findings are advisory and collect in one follow-up Issue per PR (ADR 0003).
-
-Codex is currently the sole connected reviewer. Copilot's repository access is revoked; Copilot lanes in the scripts are retained but historical, pending an explicit reconnection decision.
+The deterministic `PR Gate` is the only merge authority (ADR 0004). Inline AI code review was removed from the blocking merge path entirely — `scripts/codex-review.ps1` remains available as an optional local manual second opinion, never a CI check.
 
 ## Existing portfolio setup
 
@@ -54,15 +52,13 @@ pwsh -NoProfile -File .\scripts\setup-portfolio.ps1
 
 `setup-portfolio.ps1` applies settings, Actions defaults, labels, and the one canonical ruleset, then runs `doctor.ps1 -Remote`. Do not claim readiness until it reports `REMOTE: READY`. The same lane runs CI-natively via the `Ops: Portfolio Bootstrap` workflow (manual dispatch + weekly), which fails closed until `AUTOMATION_TOKEN` is provisioned.
 
-The Copilot workflow-approval note that used to live here is moot while Copilot's repository access is revoked; it returns to scope only with an explicit reconnection.
-
 ## New repository
 
 ```powershell
 pwsh -NoProfile -File .\scripts\bootstrap-repo.ps1 -Name my-app
 ```
 
-Bootstrap creates the lean repository contract, the exact-SHA-pinned `Advisory: AI Review` and five per-event `Orchestrator:` callers, a bootstrap `Gate: Deterministic CI` (with the transitional `PR Gate` bridge job), settings/ruleset, and one Issue to replace the bootstrap gate with the repository's real stack-specific checks.
+Bootstrap creates the lean repository contract, the exact-SHA-pinned `Orchestrator:` callers, a bootstrap `Gate: Deterministic CI` (with the transitional `PR Gate` bridge job), settings/ruleset, and one Issue to replace the bootstrap gate with the repository's real stack-specific checks.
 
 ## Core commands
 
@@ -72,9 +68,6 @@ pwsh -NoProfile -File .\scripts\doctor.ps1
 
 # Verify all managed repositories and live settings.
 pwsh -NoProfile -File .\scripts\doctor.ps1 -Remote
-
-# Request one exact-head machine review manually when debugging (codex only while Copilot access is revoked).
-pwsh -NoProfile -File .\scripts\request-machine-review.ps1 -Repo kgsmith19/my-app -Pr 12
 
 # Validate policy and arm GitHub auto-merge.
 pwsh -NoProfile -File .\scripts\auto-merge.ps1 -Repo kgsmith19/my-app -Pr 12 -Risk R2
@@ -90,7 +83,7 @@ Managed repositories use:
 - GitHub Issues as durable work items
 - Ready PRs at creation; API/SDK/connector calls set `draft: false`, and `gh pr create` omits `--draft`
 - fail-closed workflow enforcement if a PR is ever opened or converted to draft
-- deterministic gate `Gate: Deterministic CI` as the sole merge authority; the ruleset-required context is migrating from `PR Gate` via a fail-closed bridge job ([runbook](docs/notes/2026-08-09-context-rename-runbook.md)), and machine review stays advisory-only per ADR 0002
+- deterministic gate `Gate: Deterministic CI` as the sole merge authority; the ruleset-required context is migrating from `PR Gate` via a fail-closed bridge job ([runbook](docs/notes/2026-08-09-context-rename-runbook.md))
 - zero required human approvals
 - no native `CODEOWNERS`
 - `kgsmith19` forbidden from requested-reviewer state
@@ -98,11 +91,11 @@ Managed repositories use:
 - squash-only auto-merge
 - automatic branch deletion
 - no ruleset bypass actors
-- one low-frequency watchdog plus event-driven recovery
+- one low-frequency watchdog as the general missed-webhook/CI-gate convergence net
 
-Copilot cloud agent could repair an existing non-Copilot PR when connected; with its repository access revoked, those repair lanes are dormant. Copilot-owned PRs remain blocked from the unattended lane because GitHub requires them to be reviewed and merged by a human.
+Copilot-owned PRs remain blocked from the unattended lane because GitHub requires them to be reviewed and merged by a human; Copilot may still repair an existing non-Copilot PR's CI failures or merge conflicts when repair dispatch is enabled (`pr_automation.repair_dispatch_enabled`, off by default).
 
-R0–R2 may auto-merge after a current-head gate success with an existing advisory evaluation. R3 waits for the review lane or a human; R4 and self-modifying control-plane changes retain explicitly justified authority gates — Kyle is tagged, never assigned as reviewer.
+R0–R2 may auto-merge after a current-head gate success. R4 and self-modifying control-plane changes retain explicitly justified authority gates — Kyle is tagged, never assigned as reviewer.
 
 ## Shared versus repository-specific truth
 

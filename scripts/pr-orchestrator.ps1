@@ -1,5 +1,5 @@
 param(
-  [Parameter(Mandatory)][ValidateSet('pr-event','gate-result','review-event','comment-event','watchdog')][string]$Mode,
+  [Parameter(Mandatory)][ValidateSet('pr-event','gate-result','watchdog')][string]$Mode,
   [Parameter(Mandatory)][string]$Repo,
   [int]$Pr = 0,
   [string]$GateConclusion = '',
@@ -13,14 +13,11 @@ $ErrorActionPreference = 'Stop'
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is required.' }
 $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $automation = $config.pr_automation
-$reviewPolicy = $config.independent_review
-# Deterministic-only merge authority: PR Gate alone is the required context. The
-# advisory evaluator runs unconditionally on every gated head — in every
-# dispatch_mode and solicit_reviews combination; solicit_reviews gates only
-# whether a reviewer is solicited, never whether evaluation happens.
-$reviewRequired = [bool]$reviewPolicy.required_for_auto_merge
-$reviewSolicit = $reviewRequired -or [bool]$reviewPolicy.solicit_reviews
-$dispatchDisabled = [string]$reviewPolicy.dispatch_mode -eq 'disabled_pending_e2e'
+# Deterministic-only merge authority: PR Gate alone is the required context.
+# repair_dispatch_enabled gates whether bounded CI/conflict repair actually
+# @-tags an agent (vs. naming the owner without tagging) — unrelated to and
+# unaffected by the removal of AI Review dispatch.
+$dispatchDisabled = -not [bool]$automation.repair_dispatch_enabled
 $ownerTag = "@$($config.owner)"
 
 function Invoke-GhJson {
@@ -94,15 +91,10 @@ function Get-BlockAdvice {
     'risk-labels'='leave exactly one risk:R0..R4 label on the PR; the block resolves on the next event.'
     'ci-budget'='fix the failing gate manually (the bounded repair budget is spent) and push; the block clears on the next gate success.'
     'conflict-budget'='resolve the merge conflict manually and push; the block clears when the head stops conflicting.'
-    'review-budget'='address the review findings manually and push a new head; the reviewed-head budget is spent.'
-    'ci-dispatch-disabled'='fix CI manually, or wait for dispatch to be enabled — the bounded repair lane then resumes and clears this block.'
-    'conflict-dispatch-disabled'='resolve the conflict manually, or wait for dispatch to be enabled — the repair lane then resumes and clears this block.'
-    'review-dispatch-disabled'='wait for dispatch to be enabled; the bounded review-repair lane resumes automatically.'
+    'ci-dispatch-disabled'='fix CI manually, or wait for repair dispatch to be enabled — the bounded repair lane then resumes and clears this block.'
+    'conflict-dispatch-disabled'='resolve the conflict manually, or wait for repair dispatch to be enabled — the repair lane then resumes and clears this block.'
     'auto-merge-settings'='reconcile live settings and ruleset — run the "Ops: Portfolio Bootstrap" workflow once AUTOMATION_TOKEN is provisioned, or scripts/setup-portfolio.ps1 locally — then any PR event re-arms.'
     'automation-identity-missing'='provision the AUTOMATION_TOKEN / GH_TOKEN_ADMIN secret (owner authority); promotion retries on the next event.'
-    'review-request'='check reviewer connectivity and budgets, then re-trigger with a review event or wait for the watchdog.'
-    'review-fallback'='no independent fallback reviewer exists for this head; wait for the primary reviewer or adjust provider connectivity.'
-    'review-timeout'='the reviewer exceeded the absolute timeout; a later valid review event still recovers this PR automatically.'
     'missing-pr-gate'='make the deterministic gate workflow trigger for this PR (check workflow name and trigger types), then push or re-run it.'
     'workflow-approval'='disable the Copilot cloud-agent workflow-approval setting for this repository (one-time UI step), then re-run the gate.'
     'gate-skipped'='fix the gate workflow trigger or job condition so a Ready PR always runs it, then push.'
@@ -116,7 +108,7 @@ function Set-Blocked {
   Disable-AutoMerge $Number $PrData
   & gh pr edit $Number --repo $Repo --add-label $automation.blocked_label 2>&1 | Out-Null
   $head = [string]$PrData.headRefOid
-  # While dispatch is disabled no comment @-mentions a human; the owner is named.
+  # While repair dispatch is disabled no comment @-mentions a human; the owner is named.
   $ownerReference = if ($dispatchDisabled) { "the owner ($($config.owner))" } else { $ownerTag }
   $body = "Automation put this PR on hold ($Code): $Reason`n`nNext step: $(Get-BlockAdvice $Code)`n`nDecision contact: $ownerReference — named for the decision, never assigned as a reviewer."
   Add-CommentOnce $Number "<!-- automation:v1:block:${Code}:${head} -->" $body "<!-- automation:(?:v\d+:)?block:${Code}:${head} -->"
@@ -143,9 +135,9 @@ function Remove-ForbiddenReviewers {
 function Tag-Authority {
   param([int]$Number,[ValidateSet('control_plane','R4')][string]$Kind)
   $gate = $config.manual_gates.PSObject.Properties[$Kind].Value
-  # While dispatch is disabled no comment @-mentions a human; the owner is named.
+  # While repair dispatch is disabled no comment @-mentions a human; the owner is named.
   $header = if ($dispatchDisabled) { "Authority needed from the owner ($($config.owner)) — $Kind" } else { "$ownerTag — authority needed: $Kind" }
-  $trailer = if ($dispatchDisabled) { 'Next step: review the evidence above and decide. All machine checks still run; the owner is named without an @-mention while dispatch is disabled and never assigned as a GitHub reviewer.' } else { 'Next step: review the evidence above and decide. All machine checks still run; you are tagged, never assigned as a GitHub reviewer.' }
+  $trailer = if ($dispatchDisabled) { 'Next step: review the evidence above and decide. All machine checks still run; the owner is named without an @-mention while repair dispatch is disabled and never assigned as a GitHub reviewer.' } else { 'Next step: review the evidence above and decide. All machine checks still run; you are tagged, never assigned as a GitHub reviewer.' }
   $body = @"
 $header
 
@@ -173,15 +165,15 @@ function Test-ControlPlane {
 function Get-Risk { param($PrData) return Get-RiskFromLabels @($PrData.labels | ForEach-Object { $_.name }) }
 
 function Request-Repair {
-  param([ValidateSet('ci','review','conflict')][string]$Kind,[int]$Number,$PrData,[long]$RunId = 0)
+  param([ValidateSet('ci','conflict')][string]$Kind,[int]$Number,$PrData,[long]$RunId = 0)
   if ($dispatchDisabled) {
-    # No outbound agent tag (@copilot/@dependabot) leaves the repo while dispatch
-    # is disabled; the block is machine-readable and recovers when dispatch enables.
-    Set-Blocked $Number "$Kind-dispatch-disabled" "Agent dispatch is disabled_pending_e2e, so the bounded $Kind repair lane posts no agent request. This block clears automatically once dispatch is enabled and the lane resumes." $PrData
+    # No outbound agent tag (@copilot) leaves the repo while repair dispatch is
+    # disabled; the block is machine-readable and recovers when dispatch enables.
+    Set-Blocked $Number "$Kind-dispatch-disabled" "Repair dispatch is disabled (pr_automation.repair_dispatch_enabled=false), so the bounded $Kind repair lane posts no agent request. This block clears automatically once dispatch is enabled and the lane resumes." $PrData
     return
   }
-  Resolve-Block $Number "$Kind-dispatch-disabled" "Agent dispatch is enabled; the bounded $Kind repair lane resumed." $PrData
-  $limits = @{ ci=[int]$automation.max_ci_fix_attempts; review=[int]$automation.max_review_fix_attempts; conflict=[int]$automation.max_conflict_fix_attempts }
+  Resolve-Block $Number "$Kind-dispatch-disabled" "Repair dispatch is enabled; the bounded $Kind repair lane resumed." $PrData
+  $limits = @{ ci=[int]$automation.max_ci_fix_attempts; conflict=[int]$automation.max_conflict_fix_attempts }
   $comments = @(Get-Comments $Number)
   $attempts = @($comments | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match "<!-- auto-fix:(?:v\d+:)?${Kind}:" }).Count
   if ($attempts -ge $limits[$Kind]) { Set-Blocked $Number "$Kind-budget" "$Kind repair budget exhausted ($($limits[$Kind]) )." $PrData; return }
@@ -191,37 +183,12 @@ function Request-Repair {
   if ($Kind -eq 'conflict' -and [string]$PrData.author.login -eq 'dependabot[bot]') { Add-CommentOnce $Number $marker '@dependabot rebase' $markerPattern; return }
   $scope = switch ($Kind) {
     'ci' { if ($RunId) { "GitHub Actions run $RunId" } else { 'the current failing PR Gate' } }
-    'review' { "material current-head AI review findings for $head" }
     'conflict' { 'the merge conflict against current main' }
   }
   $body = "@copilot investigate and fix $scope on PR #$Number. Read the complete evidence before editing. Follow AGENTS.md and the linked Issue/SPEC. For nontrivial or cross-cutting work, create a thin Superpowers-style plan/spec first. Make the smallest root-cause fix, never weaken tests/policies/evaluators, verify, and update this existing PR. Attempt $($attempts + 1)/$($limits[$Kind])."
   Add-CommentOnce $Number $marker $body $markerPattern
 }
 
-function Get-ReviewFailures {
-  param([int]$Number,$PrData)
-  $head = [string]$PrData.headRefOid
-  $failures = New-Object System.Collections.Generic.List[string]
-  foreach ($review in @(Get-Paged "repos/$Repo/pulls/$Number/reviews?per_page=100")) {
-    $provider = Get-MachineReviewProvider ([string]$review.user.login)
-    if (-not $provider -or $review.commit_id -ne $head -or $review.state -in @('DISMISSED','PENDING')) { continue }
-    if (Test-BlockingAiReviewEvidence -Body ([string]$review.body) -ReviewState ([string]$review.state)) { $failures.Add($provider) }
-  }
-  foreach ($inline in @(Get-Paged "repos/$Repo/pulls/$Number/comments?per_page=100")) {
-    $provider = Get-MachineReviewProvider ([string]$inline.user.login)
-    if (-not $provider -or [string]$inline.commit_id -ne $head) { continue }
-    if (Test-BlockingAiReviewBody ([string]$inline.body)) { $failures.Add($provider) }
-  }
-  $comments = @(Get-Comments $Number)
-  $structured = Get-TrustedStructuredCopilotReview -Comments $comments -HeadSha $head -OwnerLogin ([string]$config.owner)
-  if ($structured -and (Test-BlockingAiReviewBody ([string]$structured.body))) { $failures.Add('copilot') }
-  return @($failures | Select-Object -Unique)
-}
-function Invoke-AiReview {
-  param([int]$Number)
-  & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'evaluate-ai-review.ps1') -Repo $Repo -Pr $Number -ConfigPath $ConfigPath
-  if ($LASTEXITCODE -ne 0) { throw "AI Review evaluator failed for $Repo PR #$Number." }
-}
 function Get-CheckRun {
   param([string]$Head,[string]$Name)
   $encoded = [uri]::EscapeDataString($Name)
@@ -233,18 +200,6 @@ function Get-CheckRun {
   return $latest[0]
 }
 function Get-CheckConclusion { param([string]$Head,[string]$Name) $run=Get-CheckRun $Head $Name; if(-not$run){return $null}; return [string]$run.conclusion }
-function Test-HeadDispatchEvidence {
-  param([string]$Head)
-  $run=Get-CheckRun $Head 'Advisory: AI Review'
-  if(-not $run){return $false}
-  return Test-CurrentDispatchEvidence -Summary ([string]$run.output.summary) -PolicyVersion ([int]$reviewPolicy.dispatch_policy_version)
-}
-function Get-FirstReviewRequestTime {
-  param([int]$Number,[string]$Head)
-  $requests = @(Get-Comments $Number | Where-Object { (Test-TrustedAutomationComment $_ ([string]$config.owner)) -and [string]$_.body -match "ai-review-request:(?:v\d+:)?(?:codex|copilot):$Head" } | Sort-Object created_at)
-  if ($requests.Count -eq 0) { return $null }
-  return [datetimeoffset]$requests[0].created_at
-}
 
 function Ensure-PrState {
   param([int]$Number)
@@ -285,16 +240,10 @@ function Ensure-PrState {
   if ($labels -contains $automation.blocked_label -and $activeBlocks.Count -eq 0) { Disable-AutoMerge $Number $prData; return $prData }
   if ($activeBlocks.Count -gt 0 -and @($activeBlocks | Where-Object { $_ -ne 'auto-merge-settings' }).Count -gt 0) { Disable-AutoMerge $Number $prData; return $prData }
   if (-not $prData.autoMergeRequest) {
-    # Merge ordering: arm only after the exact head carries a PR Gate success and
-    # a dispatch-appropriate AI Review conclusion; earlier events simply wait.
+    # Merge ordering: arm only after the exact head carries a PR Gate success;
+    # the deterministic gate is the sole required merge authority.
     $head = [string]$prData.headRefOid
     if ((Get-CheckConclusion $head ([string]$config.required_status_context)) -ne 'success') { return $prData }
-    # Evaluated, not obeyed: current-policy-version advisory evidence must EXIST;
-    # only a failure conclusion carrying a structured threat verdict refuses.
-    # neutral and success both arm in every dispatch mode.
-    $reviewRun = Get-CheckRun $head 'Advisory: AI Review'
-    if (-not $reviewRun -or -not (Test-CurrentDispatchEvidence -Summary ([string]$reviewRun.output.summary) -PolicyVersion ([int]$reviewPolicy.dispatch_policy_version))) { return $prData }
-    if ([string]$reviewRun.conclusion -eq 'failure' -and (Test-BlockingAiReviewBody ([string]$reviewRun.output.summary))) { return $prData }
     $armOutput = @(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'auto-merge.ps1') -Repo $Repo -Pr $Number -Risk $risk 2>&1 | ForEach-Object { [string]$_ })
     $armOutput | Out-Host
     if ($LASTEXITCODE -ne 0) {
@@ -309,75 +258,6 @@ function Ensure-PrState {
   return $prData
 }
 
-function Wait-ForReview {
-  param([int]$Number,[string]$Head,[int]$Minutes)
-  $deadline=[datetimeoffset]::UtcNow.AddMinutes($Minutes)
-  do {
-    Start-Sleep -Seconds ([int]$reviewPolicy.poll_seconds)
-    $current=Get-Pr $Number
-    if($current.state-ne'OPEN'-or$current.isDraft-or[string]$current.headRefOid-ne$Head){return 'changed'}
-    Invoke-AiReview $Number
-    if(@(Get-ReviewFailures $Number $current).Count-gt 0){return 'failed'}
-    if(Test-AiReviewPassingConclusion (Get-CheckConclusion $Head 'Advisory: AI Review')){return 'success'}
-  } while([datetimeoffset]::UtcNow-lt$deadline)
-  return 'timeout'
-}
-function Resolve-ReviewBlocks {
-  param([int]$Number,$PrData)
-  foreach($code in @('review-request','review-fallback','review-timeout','review-budget')){Resolve-Block $Number $code 'Exact-head AI Review is now successful.' $PrData}
-}
-function Complete-ReviewSuccess {
-  param([int]$Number)
-  $current=Get-Pr $Number
-  Resolve-ReviewBlocks $Number $current
-  Ensure-PrState $Number | Out-Null
-}
-
-function Run-ReviewCycle {
-  param([int]$Number)
-  $prData=Get-Pr $Number
-  if($prData.state-ne'OPEN'-or$prData.isDraft){return}
-  # Evaluation is unconditional: every head gets an exact-head AI Review
-  # conclusion in every dispatch_mode and solicit_reviews combination (the
-  # disabled_pending_e2e canary dispatches nothing; enabled without solicitation
-  # evaluates existing evidence only). Stale policy_version evidence is
-  # re-evaluated so a dispatch_policy_version bump invalidates every open neutral.
-  $head=[string]$prData.headRefOid
-  if(-not((Test-AiReviewPassingConclusion (Get-CheckConclusion $head 'Advisory: AI Review'))-and(Test-HeadDispatchEvidence $head))){Invoke-AiReview $Number}
-  if(@(Get-ReviewFailures $Number $prData).Count-gt 0){return}
-  if(-not $reviewSolicit -or [string]$reviewPolicy.dispatch_mode-eq'disabled_pending_e2e'){Complete-ReviewSuccess $Number;return}
-  # A neutral (awaiting-review) conclusion is passing but must not suppress
-  # solicitation: request first (self-deduping), then complete on the verdict.
-  $requestOutput=@(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto -ConfigPath $ConfigPath 2>&1|ForEach-Object{[string]$_})
-  $requestOutput|Out-Host
-  if($LASTEXITCODE-ne 0){
-    $requestError=[string](@($requestOutput|ForEach-Object{($_ -replace "`e\[[0-9;]*m",'').Trim()}|Where-Object{$_})|Select-Object -Last 1)
-    if($reviewRequired){Set-Blocked $Number 'review-request' "No budgeted machine reviewer could be requested. Underlying error: $requestError" $prData;return}
-    Complete-ReviewSuccess $Number;return
-  }
-  if($reviewRequired){
-    & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'pause-pending-review.ps1') -Repo $Repo -Pr $Number
-    if($LASTEXITCODE-ne 0){throw'Could not pause auto-merge while machine review is pending.'}
-  }
-
-  $result=Wait-ForReview $Number ([string]$prData.headRefOid) ([int]$reviewPolicy.primary_wait_minutes)
-  if($result-eq'success'){Complete-ReviewSuccess $Number;return}
-  if($result-ne'timeout'){return}
-
-  Invoke-AiReview $Number
-  if(Test-AiReviewPassingConclusion (Get-CheckConclusion ([string]$prData.headRefOid) 'Advisory: AI Review')){Complete-ReviewSuccess $Number;return}
-  if(@(Get-ReviewFailures $Number (Get-Pr $Number)).Count-gt 0){return}
-
-  $fallbackOutput=@(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'request-machine-review.ps1') -Repo $Repo -Pr $Number -Provider auto -ConfigPath $ConfigPath 2>&1|ForEach-Object{[string]$_})
-  $fallbackOutput|Out-Host
-  if($LASTEXITCODE-ne 0){
-    $fallbackError=[string](@($fallbackOutput|ForEach-Object{($_ -replace "`e\[[0-9;]*m",'').Trim()}|Where-Object{$_})|Select-Object -Last 1)
-    if($reviewRequired){Set-Blocked $Number 'review-fallback' "Primary machine review stalled and no fallback reviewer was available. Underlying error: $fallbackError" $prData}
-    return
-  }
-  $result=Wait-ForReview $Number ([string]$prData.headRefOid) ([int]$reviewPolicy.fallback_wait_minutes)
-  if($result-eq'success'){Complete-ReviewSuccess $Number}
-}
 function Resolve-GateBlocks {
   param([int]$Number,$PrData)
   foreach($code in @('ci-budget','ci-dispatch-disabled','workflow-approval','gate-skipped','missing-pr-gate')){Resolve-Block $Number $code 'The current head now has a successful PR Gate.' $PrData}
@@ -387,7 +267,7 @@ function Handle-GateResult {
   $prData=Get-Pr $Number
   if($prData.state-ne'OPEN'-or$prData.isDraft){return}
   if($GateHeadSha-and[string]$prData.headRefOid-ne$GateHeadSha){return}
-  if($GateConclusion-eq'success'){Resolve-GateBlocks $Number $prData;$prData=Ensure-PrState $Number;if(@(Get-ActiveBlockCodes $Number).Count-eq 0){Run-ReviewCycle $Number};return}
+  if($GateConclusion-eq'success'){Resolve-GateBlocks $Number $prData;Ensure-PrState $Number|Out-Null;return}
   $prData=Ensure-PrState $Number
   switch($GateConclusion){
     'failure'{Request-Repair ci $Number $prData $GateRunId}
@@ -398,17 +278,10 @@ function Handle-GateResult {
     default{}
   }
 }
-function Handle-ReviewEvent {
-  param([int]$Number)
-  Remove-ForbiddenReviewers $Number
-  $prData=Get-Pr $Number
-  if($prData.state-ne'OPEN'-or$prData.isDraft){return}
-  Invoke-AiReview $Number
-  if(@(Get-ReviewFailures $Number $prData).Count-gt 0){return}
-  if(Test-AiReviewPassingConclusion (Get-CheckConclusion ([string]$prData.headRefOid) 'Advisory: AI Review')){Complete-ReviewSuccess $Number}
-}
 function Handle-Watchdog {
   # Paginate every open PR: a capped list silently strands PRs past the cap.
+  # This is the general convergence net for missed webhooks — independent of
+  # (and unaffected by the removal of) AI Review dispatch.
   foreach($item in @(Get-Paged "repos/$Repo/pulls?state=open&per_page=100")){
     $number=[int]$item.number
     try{
@@ -419,12 +292,7 @@ function Handle-Watchdog {
       $gate=Get-CheckConclusion $head ([string]$config.required_status_context)
       if($gate-eq'success'){
         Resolve-GateBlocks $number $prData
-        if(-not $reviewSolicit -or $dispatchDisabled){Run-ReviewCycle $number;continue}
-        Invoke-AiReview $number
-        if(Test-AiReviewPassingConclusion (Get-CheckConclusion $head 'Advisory: AI Review')){Complete-ReviewSuccess $number;continue}
-        $requestTime=Get-FirstReviewRequestTime $number $head
-        if($requestTime-and([datetimeoffset]::UtcNow-$requestTime).TotalMinutes-ge[int]$reviewPolicy.absolute_timeout_minutes){if($reviewRequired){Set-Blocked $number 'review-timeout' "Machine review exceeded the absolute $($reviewPolicy.absolute_timeout_minutes)-minute timeout." $prData}}
-        else{Run-ReviewCycle $number}
+        Ensure-PrState $number | Out-Null
       } elseif($gate-in@('failure','timed_out','startup_failure')){Request-Repair ci $number $prData}
       elseif(-not$gate){Set-Blocked $number 'missing-pr-gate' 'No current-head PR Gate check exists.' $prData}
     } catch { Write-Warning "$Repo PR #$number watchdog: $($_.Exception.Message)" }
@@ -434,7 +302,5 @@ function Handle-Watchdog {
 switch($Mode){
   'pr-event'{if($Pr-le 0){throw'Pr is required.'};if(Deny-ForkPr $Pr){exit 0};Ensure-PrState $Pr|Out-Null}
   'gate-result'{if($Pr-le 0){throw'Pr is required.'};if(Deny-ForkPr $Pr){exit 0};Handle-GateResult $Pr}
-  'review-event'{if($Pr-le 0){throw'Pr is required.'};if(Deny-ForkPr $Pr){exit 0};Handle-ReviewEvent $Pr}
-  'comment-event'{if($Pr-le 0){throw'Pr is required.'};if(Deny-ForkPr $Pr){exit 0};Handle-ReviewEvent $Pr}
   'watchdog'{Handle-Watchdog}
 }

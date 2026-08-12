@@ -7,15 +7,14 @@ This repository follows `kgsmith19/agent-engineering-standard`, pinned in `.agen
 Read only the context needed for the assigned work:
 
 1. `PRD.md`
-2. relevant `specs/`
-3. relevant `docs/adr/`
-4. assigned GitHub Issue
+2. relevant `docs/adr/`
+3. assigned GitHub Issue
 
 Do not invent consequential product decisions. Record a real blocker and stop that slice when source truth is missing or contradictory.
 
 ## Lean delivery loop
 
-`Issue → SPEC only if needed → thin slice → RED/minimum GREEN → local verification → Ready PR → PR Gate → exact-head AI Review → automatic squash merge → release`
+`Issue → SPEC only if needed (local, gitignored, never committed) → thin slice → RED/minimum GREEN → local verification → Ready PR → PR Gate → automatic squash merge → release`
 
 - Work one thin slice at a time; scope widening becomes another slice or Issue.
 - Prefer the smallest correct implementation. Avoid speculative abstractions, dependencies, and unrelated refactors.
@@ -66,17 +65,9 @@ On failure:
 
 Do not push empty commits merely to retrigger CI.
 
-## Machine AI Review
+## Optional manual review
 
-After `PR Gate` passes, automation requests one fresh machine review task/session for the exact head SHA — unless `independent_review.dispatch_mode` is `disabled_pending_e2e`, in which case no reviewer is dispatched, the `AI Review` check completes `neutral` (passing), and P2-only findings become an advisory Issue.
-
-- Codex is primary for ordinary PRs.
-- Copilot is the bounded fallback and the required reviewer for a PR authored by the Codex GitHub App.
-- Branch names and PR prose do not prove implementation identity.
-- One review covers correctness/security, requirement fit, business ROI, systems optimization, and strict leanness.
-- Blocking requires a structured threat verdict — `BLOCK: <CLASS> <file:line> — <exploit precondition>` with CLASS T1-INFRA-DELETION / T2-BACKDOOR / T3-HARDCODED-SECRET / T4-CRITICAL-VULN; P0–P2 prose findings are advisory and become one deduplicated follow-up Issue.
-- A fix creates a new SHA; both gates repeat.
-- Never reviewer-shop around a material finding.
+`scripts/codex-review.ps1` (in `agent-engineering-standard`) is available for a fresh, local, manual second opinion — no implementation-session context, read-only. It is never a CI check and never gates merge.
 
 ## Merge
 
@@ -88,14 +79,12 @@ Routine auto-merge requires:
 - no self-modifying control-plane path
 - no requested reviewer `kgsmith19`
 - current-head `PR Gate` success
-- current-head `AI Review` passing conclusion (`success`, or `neutral` while dispatch is disabled)
-- resolved review threads
 - live squash-only zero-human ruleset
 
 GitHub performs the squash merge and deletes the branch.
 
 ## Hygiene
 
-- `.worktrees/` and `.superpowers/` remain ignored.
+- `.worktrees/`, `.superpowers/`, and `.specs/` remain ignored.
 - Never destroy dirty work or branches with unique commits.
 - Automate recurring manual toil when safe; otherwise record one bounded research candidate with evidence and a next experiment.

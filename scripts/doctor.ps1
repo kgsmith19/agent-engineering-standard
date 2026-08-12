@@ -23,10 +23,10 @@ function Add-Problem {
 
 $required = @(
   'README.md','LIFECYCLE.md','AGENT_RULES.md','QUALITY_RULES.md','SECURITY_RISK_AUTONOMY.md','DELIVERY_GITHUB.md','EVIDENCE_LEARNING.md','AGENTS.md','docs/AUTONOMOUS-PR-STATE-MACHINE.md',
-  '.github/workflows/ci.yml','.github/workflows/ai-review.yml','.github/workflows/ai-review-reusable.yml','.github/workflows/pr-automation.yml','.github/workflows/pr-automation-gate-result.yml','.github/workflows/pr-automation-review-event.yml','.github/workflows/pr-automation-comment-event.yml','.github/workflows/pr-automation-watchdog.yml','.github/workflows/pr-automation-reusable.yml','.github/workflows/ops-portfolio-bootstrap.yml','policy/github-defaults.json',
-  'scripts/setup-portfolio.ps1','scripts/apply-github-standard.ps1','scripts/codex-review.ps1','scripts/request-independent-review.ps1','scripts/request-machine-review.ps1','scripts/evaluate-ai-review.ps1','scripts/reconcile-machine-review-threads.ps1','scripts/auto-merge.ps1','scripts/pr-orchestrator.ps1','scripts/gate-result-router.ps1','scripts/promote-external-draft.ps1','scripts/review-metrics.ps1','scripts/lint-pr-creation.ps1','scripts/bootstrap-repo.ps1','scripts/upgrade-repos.ps1','scripts/prune-portfolio.ps1',
-  'scripts/lib/standard-lock.ps1','scripts/lib/review-policy.ps1','tests/legacy-protection.tests.ps1','tests/standard-lock.tests.ps1','tests/review-policy.tests.ps1','tests/draft-prevention.tests.ps1','tests/unconditional-evaluation.tests.ps1','tests/script-smoke.tests.ps1','tests/gate-result-arming.tests.ps1','tests/automation-entrypoints.tests.ps1','tests/standard-hygiene.tests.ps1',
-  'templates/.gitignore','templates/AGENTS.md','templates/PR_GATE.yml','templates/AI_REVIEW.yml','templates/PR_AUTOMATION.yml','templates/PR_AUTOMATION_GATE_RESULT.yml','templates/PR_AUTOMATION_REVIEW_EVENT.yml','templates/PR_AUTOMATION_COMMENT_EVENT.yml','templates/PR_AUTOMATION_WATCHDOG.yml','templates/dependabot.yml','templates/PRD.md','templates/SPEC.md','templates/ADR.md','templates/ISSUE.md','templates/PULL_REQUEST.md'
+  '.github/workflows/ci.yml','.github/workflows/pr-automation.yml','.github/workflows/pr-automation-gate-result.yml','.github/workflows/pr-automation-watchdog.yml','.github/workflows/pr-automation-reusable.yml','.github/workflows/ops-portfolio-bootstrap.yml','policy/github-defaults.json',
+  'scripts/setup-portfolio.ps1','scripts/apply-github-standard.ps1','scripts/codex-review.ps1','scripts/auto-merge.ps1','scripts/pr-orchestrator.ps1','scripts/gate-result-router.ps1','scripts/promote-external-draft.ps1','scripts/lint-pr-creation.ps1','scripts/bootstrap-repo.ps1','scripts/upgrade-repos.ps1','scripts/prune-portfolio.ps1',
+  'scripts/lib/standard-lock.ps1','scripts/lib/review-policy.ps1','tests/legacy-protection.tests.ps1','tests/standard-lock.tests.ps1','tests/review-policy.tests.ps1','tests/draft-prevention.tests.ps1','tests/script-smoke.tests.ps1','tests/gate-result-arming.tests.ps1','tests/automation-entrypoints.tests.ps1','tests/standard-hygiene.tests.ps1',
+  'templates/.gitignore','templates/AGENTS.md','templates/PR_GATE.yml','templates/PR_AUTOMATION.yml','templates/PR_AUTOMATION_GATE_RESULT.yml','templates/PR_AUTOMATION_WATCHDOG.yml','templates/PRD.md','templates/SPEC.md','templates/ADR.md','templates/ISSUE.md','templates/PULL_REQUEST.md'
 )
 foreach ($relative in $required) {
   if (-not (Test-Path (Join-Path $root $relative))) { throw "Missing required file: $relative" }
@@ -40,7 +40,6 @@ $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 # must carry the fail-closed 'PR Gate' bridge job so no PR becomes unmergeable.
 if ([string]$config.required_status_context -notin @('PR Gate','Gate: Deterministic CI')) { throw 'Required deterministic context drifted.' }
 if ([string]$config.required_status_context_next -ne 'Gate: Deterministic CI') { throw 'Transition target context (required_status_context_next) missing or drifted.' }
-if ($config.required_ai_review_context -ne 'Advisory: AI Review') { throw 'Advisory check context drifted.' }
 $gateWorkflow = Get-Content (Join-Path $root '.github/workflows/ci.yml') -Raw
 if ($gateWorkflow -notmatch '(?m)^name:\s*"Gate: Deterministic CI"\s*$') { throw 'Gate workflow must carry the new taxonomy name.' }
 if ([string]$config.required_status_context -eq 'PR Gate' -and ($gateWorkflow -notmatch 'pr-gate-bridge:' -or $gateWorkflow -notmatch '(?m)^\s+name:\s*PR Gate\s*$')) { throw 'PR Gate bridge job is required while the legacy context is still ruleset-required.' }
@@ -49,32 +48,20 @@ if ([bool]$config.require_code_owner_review -or [bool]$config.native_codeowners 
 if (@($config.forbidden_requested_reviewers) -notcontains [string]$config.owner) { throw 'Repository owner must be forbidden from requested-reviewer state.' }
 if (-not [bool]$config.allow_auto_merge -or -not [bool]$config.allow_update_branch) { throw 'Auto-merge and update-branch must remain enabled.' }
 if ([bool]$config.allow_merge_commit -or [bool]$config.allow_rebase_merge -or -not [bool]$config.allow_squash_merge -or $config.merge_method -ne 'squash') { throw 'Merge policy must remain squash-only.' }
-if ($config.auto_merge_max_risk -ne 'R2') { throw 'Unreviewed canary auto-merge must stop at R2; R3+ waits for the review lane or a human.' }
-if ([bool]$config.merge_queue.desired) { throw 'Merge queue must remain deferred until organization ownership and merge_group AI Review are proven.' }
-
-$review = $config.independent_review
-if ([bool]$review.required_for_auto_merge) { throw 'Machine review must remain advisory: the deterministic PR Gate is the sole required merge authority.' }
-if ([string]$review.dispatch_mode -notin @('disabled_pending_e2e','enabled')) { throw "Unknown review dispatch_mode '$($review.dispatch_mode)'." }
-if ([string]$review.dispatch_policy_version -notmatch '^[1-9][0-9]*$') { throw 'dispatch_policy_version must be a positive integer.' }
-# RC-J: Copilot's repository access is revoked; codex is the sole connected
-# reviewer. The fallback lane stays in code but doctor tolerates blanking it.
-if ($review.preferred_provider -ne 'codex') { throw 'Machine-review routing drifted: codex must remain primary.' }
-if ([string]$review.fallback_provider -notin @('copilot','')) { throw "Unknown fallback provider '$($review.fallback_provider)'." }
-if ([int]$review.max_review_heads_per_pr -ne 2 -or [int]$review.primary_wait_minutes -le 0 -or [int]$review.fallback_wait_minutes -le 0 -or [int]$review.poll_seconds -le 0) { throw 'Machine-review budgets drifted.' }
-if ([int]$review.review_stall_minutes -ne 2) { throw 'Review stall window drifted from the approved 2 minutes.' }
-if ([int]$review.absolute_timeout_minutes -le ([int]$review.primary_wait_minutes + [int]$review.fallback_wait_minutes)) { throw 'Absolute review timeout must exceed fast polling windows.' }
-if ([bool]$review.review_drafts -or [bool]$review.review_on_every_push) { throw 'Draft/every-push AI review spend must remain off.' }
+if ($config.auto_merge_max_risk -ne 'R2') { throw 'Unreviewed canary auto-merge must stop at R2; R3+ waits for a human.' }
+if ([bool]$config.merge_queue.desired) { throw 'Merge queue must remain deferred until organization ownership is proven.' }
 
 $automation = $config.pr_automation
 if ($automation.PSObject.Properties.Name -contains 'draft_ready_label') { throw 'Draft promotion must not exist in strict ready-at-creation policy.' }
 $externalPromotion = $automation.PSObject.Properties['external_draft_promotion']
 if (-not $externalPromotion -or $externalPromotion.Value -isnot [bool]) { throw 'external_draft_promotion must be a boolean.' }
+$dispatchEnabled = $automation.PSObject.Properties['repair_dispatch_enabled']
+if (-not $dispatchEnabled -or $dispatchEnabled.Value -isnot [bool]) { throw 'repair_dispatch_enabled must be a boolean.' }
 if ($automation.blocked_label -ne 'status:blocked') { throw 'PR blocked-state label drifted.' }
-foreach ($pair in @(@('max_ci_fix_attempts',3),@('max_review_fix_attempts',1),@('max_conflict_fix_attempts',2))) {
+foreach ($pair in @(@('max_ci_fix_attempts',3),@('max_conflict_fix_attempts',2))) {
   if ([int]$automation.PSObject.Properties[$pair[0]].Value -ne [int]$pair[1]) { throw "Repair budget drifted: $($pair[0])." }
 }
 if ([int]$automation.watchdog_interval_minutes -ne 360) { throw 'Watchdog cadence drifted from the approved six-hourly (360-minute) reconciliation.' }
-if ([int]$automation.watchdog_interval_minutes -ge [int]$review.absolute_timeout_minutes) { throw 'Watchdog cadence must be shorter than the configured absolute timeout.' }
 
 foreach ($gateName in @('control_plane','R4')) {
   $gate = $config.manual_gates.PSObject.Properties[$gateName].Value
@@ -147,8 +134,7 @@ foreach ($name in $config.repositories) {
   if ($LASTEXITCODE -ne 0) { Add-Problem $problems 'cannot list workflows' }
   else {
     $workflows = @(($workflowsRaw -join "`n") | ConvertFrom-Json | Select-Object -ExpandProperty workflows)
-    $requiredWorkflows = @('Gate: Deterministic CI','Orchestrator: PR Lifecycle','Orchestrator: Gate Result','Orchestrator: Review Event','Orchestrator: Comment Event','Orchestrator: Watchdog')
-    if ([bool]$review.required_for_auto_merge -or [bool]$review.solicit_reviews) { $requiredWorkflows += 'Advisory: AI Review' }
+    $requiredWorkflows = @('Gate: Deterministic CI','Orchestrator: PR Lifecycle','Orchestrator: Gate Result','Orchestrator: Watchdog')
     foreach ($workflowName in $requiredWorkflows) {
       $matches = @($workflows | Where-Object { $_.name -eq $workflowName -and $_.state -eq 'active' })
       if ($matches.Count -eq 0) { Add-Problem $problems "active workflow missing: $workflowName" }
@@ -162,7 +148,7 @@ foreach ($name in $config.repositories) {
     else {
       try { $pinnedSha = Get-StandardLockRevision ($lockRaw -join "`n") }
       catch { $pinnedSha = $null; Add-Problem $problems 'standard.lock revision unreadable' }
-      foreach ($caller in @('ai-review.yml','pr-automation.yml','pr-automation-gate-result.yml','pr-automation-review-event.yml','pr-automation-comment-event.yml','pr-automation-watchdog.yml')) {
+      foreach ($caller in @('pr-automation.yml','pr-automation-gate-result.yml','pr-automation-watchdog.yml')) {
         $callerRaw = & gh api -H 'Accept: application/vnd.github.raw+json' "repos/$repo/contents/.github/workflows/$caller?ref=$($meta.default_branch)" 2>&1
         if ($LASTEXITCODE -ne 0) { Add-Problem $problems "$caller missing"; continue }
         $callerText = $callerRaw -join "`n"
@@ -240,7 +226,6 @@ foreach ($name in $config.repositories) {
         else {
           $checks = @($statusRule.parameters.required_status_checks)
           $expected = @($config.required_status_context)
-          if ([bool]$config.independent_review.required_for_auto_merge) { $expected += $config.required_ai_review_context }
           if ($checks.Count -ne $expected.Count) { Add-Problem $problems 'extra or missing required status checks' }
           foreach ($context in $expected) {
             $check = @($checks | Where-Object { $_.context -eq $context } | Select-Object -First 1)

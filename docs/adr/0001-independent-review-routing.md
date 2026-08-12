@@ -1,6 +1,6 @@
 # ADR 0001: Cost-aware exact-head machine review
 
-Status: accepted; revised by autonomous PR control-plane work
+Status: superseded by ADR 0004 (2026-08-11) — AI code review removed from the blocking path entirely. Kept as historical record.
 
 ## Decision
 

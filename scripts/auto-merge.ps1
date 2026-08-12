@@ -70,17 +70,11 @@ if (-not $meta.allow_auto_merge) { throw 'Live GitHub setting drift: auto-merge 
 if (-not $meta.allow_update_branch) { throw 'Live GitHub setting drift: update branch is off.' }
 if (-not $meta.allow_squash_merge -or $meta.allow_merge_commit -or $meta.allow_rebase_merge) { throw 'Live GitHub merge policy is not squash-only.' }
 
-# Merge ordering, evaluated not obeyed: the exact head needs a PR Gate success
-# and an EXISTING AI Review evaluation with current dispatch_policy_version
-# evidence; only a failure conclusion carrying a structured threat verdict
-# refuses. neutral and success both arm in every dispatch mode.
+# Merge ordering: the exact head needs a PR Gate success. The deterministic
+# gate is the sole required merge authority (AI Review removed — ADR-0004).
 $headSha = [string]$prData.headRefOid
 $gateRun = Get-LatestActionsCheckRun $headSha ([string]$config.required_status_context)
 if (-not $gateRun -or [string]$gateRun.conclusion -ne 'success') { throw "Auto-merge refused: no exact-head 'PR Gate' success from GitHub Actions for $headSha." }
-$reviewRun = Get-LatestActionsCheckRun $headSha 'Advisory: AI Review'
-if (-not $reviewRun) { throw "Auto-merge refused: no exact-head 'Advisory: AI Review' evaluation exists for $headSha." }
-if (-not (Test-CurrentDispatchEvidence -Summary ([string]$reviewRun.output.summary) -PolicyVersion ([int]$config.independent_review.dispatch_policy_version))) { throw "Auto-merge refused: exact-head 'Advisory: AI Review' evidence does not carry current dispatch_policy_version $($config.independent_review.dispatch_policy_version) for $headSha." }
-if ([string]$reviewRun.conclusion -eq 'failure' -and (Test-BlockingAiReviewBody ([string]$reviewRun.output.summary))) { throw "Auto-merge refused: exact-head 'Advisory: AI Review' failure carries a structured threat verdict for $headSha." }
 
 $actionsAppRaw = & gh api /apps/github-actions 2>&1
 if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve GitHub Actions App identity.' }
@@ -129,7 +123,6 @@ if ($methods.Count -ne 1 -or $methods[0] -ne 'squash') { throw 'Ruleset is not s
 $statusRule = $detail.rules | Where-Object { $_.type -eq 'required_status_checks' } | Select-Object -First 1
 if (-not $statusRule) { throw 'Live ruleset has no required-status-check rule.' }
 $requiredContexts = @([string]$config.required_status_context)
-if ([bool]$config.independent_review.required_for_auto_merge) { $requiredContexts += [string]$config.required_ai_review_context }
 foreach ($context in $requiredContexts) {
   $required = @($statusRule.parameters.required_status_checks) | Where-Object { $_.context -eq $context } | Select-Object -First 1
   if (-not $required) { throw "Live ruleset does not require '$context'." }

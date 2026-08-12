@@ -49,7 +49,7 @@ Product truth describes what should exist, not implementation details.
 Use:
 
 - GitHub Issue = durable work item
-- SPEC = only when behavior/decisions are nontrivial
+- SPEC = a local, gitignored scratchpad used only when behavior/decisions are nontrivial, to construct the Issue — never committed to the repository
 - Slice = smallest independently understandable and verifiable increment
 - ADR = only for consequential or hard-to-reverse architecture decisions
 

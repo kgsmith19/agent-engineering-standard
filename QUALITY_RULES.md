@@ -44,9 +44,11 @@ Critical acceptance/security/policy checks must be protected from the agent impl
 
 The implementer may execute them, but may not modify or bypass them.
 
-For semantic review, use a fresh reviewer with no implementation-session context. The default lightweight path is an ephemeral, read-only Codex review that inspects the PR diff plus the relevant PRD, active SPEC, tests, and nearby code.
+The deterministic `PR Gate` is the sole required merge-authority check (ADR 0004 — inline AI code review was removed from the blocking merge path). R4 and engineering-control-plane changes are withheld by an explicit manual authority gate naming the decision owner, not by an automated review outcome.
 
-Reviewer priorities:
+`scripts/codex-review.ps1` remains available as an optional, local, manual second opinion: a fresh reviewer with no implementation-session context, inspecting the diff plus the relevant PRD/Issue and tests. Run it yourself when you want it; it is never a blocking CI check.
+
+Reviewer priorities when used:
 
 1. requirement/spec mismatch
 2. false-green or missing test evidence
@@ -55,8 +57,6 @@ Reviewer priorities:
 5. unnecessary complexity or scope
 
 Do not spend reviewer budget on formatting or style that deterministic tooling can enforce.
-
-Fresh semantic review (`AI Review`) is advisory at every risk tier: the deterministic `PR Gate` is the sole required merge-authority check (ADR 0002). R3/R4 and engineering-control-plane changes still receive that review when the lane is active, and findings still surface as blocking (P0/P1) versus advisory (P2) evidence — but merge for those changes is withheld by an explicit manual authority gate naming the decision owner, not by the review outcome.
 
 ## 5. UI end-to-end evidence
 

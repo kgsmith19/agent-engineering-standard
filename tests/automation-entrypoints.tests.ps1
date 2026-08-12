@@ -24,8 +24,6 @@ if [[ "$GH_FAKE_SCENARIO" == "auto-merge-drift" || "$GH_FAKE_SCENARIO" == "auto-
     printf '%s\n' '{"state":"OPEN","isDraft":false,"labels":[{"name":"risk:R2"}],"baseRefName":"main","headRefName":"dependabot/npm_and_yarn/example","headRefOid":"1717171717171717171717171717171717171717","author":{"login":"dependabot[bot]"}}'
   elif [[ "$1" == "api" && "$*" == *"check-runs?check_name=PR%20Gate"* ]]; then
     printf '%s\n' '{"check_runs":[{"id":41,"name":"PR Gate","app":{"slug":"github-actions"},"conclusion":"success","output":{"summary":"deterministic"}}]}'
-  elif [[ "$1" == "api" && "$*" == *"check-runs?check_name="* ]]; then
-    printf '%s\n' '{"check_runs":[{"id":42,"name":"Advisory: AI Review","app":{"slug":"github-actions"},"conclusion":"neutral","output":{"summary":"dispatch-evidence repo=kgsmith19/example pr=17 head=1717171717171717171717171717171717171717 base=e risk=R2 mode=disabled_pending_e2e policy_version=1"}}]}'
   elif [[ "$*" == "api repos/kgsmith19/example/pulls/17" ]]; then
     printf '%s\n' '{"number":17,"state":"open","draft":false,"node_id":"PR_x","head":{"sha":"1717171717171717171717171717171717171717","repo":{"full_name":"kgsmith19/example"}},"base":{"sha":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","repo":{"owner":{"login":"kgsmith19"}}},"user":{"login":"dependabot[bot]"},"labels":[{"name":"risk:R2"}]}'
   elif [[ "$1" == "api" && "$*" == *"requested_reviewers"* ]]; then
@@ -51,23 +49,6 @@ if [[ "$GH_FAKE_SCENARIO" == "auto-merge-drift" || "$GH_FAKE_SCENARIO" == "auto-
   else
     printf 'unexpected auto-merge fake gh call: %s\n' "$*" >&2
     exit 91
-  fi
-elif [[ "$GH_FAKE_SCENARIO" == "review-request" ]]; then
-  if [[ "$*" == "api repos/kgsmith19/example/pulls/17" ]]; then
-    printf '%s\n' '{"state":"open","draft":false,"head":{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","repo":{"full_name":"kgsmith19/example"}},"user":{"login":"dependabot[bot]"}}'
-  elif [[ "$1" == "api" && "$*" == *"pulls/17/commits"* ]]; then
-    printf '%s\n' '[[{"author":{"login":"dependabot[bot]"},"committer":{"login":"dependabot[bot]"}}]]'
-  elif [[ "$1" == "api" && "$*" == *"pulls/17/reviews"* ]]; then
-    printf '%s\n' '[[]]'
-  elif [[ "$1" == "api" && "$*" == *"pulls/17/comments"* ]]; then
-    printf '%s\n' '[[]]'
-  elif [[ "$1" == "api" && "$*" == *"issues/17/comments"* ]]; then
-    printf '%s\n' '[[]]'
-  elif [[ "$1 $2" == "pr comment" ]]; then
-    :
-  else
-    printf 'unexpected review-request fake gh call: %s\n' "$*" >&2
-    exit 92
   fi
 else
   printf 'unknown fake gh scenario: %s\n' "$GH_FAKE_SCENARIO" >&2
@@ -102,27 +83,6 @@ fi
   $readyCalls = Get-Content $log -Raw
   Assert-True 'eligible dependency PR arms native squash auto-merge' ($readyCalls -match 'pr merge 17 --repo kgsmith19/example --auto --squash')
   Assert-True 'arming path verifies the GitHub Actions-bound PR Gate ruleset' ($readyCalls -match 'api repos/kgsmith19/example/rulesets/101')
-
-  $fixture = Join-Path $temp 'review-fixture'
-  New-Item -ItemType Directory -Path (Join-Path $fixture 'scripts/lib') -Force | Out-Null
-  New-Item -ItemType Directory -Path (Join-Path $fixture 'policy') -Force | Out-Null
-  Copy-Item (Join-Path $root 'scripts/request-machine-review.ps1') (Join-Path $fixture 'scripts/request-machine-review.ps1')
-  Copy-Item (Join-Path $root 'scripts/lib/review-policy.ps1') (Join-Path $fixture 'scripts/lib/review-policy.ps1')
-  $enabledConfig = Get-Content (Join-Path $root 'policy/github-defaults.json') -Raw | ConvertFrom-Json
-  $enabledConfig.independent_review.dispatch_mode = 'enabled'
-  $enabledConfig | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $fixture 'policy/github-defaults.json') -Encoding utf8
-
-  Clear-Content $log
-  $env:GH_FAKE_SCENARIO = 'review-request'
-  $reviewFailure = $null
-  try {
-    & (Join-Path $fixture 'scripts/request-machine-review.ps1') -Repo 'kgsmith19/example' -Pr 17 -Provider auto
-  }
-  catch { $reviewFailure = $_.Exception.Message }
-
-  Assert-True 'review requester accepts parsed PR JSON without changing the typed PR number' (-not $reviewFailure)
-  $calls = Get-Content $log -Raw
-  Assert-True 'review requester reaches the independent reviewer request' ($calls -match 'pr comment 17 --repo kgsmith19/example')
 }
 finally {
   $env:PATH = $oldPath

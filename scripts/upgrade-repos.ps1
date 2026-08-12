@@ -93,19 +93,16 @@ pinned_by: upgrade-repos.ps1
         Set-Content $project $projectText -Encoding utf8 -NoNewline
       }
 
-      Render-Template (Join-Path $standardRoot 'templates/AI_REVIEW.yml') '.github/workflows/ai-review.yml'
       # Per-event PR Automation callers: one workflow per trigger so no PR shows
       # permanently-skipped sibling jobs in its check panel.
       Render-Template (Join-Path $standardRoot 'templates/PR_AUTOMATION.yml') '.github/workflows/pr-automation.yml'
       Render-Template (Join-Path $standardRoot 'templates/PR_AUTOMATION_GATE_RESULT.yml') '.github/workflows/pr-automation-gate-result.yml'
-      Render-Template (Join-Path $standardRoot 'templates/PR_AUTOMATION_REVIEW_EVENT.yml') '.github/workflows/pr-automation-review-event.yml'
-      Render-Template (Join-Path $standardRoot 'templates/PR_AUTOMATION_COMMENT_EVENT.yml') '.github/workflows/pr-automation-comment-event.yml'
       Render-Template (Join-Path $standardRoot 'templates/PR_AUTOMATION_WATCHDOG.yml') '.github/workflows/pr-automation-watchdog.yml'
       Remove-Item '.github/CODEOWNERS' -Force -ErrorAction SilentlyContinue
-
-      if (-not (Test-Path '.github/dependabot.yml')) {
-        New-Item -ItemType Directory -Force '.github' | Out-Null
-        Copy-Item (Join-Path $standardRoot 'templates/dependabot.yml') '.github/dependabot.yml' -Force
+      # AI Review removed fleet-wide (ADR-0004): retire any previously-provisioned
+      # review/dependabot machinery a pinned repo may still carry.
+      foreach ($retired in @('.github/workflows/ai-review.yml','.github/workflows/pr-automation-review-event.yml','.github/workflows/pr-automation-comment-event.yml','.github/dependabot.yml')) {
+        Remove-Item $retired -Force -ErrorAction SilentlyContinue
       }
 
       # workflow_run identifies the deterministic gate by workflow name. Preserve
@@ -134,11 +131,11 @@ pinned_by: upgrade-repos.ps1
       if ($LASTEXITCODE -ne 0) { throw 'push failed' }
 
       $body = @"
-Pins the shared engineering standard to $StandardSha and installs exact-SHA `AI Review` + `PR Automation` callers.
+Pins the shared engineering standard to $StandardSha and installs exact-SHA `PR Automation` callers.
 
 - Removes native CODEOWNERS so Kyle is not auto-requested as a routine reviewer.
 - Preserves the repository-specific deterministic gate and normalizes CI/ci workflow name to exact `PR Gate` only when no dedicated `pr-gate.yml` exists.
-- Adds the lean Dependabot default only when absent.
+- Retires any previously-provisioned AI Review workflow and Dependabot config (ADR-0004).
 - No product behavior change.
 
 Risk: R3 control-plane dependency update. This bootstrap rollout is manually integrated because it changes the caller that will govern later unattended merges.

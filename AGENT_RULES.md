@@ -53,44 +53,18 @@ Every unattended merge requires one GitHub check on the **latest head SHA**:
 
 1. `PR Gate` — deterministic repo-specific build/test/security evidence
 
-Machine review is advisory-only and off by default (ADR 0002); when enabled via policy it never replaces the deterministic gate. A later push invalidates prior authorization: the state machine re-runs the deterministic gate against the new head before GitHub auto-merge proceeds.
-
-### Machine reviewer selection
-
-- The latest head commit's authenticated machine actor determines reviewer independence.
-- Copilot-implemented head → Codex review.
-- Codex-implemented head → Copilot review.
-- Human/unknown head → Codex primary with one Copilot fallback.
-- Branch names and editable PR prose are descriptive only; they are never trusted as implementation identity.
-- Claude may be added later only after a mechanical GitHub review adapter is implemented and verified.
-
-The machine review batches these lenses into one response:
-
-1. software correctness/security
-2. requirement/spec fit
-3. business/product outcome and ROI
-4. systems/operational optimization
-5. strict leanness, complexity, dead code, and manual toil
-
-A clean formal review, structured exact-head Copilot PASS, or exact-head Codex thumbs-up can satisfy `AI Review`. Blocking P0/P1 findings in the review summary **or inline review comments** make `AI Review` fail and trigger one batched repair attempt; a P2-only finding never blocks — it is recorded once as an advisory follow-up Issue mapped to the exact head. A fix creates the second and final reviewed SHA; if that head still has blocking findings, automation blocks instead of buying an indefinite review loop.
-
-While `independent_review.dispatch_mode` is `disabled_pending_e2e`, no reviewer is dispatched at all: the evaluator publishes a `neutral` (passing) `AI Review` outcome, blocking evidence still fails it, and unreviewed auto-merge stops at R2.
+`PR Gate` is the sole required merge-authority check (ADR 0004 — inline AI code review was removed from the blocking merge path entirely; see below). A later push invalidates prior authorization: the state machine re-runs the deterministic gate against the new head before GitHub auto-merge proceeds.
 
 ### Cost and retry bounds
 
-- deterministic checks run before model review
-- the AI Review runner wakes only when review evidence changes
-- no AI review for policy-invalid drafts or every micro-push
-- normal budget: initial reviewed head plus one post-fix reviewed head
 - CI repair: maximum 3 attempts
-- review repair: maximum 1 batched attempt
 - conflict repair: maximum 2 attempts
 - gate rerun (cancelled/stale on the current head): maximum 1 attempt
 - duplicate exact-head requests are suppressed
-- stalled Codex review may use one independent Copilot fallback
-- reviewer timeout is enforced by the low-frequency watchdog, not a permanent busy runner
+- repair dispatch (`pr_automation.repair_dispatch_enabled`) is off by default; while off, CI/conflict repair posts a recoverable `<lane>-dispatch-disabled` block naming the owner instead of tagging an agent
+- the six-hourly watchdog is the general convergence net for missed webhooks (a PR whose gate-result event never arrived), not a review mechanism
 
-No routine path requests Kyle as a GitHub reviewer. Native `CODEOWNERS` is absent and required human approvals are `0`; the deterministic `PR Gate` status check is the sole merge authority (ADR 0002).
+No routine path requests Kyle as a GitHub reviewer. Native `CODEOWNERS` is absent and required human approvals are `0`; the deterministic `PR Gate` status check is the sole merge authority (ADR 0004).
 
 R0–R3 may auto-merge when `PR Gate` passes and no justified authority gate applies. Control-plane changes remain manually integrated while they can modify the evaluator or merge authority judging themselves. R4 never auto-merges.
 
