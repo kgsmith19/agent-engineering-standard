@@ -878,9 +878,11 @@ class WorktreeSafety(FixtureCase):
     def test_prune_safe_refuses_dirty_and_unmerged_worktrees(self):
         """Protects against destructive cleanup: a dirty worktree and a
         clean-but-unmerged worktree are both refused (worktree-unsafe-
-        prune) and left on disk, while a content-merged clean worktree is
-        deleted as the positive control; catches a prune that discards
-        uncommitted or unmerged work."""
+        prune) and left on disk, while a clean worktree whose branch was
+        squash-merged into a since-advanced main is deleted as the
+        positive control; catches a prune that discards uncommitted or
+        unmerged work and a merged-content oracle unable to recognize
+        squash merges (this repository merges squash-only)."""
         repo = self._seed_repo()
         dirty = repo / ".worktrees" / "issue-1-dirty"
         unmerged = repo / ".worktrees" / "issue-2-unmerged"
@@ -892,6 +894,14 @@ class WorktreeSafety(FixtureCase):
         (unmerged / "new.txt").write_text("unmerged\n", encoding="utf-8")
         _git(unmerged, "add", "-A")
         _git(unmerged, "commit", "-m", "unmerged work")
+        (merged / "merged.txt").write_text("merged\n", encoding="utf-8")
+        _git(merged, "add", "-A")
+        _git(merged, "commit", "-m", "merged work")
+        _git(repo, "merge", "--squash", "issue/3-merged")
+        _git(repo, "commit", "-m", "squash of issue/3-merged")
+        (repo / "after.txt").write_text("later\n", encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", "main advances after the squash merge")
         deleted, findings = standardctl.prune_safe_worktrees(repo)
         refused = {
             f.path for f in findings

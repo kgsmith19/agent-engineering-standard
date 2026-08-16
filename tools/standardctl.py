@@ -2880,14 +2880,50 @@ def _ledger_mentions_active(root: Path, worktree_path: str) -> bool:
     return False
 
 
+def branch_content_merged(
+    main_root: Path, default_branch: str, branch: str
+) -> bool:
+    """True when the branch's content is already contained in the default
+    branch.
+
+    Ancestry covers fast-forward and merge-commit history. Squash merges
+    rewrite history, so ancestry fails for them; simulating the merge with
+    ``git merge-tree --write-tree`` and comparing the resulting tree to
+    the default branch's current tree recognizes exactly the branches
+    that would add nothing new. A conflicting simulated merge is
+    ambiguous and reports not-merged, which keeps pruning fail-safe.
+    """
+    ancestor = run_git(
+        main_root, "merge-base", "--is-ancestor", branch, default_branch
+    )
+    if ancestor.returncode == 0:
+        return True
+    merge = run_git(
+        main_root, "merge-tree", "--write-tree", default_branch, branch
+    )
+    if merge.returncode != 0:
+        return False
+    lines = merge.stdout.strip().splitlines()
+    if not lines:
+        return False
+    tip_tree = run_git(
+        main_root, "rev-parse", "%s^{tree}" % default_branch
+    )
+    return (
+        tip_tree.returncode == 0
+        and lines[0].strip() == tip_tree.stdout.strip()
+    )
+
+
 def prune_safe_worktrees(root: Path) -> Tuple[List[str], List[Finding]]:
     """Delete only conclusively safe worktrees; everything else becomes a
     worktree-unsafe-prune refusal that never deletes.
 
     Safe requires ALL of: clean tree; branch content fully represented in
-    the default branch (empty ``git diff main...branch`` — squash merges
-    make is-ancestor false, so the empty-diff is the content test — or
-    is-ancestor); no unpushed commits relative to an existing upstream;
+    the default branch per ``branch_content_merged`` (ancestry, or a
+    simulated ``git merge-tree`` merge whose result equals the default
+    branch's tree — squash merges rewrite history, so ancestry alone is
+    insufficient); no unpushed commits relative to an existing upstream;
     not locked; no ACTIVE/UNKNOWN ledger entry mentioning it.
     """
     text = git_out(root, "worktree", "list", "--porcelain")
@@ -2922,20 +2958,7 @@ def prune_safe_worktrees(root: Path) -> Tuple[List[str], List[Finding]]:
         if proc.returncode != 0 or proc.stdout.strip():
             reasons.append("working tree is not clean")
         if branch:
-            diff = run_git(
-                main_root,
-                "diff",
-                "--quiet",
-                "%s...%s" % (default_branch, branch),
-            )
-            ancestor = run_git(
-                main_root,
-                "merge-base",
-                "--is-ancestor",
-                branch,
-                default_branch,
-            )
-            if diff.returncode != 0 and ancestor.returncode != 0:
+            if not branch_content_merged(main_root, default_branch, branch):
                 reasons.append(
                     "branch %s is not fully represented in %s"
                     % (branch, default_branch)
