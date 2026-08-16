@@ -1,17 +1,51 @@
-# Repository metadata. Fill in the values for this repository; delete fields
-# that don't apply rather than leaving placeholders.
+# Rendered by standardctl init/update. Tokens are replaced with actual values;
+# adopters delete inapplicable commands rather than leaving no-op entries.
+schema_version: 1
 
 project:
-  name: <repo-name>
-  type: <one line: what kind of thing this repository builds>
+  display_name: __APP_DISPLAY_NAME__
+  slug: __APP_SLUG__
+  repository: __REPOSITORY__
+  owner: __OWNER_LOGIN__
+  default_branch: __DEFAULT_BRANCH__
+  type: application
+
+work:
+  tracker: github-issues
+  releases: github-milestones
+  thin_issue_required: true
+  branch_pattern: "issue/{issue_number}-{slug}"
+  worktree_pattern: ".worktrees/issue-{issue_number}-{slug}"
+
+providers:
+  supported:
+    - anthropic
+    - openai
+    - gemini
+  independent_verifier_required_from: R2
+  superpowers_required_when_available: true
 
 ci:
-  workflow: .github/workflows/ci.yml
-  required_check: "PR Gate"
+  workflow: .github/workflows/pr-gate.yml
+  required_check: "__PR_GATE_CHECK__"
+  merge_policy_workflow: .github/workflows/merge-policy.yml
 
-work_tracking:
-  system: github-issues
+evidence:
+  output_directory: .evidence
+  artifact_retention_days: 90
+  issue_index: true
+  pr_index: true
+  require_ui_screenshots: true
+  manifest: .evidence/manifest.json
 
-standard:
-  repo: kgsmith19/agent-engineering-standard
-  lock_file: standard.lock
+protection:
+  ruleset: "__MAIN_RULESET_NAME__"
+  merge_method: squash
+  ordinary_approvals: 0
+  control_plane_owner_approval: 1
+
+commands:
+  # Replace with this repository's actual verified commands; delete any that
+  # do not apply. Do not add no-op commands.
+  verify: python tools/standardctl.py verify
+  tests: echo "replace with the repository's real test command"
