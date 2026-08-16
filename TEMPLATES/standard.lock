@@ -1,0 +1,7 @@
+schema_version: 1
+
+standard:
+  repository: kgsmith19/agent-engineering-standard
+  commit: __STANDARD_COMMIT__
+  manifest_sha256: __MANIFEST_SHA256__
+  applied_at_utc: __APPLIED_AT_UTC__

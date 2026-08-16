@@ -3,3 +3,6 @@
 .superpowers/
 .agent-runtime/
 .evidence/
+
+# Python bytecode caches
+__pycache__/
