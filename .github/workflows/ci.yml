@@ -25,3 +25,8 @@ jobs:
           test -s AGENTS.md
           empty_tree="$(git hash-object -t tree /dev/null)"
           git diff --check "$empty_tree" HEAD --
+          # GitHub only reads templates from its own fixed paths, so the
+          # published copies in TEMPLATES/ and the installed ones must match.
+          diff TEMPLATES/PULL_REQUEST.md .github/PULL_REQUEST_TEMPLATE.md
+          tail -n "$(wc -l < TEMPLATES/ISSUE.md)" .github/ISSUE_TEMPLATE/work-item.md \
+            | diff TEMPLATES/ISSUE.md -
