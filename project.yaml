@@ -1,0 +1,14 @@
+project:
+  name: agent-engineering-standard
+  type: Experimental engineering guidance and templates for repositories that use coding agents
+
+ci:
+  workflow: .github/workflows/ci.yml
+  required_check: "PR Gate"
+
+work_tracking:
+  system: github-issues
+
+standard:
+  repo: kgsmith19/agent-engineering-standard
+  lock_file: standard.lock
