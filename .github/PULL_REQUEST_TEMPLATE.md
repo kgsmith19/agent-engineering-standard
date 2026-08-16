@@ -108,3 +108,5 @@ None.
 - [ ] No unrelated cleanup is included.
 - [ ] No unresolved active writer exists.
 - [ ] The PR is ready rather than draft.
+
+<!-- intentional drift for canary #85 -->
