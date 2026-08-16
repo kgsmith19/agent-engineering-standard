@@ -1,0 +1,275 @@
+# Application-specific PR Gate template (rendered by standardctl init).
+#
+# Adopter instructions:
+#   - Keep only the stage jobs that apply to this repository. When you
+#     delete a job, also delete it from the final gate job's "needs"
+#     list AND from its EXPECTED_JOBS value — the gate fails closed on
+#     any mismatch, and "standardctl verify" statically enforces that
+#     the needs list matches the defined jobs.
+#   - Replace every fail-closed placeholder (echo + exit 1) with the
+#     repository's real command. Never replace one with an empty
+#     success — inapplicable stages are deleted, not stubbed.
+#   - The final job name is the repository's sole required status check.
+name: __APP_DISPLAY_NAME__ PR Gate
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
+      - ready_for_review
+      - labeled
+      - unlabeled
+  push:
+    branches:
+      - __DEFAULT_BRANCH__
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+  actions: read
+
+jobs:
+  policy:
+    name: __APP_DISPLAY_NAME__ · Policy & Structure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Policy · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Structure · Validate repository layout
+        run: |
+          echo "Replace this placeholder with the repository's structural"
+          echo "and policy validation command, or delete this job and its"
+          echo "needs/EXPECTED_JOBS entries."
+          exit 1
+
+  lint:
+    name: __APP_DISPLAY_NAME__ · Lint & Lean
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lean · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Quality · Check whitespace
+        run: |
+          empty_tree="$(git hash-object -t tree /dev/null)"
+          git diff --check "$empty_tree" HEAD --
+      - name: Quality · Run formatter and linters
+        run: |
+          echo "Replace this placeholder with the repository's formatter"
+          echo "and lint commands."
+          exit 1
+
+  security:
+    name: __APP_DISPLAY_NAME__ · Security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Security · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Security · Run security checks
+        run: |
+          echo "Replace this placeholder with the repository's security"
+          echo "analysis and secret-scan commands."
+          exit 1
+
+  unit:
+    name: __APP_DISPLAY_NAME__ · Unit & Component
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Test · Run unit and component tests
+        run: |
+          echo "Replace this placeholder with the repository's unit and"
+          echo "component test command."
+          exit 1
+
+  integration:
+    name: __APP_DISPLAY_NAME__ · Integration & Contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Test · Run integration and contract tests
+        run: |
+          echo "Replace this placeholder with the repository's integration"
+          echo "and contract test command, or delete this job."
+          exit 1
+
+  property:
+    name: __APP_DISPLAY_NAME__ · Property & State
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Test · Run property and state tests
+        run: |
+          echo "Replace this placeholder with the repository's property and"
+          echo "state-machine test command, or delete this job."
+          exit 1
+
+  mutation:
+    name: __APP_DISPLAY_NAME__ · Mutation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Test · Run targeted mutation tests
+        run: |
+          echo "Replace this placeholder with the repository's targeted"
+          echo "mutation command, or delete this job."
+          exit 1
+
+  fuzz:
+    name: __APP_DISPLAY_NAME__ · Fuzz & Adversarial
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Test · Run fuzz and adversarial tests
+        run: |
+          echo "Replace this placeholder with the repository's fuzz or"
+          echo "adversarial test command, or delete this job."
+          exit 1
+
+  e2e:
+    name: __APP_DISPLAY_NAME__ · E2E & Evidence
+    runs-on: ubuntu-latest
+    steps:
+      - name: E2E · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: E2E · Run critical journeys
+        run: |
+          echo "Replace this placeholder with the repository's E2E command."
+          echo "It must write screenshots and artifacts into .evidence/ and"
+          echo "generate .evidence/manifest.json (schema_version 1)."
+          exit 1
+      - name: Evidence · Validate manifest
+        run: |
+          echo "Replace this placeholder with the repository's evidence"
+          echo "validation command (exact-head manifest validation)."
+          exit 1
+      - name: Evidence · Upload exact-head artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: __APP_SLUG__-evidence
+          path: .evidence/
+          if-no-files-found: error
+          retention-days: 90
+
+  verification:
+    name: __APP_DISPLAY_NAME__ · Independent Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verification · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verification · Validate independent exact-head result
+        run: |
+          echo "Replace this placeholder with the repository's check that an"
+          echo "independent exact-head verifier result exists for R2/R3"
+          echo "changes, or delete this job."
+          exit 1
+
+  gate:
+    name: __APP_DISPLAY_NAME__ PR Gate
+    runs-on: ubuntu-latest
+    needs: [policy, lint, security, unit, integration, property, mutation, fuzz, e2e, verification]
+    if: always()
+    steps:
+      - name: Gate · Enforce all dependencies succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          EXPECTED_JOBS: policy lint security unit integration property mutation fuzz e2e verification
+        run: |
+          python3 - <<'GATE'
+          import json
+          import os
+          import sys
+          needs = json.loads(os.environ["NEEDS"])
+          expected = set(os.environ["EXPECTED_JOBS"].split())
+          problems = []
+          if set(needs) != expected:
+              problems.append(
+                  "gated jobs %s do not equal the expected set %s"
+                  % (sorted(needs), sorted(expected))
+              )
+          for job, info in sorted(needs.items()):
+              result = info.get("result")
+              if result != 'success':
+                  problems.append("job %s concluded %r" % (job, result))
+          for problem in problems:
+              print("ERROR:", problem)
+          sys.exit(1 if problems else 0)
+          GATE
+      - name: Gate · Verify tested SHA is current PR head
+        if: github.event_name == 'pull_request'
+        env:
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
+          PR_API_URL: ${{ github.event.pull_request.url }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          live="$(curl -sf \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "$PR_API_URL" \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["head"]["sha"])')"
+          echo "event head: ${EVENT_HEAD}"
+          echo "live head:  ${live}"
+          if [ "$live" != "$EVENT_HEAD" ]; then
+            echo "ERROR: the PR head moved during this run; a fresh run gates the new head." >&2
+            exit 1
+          fi
+      - name: Gate · Publish summary
+        if: always()
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          TESTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 - <<'SUMMARY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import os
+          needs = json.loads(os.environ["NEEDS"])
+          print("## __APP_DISPLAY_NAME__ PR Gate")
+          print()
+          print("Tested SHA: `%s`" % os.environ.get("TESTED_SHA", ""))
+          print()
+          print("| Job | Result |")
+          print("| --- | --- |")
+          for job, info in sorted(needs.items()):
+              print("| %s | %s |" % (job, info.get("result")))
+          SUMMARY

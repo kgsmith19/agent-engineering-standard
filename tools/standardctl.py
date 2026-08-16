@@ -51,6 +51,14 @@ Subcommands
     ``owner_label_authorized``, ``detect_unknown_redispatch``) take plain
     data and never touch the network.
 
+``evidence generate DIR --head SHA --claim id:result:path[,path...] ...``
+    Digest every file under DIR and write ``DIR/manifest.json`` in the
+    schema below. ``--command exit_code:command-line`` records executed
+    commands; ``--diff-base SHA`` (with ``--root``) records
+    ``tests_modified`` from ``git diff <SHA> HEAD -- tests/`` and, when
+    true, an oracle_changes pointer to the pull request's "Oracle
+    changes" section.
+
 ``evidence validate DIR --head SHA [--pr-head SHA]``
     Validate ``DIR/manifest.json`` against the evidence schema below.
 
@@ -167,6 +175,7 @@ import ast
 import hashlib
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -2167,9 +2176,15 @@ def apply_plan(
             written.append(action.dest)
             continue
         dest_path.parent.mkdir(parents=True, exist_ok=True)
-        if action.mode in ("copy", "adapt"):
+        if action.mode == "copy":
             data = source_path.read_bytes()
             dest_path.write_bytes(data)
+        elif action.mode == "adapt":
+            # First install renders tokens (a no-op for token-free
+            # sources); afterwards the destination is repo-owned and
+            # never rewritten, so tokens must not survive install.
+            text = source_path.read_text(encoding="utf-8")
+            dest_path.write_text(render_tokens(text, context), encoding="utf-8")
         elif action.mode == "render":
             text = source_path.read_text(encoding="utf-8")
             dest_path.write_text(render_tokens(text, context), encoding="utf-8")
@@ -2783,6 +2798,167 @@ def evidence_index_body(manifest: Dict) -> str:
     return "\n".join(lines)
 
 
+EVIDENCE_TYPE_BY_EXTENSION = {
+    ".png": "screenshot",
+    ".jpg": "screenshot",
+    ".jpeg": "screenshot",
+    ".txt": "log",
+    ".log": "log",
+    ".json": "report",
+    ".html": "report",
+    ".xml": "report",
+    ".zip": "trace",
+    ".webm": "video",
+    ".mp4": "video",
+}
+
+
+def generate_evidence_manifest(
+    evidence_dir: Path,
+    head: str,
+    claims: List[str],
+    base: Optional[str] = None,
+    repository: Optional[str] = None,
+    application: Optional[str] = None,
+    issue: Optional[int] = None,
+    pr: Optional[int] = None,
+    milestone: Optional[str] = None,
+    run_id: Optional[str] = None,
+    commands: Optional[List[str]] = None,
+    diff_base: Optional[str] = None,
+    repo_root: Optional[Path] = None,
+) -> Dict:
+    """Build a schema_version-1 evidence manifest from an evidence
+    directory's contents.
+
+    Claim specs are ``id:result:path[,path...]`` with paths relative to
+    the evidence directory. Command specs are ``exit_code:command line``.
+    When ``diff_base`` and ``repo_root`` are given and ``git diff
+    --name-only <diff_base> HEAD -- tests/`` is non-empty, the manifest
+    records ``tests_modified: true`` with an oracle_changes entry
+    pointing at the pull request's "Oracle changes" section — the
+    canonical disclosure location — instead of "None."; the semantic
+    disclosure itself always lives in the pull request.
+    """
+    files = []
+    for path in sorted(evidence_dir.rglob("*")):
+        if not path.is_file() or path.name == "manifest.json":
+            continue
+        rel = path.relative_to(evidence_dir).as_posix()
+        ftype = EVIDENCE_TYPE_BY_EXTENSION.get(path.suffix.lower(), "other")
+        files.append(
+            {"path": rel, "type": ftype, "sha256": sha256_file(path)}
+        )
+    claim_entries = []
+    worst = "pass"
+    for spec in claims:
+        parts = spec.split(":", 2)
+        if len(parts) != 3 or not parts[0] or not parts[1] or not parts[2]:
+            raise ValueError(
+                "claim spec %r is not id:result:path[,path...]" % spec
+            )
+        claim_id, result, paths = parts
+        if result not in ("pass", "fail", "skipped"):
+            raise ValueError("claim %s result %r invalid" % (claim_id, result))
+        if result != "pass":
+            worst = "fail"
+        claim_entries.append(
+            {
+                "id": claim_id,
+                "result": result,
+                "evidence": [p for p in paths.split(",") if p],
+            }
+        )
+    command_entries = []
+    for spec in commands or []:
+        code, _, line = spec.partition(":")
+        command_entries.append(
+            {"command": line, "exit_code": int(code)}
+        )
+    tests_modified = False
+    if diff_base and repo_root is not None:
+        proc = run_git(
+            Path(repo_root), "diff", "--name-only", diff_base, "HEAD",
+            "--", "tests/",
+        )
+        tests_modified = proc.returncode == 0 and bool(proc.stdout.strip())
+    oracle_changes: Any = "None."
+    if tests_modified:
+        oracle_changes = [
+            {
+                "summary": (
+                    "Test files changed in this change set; the semantic "
+                    "disclosure is recorded in the pull request's "
+                    "'Oracle changes' section."
+                )
+            }
+        ]
+    manifest: Dict[str, Any] = {
+        "schema_version": 1,
+        "head_sha": head,
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "environment": {
+            "os": platform.platform(),
+            "python": platform.python_version(),
+        },
+        "claims": claim_entries,
+        "files": files,
+        "summary": {"result": worst},
+        "tests_modified": tests_modified,
+        "oracle_changes": oracle_changes,
+    }
+    if base:
+        manifest["base_sha"] = base
+    if repository:
+        manifest["repository"] = repository
+    if application:
+        manifest["application"] = application
+    if issue is not None:
+        manifest["issue"] = issue
+    if pr is not None:
+        manifest["pr"] = pr
+    if milestone:
+        manifest["milestone"] = milestone
+    if run_id:
+        manifest["run_id"] = run_id
+    if command_entries:
+        manifest["commands"] = command_entries
+    return manifest
+
+
+def cmd_evidence_generate(args: argparse.Namespace) -> int:
+    evidence_dir = Path(args.dir).resolve()
+    if not evidence_dir.is_dir():
+        print("ERROR evidence-schema %s: not a directory" % evidence_dir)
+        return 1
+    try:
+        manifest = generate_evidence_manifest(
+            evidence_dir,
+            head=args.head,
+            claims=args.claim or [],
+            base=args.base,
+            repository=args.repository,
+            application=args.application,
+            issue=args.issue,
+            pr=args.pr,
+            milestone=args.milestone,
+            run_id=args.run_id,
+            commands=args.command or [],
+            diff_base=args.diff_base,
+            repo_root=Path(args.root),
+        )
+    except ValueError as exc:
+        print("ERROR evidence-schema: %s" % exc)
+        return 1
+    out = evidence_dir / "manifest.json"
+    out.write_text(
+        json.dumps(manifest, indent=2, sort_keys=False) + "\n",
+        encoding="utf-8",
+    )
+    print("evidence: wrote %s" % out)
+    return 0
+
+
 def cmd_evidence(args: argparse.Namespace) -> int:
     evidence_dir = Path(args.dir).resolve()
     manifest_path = evidence_dir / "manifest.json"
@@ -3173,6 +3349,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_validate.add_argument("--pr-head", default=None)
     p_validate.add_argument("--json", action="store_true")
     p_validate.set_defaults(func=cmd_evidence)
+    p_generate = evidence_sub.add_parser("generate")
+    p_generate.add_argument("dir")
+    p_generate.add_argument("--head", required=True)
+    p_generate.add_argument("--base", default=None)
+    p_generate.add_argument("--repository", default=None)
+    p_generate.add_argument("--application", default=None)
+    p_generate.add_argument("--issue", type=int, default=None)
+    p_generate.add_argument("--pr", type=int, default=None)
+    p_generate.add_argument("--milestone", default=None)
+    p_generate.add_argument("--run-id", default=None)
+    p_generate.add_argument("--claim", action="append", default=[])
+    p_generate.add_argument("--command", action="append", default=[])
+    p_generate.add_argument("--diff-base", default=None)
+    p_generate.add_argument("--root", default=".")
+    p_generate.set_defaults(func=cmd_evidence_generate)
     p_index = evidence_sub.add_parser("index")
     p_index.add_argument("dir")
     p_index.set_defaults(func=cmd_evidence, head=None, pr_head=None, json=False)

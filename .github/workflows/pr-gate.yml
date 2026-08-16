@@ -1,0 +1,248 @@
+name: Agent Engineering Standard PR Gate
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
+      - ready_for_review
+      - labeled
+      - unlabeled
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+  actions: read
+
+jobs:
+  policy:
+    name: Agent Engineering Standard · Policy & Structure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Policy · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Policy · Verify repository invariants
+        run: python3 tools/standardctl.py verify --select policy
+      - name: Policy · Require linked thin Issue
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          python3 - <<'CHECK'
+          import os
+          import re
+          import sys
+          body = os.environ.get("PR_BODY") or ""
+          ref = os.environ.get("HEAD_REF") or ""
+          problems = []
+          if not re.search(r"(?im)^closes #\d+", body):
+              problems.append("PR body needs a 'Closes #<issue>' line")
+          if not re.match(r"^issue/\d+-[a-z0-9][a-z0-9-]*$", ref):
+              problems.append(
+                  "head branch %r does not match issue/<n>-<slug>" % ref
+              )
+          for problem in problems:
+              print("ERROR:", problem)
+          sys.exit(1 if problems else 0)
+          CHECK
+
+  lint:
+    name: Agent Engineering Standard · Lint & Lean
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lean · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Quality · Check whitespace
+        run: |
+          empty_tree="$(git hash-object -t tree /dev/null)"
+          git diff --check "$empty_tree" HEAD --
+      - name: Quality · Compile Python
+        run: python3 -m compileall -q tools tests
+      - name: Lean · Verify repository invariants
+        run: python3 tools/standardctl.py verify --select lean
+
+  security:
+    name: Agent Engineering Standard · Security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Security · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Security · Verify workflow and token invariants
+        run: python3 tools/standardctl.py verify --select security
+
+  tests:
+    name: Agent Engineering Standard · Verification Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Test · Run unit and component tests
+        run: python3 -m unittest discover -s tests -p "test_*.py" -v
+
+  evidence:
+    name: Agent Engineering Standard · Evidence
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evidence · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Evidence · Resolve exact head
+        id: head
+        env:
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
+          EVENT_REF: ${{ github.event.pull_request.head.ref }}
+          PUSH_SHA: ${{ github.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          mkdir -p .evidence/transcripts
+          head="${EVENT_HEAD:-$PUSH_SHA}"
+          issue="0"
+          if [[ "$EVENT_REF" =~ ^issue/([0-9]+)- ]]; then
+            issue="${BASH_REMATCH[1]}"
+          fi
+          {
+            echo "head=$head"
+            echo "short=${head:0:7}"
+            echo "issue=$issue"
+            echo "pr=${PR_NUMBER:-0}"
+          } >> "$GITHUB_OUTPUT"
+      - name: Evidence · Capture verification transcripts
+        shell: bash
+        run: |
+          python3 tools/standardctl.py verify \
+            | tee .evidence/transcripts/verify.txt
+          python3 -m unittest discover -s tests -p "test_*.py" 2>&1 \
+            | tee .evidence/transcripts/tests.txt
+      - name: Evidence · Generate manifest
+        env:
+          HEAD_SHA: ${{ steps.head.outputs.head }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          ISSUE_NUMBER: ${{ steps.head.outputs.issue }}
+          PR_NUMBER: ${{ steps.head.outputs.pr }}
+        shell: bash
+        run: |
+          args=(evidence generate .evidence
+            --head "$HEAD_SHA"
+            --repository "$REPOSITORY"
+            --application agent-engineering-standard
+            --milestone vNext
+            --run-id "$RUN_ID"
+            --issue "$ISSUE_NUMBER"
+            --pr "$PR_NUMBER"
+            --claim "verify:pass:transcripts/verify.txt"
+            --claim "tests:pass:transcripts/tests.txt"
+            --command "0:python3 tools/standardctl.py verify"
+            --command "0:python3 -m unittest discover -s tests -p test_*.py")
+          if [ -n "$BASE_SHA" ]; then
+            args+=(--base "$BASE_SHA" --diff-base "$BASE_SHA")
+          fi
+          python3 tools/standardctl.py "${args[@]}"
+      - name: Evidence · Validate manifest
+        env:
+          HEAD_SHA: ${{ steps.head.outputs.head }}
+        run: >
+          python3 tools/standardctl.py evidence validate .evidence
+          --head "$HEAD_SHA"
+      - name: Evidence · Upload exact-head artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: agent-engineering-standard-issue-${{ steps.head.outputs.issue }}-pr-${{ steps.head.outputs.pr }}-${{ steps.head.outputs.short }}-evidence
+          path: .evidence/
+          if-no-files-found: error
+          retention-days: 90
+
+  gate:
+    name: Agent Engineering Standard PR Gate
+    runs-on: ubuntu-latest
+    needs: [policy, lint, security, tests, evidence]
+    if: always()
+    steps:
+      - name: Gate · Enforce all dependencies succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          EXPECTED_JOBS: policy lint security tests evidence
+        run: |
+          python3 - <<'GATE'
+          import json
+          import os
+          import sys
+          needs = json.loads(os.environ["NEEDS"])
+          expected = set(os.environ["EXPECTED_JOBS"].split())
+          problems = []
+          if set(needs) != expected:
+              problems.append(
+                  "gated jobs %s do not equal the expected set %s"
+                  % (sorted(needs), sorted(expected))
+              )
+          for job, info in sorted(needs.items()):
+              result = info.get("result")
+              if result != 'success':
+                  problems.append("job %s concluded %r" % (job, result))
+          for problem in problems:
+              print("ERROR:", problem)
+          sys.exit(1 if problems else 0)
+          GATE
+      - name: Gate · Verify tested SHA is current PR head
+        if: github.event_name == 'pull_request'
+        env:
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
+          PR_API_URL: ${{ github.event.pull_request.url }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          live="$(curl -sf \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "$PR_API_URL" \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["head"]["sha"])')"
+          echo "event head: ${EVENT_HEAD}"
+          echo "live head:  ${live}"
+          if [ "$live" != "$EVENT_HEAD" ]; then
+            echo "ERROR: the PR head moved during this run; a fresh run gates the new head." >&2
+            exit 1
+          fi
+      - name: Gate · Publish summary
+        if: always()
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          TESTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 - <<'SUMMARY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import os
+          needs = json.loads(os.environ["NEEDS"])
+          print("## Agent Engineering Standard PR Gate")
+          print()
+          print("Tested SHA: `%s`" % os.environ.get("TESTED_SHA", ""))
+          print()
+          print("| Job | Result |")
+          print("| --- | --- |")
+          for job, info in sorted(needs.items()):
+              print("| %s | %s |" % (job, info.get("result")))
+          SUMMARY
