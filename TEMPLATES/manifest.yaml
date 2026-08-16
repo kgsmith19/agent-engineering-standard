@@ -1,0 +1,104 @@
+# Distribution manifest for the Agent Engineering Standard.
+#
+# This file is parsed by tools/standardctl.py with a deliberately RESTRICTED
+# YAML grammar (the standard library has no YAML parser and this tool takes
+# no third-party dependencies). Anything outside the grammar is rejected.
+#
+# Restricted grammar:
+#   - Indentation is spaces only, in steps of exactly 2. Tabs are rejected.
+#   - Full-line comments start with "#" (leading spaces allowed).
+#     Inline trailing comments are NOT supported.
+#   - A mapping entry is "key: value" (scalar) or "key:" (opens a nested
+#     block on the following, more-indented lines).
+#   - "key: []" is the only permitted flow form and denotes an empty list.
+#   - A list item is "- scalar" or "- key: value" (a flat mapping item whose
+#     remaining keys follow as "key: value" lines indented two further).
+#   - Scalars are double-quoted strings (no escape sequences) or bare
+#     strings; a bare scalar consisting only of digits parses as an integer.
+#   - No anchors, aliases, flow mappings, multi-line scalars ("|", ">"),
+#     or duplicate keys.
+#
+# Mapping modes:
+#   copy   — dest must be byte-identical to source; init/update overwrite it.
+#   render — source is copied with token substitution applied.
+#   adapt  — installed once if absent, then owned by the consuming
+#            repository; update never overwrites it.
+#   merge  — line-merged into dest: missing lines are appended, existing
+#            lines and local additions are preserved (used for .gitignore).
+#   config — desired live GitHub state, applied by "doctor --live --apply";
+#            never written into the consuming repository's tree. The dest is
+#            a live-state designator, not a file path. Tokens inside
+#            main-protection.ruleset.json (including the bare integers
+#            __OWNER_BYPASS_ACTOR_ID__ and __CHECK_INTEGRATION_ID__, which
+#            make the raw template non-strict JSON) are rendered by doctor
+#            before the JSON is parsed. Adopters must supply the bypass
+#            actor appropriate for their repository: the shipped entry uses
+#            actor_type "RepositoryRole"; an owner who bypasses as a user
+#            sets their numeric user id and actor_type accordingly.
+#
+# The "retired" list names paths that consuming repositories delete during
+# "standardctl update": files an older revision of the standard distributed
+# (or tolerated) that the current revision forbids. Entries here refer to
+# CONSUMING-repository cleanup; they may lawfully still exist in the
+# standard repository itself during a staged transition (ci.yml remains the
+# transitional gate here until pr-gate.yml ships).
+schema_version: 1
+
+standard:
+  repository: kgsmith19/agent-engineering-standard
+
+tokens:
+  - __APP_DISPLAY_NAME__
+  - __APP_SLUG__
+  - __REPOSITORY__
+  - __OWNER_LOGIN__
+  - __DEFAULT_BRANCH__
+  - __PR_GATE_CHECK__
+  - __MAIN_RULESET_NAME__
+  - __STANDARD_COMMIT__
+  - __MANIFEST_SHA256__
+  - __APPLIED_AT_UTC__
+  - __OWNER_BYPASS_ACTOR_ID__
+  - __CHECK_INTEGRATION_ID__
+
+mappings:
+  - source: AGENTS.md
+    dest: AGENTS.md
+    mode: adapt
+  - source: CLAUDE.md
+    dest: CLAUDE.md
+    mode: copy
+  - source: GEMINI.md
+    dest: GEMINI.md
+    mode: copy
+  - source: TEMPLATES/ISSUE.md
+    dest: .github/ISSUE_TEMPLATE/work-item.md
+    mode: copy
+  - source: TEMPLATES/ISSUE_CONFIG.yml
+    dest: .github/ISSUE_TEMPLATE/config.yml
+    mode: copy
+  - source: TEMPLATES/PULL_REQUEST.md
+    dest: .github/PULL_REQUEST_TEMPLATE.md
+    mode: copy
+  - source: TEMPLATES/project.yaml
+    dest: project.yaml
+    mode: render
+  - source: TEMPLATES/standard.lock
+    dest: standard.lock
+    mode: render
+  - source: TEMPLATES/gitignore.fragment
+    dest: .gitignore
+    mode: merge
+  - source: TEMPLATES/repository-settings.json
+    dest: "live:repository-settings"
+    mode: config
+  - source: TEMPLATES/main-protection.ruleset.json
+    dest: "live:main-protection-ruleset"
+    mode: config
+
+retired:
+  - TEST_LEDGER.md
+  - .github/workflows/ci.yml
+
+minimum:
+  python: "3.9"
