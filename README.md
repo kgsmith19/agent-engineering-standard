@@ -35,3 +35,5 @@ git status --short && git diff --check
 ```
 
 <!-- canary #87: harmless draft-promotion test content -->
+
+<!-- canary #89: harmless auto-merge re-arm test content -->
