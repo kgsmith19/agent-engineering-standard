@@ -1,26 +1,110 @@
-## 🏷️ Classification
+---
+name: Thin work item
+about: One focused, independently testable behavioral slice
+title: ""
+labels: ""
+assignees: ""
+---
 
-Prefix the Issue title with one:
+## Outcome
 
-- `FEAT:` — a new capability or behavior change.
-- `BUG:` — existing behavior is wrong.
+State one observable result.
 
-## 🎯 Outcome
+## Release
 
-Describe the user-visible or operational result this Issue should produce.
+Milestone:
 
-## 📚 Context
+Parent Issue:
 
-Explain the current behavior, the reason for the change, and any facts needed to understand the work.
+## Context
 
-## ✅ Acceptance Criteria
+Include only facts needed to complete this slice.
 
-- [ ] State each observable condition required for completion.
+## Behavior claims
 
-## 📋 Scope
+- [ ] AC1:
+- [ ] AC2:
 
-List important constraints and anything intentionally excluded.
+## Must remain true
 
-## 🧪 Verification
+- Existing behavior that must not regress.
 
-List the checks or evidence that will demonstrate the outcome.
+## Must never happen
+
+- Forbidden behavior, invalid state, security violation, or destructive result.
+
+## Examples and boundaries
+
+| Case | Input or state | Expected behavior |
+| --- | --- | --- |
+
+## Risk
+
+Select exactly one:
+
+- R0: mechanical
+- R1: local and reversible
+- R2: shared, integrated, or stateful
+- R3: critical, privileged, destructive, financial, security-sensitive, concurrent, or irreversible
+
+## Test strategy
+
+| Claim | Evidence | Failure class | Why this level | Sensitivity proof |
+| --- | --- | --- | --- | --- |
+
+## Artifact requirements
+
+UI impact:
+
+- none
+- behavioral
+- visual
+
+Required evidence:
+
+- screenshots:
+- trace:
+- video:
+- logs:
+- reports:
+- other:
+
+## Lean design
+
+Describe the smallest coherent design.
+
+Expected files or boundaries:
+
+## Dependencies
+
+Blocked by:
+
+Blocks:
+
+## Security and recovery
+
+Security boundary:
+
+Rollback or recovery:
+
+## Scope
+
+### Included
+
+### Excluded
+
+## Owner overrides
+
+None.
+
+## Handoff
+
+Populate only when blocked or stopping before a PR exists.
+
+- Branch:
+- Exact head:
+- Completed:
+- Remaining:
+- Current failure:
+- Last verified command:
+- Exact next command:

@@ -1,55 +1,35 @@
 # Agent Engineering Standard
 
-Experimental engineering guidance for repositories that use coding agents.
-
-> [!NOTE]
-> This is a learning resource, not an enforcement mechanism. Its contents will evolve as the practices are tested and refined.
+An operational engineering standard for repositories where AI coding agents do real work under absolute human authority.
 
 ## 🎯 Purpose
 
-The guidance favors lean changes, clear intent, maintainable code, focused tests, and evidence that a pull request is ready to merge. Each repository remains responsible for choosing and configuring the practices that fit its product and technology.
+The standard turns agent work into small, verified, independently mergeable changes with honest evidence. GitHub is the machinery of record: Milestones define releases, thin Issues define work, pull requests carry evidence, and a single fail-closed PR Gate is the only machine authority over merges. The owner may override anything at any time; agents may not use superseded policy to resist an authorized change.
 
-## 🧭 Suggested Lifecycle
+## 🧭 Lifecycle
 
-1. Record the desired outcome in a GitHub Issue.
-2. Implement the smallest coherent change that satisfies the Issue.
-3. Run the repository's relevant formatters, static checks, and tests.
-4. Open a pull request that links the Issue and records the verification performed.
-5. Let the repository's `PR Gate` run automatically.
-6. After repository settings are configured, use native squash auto-merge when `PR Gate` passes.
+1. A release Milestone scopes the work; a thin Issue states one observable outcome, its behavior claims, and its risk tier (R0–R3).
+2. An agent claims the Issue by atomically creating its `issue/<n>-<slug>` branch, then implements in an isolated worktree.
+3. Verification scales with risk: tests with failure-sensitivity proofs, disclosed oracle changes, and independent exact-head verification for R2/R3.
+4. A ready (never draft) pull request carries the evidence; the `Agent Engineering Standard PR Gate` must conclude success on the exact head.
+5. Native squash auto-merge executes the merge; the Merge Policy workflow keeps PR state honest without ever running PR code.
+6. A `VERIFY:` Issue proves each release before it is called done.
 
-A pull request should make the change, its rationale, and its verification easy to understand.
+The full rules live in [`AGENTS.md`](./AGENTS.md) — the single source of agent and engineering policy. `CLAUDE.md` and `GEMINI.md` are import-only pointers to it; repository facts and exact commands live in [`project.yaml`](./project.yaml).
 
-## 📋 Engineering Guidance
+## 📚 Adoption by other repositories
 
-- Keep each change narrow enough to inspect and recover safely.
-- Prefer simple code and explicit behavior over speculative abstractions.
-- Add or update tests when behavior changes.
-- Run the checks that are relevant to the affected code.
-- Preserve unrelated work and document any known limitation.
-- Treat a passing gate as evidence that configured checks ran, not as a substitute for engineering judgment.
+Canonical distribution files live in [`TEMPLATES/`](./TEMPLATES/). `tools/standardctl.py` renders them into a consuming repository from one exact standard commit (`init`), updates an existing adopter (`update`), and validates invariants (`verify`); a consuming repository's `standard.lock` records provenance informationally. Adoption and every update are explicit, Issue-backed, and owner-controlled — nothing propagates automatically, and this repository being unavailable never breaks an adopter.
 
-## 📚 Templates
+## 🔒 AI agent participation
 
-[`TEMPLATES/`](./TEMPLATES/) holds reference material — root docs, a pull request template, an issue template, a test ledger, and a `project.yaml` metadata schema — for a repository to copy and adapt. See [`TEMPLATES/README.md`](./TEMPLATES/README.md). Copying these files does not create an ongoing dependency; a repository's own `standard.lock` records, informationally, which version of this standard it was drawn from.
+Agents may, when a task authorizes it: create Issues, branches, commits, pull requests, code, tests, and documentation. Agents must not: submit reviews, request reviewers, approve changes, block pipelines, post unsolicited comments, bypass a failing gate, or weaken an oracle to get green. An agent may answer a direct question when explicitly tagged.
 
-## 🔗 Use by Other Repositories
-
-Other repositories may reference a specific version of this repository. Adoption is deliberate and repository-specific; no content here updates another repository automatically. A reference communicates which guidance was considered, but does not impose behavior or replace the repository's own instructions.
-
-## 🔒 AI Agent Participation
-
-**May**, when explicitly tasked: create or update Issues, branches, commits, pull requests, descriptions, code, tests, and documentation within the authorized scope.
-
-**May not**: submit reviews, request reviewers, approve changes, block pipelines, or post unsolicited comments. An AI agent may answer a direct question when it is explicitly tagged in an Issue or pull request.
-
-## ⚙️ Useful Local Commands
-
-Use the commands defined by the repository being changed. Common evidence includes:
+## ⚙️ Useful local commands
 
 ```bash
-git status --short
-git diff --check
-git diff --stat
-# Run the repository's documented formatter, type checker, and test commands.
+python tools/standardctl.py verify
+python -m unittest discover -s tests -p "test_*.py"
+python tools/standardctl.py worktrees reconcile
+git status --short && git diff --check
 ```
