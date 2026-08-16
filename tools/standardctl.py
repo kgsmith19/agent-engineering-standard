@@ -2881,7 +2881,14 @@ def generate_evidence_manifest(
             Path(repo_root), "diff", "--name-only", diff_base, "HEAD",
             "--", "tests/",
         )
-        tests_modified = proc.returncode == 0 and bool(proc.stdout.strip())
+        if proc.returncode != 0:
+            # Fail closed: an unreachable diff base must not launder a
+            # test modification into an oracle_changes "None." bundle.
+            raise ValueError(
+                "diff base %s is unreachable; cannot determine whether "
+                "tests changed" % diff_base
+            )
+        tests_modified = bool(proc.stdout.strip())
     oracle_changes: Any = "None."
     if tests_modified:
         oracle_changes = [
