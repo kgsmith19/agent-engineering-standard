@@ -33,3 +33,5 @@ python -m unittest discover -s tests -p "test_*.py"
 python tools/standardctl.py worktrees reconcile
 git status --short && git diff --check
 ```
+
+<!-- canary #87: harmless draft-promotion test content -->
