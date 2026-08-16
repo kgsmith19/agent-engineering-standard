@@ -1,8 +1,9 @@
 # Contributor and Agent Guidance
 
-This repository is experimental and non-enforcing. Use these practices as concise working guidance, then follow the explicit instructions and verified commands of the repository being changed.
+> [!NOTE]
+> This repository is experimental and non-enforcing. Use these practices as concise working guidance, then follow the explicit instructions and verified commands of the repository being changed.
 
-## Working approach
+## 🧭 Working Approach
 
 1. Start from a GitHub Issue with a clear outcome.
 2. Make the smallest coherent change that satisfies that outcome.
@@ -14,7 +15,7 @@ This repository is experimental and non-enforcing. Use these practices as concis
 
 Prefer direct, maintainable solutions. Avoid unrelated cleanup, speculative abstractions, and new process artifacts that do not help deliver the requested outcome.
 
-## Evidence
+## ✅ Evidence
 
 Before handing off a change:
 
@@ -24,24 +25,24 @@ Before handing off a change:
 - report commands and results accurately; and
 - identify any check that could not be run.
 
-## CI baseline
+## ⚙️ CI Baseline
 
 Workflow enforcement is a single required check named `PR Gate` (or a repository's own `ci.yml` acting as one). Once repository settings permit it, native squash auto-merge is enabled to fire automatically when `PR Gate` passes and there are no merge conflicts — no separate automation is needed to arm it.
 
-## Forbidden artifacts
+## ⚠️ Forbidden Artifacts
 
 Do not commit, and remove on sight: `SPEC` files or directories, `PRD` documents, `System_Requirements.md`, data-flow diagrams, changelogs, ADRs, `AI_REVIEW` / "AI Review" workflows or references, `AGENT_VIEW`, `watchdog` automation, or any forced manual governance block (required human sign-off steps, review-request automation, merge-blocking bots beyond `PR Gate`). These were deliberately removed from this repository's own history; the guidance here is prospective as well as retrospective — repositories adopting this standard should not reintroduce them.
 
-## Local scratchpad
+## 📝 Local Scratchpad
 
 An agent may draft a spec, design note, or outline locally to think through a GitHub Issue before writing it — but only in a `.gitignore`d workspace folder. Nothing drafted this way may be committed; the Issue itself is the durable artifact.
 
-## AI agent boundaries
+## 🔒 AI Agent Boundaries
 
-An AI coding agent may create work artifacts only when the task explicitly authorizes them. This can include Issues, branches, commits, pull requests, descriptions, code, tests, and documentation.
+**May**, only when the task explicitly authorizes them: create work artifacts. These can include Issues, branches, commits, pull requests, descriptions, code, tests, and documentation.
 
-An AI agent must not submit reviews, request reviewers, approve changes, block a pipeline, or post an unsolicited comment. It may answer a direct question when explicitly tagged in an Issue or pull request.
+**Must not**: submit reviews, request reviewers, approve changes, block a pipeline, or post an unsolicited comment. An agent may answer a direct question when explicitly tagged in an Issue or pull request.
 
-## Repository references
+## 🔗 Repository References
 
 A repository may deliberately reference a specific version of this guidance. The reference is informational and does not automatically change that repository. Repository-specific instructions take precedence.
