@@ -1,23 +1,26 @@
-## Classification
+## 🏷️ Classification
 
-`FEAT:` a new capability or behavior change. `BUG:` existing behavior is wrong. Prefix the Issue title with one.
+Prefix the Issue title with one:
 
-## Outcome
+- `FEAT:` — a new capability or behavior change.
+- `BUG:` — existing behavior is wrong.
+
+## 🎯 Outcome
 
 Describe the user-visible or operational result this Issue should produce.
 
-## Context
+## 📚 Context
 
 Explain the current behavior, the reason for the change, and any facts needed to understand the work.
 
-## Acceptance criteria
+## ✅ Acceptance Criteria
 
 - [ ] State each observable condition required for completion.
 
-## Scope
+## 📋 Scope
 
 List important constraints and anything intentionally excluded.
 
-## Verification
+## 🧪 Verification
 
 List the checks or evidence that will demonstrate the outcome.

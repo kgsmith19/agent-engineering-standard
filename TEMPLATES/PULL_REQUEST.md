@@ -1,16 +1,16 @@
-## Summary
+## 📋 Summary
 
 Explain what changed and why.
 
-## Related Issue
+## 🔗 Related Issue
 
 Closes #
 
-## Changes
+## 🔨 Changes
 
 - Describe the smallest meaningful set of changes.
 
-## Verification
+## 🧪 Verification
 
 List each command or check run and its result.
 
@@ -18,7 +18,7 @@ List each command or check run and its result.
 command — result
 ```
 
-## Scope check
+## ✅ Scope Check
 
 - [ ] The change is limited to the related Issue.
 - [ ] Tests or documentation were updated when relevant.
