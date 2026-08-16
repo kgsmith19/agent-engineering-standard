@@ -83,6 +83,12 @@ mappings:
   - source: TEMPLATES/pr-gate.yml
     dest: .github/workflows/pr-gate.yml
     mode: adapt
+  - source: TEMPLATES/merge-policy.yml
+    dest: .github/workflows/merge-policy.yml
+    mode: adapt
+  - source: TEMPLATES/CODEOWNERS
+    dest: .github/CODEOWNERS
+    mode: render
   - source: TEMPLATES/project.yaml
     dest: project.yaml
     mode: render

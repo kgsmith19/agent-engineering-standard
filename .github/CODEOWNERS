@@ -1,0 +1,9 @@
+/.github/CODEOWNERS @kgsmith19
+/.github/workflows/ @kgsmith19
+/tools/standardctl.py @kgsmith19
+/project.yaml @kgsmith19
+/TEMPLATES/manifest.yaml @kgsmith19
+/TEMPLATES/pr-gate.yml @kgsmith19
+/TEMPLATES/merge-policy.yml @kgsmith19
+/TEMPLATES/repository-settings.json @kgsmith19
+/TEMPLATES/main-protection.ruleset.json @kgsmith19

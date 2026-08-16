@@ -1,0 +1,9 @@
+/.github/CODEOWNERS @__OWNER_LOGIN__
+/.github/workflows/ @__OWNER_LOGIN__
+/tools/standardctl.py @__OWNER_LOGIN__
+/project.yaml @__OWNER_LOGIN__
+/TEMPLATES/manifest.yaml @__OWNER_LOGIN__
+/TEMPLATES/pr-gate.yml @__OWNER_LOGIN__
+/TEMPLATES/merge-policy.yml @__OWNER_LOGIN__
+/TEMPLATES/repository-settings.json @__OWNER_LOGIN__
+/TEMPLATES/main-protection.ruleset.json @__OWNER_LOGIN__
