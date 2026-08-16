@@ -32,6 +32,18 @@ permissions:
   issues: write
   actions: read
 
+# Serializes overlapping events for the same pull request (e.g. a
+# synchronize and a labeled event arriving close together) so two runs
+# never race the find-then-create comment upsert into a duplicate
+# comment. This "group:" value is consumed by the Actions scheduler to
+# decide queueing — it is never passed to a shell or into the
+# github-script body, so it carries none of the injection risk a run:
+# interpolation would. cancel-in-progress is false so each event is
+# still fully reconciled, in order, rather than dropped mid-run.
+concurrency:
+  group: merge-policy-${{ github.event.pull_request.number || github.event.workflow_run.head_branch || github.event_name }}
+  cancel-in-progress: false
+
 jobs:
   reconcile:
     name: Agent Engineering Standard Merge Policy
@@ -220,7 +232,7 @@ jobs:
                     summaryLines.push(
                       "- Auto-merge: disabled at the repository level; nothing to arm."
                     );
-                  } else if (/already in clean status|you can merge directly|already.*(clean|mergeable)/i.test(message)) {
+                  } else if (/clean status|you can merge directly|already.*(clean|mergeable)/i.test(message)) {
                     summaryLines.push(
                       "- Auto-merge: PR already in a mergeable/clean state; GitHub refused arming (expected — see PR #83)."
                     );
