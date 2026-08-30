@@ -42,7 +42,6 @@ protection:
   ruleset: "__MAIN_RULESET_NAME__"
   merge_method: squash
   ordinary_approvals: 0
-  control_plane_owner_approval: 1
 
 commands:
   # Replace with this repository's actual verified commands; delete any that

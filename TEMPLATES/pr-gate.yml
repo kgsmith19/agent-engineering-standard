@@ -205,16 +205,29 @@ jobs:
           echo "changes, or delete this job."
           exit 1
 
+  llm_review:
+    name: __APP_DISPLAY_NAME__ · Independent LLM Review
+    uses: ./.github/workflows/llm-review.yml
+    with:
+      # Adopter-supplied repository variables; no default ships with the
+      # standard. See AGENTS.md's "Independent LLM Review" subsection and
+      # TEMPLATES/llm-review.yml's adopter instructions.
+      builder_provider_family: ${{ vars.BUILDER_PROVIDER_FAMILY }}
+      reviewer_provider_family: ${{ vars.LLM_REVIEW_PROVIDER_FAMILY }}
+      reviewer_model: ${{ vars.LLM_REVIEW_MODEL }}
+    secrets:
+      reviewer_credential: ${{ secrets.LLM_REVIEW_CREDENTIAL }}
+
   gate:
     name: __APP_DISPLAY_NAME__ PR Gate
     runs-on: ubuntu-latest
-    needs: [policy, lint, security, unit, integration, property, mutation, fuzz, e2e, verification]
+    needs: [policy, lint, security, unit, integration, property, mutation, fuzz, e2e, verification, llm_review]
     if: always()
     steps:
       - name: Gate · Enforce all dependencies succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-          EXPECTED_JOBS: policy lint security unit integration property mutation fuzz e2e verification
+          EXPECTED_JOBS: policy lint security unit integration property mutation fuzz e2e verification llm_review
         run: |
           python3 - <<'GATE'
           import json

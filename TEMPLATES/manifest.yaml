@@ -86,9 +86,9 @@ mappings:
   - source: TEMPLATES/merge-policy.yml
     dest: .github/workflows/merge-policy.yml
     mode: adapt
-  - source: TEMPLATES/CODEOWNERS
-    dest: .github/CODEOWNERS
-    mode: render
+  - source: TEMPLATES/llm-review.yml
+    dest: .github/workflows/llm-review.yml
+    mode: adapt
   - source: TEMPLATES/project.yaml
     dest: project.yaml
     mode: render
@@ -108,6 +108,7 @@ mappings:
 retired:
   - TEST_LEDGER.md
   - .github/workflows/ci.yml
+  - .github/CODEOWNERS
 
 minimum:
   python: "3.9"

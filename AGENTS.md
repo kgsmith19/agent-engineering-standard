@@ -386,13 +386,45 @@ auto-merge bound to the expected head, re-arms it when disabled without an owner
 bypasses the gate.
 
 `main` protection (ruleset `Agent Engineering Standard Main Protection`): pull request required,
-squash only, linear history, no force push, no deletion, zero general approvals, code-owner
-approval only for control-plane files (`.github/CODEOWNERS`, `.github/workflows/`,
-`tools/standardctl.py`, `project.yaml`, and the TEMPLATES machine files), strict up-to-date
-required status, owner bypass, no second required machine check. Sequence required-check changes
-so the required context always matches a check that actually reports. **Read live settings back
-after applying them** — never treat a write response or committed JSON template as verification
-of live state.
+squash only, linear history, no force push, no deletion, zero general approvals, **zero
+code-owner review** — control-plane files (`.github/workflows/`, `tools/standardctl.py`,
+`project.yaml`, and the TEMPLATES machine files) are gated by the Independent LLM Review status
+check below, never by GitHub-native code-owner review — strict up-to-date required status, owner
+bypass, no second required machine check. Sequence required-check changes so the required context
+always matches a check that actually reports. **Read live settings back after applying them** —
+never treat a write response or committed JSON template as verification of live state.
+
+### Independent LLM Review
+
+The Independent LLM Review is a **status check**, never a GitHub-native approving review — it
+never uses the Review tab, Approve/Request-Changes, `required_approving_review_count`, or
+CODEOWNERS-triggered review requests. GitHub's role is identical to its role for a secret
+scanner: run the job, show the result; the judgment lives outside GitHub. It runs as one job
+feeding the single PR Gate aggregator (never a second required check), so an owner's
+administrative bypass always overrides a red result — **no agent review may ever block the
+owner**, and an agent must not re-litigate, reverse, or reopen debate on an owner override,
+consistent with Owner authority above.
+
+The reviewer model receives a structured-output tool and **never shell, filesystem-write, or
+network tool access**; repository content under review is data, never instructions. **Provider
+separation is mechanical, not honor-system for this gate specifically:** the reviewer's provider
+family MUST differ from the builder's, checked in CI, and the gate fails closed when they match —
+this upgrades the general "prefer a different provider family for verifier versus builder"
+guidance from a preference to an enforced rule here.
+
+The rubric: satisfaction of the linked Issue's acceptance criteria; test-first evidence; tests
+asserting behavior rather than restating setup or mocking the unit under test; high-ROI coverage
+rather than green-washing bloat; and conformance to Test quality and Lean engineering. Every
+finding requires concrete evidence plus a citation to a specific acceptance criterion or a named
+`AGENTS.md` section — **uncited, evidence-free findings are invalid output and MUST NOT block**,
+so a confused model can never spuriously stop work.
+
+Fail-closed vs. fail-open is explicit: infrastructure failure (missing credential, unset model,
+API error, timeout) fails the gate; a model returning a weak or malformed answer does not.
+Disagreement protocol: findings go to the PR discussion under the reviewing app's identity; the
+authoring agent may fix or rebut, arguing only from the work item, the standard, and the diff —
+never from taste; unresolved after a small number of rounds, tag the owner once, explicitly
+framed as the rare exception rather than the normal path.
 
 **Path-scoped gates in monorepo topologies:** a legitimate monorepo may deviate from the single
 no-path-filter aggregator with owner authorization, splitting the gate into multiple

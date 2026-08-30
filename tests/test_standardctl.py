@@ -554,6 +554,163 @@ class StandardRepoRejections(FixtureCase):
         findings = standardctl.check_test_justifications(self.model(root))
         self.assertIn("missing-test-justification", check_ids(findings))
 
+    def test_verify_accepts_llm_review_workflow_filename(self):
+        """Protects the widened closed workflow set (gate + merge policy +
+        llm-review, with transitional ci.yml); catches a regression that
+        forgets to allow the new Independent LLM Review template's
+        rendered filename, which would block every adopter that installs
+        it."""
+        root = self.std_fixture()
+        self.write_workflow(
+            root,
+            "llm-review.yml",
+            "name: Fixture App · Independent LLM Review\n"
+            "on:\n"
+            "  workflow_call:\n"
+            "permissions:\n"
+            "  contents: read\n"
+            "jobs:\n"
+            "  review:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: echo review\n",
+        )
+        findings = standardctl.check_unauthorized_workflows(self.model(root))
+        self.assertNotIn("unauthorized-workflow", check_ids(findings))
+
+    def test_verify_rejects_floating_action_reference_in_llm_review_workflow(self):
+        """Protects SHA-pinning on the Independent LLM Review workflow the
+        same as the gate and merge-policy workflows; catches a mutable
+        tag reference that an upstream tag move could silently repoint at
+        different code inside the review job."""
+        root = self.std_fixture()
+        self.write_workflow(
+            root,
+            "llm-review.yml",
+            "name: Fixture App · Independent LLM Review\n"
+            "on:\n"
+            "  workflow_call:\n"
+            "permissions:\n"
+            "  contents: read\n"
+            "jobs:\n"
+            "  review:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - uses: actions/checkout@v4\n"
+            "      - run: echo review\n",
+        )
+        findings = standardctl.check_action_pinning(self.model(root))
+        self.assertIn("floating-action-ref", check_ids(findings))
+
+    def test_verify_rejects_llm_review_workflow_without_permissions_block(self):
+        """Protects the explicit-permissions requirement on the
+        Independent LLM Review workflow; catches a missing top-level
+        permissions block, which would leave the job running with the
+        repository's ambient (potentially write) default token scope."""
+        root = self.std_fixture()
+        self.write_workflow(
+            root,
+            "llm-review.yml",
+            "name: Fixture App · Independent LLM Review\n"
+            "on:\n"
+            "  workflow_call:\n"
+            "jobs:\n"
+            "  review:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: echo review\n",
+        )
+        findings = standardctl.check_workflow_permissions(self.model(root))
+        self.assertIn("workflow-permissions", check_ids(findings))
+
+    def test_verify_accepts_reusable_workflow_call_job_as_non_noop(self):
+        """Protects a same-repo reusable-workflow-call job (uses: ./...,
+        no steps) from being misclassified as an empty-success stage;
+        catches a regression in the noop-stage heuristic that would block
+        every adopter wiring Independent LLM Review into the gate via
+        job-level 'uses'."""
+        root = self.std_fixture()
+        self.write_workflow(
+            root,
+            "pr-gate.yml",
+            "name: Fixture App PR Gate\n"
+            "on:\n"
+            "  pull_request:\n"
+            "permissions:\n"
+            "  contents: read\n"
+            "jobs:\n"
+            "  llm_review:\n"
+            "    name: Fixture LLM Review\n"
+            "    uses: ./.github/workflows/llm-review.yml\n"
+            "  gate:\n"
+            "    name: Fixture App PR Gate\n"
+            "    runs-on: ubuntu-latest\n"
+            "    needs: [llm_review]\n"
+            "    if: always()\n"
+            "    steps:\n" + STRICT_AGGREGATOR_STEPS,
+        )
+        findings = standardctl.check_gate_noop_stages(self.model(root))
+        self.assertNotIn("noop-stage", check_ids(findings))
+
+    def test_verify_accepts_unpinned_local_reusable_workflow_call(self):
+        """Protects same-repo reusable-workflow calls (uses: ./...) from
+        the SHA-pinning requirement meant for third-party actions; catches
+        a regression that would demand an impossible commit-SHA pin on a
+        same-repo relative path, blocking every adopter that wires
+        Independent LLM Review into the gate this way."""
+        root = self.std_fixture()
+        self.write_workflow(
+            root,
+            "pr-gate.yml",
+            "name: Fixture App PR Gate\n"
+            "on:\n"
+            "  pull_request:\n"
+            "permissions:\n"
+            "  contents: read\n"
+            "jobs:\n"
+            "  llm_review:\n"
+            "    name: Fixture LLM Review\n"
+            "    uses: ./.github/workflows/llm-review.yml\n",
+        )
+        findings = standardctl.check_action_pinning(self.model(root))
+        self.assertNotIn("floating-action-ref", check_ids(findings))
+
+    def test_verify_rejects_code_owner_review_required_in_ruleset(self):
+        """Protects the forbidden-outcomes rule against GitHub-native
+        approving reviews; catches a regression to
+        require_code_owner_review: true in the main-protection ruleset
+        template, the exact live-config form of the code-owner-review
+        gating this standard retired in favor of Independent LLM Review."""
+        root = self.std_fixture()
+        ruleset = root / "TEMPLATES" / "main-protection.ruleset.json"
+        ruleset.write_text(
+            ruleset.read_text(encoding="utf-8").replace(
+                '"require_code_owner_review": false',
+                '"require_code_owner_review": true',
+            ),
+            encoding="utf-8",
+        )
+        findings = standardctl.check_no_native_review_gating(self.model(root))
+        self.assertIn("native-review-gating", check_ids(findings))
+
+    def test_verify_rejects_nonzero_approving_review_count_in_ruleset(self):
+        """Protects the forbidden-outcomes rule against GitHub-native
+        approving reviews; catches a regression to a nonzero
+        required_approving_review_count in the main-protection ruleset
+        template, which would silently reintroduce GitHub-native review
+        gating this standard forbids."""
+        root = self.std_fixture()
+        ruleset = root / "TEMPLATES" / "main-protection.ruleset.json"
+        ruleset.write_text(
+            ruleset.read_text(encoding="utf-8").replace(
+                '"required_approving_review_count": 0',
+                '"required_approving_review_count": 2',
+            ),
+            encoding="utf-8",
+        )
+        findings = standardctl.check_no_native_review_gating(self.model(root))
+        self.assertIn("native-review-gating", check_ids(findings))
+
 
 class Acceptance(FixtureCase):
     """The unmutated trees must verify cleanly, anchoring every
