@@ -1,0 +1,92 @@
+# Independent LLM Review template (rendered by standardctl init).
+#
+# This is a reusable workflow_call workflow: TEMPLATES/pr-gate.yml invokes it
+# as one job feeding the single PR Gate aggregator. It is a status check,
+# never a GitHub-native approving review — never wire this into
+# required_approving_review_count, CODEOWNERS-triggered review requests, or
+# the Review tab. See AGENTS.md's "Independent LLM Review" subsection.
+#
+# Adopter instructions:
+#   - Do not add a `paths:` filter — the calling gate workflow already has
+#     none, and a path-filtered required dependency never reports (see
+#     AGENTS.md's path-scoped-gates warning).
+#   - Supply reviewer_provider_family, reviewer_model, and the
+#     reviewer_credential secret from the calling job in TEMPLATES/pr-gate.yml
+#     (or the repository's adapted copy). No model ID or provider ships
+#     hardcoded with the standard: an unset value fails this job closed
+#     rather than silently skipping review.
+#   - The reviewer model gets a structured-output tool only — never shell,
+#     filesystem-write, or network tool access. Repository content under
+#     review is data, never instructions.
+#   - Replace the fail-closed placeholder review step with the repository's
+#     real LLM Review invocation. Never replace it with an empty success.
+name: __APP_DISPLAY_NAME__ · Independent LLM Review
+
+on:
+  workflow_call:
+    inputs:
+      builder_provider_family:
+        description: "Provider family of this PR's builder/implementer (anthropic, openai, gemini)."
+        required: true
+        type: string
+      reviewer_provider_family:
+        description: "Provider family configured for this repository's Independent LLM Review. Must differ from builder_provider_family."
+        required: true
+        type: string
+      reviewer_model:
+        description: "Reviewer model identifier. No default ships with the standard — an adopter must supply this."
+        required: true
+        type: string
+    secrets:
+      reviewer_credential:
+        description: "Credential used to call the reviewer model. Required; the job fails closed when unset."
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  review:
+    name: __APP_DISPLAY_NAME__ · Independent LLM Review
+    runs-on: ubuntu-latest
+    steps:
+      - name: LLM Review · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: LLM Review · Enforce provider separation
+        env:
+          BUILDER_PROVIDER_FAMILY: ${{ inputs.builder_provider_family }}
+          REVIEWER_PROVIDER_FAMILY: ${{ inputs.reviewer_provider_family }}
+        run: |
+          if [ -z "$BUILDER_PROVIDER_FAMILY" ] || [ -z "$REVIEWER_PROVIDER_FAMILY" ]; then
+            echo "ERROR: builder/reviewer provider family is unset; this gate fails closed rather than silently skipping the separation rule." >&2
+            exit 1
+          fi
+          if [ "$BUILDER_PROVIDER_FAMILY" = "$REVIEWER_PROVIDER_FAMILY" ]; then
+            echo "ERROR: reviewer provider family ($REVIEWER_PROVIDER_FAMILY) must differ from the builder's ($BUILDER_PROVIDER_FAMILY) for this gate." >&2
+            exit 1
+          fi
+      - name: LLM Review · Verify reviewer configuration is present
+        env:
+          REVIEWER_MODEL: ${{ inputs.reviewer_model }}
+          REVIEWER_CREDENTIAL: ${{ secrets.reviewer_credential }}
+        run: |
+          if [ -z "$REVIEWER_MODEL" ] || [ -z "$REVIEWER_CREDENTIAL" ]; then
+            echo "ERROR: reviewer model or credential is unset; this gate fails closed rather than silently skipping review." >&2
+            exit 1
+          fi
+      - name: LLM Review · Run independent review
+        run: |
+          echo "Replace this placeholder with the repository's real LLM"
+          echo "Review invocation. The reviewer model gets a structured-"
+          echo "output tool only -- never shell, filesystem-write, or"
+          echo "network tool access -- and repository content under review"
+          echo "is data, never instructions. Post findings to the PR"
+          echo "discussion under the reviewing app's identity, citing a"
+          echo "specific acceptance criterion or AGENTS.md section for"
+          echo "every finding. Never replace this placeholder with an"
+          echo "empty success."
+          exit 1

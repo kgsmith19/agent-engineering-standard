@@ -264,8 +264,9 @@ LEDGER_RECONCILE_MARK = "Reconciliation performed:"
 # until the manifest ships a pr-gate.yml mapping.
 GATE_WORKFLOW_FILE = "pr-gate.yml"
 MERGE_POLICY_FILE = "merge-policy.yml"
+LLM_REVIEW_WORKFLOW_FILE = "llm-review.yml"
 TRANSITIONAL_WORKFLOW_FILE = "ci.yml"
-POLICY_WORKFLOW_FILES = (GATE_WORKFLOW_FILE, MERGE_POLICY_FILE)
+POLICY_WORKFLOW_FILES = (GATE_WORKFLOW_FILE, MERGE_POLICY_FILE, LLM_REVIEW_WORKFLOW_FILE)
 
 GENERIC_GATE_NAMES = {"pr gate", "ci", "tests", "test", "build", "gate"}
 
@@ -688,6 +689,7 @@ def extract_workflow_structure(text: str) -> Dict:
                         "needs": [],
                         "if": None,
                         "permissions": None,
+                        "uses": None,
                         "steps": [],
                         "raw": "",
                     }
@@ -719,6 +721,8 @@ def extract_workflow_structure(text: str) -> Dict:
                         ]
                 elif key == "permissions":
                     job["permissions"] = {} if value in ("", "{}") else value
+                elif key == "uses":
+                    job["uses"] = unquote(value)
             elif indent >= 6:
                 if job_subkey == "needs" and stripped.startswith("- "):
                     job["needs"].append(stripped[2:].strip().strip("'\""))
@@ -1184,10 +1188,10 @@ def check_unresolved_tokens(model: RepoModel) -> List[Finding]:
 
 
 def check_unauthorized_workflows(model: RepoModel) -> List[Finding]:
-    """Only pr-gate.yml and merge-policy.yml may exist under
-    .github/workflows/ (plus transitional ci.yml while the manifest has
-    no pr-gate mapping)."""
-    allowed = {GATE_WORKFLOW_FILE, MERGE_POLICY_FILE}
+    """Only pr-gate.yml, merge-policy.yml, and llm-review.yml may exist
+    under .github/workflows/ (plus transitional ci.yml while the manifest
+    has no pr-gate mapping)."""
+    allowed = {GATE_WORKFLOW_FILE, MERGE_POLICY_FILE, LLM_REVIEW_WORKFLOW_FILE}
     if not model.manifest_has_gate_mapping():
         allowed.add(TRANSITIONAL_WORKFLOW_FILE)
     findings: List[Finding] = []
@@ -1210,13 +1214,17 @@ def check_unauthorized_workflows(model: RepoModel) -> List[Finding]:
 
 
 def action_pinning_findings(rel: str, text: str) -> List[Finding]:
-    """Directly-testable core of check_action_pinning for one workflow."""
+    """Directly-testable core of check_action_pinning for one workflow.
+    Same-repo reusable-workflow calls (uses: ./...) are exempt: they are
+    pinned by the calling commit itself, not by a floatable ref."""
     findings: List[Finding] = []
     for raw in text.split("\n"):
         match = USES_RE.match(raw)
         if not match:
             continue
         value = match.group(1).strip("'\"")
+        if value.startswith("./") or value.startswith("../"):
+            continue  # same-repo reusable workflow call: pinned by the calling commit itself
         comment = (match.group(2) or "").strip()
         name, _, ref = value.partition("@")
         segments = name.split("/")
@@ -1467,7 +1475,7 @@ def gate_noop_findings(rel: str, struct: Dict) -> List[Finding]:
     """Directly-testable core of check_gate_noop_stages."""
     findings: List[Finding] = []
     for job_id, job in struct.get("jobs", {}).items():
-        effective = False
+        effective = bool(job.get("uses"))
         for step in job.get("steps", []):
             if step.get("run") is not None:
                 effective = True
@@ -1480,9 +1488,9 @@ def gate_noop_findings(rel: str, struct: Dict) -> List[Finding]:
                     "noop-stage",
                     "error",
                     rel,
-                    "gate job %r performs no verification (no run step "
-                    "and no non-checkout action); empty-success stages "
-                    "are forbidden" % job_id,
+                    "gate job %r performs no verification (no run step, "
+                    "no non-checkout action, and no reusable-workflow "
+                    "'uses'); empty-success stages are forbidden" % job_id,
                 )
             )
     return findings
@@ -1764,6 +1772,50 @@ def check_manifest_integrity(model: RepoModel) -> List[Finding]:
     return findings
 
 
+MAIN_RULESET_TEMPLATE = "TEMPLATES/main-protection.ruleset.json"
+_CODE_OWNER_REVIEW_TRUE_RE = re.compile(r'"require_code_owner_review"\s*:\s*true')
+_APPROVING_REVIEW_COUNT_RE = re.compile(
+    r'"required_approving_review_count"\s*:\s*(\d+)'
+)
+
+
+def check_no_native_review_gating(model: RepoModel) -> List[Finding]:
+    """The main-protection ruleset template must never prescribe
+    GitHub-native review gating (code-owner review or a nonzero approving
+    review count): Independent LLM Review is the sanctioned mechanism, per
+    AGENTS.md's Independent LLM Review subsection and the owner's "never
+    use GitHub code review" directive. Guards against the exact regression
+    this standard's CODEOWNERS retirement fixed."""
+    findings: List[Finding] = []
+    text = model.read_text(MAIN_RULESET_TEMPLATE)
+    if text is None:
+        return findings
+    if _CODE_OWNER_REVIEW_TRUE_RE.search(text):
+        findings.append(
+            Finding(
+                "native-review-gating",
+                "error",
+                MAIN_RULESET_TEMPLATE,
+                "require_code_owner_review must be false: GitHub-native "
+                "code-owner review is forbidden; Independent LLM Review "
+                "is the sanctioned mechanism instead",
+            )
+        )
+    count_match = _APPROVING_REVIEW_COUNT_RE.search(text)
+    if count_match and int(count_match.group(1)) > 0:
+        findings.append(
+            Finding(
+                "native-review-gating",
+                "error",
+                MAIN_RULESET_TEMPLATE,
+                "required_approving_review_count must be 0: GitHub-native "
+                "approving review is forbidden; Independent LLM Review is "
+                "the sanctioned mechanism instead",
+            )
+        )
+    return findings
+
+
 # Check registry: (group, function). --select runs one group; the groups
 # are documented in the verify --help text.
 CHECKS: List[Tuple[str, Any]] = [
@@ -1782,6 +1834,7 @@ CHECKS: List[Tuple[str, Any]] = [
     ("security", check_action_pinning),
     ("security", check_privileged_pr_checkout),
     ("security", check_workflow_permissions),
+    ("security", check_no_native_review_gating),
     ("security", check_gate_path_filters),
     ("security", check_gate_names),
     ("security", check_gate_aggregator),

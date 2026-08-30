@@ -40,7 +40,6 @@ protection:
   ruleset: "Agent Engineering Standard Main Protection"
   merge_method: squash
   ordinary_approvals: 0
-  control_plane_owner_approval: 1
 
 commands:
   verify: python tools/standardctl.py verify
