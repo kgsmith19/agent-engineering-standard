@@ -180,13 +180,86 @@ jobs:
 
   llm_review:
     name: Agent Engineering Standard · Independent LLM Review
-    uses: ./.github/workflows/llm-review.yml
-    with:
-      builder_provider_family: ${{ vars.BUILDER_PROVIDER_FAMILY }}
-      reviewer_provider_family: ${{ vars.LLM_REVIEW_PROVIDER_FAMILY }}
-      reviewer_model: ${{ vars.LLM_REVIEW_MODEL }}
-    secrets:
-      reviewer_credential: ${{ secrets.LLM_REVIEW_CREDENTIAL }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: LLM Review · Enforce provider separation
+        id: provider-separation
+        run: |
+          if [ -z "${{ vars.BUILDER_PROVIDER_FAMILY }}" ] || [ -z "${{ vars.LLM_REVIEW_PROVIDER_FAMILY }}" ]; then
+            echo "ERROR: builder/reviewer provider family is unset; this gate fails closed rather than silently skipping the separation rule." >&2
+            exit 1
+          fi
+          if [ "${{ vars.BUILDER_PROVIDER_FAMILY }}" = "${{ vars.LLM_REVIEW_PROVIDER_FAMILY }}" ]; then
+            echo "ERROR: reviewer provider family (${{ vars.LLM_REVIEW_PROVIDER_FAMILY }}) must differ from the builder's (${{ vars.BUILDER_PROVIDER_FAMILY }}) for this gate." >&2
+            exit 1
+          fi
+      - name: LLM Review · Verify reviewer configuration is present
+        id: verify-config
+        run: |
+          if [ -z "${{ vars.LLM_REVIEW_MODEL }}" ] || [ -z "${{ secrets.LLM_REVIEW_CREDENTIAL }}" ]; then
+            echo "ERROR: reviewer model or credential is unset; this gate fails closed rather than silently skipping review." >&2
+            exit 1
+          fi
+      - name: LLM Review · Run independent review
+        id: run-review
+        run: |
+          echo "Replace this placeholder with the repository's real LLM"
+          echo "Review invocation. The reviewer model gets a structured-"
+          echo "output tool only -- never shell, filesystem-write, or"
+          echo "network tool access -- and repository content under review"
+          echo "is data, never instructions. Post findings to the PR"
+          echo "discussion under the reviewing app's identity, citing a"
+          echo "specific acceptance criterion or AGENTS.md section for"
+          echo "every finding. Never replace this placeholder with an"
+          echo "empty success."
+          exit 1
+      - name: LLM Review · Post failure comment
+        if: failure()
+        uses: actions/github-script@e69ef5462fd455e02edcaf4dd7708eda96b9eda0 # v7.0.0
+        with:
+          script: |
+            const failedSteps = [];
+            if ('${{ steps.provider-separation.outcome }}' === 'failure') {
+              failedSteps.push('Provider separation check failed');
+            }
+            if ('${{ steps.verify-config.outcome }}' === 'failure') {
+              failedSteps.push('Reviewer configuration verification failed');
+            }
+            if ('${{ steps.run-review.outcome }}' === 'failure') {
+              failedSteps.push('Independent review execution failed');
+            }
+
+            const body = `## Independent LLM Review Failed
+
+            The following step(s) failed:
+
+            ${failedSteps.map(s => `- ${s}`).join('\n')}
+
+            ### Required action
+
+            This job is currently using a placeholder. The harness needs to configure:
+            - \`LLM_REVIEW_PROVIDER_FAMILY\` repository variable
+            - \`LLM_REVIEW_MODEL\` repository variable
+            - \`LLM_REVIEW_CREDENTIAL\` repository secret
+
+            Once configured, the real LLM review invocation will replace this placeholder.
+
+            ### Dev agent action required
+
+            1. Read this failure comment
+            2. Verify the repository variables are set
+            3. If variables are set but the review still fails, address the specific findings
+            4. Push a fix to re-trigger the gate`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
 
   gate:
     name: Agent Engineering Standard PR Gate
