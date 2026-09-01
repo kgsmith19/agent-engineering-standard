@@ -181,9 +181,6 @@ jobs:
   llm_review:
     name: Agent Engineering Standard · Independent LLM Review
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
     steps:
       - name: LLM Review · Enforce provider separation
         id: provider-separation
