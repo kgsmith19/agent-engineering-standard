@@ -22,7 +22,7 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   review:
@@ -35,6 +35,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: LLM Review · Enforce provider separation
+        id: provider-separation
         env:
           BUILDER_PROVIDER_FAMILY: ${{ inputs.builder_provider_family }}
           REVIEWER_PROVIDER_FAMILY: ${{ inputs.reviewer_provider_family }}
@@ -48,6 +49,7 @@ jobs:
             exit 1
           fi
       - name: LLM Review · Verify reviewer configuration is present
+        id: verify-config
         env:
           REVIEWER_MODEL: ${{ inputs.reviewer_model }}
           REVIEWER_CREDENTIAL: ${{ secrets.reviewer_credential }}
@@ -57,6 +59,7 @@ jobs:
             exit 1
           fi
       - name: LLM Review · Run independent review
+        id: run-review
         run: |
           echo "Replace this placeholder with the repository's real LLM"
           echo "Review invocation. The reviewer model gets a structured-"
@@ -68,3 +71,38 @@ jobs:
           echo "every finding. Never replace this placeholder with an"
           echo "empty success."
           exit 1
+      - name: LLM Review · Post failure comment
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const failedSteps = [];
+            if ('${{ steps.provider-separation.outcome }}' === 'failure') {
+              failedSteps.push('Provider separation check failed');
+            }
+            if ('${{ steps.verify-config.outcome }}' === 'failure') {
+              failedSteps.push('Reviewer configuration verification failed');
+            }
+            if ('${{ steps.run-review.outcome }}' === 'failure') {
+              failedSteps.push('Independent review execution failed');
+            }
+
+            const body = `## Independent LLM Review Failed
+
+            The following step(s) failed:
+
+            ${failedSteps.map(s => `- ${s}`).join('\n')}
+
+            This job is currently using a placeholder. The harness needs to configure:
+            - \`LLM_REVIEW_PROVIDER_FAMILY\` repository variable
+            - \`LLM_REVIEW_MODEL\` repository variable
+            - \`LLM_REVIEW_CREDENTIAL\` repository secret
+
+            Once configured, the real LLM review invocation will replace this placeholder.`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
