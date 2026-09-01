@@ -70,15 +70,51 @@ At the start of every new, resumed, or post-compaction controller session:
 
 1. Invoke `superpowers:using-superpowers` when the harness provides Superpowers.
 2. Read `AGENTS.md`, then `project.yaml`.
-3. Identify the active GitHub Issue, milestone, branch, PR, and exact head.
-4. Detect whether the environment is already isolated.
-5. Reconcile the local recovery ledger with Git history and remote state.
-6. Run the documented clean-baseline verification before modifying code.
-7. Resume the first incomplete task rather than repeating completed work.
+3. Initialize the dev agent and reviewer agent (see [Agent identities](#agent-identities)).
+4. Identify the active GitHub Issue, milestone, branch, PR, and exact head.
+5. Detect whether the environment is already isolated.
+6. Reconcile the local recovery ledger with Git history and remote state.
+7. Run the documented clean-baseline verification before modifying code.
+8. Resume the first incomplete task rather than repeating completed work.
 
 Use the Superpowers lifecycle skills when available — worktrees, writing plans, subagent-driven
 development, test-driven development, systematic debugging, code review, verification before
 completion, finishing a branch.
+
+## Agent identities
+
+Two GitHub App identities back this repository. Both MUST be initialized at session start.
+
+| Agent | GitHub App | App ID | Installation | Role |
+| --- | --- | --- | --- | --- |
+| **Dev** | `hyperbolic-core-dev` | 4656454 | 155589222 | Builder — implements Issues, opens PRs |
+| **Reviewer** | `hyperbolic-core-reviewer` | 4656330 | 155589128 | Independent LLM Review — posts findings to PRs |
+
+Both apps are installed on `kgsmith19` with `issues: write`, `contents: write`, `pull_requests: write`, `metadata: read`.
+
+### Credentials
+
+Credentials live in Infisical at `https://app.infisical.com`, project `hyperbolic-core`, environment `production`. The harness resolves them; nothing is hardcoded in repository files.
+
+| Agent | App ID secret | Private key secret |
+| --- | --- | --- |
+| Dev | `/dev/DEV_GITHUB_APP_ID` | `/dev/DEV_GITHUB_APP_PRIVATE_KEY` |
+| Reviewer | `/review/REVIEW_GITHUB_APP_ID` | `/review/REVIEW_GITHUB_APP_PRIVATE_KEY` |
+
+### Authentication flow
+
+1. Read the app ID and private key from Infisical.
+2. Generate a JWT signed with RS256: `iss` = app ID, `iat` = now − 60s, `exp` = now + 600s.
+3. `POST /app/installations/<installation_id>/access_tokens` with the JWT.
+4. Use the resulting installation token for all GitHub API requests.
+
+### Provider separation
+
+The reviewer agent MUST use a different provider family than the dev agent (e.g., dev on `anthropic` → reviewer on `openai` or `gemini`). The harness configures both; the repository never hardcodes a provider or model.
+
+### CI integration
+
+The Independent LLM Review CI job (see `.github/workflows/llm-review.yml`) uses the reviewer GitHub App to post review comments on PRs. Its provider family, model, and credential come from repository variables and secrets set by the harness — `LLM_REVIEW_PROVIDER_FAMILY`, `LLM_REVIEW_MODEL`, and `LLM_REVIEW_CREDENTIAL`.
 
 > [!NOTE]
 > When a harness cannot load Superpowers: record **"Superpowers unavailable in this harness"**
