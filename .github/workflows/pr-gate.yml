@@ -178,16 +178,26 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+  llm_review:
+    name: Agent Engineering Standard · Independent LLM Review
+    uses: ./.github/workflows/llm-review.yml
+    with:
+      builder_provider_family: ${{ vars.BUILDER_PROVIDER_FAMILY }}
+      reviewer_provider_family: ${{ vars.LLM_REVIEW_PROVIDER_FAMILY }}
+      reviewer_model: ${{ vars.LLM_REVIEW_MODEL }}
+    secrets:
+      reviewer_credential: ${{ secrets.LLM_REVIEW_CREDENTIAL }}
+
   gate:
     name: Agent Engineering Standard PR Gate
     runs-on: ubuntu-latest
-    needs: [policy, lint, security, tests, evidence]
+    needs: [policy, lint, security, tests, evidence, llm_review]
     if: always()
     steps:
       - name: Gate · Enforce all dependencies succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-          EXPECTED_JOBS: policy lint security tests evidence
+          EXPECTED_JOBS: policy lint security tests evidence llm_review
         run: |
           python3 - <<'GATE'
           import json
