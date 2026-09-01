@@ -466,6 +466,26 @@ framed as the rare exception rather than the normal path.
 no-path-filter aggregator with owner authorization, splitting the gate into multiple
 independently path-scoped workflows (one per app or service).
 
+### Automatic corrective action
+
+When a CI check fails, the dev agent MUST NOT merely observe the failure — it MUST take corrective action:
+
+1. **Read the failure details.** The PR Gate and Independent LLM Review jobs post comments to the PR discussion listing which checks failed and why. The dev agent reads these comments.
+
+2. **Diagnose and fix.** The dev agent analyzes the failure and makes code changes to address it. For example:
+   - Policy failure (branch naming, missing issue link) → fix the branch name or PR body
+   - Test failure → fix the code or update the test
+   - LLM Review findings → address the specific citations
+   - Security findings → remediate the vulnerability
+
+3. **Push and re-trigger.** The dev agent commits the fix and pushes to the same branch, which re-triggers the CI gate automatically.
+
+4. **Discuss when blocked.** If the dev agent cannot resolve a finding (e.g., disagrees with a review comment, needs clarification), it posts a reply in the PR discussion arguing from the work item, the standard, and the diff — never from taste.
+
+5. **Repeat until green.** This cycle (check → failure → diagnose → fix → push → re-check) repeats until the gate passes. A PR is ready only when all checks are green on the exact head.
+
+The reviewer agent participates in this cycle by posting findings and responding to the dev agent's rebuttals. Both agents treat the PR discussion as the coordination channel.
+
 > [!WARNING]
 > GitHub's required-status-checks model blocks on any required check name that never reports; a
 > `paths:` filter does **not** make an unreported required check "not applicable" to GitHub — it

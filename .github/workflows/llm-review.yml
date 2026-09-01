@@ -93,12 +93,21 @@ jobs:
 
             ${failedSteps.map(s => `- ${s}`).join('\n')}
 
+            ### Required action
+
             This job is currently using a placeholder. The harness needs to configure:
             - \`LLM_REVIEW_PROVIDER_FAMILY\` repository variable
             - \`LLM_REVIEW_MODEL\` repository variable
             - \`LLM_REVIEW_CREDENTIAL\` repository secret
 
-            Once configured, the real LLM review invocation will replace this placeholder.`;
+            Once configured, the real LLM review invocation will replace this placeholder.
+
+            ### Dev agent action required
+
+            1. Read this failure comment
+            2. Verify the repository variables are set
+            3. If variables are set but the review still fails, address the specific findings
+            4. Push a fix to re-trigger the gate`;
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,

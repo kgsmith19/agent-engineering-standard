@@ -273,7 +273,15 @@ jobs:
 
             ${failed.join('\n')}
 
-            Please address these failures and push a new commit to re-trigger the gate.`;
+            ### Dev agent action required
+
+            1. Read the failure details above and any linked check comments
+            2. Diagnose each failure (policy, lint, security, tests, evidence, llm_review)
+            3. Make code changes to address the failures
+            4. Push to this branch to re-trigger the gate
+            5. If blocked, post a reply in the PR discussion arguing from the work item, the standard, and the diff
+
+            The cycle (check → failure → diagnose → fix → push → re-check) repeats until the gate passes.`;
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
