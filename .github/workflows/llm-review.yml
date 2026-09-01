@@ -29,32 +29,21 @@ jobs:
     name: Agent Engineering Standard · Independent LLM Review
     runs-on: ubuntu-latest
     steps:
-      - name: LLM Review · Check out exact ref
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
       - name: LLM Review · Enforce provider separation
         id: provider-separation
-        env:
-          BUILDER_PROVIDER_FAMILY: ${{ inputs.builder_provider_family }}
-          REVIEWER_PROVIDER_FAMILY: ${{ inputs.reviewer_provider_family }}
         run: |
-          if [ -z "$BUILDER_PROVIDER_FAMILY" ] || [ -z "$REVIEWER_PROVIDER_FAMILY" ]; then
+          if [ -z "${{ inputs.builder_provider_family }}" ] || [ -z "${{ inputs.reviewer_provider_family }}" ]; then
             echo "ERROR: builder/reviewer provider family is unset; this gate fails closed rather than silently skipping the separation rule." >&2
             exit 1
           fi
-          if [ "$BUILDER_PROVIDER_FAMILY" = "$REVIEWER_PROVIDER_FAMILY" ]; then
-            echo "ERROR: reviewer provider family ($REVIEWER_PROVIDER_FAMILY) must differ from the builder's ($BUILDER_PROVIDER_FAMILY) for this gate." >&2
+          if [ "${{ inputs.builder_provider_family }}" = "${{ inputs.reviewer_provider_family }}" ]; then
+            echo "ERROR: reviewer provider family (${{ inputs.reviewer_provider_family }}) must differ from the builder's (${{ inputs.builder_provider_family }}) for this gate." >&2
             exit 1
           fi
       - name: LLM Review · Verify reviewer configuration is present
         id: verify-config
-        env:
-          REVIEWER_MODEL: ${{ inputs.reviewer_model }}
-          REVIEWER_CREDENTIAL: ${{ secrets.reviewer_credential }}
         run: |
-          if [ -z "$REVIEWER_MODEL" ] || [ -z "$REVIEWER_CREDENTIAL" ]; then
+          if [ -z "${{ inputs.reviewer_model }}" ] || [ -z "${{ secrets.reviewer_credential }}" ]; then
             echo "ERROR: reviewer model or credential is unset; this gate fails closed rather than silently skipping review." >&2
             exit 1
           fi
@@ -73,7 +62,7 @@ jobs:
           exit 1
       - name: LLM Review · Post failure comment
         if: failure()
-        uses: actions/github-script@v7
+        uses: actions/github-script@e69ef5462fd455e02edcaf4dd7708eda96b9eda0 # v7.0.0
         with:
           script: |
             const failedSteps = [];
