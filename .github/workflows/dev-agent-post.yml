@@ -1,0 +1,189 @@
+name: Dev Agent Post
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform (create_issue, create_comment, update_comment, create_pr, add_label)"
+        required: true
+        type: choice
+        options:
+          - create_issue
+          - create_comment
+          - update_comment
+          - create_pr
+          - add_label
+          - remove_label
+      issue_number:
+        description: "Issue/PR number (for comments, labels)"
+        required: false
+        type: string
+      comment_id:
+        description: "Comment ID (for update_comment)"
+        required: false
+        type: string
+      title:
+        description: "Title (for create_issue, create_pr)"
+        required: false
+        type: string
+      body:
+        description: "Body content"
+        required: false
+        type: string
+      marker:
+        description: "Comment marker for upsert (to find existing comment)"
+        required: false
+        type: string
+      labels:
+        description: "Comma-separated labels (for add_label)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  post:
+    name: Dev Agent Post
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post via Dev Agent
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          APP_ID: ${{ secrets.DEV_GITHUB_APP_ID }}
+          APP_KEY: ${{ secrets.DEV_GITHUB_APP_PRIVATE_KEY }}
+          INSTALLATION_ID: "155589222"
+        with:
+          script: |
+            const crypto = require('crypto');
+            const fs = require('fs');
+            
+            const { owner, repo } = context.repo;
+            const appId = process.env.APP_ID;
+            const appKey = process.env.APP_KEY;
+            const installationId = process.env.INSTALLATION_ID;
+            
+            // Generate JWT for app authentication
+            function generateJwt() {
+              const now = Math.floor(Date.now() / 1000);
+              const payload = {
+                iss: parseInt(appId),
+                iat: now - 60,
+                exp: now + 600,
+              };
+              
+              const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64');
+              const body = Buffer.from(JSON.stringify(payload)).toString('base64');
+              const unsigned = `${header}.${body}`;
+              
+              const signer = crypto.createSign('RSA-SHA256');
+              signer.update(unsigned);
+              const sig = signer.sign(appKey, 'base64');
+              
+              return `${unsigned}.${sig}`;
+            }
+            
+            // Get installation token
+            async function getInstallationToken() {
+              const jwt = generateJwt();
+              const { data: token } = await github.request(
+                'POST /app/installations/{installation_id}/access_tokens',
+                {
+                  installation_id: installationId,
+                  headers: {
+                    authorization: `Bearer ${jwt}`,
+                    accept: 'application/vnd.github.v3+json',
+                  },
+                }
+              );
+              return token.token;
+            }
+            
+            // Create authenticated octokit instance
+            async function getAppOctokit() {
+              const token = await getInstallationToken();
+              return github.getOctokit(token);
+            }
+            
+            async function findCommentByMarker(issueNumber, marker) {
+              if (!marker) return null;
+              const octokit = await getAppOctokit();
+              const comments = await octokit.paginate(octokit.rest.issues.listComments, {
+                owner,
+                repo,
+                issue_number: parseInt(issueNumber),
+                per_page: 100,
+              });
+              return comments.find((c) => (c.body || '').startsWith(marker)) || null;
+            }
+            
+            const action = '${{ github.event.inputs.action }}';
+            const issueNumber = '${{ github.event.inputs.issue_number }}';
+            const commentId = '${{ github.event.inputs.comment_id }}';
+            const title = '${{ github.event.inputs.title }}';
+            const body = '${{ github.event.inputs.body }}';
+            const marker = '${{ github.event.inputs.marker }}';
+            const labels = '${{ github.event.inputs.labels }}';
+            
+            try {
+              const octokit = await getAppOctokit();
+              
+              if (action === 'create_issue') {
+                const { data: issue } = await octokit.rest.issues.create({
+                  owner,
+                  repo,
+                  title,
+                  body,
+                });
+                core.info(`Created issue #${issue.number}`);
+              }
+              
+              else if (action === 'create_comment') {
+                const { data: comment } = await octokit.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: parseInt(issueNumber),
+                  body,
+                });
+                core.info(`Created comment ${comment.id}`);
+              }
+              
+              else if (action === 'update_comment') {
+                await octokit.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: parseInt(commentId),
+                  body,
+                });
+                core.info(`Updated comment ${commentId}`);
+              }
+              
+              else if (action === 'add_label') {
+                const labelList = labels.split(',').map(l => l.trim());
+                await octokit.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: parseInt(issueNumber),
+                  labels: labelList,
+                });
+                core.info(`Added labels to #${issueNumber}`);
+              }
+              
+              else if (action === 'remove_label') {
+                await octokit.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: parseInt(issueNumber),
+                  name: labels,
+                });
+                core.info(`Removed label from #${issueNumber}`);
+              }
+              
+              else {
+                throw new Error(`Unknown action: ${action}`);
+              }
+            } catch (error) {
+              core.setFailed(`Dev Agent Post failed: ${error.message}`);
+            }

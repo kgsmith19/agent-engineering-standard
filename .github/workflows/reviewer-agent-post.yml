@@ -1,0 +1,146 @@
+name: Reviewer Agent Post
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform (create_comment, update_comment, create_review)"
+        required: true
+        type: choice
+        options:
+          - create_comment
+          - update_comment
+          - create_review
+      pr_number:
+        description: "Pull request number"
+        required: true
+        type: string
+      comment_id:
+        description: "Comment ID (for update_comment)"
+        required: false
+        type: string
+      body:
+        description: "Body content"
+        required: false
+        type: string
+      review_state:
+        description: "Review state (COMMENT, APPROVE, REQUEST_CHANGES)"
+        required: false
+        type: choice
+        options:
+          - COMMENT
+          - APPROVE
+          - REQUEST_CHANGES
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  post:
+    name: Reviewer Agent Post
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post via Reviewer Agent
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          APP_ID: ${{ secrets.REVIEW_GITHUB_APP_ID }}
+          APP_KEY: ${{ secrets.REVIEW_GITHUB_APP_PRIVATE_KEY }}
+          INSTALLATION_ID: "155589128"
+        with:
+          script: |
+            const crypto = require('crypto');
+            
+            const { owner, repo } = context.repo;
+            const appId = process.env.APP_ID;
+            const appKey = process.env.APP_KEY;
+            const installationId = process.env.INSTALLATION_ID;
+            
+            // Generate JWT for app authentication
+            function generateJwt() {
+              const now = Math.floor(Date.now() / 1000);
+              const payload = {
+                iss: parseInt(appId),
+                iat: now - 60,
+                exp: now + 600,
+              };
+              
+              const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64');
+              const body = Buffer.from(JSON.stringify(payload)).toString('base64');
+              const unsigned = `${header}.${body}`;
+              
+              const signer = crypto.createSign('RSA-SHA256');
+              signer.update(unsigned);
+              const sig = signer.sign(appKey, 'base64');
+              
+              return `${unsigned}.${sig}`;
+            }
+            
+            // Get installation token
+            async function getInstallationToken() {
+              const jwt = generateJwt();
+              const { data: token } = await github.request(
+                'POST /app/installations/{installation_id}/access_tokens',
+                {
+                  installation_id: installationId,
+                  headers: {
+                    authorization: `Bearer ${jwt}`,
+                    accept: 'application/vnd.github.v3+json',
+                  },
+                }
+              );
+              return token.token;
+            }
+            
+            // Create authenticated octokit instance
+            async function getAppOctokit() {
+              const token = await getInstallationToken();
+              return github.getOctokit(token);
+            }
+            
+            const action = '${{ github.event.inputs.action }}';
+            const prNumber = '${{ github.event.inputs.pr_number }}';
+            const commentId = '${{ github.event.inputs.comment_id }}';
+            const body = '${{ github.event.inputs.body }}';
+            const reviewState = '${{ github.event.inputs.review_state }}';
+            
+            try {
+              const octokit = await getAppOctokit();
+              
+              if (action === 'create_comment') {
+                const { data: comment } = await octokit.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: parseInt(prNumber),
+                  body,
+                });
+                core.info(`Created comment ${comment.id} on PR #${prNumber}`);
+              }
+              
+              else if (action === 'update_comment') {
+                await octokit.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: parseInt(commentId),
+                  body,
+                });
+                core.info(`Updated comment ${commentId}`);
+              }
+              
+              else if (action === 'create_review') {
+                const { data: review } = await octokit.rest.pulls.createReview({
+                  owner,
+                  repo,
+                  pull_number: parseInt(prNumber),
+                  event: reviewState,
+                  body,
+                });
+                core.info(`Created review on PR #${prNumber} (${reviewState})`);
+              }
+              
+              else {
+                throw new Error(`Unknown action: ${action}`);
+              }
+            } catch (error) {
+              core.setFailed(`Reviewer Agent Post failed: ${error.message}`);
+            }
