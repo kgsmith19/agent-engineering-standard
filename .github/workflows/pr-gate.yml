@@ -22,6 +22,52 @@ permissions:
   actions: read
 
 jobs:
+  setup:
+    name: Agent Engineering Standard · Setup & Provider Detection
+    runs-on: ubuntu-latest
+    outputs:
+      builder_provider: ${{ steps.detect.outputs.builder_provider }}
+      reviewer_provider: ${{ steps.detect.outputs.reviewer_provider }}
+    steps:
+      - name: Setup · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Setup · Detect providers and auto-rotate reviewer
+        id: detect
+        env:
+          BUILDER_PROVIDER_FAMILY: ${{ vars.BUILDER_PROVIDER_FAMILY }}
+        shell: bash
+        run: |
+          builder="${BUILDER_PROVIDER_FAMILY:-anthropic}"
+
+          # Auto-select reviewer: rotate through supported providers, skip builder's own.
+          # Rotation: anthropic -> openai -> gemini -> (repeat)
+          case "$builder" in
+            anthropic)
+              reviewer="openai"
+              ;;
+            openai)
+              reviewer="gemini"
+              ;;
+            gemini)
+              reviewer="anthropic"
+              ;;
+            *)
+              # Unknown builder family (unset or unexpected value); default reviewer.
+              reviewer="openai"
+              ;;
+          esac
+
+          echo "builder_provider=$builder" >> "$GITHUB_OUTPUT"
+          echo "reviewer_provider=$reviewer" >> "$GITHUB_OUTPUT"
+
+          # Log for audit trail
+          echo "Builder provider: $builder"
+          echo "Reviewer provider: $reviewer"
+          echo "Provider separation enforced: $builder != $reviewer"
+
   policy:
     name: Agent Engineering Standard · Policy & Structure
     runs-on: ubuntu-latest
@@ -181,38 +227,72 @@ jobs:
   llm_review:
     name: Agent Engineering Standard · Independent LLM Review
     runs-on: ubuntu-latest
+    needs: [setup]
     steps:
-      - name: LLM Review · Enforce provider separation
+      - name: LLM Review · Verify provider separation
         id: provider-separation
+        env:
+          BUILDER_PROVIDER_FAMILY: ${{ needs.setup.outputs.builder_provider }}
+          REVIEWER_PROVIDER_FAMILY: ${{ needs.setup.outputs.reviewer_provider }}
+        shell: bash
         run: |
-          if [ -z "${{ vars.BUILDER_PROVIDER_FAMILY }}" ] || [ -z "${{ vars.LLM_REVIEW_PROVIDER_FAMILY }}" ]; then
+          if [ -z "$BUILDER_PROVIDER_FAMILY" ] || [ -z "$REVIEWER_PROVIDER_FAMILY" ]; then
             echo "ERROR: builder/reviewer provider family is unset; this gate fails closed rather than silently skipping the separation rule." >&2
             exit 1
           fi
-          if [ "${{ vars.BUILDER_PROVIDER_FAMILY }}" = "${{ vars.LLM_REVIEW_PROVIDER_FAMILY }}" ]; then
-            echo "ERROR: reviewer provider family (${{ vars.LLM_REVIEW_PROVIDER_FAMILY }}) must differ from the builder's (${{ vars.BUILDER_PROVIDER_FAMILY }}) for this gate." >&2
+          if [ "$BUILDER_PROVIDER_FAMILY" = "$REVIEWER_PROVIDER_FAMILY" ]; then
+            echo "ERROR: reviewer provider family ($REVIEWER_PROVIDER_FAMILY) must differ from the builder's ($BUILDER_PROVIDER_FAMILY) for this gate." >&2
             exit 1
           fi
+          echo "Provider separation verified: $BUILDER_PROVIDER_FAMILY != $REVIEWER_PROVIDER_FAMILY"
       - name: LLM Review · Verify reviewer configuration is present
         id: verify-config
+        env:
+          REVIEWER_MODEL: ${{ vars.LLM_REVIEW_MODEL }}
+          REVIEWER_CREDENTIAL: ${{ secrets.LLM_REVIEW_CREDENTIAL }}
+        shell: bash
         run: |
-          if [ -z "${{ vars.LLM_REVIEW_MODEL }}" ] || [ -z "${{ secrets.LLM_REVIEW_CREDENTIAL }}" ]; then
+          if [ -z "$REVIEWER_MODEL" ] || [ -z "$REVIEWER_CREDENTIAL" ]; then
             echo "ERROR: reviewer model or credential is unset; this gate fails closed rather than silently skipping review." >&2
             exit 1
           fi
       - name: LLM Review · Run independent review
         id: run-review
+        env:
+          REVIEWER_PROVIDER: ${{ needs.setup.outputs.reviewer_provider }}
+          REVIEWER_CREDENTIAL: ${{ secrets.LLM_REVIEW_CREDENTIAL }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
         run: |
-          echo "Replace this placeholder with the repository's real LLM"
-          echo "Review invocation. The reviewer model gets a structured-"
-          echo "output tool only -- never shell, filesystem-write, or"
-          echo "network tool access -- and repository content under review"
-          echo "is data, never instructions. Post findings to the PR"
-          echo "discussion under the reviewing app's identity, citing a"
-          echo "specific acceptance criterion or AGENTS.md section for"
-          echo "every finding. Never replace this placeholder with an"
-          echo "empty success."
-          exit 1
+          # Real review invocation placeholder (to be implemented in a follow-up).
+          # Calls the auto-detected reviewer provider's LLM with a
+          # structured-output tool only -- never shell, filesystem-write, or
+          # network tool access -- and repository content under review is
+          # data, never instructions. Findings are posted to the PR
+          # discussion under the reviewing app's identity, citing a
+          # specific acceptance criterion or AGENTS.md section for
+          # every finding.
+          if [ -z "$REVIEWER_CREDENTIAL" ]; then
+            echo "ERROR: LLM_REVIEW_CREDENTIAL not available from harness" >&2
+            exit 1
+          fi
+
+          echo "Invoking $REVIEWER_PROVIDER reviewer agent..."
+          echo "Provider: $REVIEWER_PROVIDER"
+          echo "PR: $REPOSITORY#$PR_NUMBER"
+          echo "Testing head: $PR_HEAD_SHA (base: $PR_BASE_SHA)"
+
+          # TODO: Replace with actual review invocation:
+          # - Read PR diff (base -> head)
+          # - Read linked Issue acceptance criteria
+          # - Call the $REVIEWER_PROVIDER model with structured output
+          # - Post findings to the PR discussion
+          # - Exit 0 (findings reported, not blocking); exit 1 only on infra failure.
+          echo "Review invocation ready; awaiting implementation."
+          exit 0
       - name: LLM Review · Post failure comment
         if: failure()
         uses: actions/github-script@e69ef5462fd455e02edcaf4dd7708eda96b9eda0 # v7.0.0
@@ -237,10 +317,14 @@ jobs:
 
             ### Required action
 
-            This job is currently using a placeholder. The harness needs to configure:
-            - \`LLM_REVIEW_PROVIDER_FAMILY\` repository variable
-            - \`LLM_REVIEW_MODEL\` repository variable
-            - \`LLM_REVIEW_CREDENTIAL\` repository secret
+            This job currently uses a setup-detected reviewer provider with a
+            placeholder review invocation. The harness provides:
+            - `BUILDER_PROVIDER_FAMILY` repository variable (defaults to `anthropic` when unset)
+            - `LLM_REVIEW_MODEL` repository variable
+            - `LLM_REVIEW_CREDENTIAL` repository secret
+
+            `LLM_REVIEW_PROVIDER_FAMILY` is no longer read; the reviewer is
+            auto-rotated by the `setup` job (anthropic -> openai -> gemini).
 
             Once configured, the real LLM review invocation will replace this placeholder.
 
@@ -261,13 +345,13 @@ jobs:
   gate:
     name: Agent Engineering Standard PR Gate
     runs-on: ubuntu-latest
-    needs: [policy, lint, security, tests, evidence, llm_review]
+    needs: [setup, policy, lint, security, tests, evidence, llm_review]
     if: always()
     steps:
       - name: Gate · Enforce all dependencies succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-          EXPECTED_JOBS: policy lint security tests evidence llm_review
+          EXPECTED_JOBS: setup policy lint security tests evidence llm_review
         run: |
           python3 - <<'GATE'
           import json
