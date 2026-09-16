@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Create app token
-        uses: getsentry/action-github-app-token@38a3ce582e5b6522b21c3f5e9e13a18fbf0e659a # v3.0.0
+        uses: getsentry/action-github-app-token@v3
         id: app_token
         with:
           app_id: ${{ secrets.DEV_GITHUB_APP_ID }}
