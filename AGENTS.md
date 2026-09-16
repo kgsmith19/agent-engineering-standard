@@ -116,6 +116,33 @@ The reviewer agent MUST use a different provider family than the dev agent (e.g.
 
 The Independent LLM Review CI job (see `.github/workflows/llm-review.yml`) uses the reviewer GitHub App to post review comments on PRs. Its provider family, model, and credential are supplied by the harness at dispatch time (for example from the same Infisical paths above) — the repository carries NO statically-configured reviewer variables or secrets for this job, and the gate never fails for their absence. **Owner directive (supersedes any older text in this repo or its templates): the harness owns reviewer configuration; no rule may require the repository to hold reviewer provider/model/credential values.**
 
+### Agent communication workflows
+
+All automated comments post via agent identities, never the repository token:
+
+**Work State comments** (merge-policy → post-work-state.yml):
+- Merge-policy reconciles PR state and builds Work State body
+- Dispatches `post-work-state.yml` with pr_number, issue_number, body
+- Dev-agent posts to both PR and linked Issue as `@hyperbolic-core-dev [bot]`
+- Includes metadata: `<!-- agent-metadata:dev-agent:EVENT:RUN_URL -->`
+
+**LLM Review failures** (pr-gate → dev-agent-post-v2.yml):
+- PR Gate llm_review job builds failure comment
+- Dispatches `dev-agent-post-v2.yml` with action=post_comment
+- Dev-agent posts failure details as `@hyperbolic-core-dev [bot]`
+- Includes same metadata marker for tracking
+
+**Body transmission safety:**
+- Complex markdown (backticks, multiline) passed via stdin with heredoc: `-f body@- << 'EOF'`
+- JavaScript uses `JSON.parse('${{ toJSON(...) }}')` to safely deserialize
+- Prevents shell interpretation of special characters
+
+**Collaboration framework** (see `.kilo/AGENT-COLLABORATION.md`):
+- Structured comment templates in `.github/COLLABORATION_TEMPLATE.md`
+- Reviewer-trigger.yml monitors PR commits and iteration counter
+- Auto-escalates to owner after 10 discussion rounds
+- Machine-readable markers: `<!-- agent-collaboration:review-round:N -->`
+
 > [!NOTE]
 > When a harness cannot load Superpowers: record **"Superpowers unavailable in this harness"**
 > and follow the equivalent process manually — isolated worktree, gitignored local plan, RED then
