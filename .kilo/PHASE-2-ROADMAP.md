@@ -50,7 +50,7 @@ Both dev-agent and reviewer-agent workflows are fully operational and tested:
    - Verify Evidence Index comment posts as `@hyperbolic-core-dev`
    - Verify updates work (upsert behavior)
 
-**Effort:** 30 minutes  
+**Effort:** 30 minutes
 **Risk:** Low (non-breaking change, post-work-state handles all logic)
 
 ---
@@ -92,7 +92,7 @@ Both dev-agent and reviewer-agent workflows are fully operational and tested:
    - Verify gate comments post as `@hyperbolic-core-dev`
    - Verify pass/failure states are correctly posted
 
-**Effort:** 1 hour  
+**Effort:** 1 hour
 **Risk:** Medium (pr-gate is critical; need careful testing)
 
 ---
@@ -123,7 +123,7 @@ Both dev-agent and reviewer-agent workflows are fully operational and tested:
    ```
 5. Confirm all comments show `hyperbolic-core-dev` or `hyperbolic-core-reviewer`
 
-**Effort:** 30 minutes (monitoring)  
+**Effort:** 30 minutes (monitoring)
 **Risk:** Low (observational only)
 
 ---
@@ -150,7 +150,7 @@ Hook dispatches: gh workflow run dev-agent-post-v2.yml ...
 Agent receives: Comment posted as @hyperbolic-core-dev
 ```
 
-**Effort:** 2-3 hours  
+**Effort:** 2-3 hours
 **Risk:** Low (optional automation layer)
 
 ---
@@ -179,7 +179,7 @@ echo "Dev agent dispatched (action: $ACTION, issue #$ISSUE_NUMBER)"
 /dispatch-dev-agent post_comment 160 "Status update..."
 ```
 
-**Effort:** 30 minutes  
+**Effort:** 30 minutes
 **Risk:** Very Low
 
 ---
@@ -194,7 +194,7 @@ echo "Dev agent dispatched (action: $ACTION, issue #$ISSUE_NUMBER)"
 | **3.1** | Claude Code hooks | 2-3 hrs | Low | This week |
 | **3.2** | Dispatch wrapper | 30 min | Very Low | This week |
 
-**Total for Phase 2:** ~2 hours  
+**Total for Phase 2:** ~2 hours
 **Total for Phase 3:** ~3 hours
 
 ---
@@ -318,6 +318,7 @@ echo "Dev agent dispatched (action: $ACTION, issue #$ISSUE_NUMBER)"
 
 ---
 
-**Status:** Ready for Phase 2 implementation  
-**Last Updated:** 2026-09-16T15:13Z  
+**Status:** Ready for Phase 2 implementation
+**Last Updated:** 2026-09-16T15:13Z
 **Maintainer:** Dev/Reviewer Agent Integration System
+

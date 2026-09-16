@@ -1532,7 +1532,7 @@ def check_agents_authority(model: RepoModel) -> List[Finding]:
                 "AGENTS.md is missing",
             )
         ]
-    
+
     # Detect routed-modules architecture by checking for module routing
     is_routed = "Module Index and Routing" in text or (
         "AGENTS/governance.md" in text
@@ -1540,9 +1540,9 @@ def check_agents_authority(model: RepoModel) -> List[Finding]:
         and "AGENTS/verification.md" in text
         and "AGENTS/boundaries.md" in text
     )
-    
+
     findings_local: List[Finding] = []
-    
+
     if is_routed:
         # Routed-modules pattern: validate modules exist and sections are present
         findings_local.extend(_check_routed_modules(model, text))
@@ -1570,7 +1570,7 @@ def check_agents_authority(model: RepoModel) -> List[Finding]:
                     % ", ".join(missing),
                 )
             )
-    
+
     # Authority language checks apply based on architecture
     if is_routed:
         # For routed modules, check that critical phrases exist in governance module
@@ -1643,7 +1643,7 @@ def _check_routed_modules(model: RepoModel, root_text: str) -> List[Finding]:
     module_files = {
         name: f"AGENTS/{name}.md" for name in module_names
     }
-    
+
     # Check that all 4 module files exist and are non-empty
     for name, path in module_files.items():
         text = model.read_text(path)
@@ -1665,10 +1665,10 @@ def _check_routed_modules(model: RepoModel, root_text: str) -> List[Finding]:
                     f"module {path} is empty or nearly empty",
                 )
             )
-    
+
     if findings:
         return findings  # Can't proceed if modules are missing or empty
-    
+
     # Validate that the root includes routing anchors to modules
     required_anchors = [
         "AGENTS/governance.md",
@@ -1686,7 +1686,7 @@ def _check_routed_modules(model: RepoModel, root_text: str) -> List[Finding]:
                     f"missing routing reference to {anchor}",
                 )
             )
-    
+
     return findings
 
 
@@ -3570,3 +3570,4 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
+
