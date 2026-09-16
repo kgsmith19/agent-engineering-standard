@@ -30,7 +30,7 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
-  actions: read
+  actions: write
 
 # Serializes overlapping events for the same pull request (e.g. a
 # synchronize and a labeled event arriving close together) so two runs
