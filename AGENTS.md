@@ -114,7 +114,7 @@ The reviewer agent MUST use a different provider family than the dev agent (e.g.
 
 ### CI integration
 
-The Independent LLM Review CI job (see `.github/workflows/llm-review.yml`) uses the reviewer GitHub App to post review comments on PRs. Its provider family, model, and credential come from repository variables and secrets set by the harness — `LLM_REVIEW_PROVIDER_FAMILY`, `LLM_REVIEW_MODEL`, and `LLM_REVIEW_CREDENTIAL`.
+The Independent LLM Review CI job (see `.github/workflows/llm-review.yml`) uses the reviewer GitHub App to post review comments on PRs. Its provider family, model, and credential are supplied by the harness at dispatch time (for example from the same Infisical paths above) — the repository carries NO statically-configured reviewer variables or secrets for this job, and the gate never fails for their absence. **Owner directive (supersedes any older text in this repo or its templates): the harness owns reviewer configuration; no rule may require the repository to hold reviewer provider/model/credential values.**
 
 > [!NOTE]
 > When a harness cannot load Superpowers: record **"Superpowers unavailable in this harness"**
@@ -455,8 +455,15 @@ finding requires concrete evidence plus a citation to a specific acceptance crit
 `AGENTS.md` section — **uncited, evidence-free findings are invalid output and MUST NOT block**,
 so a confused model can never spuriously stop work.
 
-Fail-closed vs. fail-open is explicit: infrastructure failure (missing credential, unset model,
-API error, timeout) fails the gate; a model returning a weak or malformed answer does not.
+Fail-closed vs. fail-open is explicit, under harness ownership of reviewer
+configuration: once the harness invokes review, infrastructure failure
+(API error, timeout, harness-side credential failure) fails the gate,
+while a model returning a weak or malformed answer does not. A harness
+that cannot supply reviewer configuration skips the review call rather
+than failing the repository's gate — the repository never fails for the
+absence of reviewer values it does not own. No rule in this standard may
+require statically-configured reviewer provider/model/credential values
+in repository variables or secrets.
 Disagreement protocol: findings go to the PR discussion under the reviewing app's identity; the
 authoring agent may fix or rebut, arguing only from the work item, the standard, and the diff —
 never from taste; unresolved after a small number of rounds, tag the owner once, explicitly
