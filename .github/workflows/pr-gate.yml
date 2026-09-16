@@ -296,8 +296,9 @@ jobs:
           # - Exit 0 (findings reported, not blocking); exit 1 only on infra failure.
           echo "Review invocation ready; awaiting implementation."
           exit 0
-      - name: LLM Review · Post failure comment
+      - name: LLM Review · Build failure comment
         if: failure()
+        id: build-comment
         uses: actions/github-script@e69ef5462fd455e02edcaf4dd7708eda96b9eda0 # v7.0.0
         with:
           script: |
@@ -335,12 +336,20 @@ jobs:
             3. If the review step failed, address the specific findings
             4. Push a fix to re-trigger the gate`;
 
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: body
-            });
+            core.setOutput('body', body);
+
+      - name: LLM Review · Post failure comment via dev-agent
+        if: failure() && steps.build-comment.outputs.body
+        run: |
+          gh workflow run dev-agent-post-v2.yml \
+            --ref main \
+            -f action=post_comment \
+            -f issue_number="${{ github.event.pull_request.number }}" \
+            -f body@- << 'EOF'
+          ${{ steps.build-comment.outputs.body }}
+          EOF
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
   gate:
     name: Agent Engineering Standard PR Gate
