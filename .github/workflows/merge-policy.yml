@@ -51,6 +51,7 @@ jobs:
     steps:
       - name: Merge Policy · Reconcile pull request state
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        id: reconcile
         with:
           script: |
               const { owner, repo } = context.repo;
@@ -417,10 +418,17 @@ jobs:
                   stillDraft,
                   holdAuthorized
                 );
-                await upsertComment(pr.number, WORK_STATE_MARKER, workStateBody);
-                if (linkedIssue) {
-                  await upsertComment(linkedIssue, WORK_STATE_MARKER, workStateBody);
-                }
+                
+                // Output Work State data for dispatch to dev-agent-post workflow
+                core.setOutput('work_state_body', workStateBody);
+                core.setOutput('pr_number', pr.number);
+                core.setOutput('linked_issue', linkedIssue || '');
+                
+                // DEPRECATED: upsertComment now handled by post-work-state workflow
+                // await upsertComment(pr.number, WORK_STATE_MARKER, workStateBody);
+                // if (linkedIssue) {
+                //   await upsertComment(linkedIssue, WORK_STATE_MARKER, workStateBody);
+                // }
 
                 if (context.eventName === "workflow_run") {
                   const run = context.payload.workflow_run;
@@ -487,3 +495,14 @@ jobs:
                   );
                 }
               }
+
+      - name: Post Work State via dev-agent
+        if: steps.reconcile.outputs.work_state_body
+        run: |
+          gh workflow run post-work-state.yml \
+            --ref main \
+            -f pr_number="${{ steps.reconcile.outputs.pr_number }}" \
+            -f issue_number="${{ steps.reconcile.outputs.linked_issue }}" \
+            -f body="${{ steps.reconcile.outputs.work_state_body }}"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
