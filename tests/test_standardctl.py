@@ -833,6 +833,99 @@ class InitUpdate(FixtureCase):
         self.assertIn(head, (target / "standard.lock").read_text("utf-8"))
 
 
+class DoctorLive(FixtureCase):
+    """Pure doctor --live helpers: drift fixtures fail, in-sync fixtures pass.
+
+    These tests pin the characterization fixtures Stage 3a requires (one
+    per drift mode in the Issue's proof strategy) against the pure
+    comparison functions -- no network, no live API. Each test names the
+    drift mode it characterizes; the empty-diff test is the positive
+    control proving the comparators accept honest in-sync state.
+    """
+
+    def test_doctor_settings_diff_flags_wrong_merge_mode(self):
+        """Drift mode: merge mode allows merge-commit/rebase (want squash
+        only); catches a comparator that silently accepts the drift."""
+        diffs = standardctl.diff_repository_settings(
+            {"allow_squash_merge": True, "allow_merge_commit": False,
+             "allow_rebase_merge": False},
+            {"allow_squash_merge": True, "allow_merge_commit": True,
+             "allow_rebase_merge": True},
+        )
+        keys = {key for key, _, _ in diffs}
+        self.assertEqual({"allow_merge_commit", "allow_rebase_merge"}, keys)
+
+    def test_doctor_settings_diff_flags_squash_title_message_drift(self):
+        """Drift mode: squash title/message not per template; catches a
+        comparator blind to squash-commit-shape drift."""
+        diffs = standardctl.diff_repository_settings(
+            {"squash_merge_commit_title": "PR_TITLE",
+             "squash_merge_commit_message": "PR_BODY"},
+            {"squash_merge_commit_title": "COMMIT_OR_PR_TITLE",
+             "squash_merge_commit_message": "COMMIT_MESSAGES"},
+        )
+        keys = {key for key, _, _ in diffs}
+        self.assertEqual(
+            {"squash_merge_commit_title", "squash_merge_commit_message"},
+            keys,
+        )
+
+    def test_doctor_settings_diff_accepts_in_sync_state(self):
+        """Positive control: identical desired/actual diffs to nothing;
+        catches an over-strict comparator that would flag honest state."""
+        self.assertEqual(
+            [],
+            standardctl.diff_repository_settings(
+                {"allow_squash_merge": True, "allow_merge_commit": False},
+                {"allow_squash_merge": True, "allow_merge_commit": False,
+                 "extra_live_key": True},
+            ),
+        )
+
+    def test_doctor_missing_labels_flags_absent_owner_labels(self):
+        """Drift mode: missing/stale owner labels; catches a label check
+        that silently accepts the drift."""
+        missing = standardctl.missing_label_names(
+            ["status:ready", "owner:allow-draft", "owner:hold-merge"],
+            ["status:ready", "owner:hold-merge"],
+        )
+        self.assertEqual(["owner:allow-draft"], missing)
+
+    def test_doctor_missing_labels_is_case_insensitive(self):
+        """Positive control: differently-cased live labels still match;
+        catches a case-sensitive comparison that would recreate labels."""
+        self.assertEqual(
+            [],
+            standardctl.missing_label_names(
+                ["owner:allow-draft"], ["Owner:Allow-Draft"]
+            ),
+        )
+
+    def test_doctor_ruleset_render_substitutes_tokens(self):
+        """Supports the safe-change path: rendered template parses as JSON
+        once tokens are supplied; catches a renderer that leaves tokens."""
+        import re
+
+        text = (
+            Path(WORKTREE) / "TEMPLATES" / "main-protection.ruleset.json"
+        ).read_text(encoding="utf-8")
+        rendered = standardctl.render_ruleset_template(
+            text,
+            {"__MAIN_RULESET_NAME__": "Fixture App Main Protection",
+             "__PR_GATE_CHECK__": "Fixture App PR Gate",
+             "__OWNER_BYPASS_ACTOR_ID__": "123",
+             "__CHECK_INTEGRATION_ID__": "456"},
+        )
+        self.assertFalse(
+            re.search(r"__[A-Z_]+__", rendered),
+            "unresolved tokens remain: %s" % rendered[:200],
+        )
+        parsed = json.loads(rendered)
+        self.assertEqual(
+            "Fixture App Main Protection", parsed["name"]
+        )
+
+
 class EvidenceValidation(FixtureCase):
     """Evidence manifest schema enforcement (module-docstring schema)."""
 
