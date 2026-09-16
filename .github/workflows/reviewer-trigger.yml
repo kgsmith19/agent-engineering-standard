@@ -32,7 +32,7 @@ jobs:
             });
 
             // Look for collaboration markers
-            const collaborationComments = comments.filter(c => 
+            const collaborationComments = comments.filter(c =>
               c.body && c.body.includes('<!-- agent-collaboration:')
             );
 

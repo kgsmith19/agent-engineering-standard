@@ -378,7 +378,7 @@ jobs:
           optional = set(os.environ.get("OPTIONAL_JOBS", "").split())
           problems = []
           warnings = []
-          
+
           # Check that all expected jobs ran
           expected = required | optional
           if set(needs) != expected:
@@ -386,7 +386,7 @@ jobs:
                   "gated jobs %s do not equal the expected set %s"
                   % (sorted(needs), sorted(expected))
               )
-          
+
           # Only REQUIRED jobs must succeed
           for job, info in sorted(needs.items()):
               result = info.get("result")
@@ -397,11 +397,11 @@ jobs:
           # Print warnings first (informational)
           for warning in warnings:
               print("WARNING:", warning)
-          
+
           # Print errors (blocking)
           for problem in problems:
               print("ERROR:", problem)
-          
+
           # Only fail on required job failures
           if problems:
               print("\nGate FAILED: Required jobs did not succeed")

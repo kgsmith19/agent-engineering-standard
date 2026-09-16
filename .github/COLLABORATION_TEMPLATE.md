@@ -9,15 +9,15 @@ Templates for structured dev-agent and reviewer-agent collaboration.
 
 ## Code Review — Round 1
 
-**Reviewer:** @hyperbolic-core-reviewer  
-**PR:** #{{PR_NUMBER}}  
+**Reviewer:** @hyperbolic-core-reviewer
+**PR:** #{{PR_NUMBER}}
 **Commit:** {{HEAD_SHA}}
 
 ### Finding 1: {{FINDING_NAME}}
 
 - **Severity:** {{suggestion|concern|blocker-candidate}}
 - **Location:** `{{FILE}}:{{LINE}}`
-- **Current:** 
+- **Current:**
   ```{{LANGUAGE}}
   {{CODE_QUOTE}}
   ```
@@ -31,9 +31,9 @@ Templates for structured dev-agent and reviewer-agent collaboration.
 
 ---
 
-**Summary:** {{TOTAL_FINDINGS}} findings ({{SEVERITY_BREAKDOWN}})  
-**Status:** ⏳ Awaiting dev-agent response  
-**Iteration:** 1/10  
+**Summary:** {{TOTAL_FINDINGS}} findings ({{SEVERITY_BREAKDOWN}})
+**Status:** ⏳ Awaiting dev-agent response
+**Iteration:** 1/10
 **Next:** Dev-agent to respond or implement changes
 ```
 
@@ -44,8 +44,8 @@ Templates for structured dev-agent and reviewer-agent collaboration.
 
 ## Developer Response — Round 1
 
-**Developer:** @hyperbolic-core-dev  
-**PR:** #{{PR_NUMBER}}  
+**Developer:** @hyperbolic-core-dev
+**PR:** #{{PR_NUMBER}}
 **Responding to:** Review Round 1
 
 ### Response to Finding 1: {{FINDING_NAME}}
@@ -69,9 +69,9 @@ Templates for structured dev-agent and reviewer-agent collaboration.
 
 ---
 
-**Summary:** {{IMPLEMENTED_COUNT}} implemented, {{QUESTION_COUNT}} questions, {{DISAGREE_COUNT}} disagreements  
-**Status:** ⏳ Awaiting reviewer reassessment  
-**Iteration:** 1/10  
+**Summary:** {{IMPLEMENTED_COUNT}} implemented, {{QUESTION_COUNT}} questions, {{DISAGREE_COUNT}} disagreements
+**Status:** ⏳ Awaiting reviewer reassessment
+**Iteration:** 1/10
 **Next:** Push commit {{NEW_SHA}}, re-trigger reviewer
 ```
 
@@ -82,8 +82,8 @@ Templates for structured dev-agent and reviewer-agent collaboration.
 
 ## Code Review — Round 2 (Reassessment)
 
-**Reviewer:** @hyperbolic-core-reviewer  
-**PR:** #{{PR_NUMBER}}  
+**Reviewer:** @hyperbolic-core-reviewer
+**PR:** #{{PR_NUMBER}}
 **Commit:** {{NEW_HEAD_SHA}}
 
 ### Finding 1: {{FINDING_NAME}} — **{{ACCEPTED|REVISION_NEEDED|CLARIFICATION}}**
@@ -102,9 +102,9 @@ Templates for structured dev-agent and reviewer-agent collaboration.
 
 ---
 
-**Summary:** {{ACCEPTED}} accepted, {{REVISION}} need revision, {{QUESTIONS}} questions  
-**Status:** {{awaiting-dev|resolved|escalating}}  
-**Iteration:** 2/10  
+**Summary:** {{ACCEPTED}} accepted, {{REVISION}} need revision, {{QUESTIONS}} questions
+**Status:** {{awaiting-dev|resolved|escalating}}
+**Iteration:** 2/10
 **Next:** {{NEXT_ACTION}}
 ```
 
@@ -117,8 +117,8 @@ Templates for structured dev-agent and reviewer-agent collaboration.
 
 **Issue:** Reviewer and dev-agent could not reach agreement after 10 iterations.
 
-**PR:** #{{PR_NUMBER}}  
-**Commit:** {{HEAD_SHA}}  
+**PR:** #{{PR_NUMBER}}
+**Commit:** {{HEAD_SHA}}
 **Iterations:** 10
 
 ### Points of Disagreement
@@ -154,7 +154,7 @@ Templates for structured dev-agent and reviewer-agent collaboration.
 
 ---
 
-**Status:** ⏸️ BLOCKED — Awaiting owner  
+**Status:** ⏸️ BLOCKED — Awaiting owner
 **Escalated:** {{TIMESTAMP}}
 ```
 
@@ -165,8 +165,8 @@ Templates for structured dev-agent and reviewer-agent collaboration.
 
 ## ✅ Agreement Reached
 
-**PR:** #{{PR_NUMBER}}  
-**Iteration:** {{N}}/10  
+**PR:** #{{PR_NUMBER}}
+**Iteration:** {{N}}/10
 **All findings:** RESOLVED
 
 ### Summary
@@ -186,7 +186,7 @@ All {{TOTAL_FINDINGS}} findings from initial review have been addressed:
 
 ---
 
-**Status:** ✅ COMPLETE  
+**Status:** ✅ COMPLETE
 **Ready for:** Merge after gate passes
 ```
 

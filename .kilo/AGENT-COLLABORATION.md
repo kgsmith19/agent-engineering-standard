@@ -1,7 +1,7 @@
 # Agent Collaboration Framework
 
-**Status:** Design Phase  
-**Date:** 2026-09-16T16:47Z  
+**Status:** Design Phase
+**Date:** 2026-09-16T16:47Z
 **Scope:** Dev-agent and Reviewer-agent PR discussion patterns
 
 ---
@@ -296,12 +296,12 @@ On iteration 10, post escalation comment tagging `@kgsmith19` with evidence and 
 
 ## Success Criteria
 
-✅ Agents can post structured comments to PRs/Issues  
-✅ Dev can read reviewer findings and respond with commits  
-✅ Reviewer can post findings and track iteration count  
-✅ At iteration 10, automatic escalation to owner  
-✅ No silent blocks — reviewer must always explain reasoning  
-✅ Collaboration goal is agreement, not fighting  
+✅ Agents can post structured comments to PRs/Issues
+✅ Dev can read reviewer findings and respond with commits
+✅ Reviewer can post findings and track iteration count
+✅ At iteration 10, automatic escalation to owner
+✅ No silent blocks — reviewer must always explain reasoning
+✅ Collaboration goal is agreement, not fighting
 
 ---
 
@@ -315,6 +315,6 @@ On iteration 10, post escalation comment tagging `@kgsmith19` with evidence and 
 
 ---
 
-**Owner:** @kgsmith19  
-**Framework Version:** 1.0  
+**Owner:** @kgsmith19
+**Framework Version:** 1.0
 **Last Updated:** 2026-09-16T16:47Z

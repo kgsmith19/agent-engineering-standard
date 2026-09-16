@@ -506,7 +506,7 @@ jobs:
         with:
           script: |
             const { owner, repo } = context.repo;
-            
+
             await github.rest.actions.createWorkflowDispatch({
               owner,
               repo,
