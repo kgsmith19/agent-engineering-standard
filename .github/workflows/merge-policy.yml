@@ -503,6 +503,8 @@ jobs:
             --ref main \
             -f pr_number="${{ steps.reconcile.outputs.pr_number }}" \
             -f issue_number="${{ steps.reconcile.outputs.linked_issue }}" \
-            -f body="${{ steps.reconcile.outputs.work_state_body }}"
+            -f body@- << 'EOF'
+          ${{ steps.reconcile.outputs.work_state_body }}
+          EOF
         env:
           GITHUB_TOKEN: ${{ github.token }}
