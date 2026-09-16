@@ -4,7 +4,7 @@ name: Post Work State
 # via the dev-agent identity rather than the repository token
 
 env:
-  DEV_AGENT_MODEL: anthropic/claude-sonnet-4-0
+  DEV_AGENT_MODEL: anthropic/claude-sonnet-4-5
 
 on:
   workflow_dispatch:

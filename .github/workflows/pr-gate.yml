@@ -1,7 +1,7 @@
 name: Agent Engineering Standard PR Gate
 
 env:
-  DEV_AGENT_MODEL: anthropic/claude-sonnet-4-0
+  DEV_AGENT_MODEL: anthropic/claude-sonnet-4-5
 
 on:
   pull_request:
