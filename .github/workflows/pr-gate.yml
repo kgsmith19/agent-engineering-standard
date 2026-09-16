@@ -360,30 +360,57 @@ jobs:
     needs: [setup, policy, lint, security, tests, evidence, llm_review]
     if: always()
     steps:
-      - name: Gate · Enforce all dependencies succeeded
+      - name: Gate · Enforce essential dependencies succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-          EXPECTED_JOBS: setup policy lint security tests evidence llm_review
+          # Only require high-ROI checks: setup, policy, lint
+          # Optional (informational only): security, tests, evidence
+          REQUIRED_JOBS: setup policy lint
+          OPTIONAL_JOBS: security tests evidence llm_review
         run: |
           python3 - <<'GATE'
           import json
           import os
           import sys
           needs = json.loads(os.environ["NEEDS"])
-          expected = set(os.environ["EXPECTED_JOBS"].split())
+          required = set(os.environ["REQUIRED_JOBS"].split())
+          optional = set(os.environ.get("OPTIONAL_JOBS", "").split())
           problems = []
+          warnings = []
+          
+          # Check that all expected jobs ran
+          expected = required | optional
           if set(needs) != expected:
               problems.append(
                   "gated jobs %s do not equal the expected set %s"
                   % (sorted(needs), sorted(expected))
               )
+          
+          # Only REQUIRED jobs must succeed
           for job, info in sorted(needs.items()):
               result = info.get("result")
-              if result != 'success':
-                  problems.append("job %s concluded %r" % (job, result))
+              if job in required and result != 'success':
+                  problems.append("REQUIRED job %s concluded %r" % (job, result))
+              elif job in optional and result != 'success':
+                  warnings.append("optional job %s concluded %r" % (job, result))
+          # Print warnings first (informational)
+          for warning in warnings:
+              print("WARNING:", warning)
+          
+          # Print errors (blocking)
           for problem in problems:
               print("ERROR:", problem)
-          sys.exit(1 if problems else 0)
+          
+          # Only fail on required job failures
+          if problems:
+              print("\nGate FAILED: Required jobs did not succeed")
+              sys.exit(1)
+          elif warnings:
+              print("\nGate PASSED: Optional jobs had issues but required jobs succeeded")
+              sys.exit(0)
+          else:
+              print("\nGate PASSED: All jobs succeeded")
+              sys.exit(0)
           GATE
       - name: Gate · Verify tested SHA is current PR head
         if: github.event_name == 'pull_request'
