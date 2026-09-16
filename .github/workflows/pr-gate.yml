@@ -311,35 +311,36 @@ jobs:
             }
 
             const metadata = `<!-- agent-metadata:dev-agent:${{ github.event_name }}:${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} -->`;
-            const body = metadata + `
-
-## Independent LLM Review Failed
-
-            The following step(s) failed:
-
-            ${failedSteps.map(s => `- ${s}`).join('\n')}
-
-            ### Required action
-
-            This job uses a harness-selected reviewer provider with a
-            placeholder review invocation. The harness supplies the
-            reviewer configuration at dispatch time (for example from its
-            own secret store) -- the repository holds no reviewer
-            provider/model/credential values, so there is nothing to set
-            in repository variables or secrets for this job.
-
-            Once the harness implements the real review invocation, it
-            will replace this placeholder.
-
-            ### Dev agent action required
-
-            1. Read this failure comment
-            2. If the reviewer-config step failed, the setup job's own
-               rotation logic is broken -- fix setup, not variables
-            3. If the review step failed, address the specific findings
-            4. Push a fix to re-trigger the gate`;
-
-            core.setOutput('body', body);
+            const lines = [
+              metadata,
+              '',
+              '## Independent LLM Review Failed',
+              '',
+              'The following step(s) failed:',
+              '',
+              ...failedSteps.map(s => `- ${s}`),
+              '',
+              '### Required action',
+              '',
+              'This job uses a harness-selected reviewer provider with a',
+              'placeholder review invocation. The harness supplies the',
+              'reviewer configuration at dispatch time (for example from its',
+              'own secret store) -- the repository holds no reviewer',
+              'provider/model/credential values, so there is nothing to set',
+              'in repository variables or secrets for this job.',
+              '',
+              'Once the harness implements the real review invocation, it',
+              'will replace this placeholder.',
+              '',
+              '### Dev agent action required',
+              '',
+              '1. Read this failure comment',
+              '2. If the reviewer-config step failed, the setup job\'s own',
+              '   rotation logic is broken -- fix setup, not variables',
+              '3. If the review step failed, address the specific findings',
+              '4. Push a fix to re-trigger the gate',
+            ];
+            core.setOutput('body', lines.join('\n'));
 
       - name: LLM Review · Post failure comment via dev-agent
         if: failure() && steps.build-comment.outputs.body

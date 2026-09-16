@@ -51,7 +51,7 @@ jobs:
 # Provider separation is mechanical, not honor-system: the workflow
 # compares the two caller-supplied provider families and fails closed
 # when they match.
-name: Agent Engineering Standard · Independent LLM Review
+    name: Agent Engineering Standard · Independent LLM Review
     runs-on: ubuntu-latest
     steps:
       - name: LLM Review · Enforce provider separation
