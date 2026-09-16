@@ -50,13 +50,13 @@ jobs:
         with:
           script: |
             const crypto = require('crypto');
-            
+
             const { owner, repo } = context.repo;
             const appId = process.env.APP_ID;
             // Decode base64-encoded private key
             const appKey = Buffer.from(process.env.APP_KEY_B64, 'base64').toString('utf-8');
             const installationId = process.env.INSTALLATION_ID;
-            
+
             // Generate JWT for app authentication
             function generateJwt() {
               const now = Math.floor(Date.now() / 1000);
@@ -65,18 +65,18 @@ jobs:
                 iat: now - 60,
                 exp: now + 600,
               };
-              
+
               const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64');
               const body = Buffer.from(JSON.stringify(payload)).toString('base64');
               const unsigned = `${header}.${body}`;
-              
+
             const signer = crypto.createSign('RSA-SHA256');
               signer.update(unsigned);
               const sig = signer.sign(appKey, 'base64');
-              
+
               return `${unsigned}.${sig}`;
             }
-            
+
             // Get installation token
             async function getInstallationToken() {
               const jwt = generateJwt();
@@ -92,22 +92,22 @@ jobs:
               );
               return token.token;
             }
-            
+
             // Create authenticated octokit instance
             async function getAppOctokit() {
               const token = await getInstallationToken();
               return github.getOctokit(token);
             }
-            
+
             const action = '${{ github.event.inputs.action }}';
             const prNumber = '${{ github.event.inputs.pr_number }}';
             const commentId = '${{ github.event.inputs.comment_id }}';
             const body = '${{ github.event.inputs.body }}';
             const reviewState = '${{ github.event.inputs.review_state }}';
-            
+
             try {
               const octokit = await getAppOctokit();
-              
+
               if (action === 'create_comment') {
                 const { data: comment } = await octokit.rest.issues.createComment({
                   owner,
@@ -117,7 +117,7 @@ jobs:
                 });
                 core.info(`Created comment ${comment.id} on PR #${prNumber}`);
               }
-              
+
               else if (action === 'update_comment') {
                 await octokit.rest.issues.updateComment({
                   owner,
@@ -127,7 +127,7 @@ jobs:
                 });
                 core.info(`Updated comment ${commentId}`);
               }
-              
+
               else if (action === 'create_review') {
                 const { data: review } = await octokit.rest.pulls.createReview({
                   owner,
@@ -138,10 +138,11 @@ jobs:
                 });
                 core.info(`Created review on PR #${prNumber} (${reviewState})`);
               }
-              
+
               else {
                 throw new Error(`Unknown action: ${action}`);
               }
             } catch (error) {
               core.setFailed(`Reviewer Agent Post failed: ${error.message}`);
             }
+

@@ -418,12 +418,12 @@ jobs:
                   stillDraft,
                   holdAuthorized
                 );
-                
+
                 // Output Work State data for dispatch to dev-agent-post workflow
                 core.setOutput('work_state_body', workStateBody);
                 core.setOutput('pr_number', pr.number);
                 core.setOutput('linked_issue', linkedIssue || '');
-                
+
                 // DEPRECATED: upsertComment now handled by post-work-state workflow
                 // await upsertComment(pr.number, WORK_STATE_MARKER, workStateBody);
                 // if (linkedIssue) {
@@ -508,3 +508,4 @@ jobs:
           EOF
         env:
           GITHUB_TOKEN: ${{ github.token }}
+

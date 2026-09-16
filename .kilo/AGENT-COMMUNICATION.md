@@ -129,7 +129,7 @@ jobs:
           # Compute work state
           body="## Work State\n- Issue: #102\n- Status: ready"
           echo "body=$body" >> $GITHUB_OUTPUT
-      
+
       - name: Post via Dev Agent
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
         with:
@@ -166,7 +166,7 @@ When a Claude Code agent (via subagent dispatch) needs to comment:
 ```python
 # In your Claude Code task:
 # "Post a status comment to PR #160 as the dev agent"
-# 
+#
 # The agent will:
 # 1. Use gh CLI to trigger dev-agent-post.yml
 # 2. Provide the comment body
@@ -293,3 +293,4 @@ If the key has been corrupted, retrieve it from Infisical:
 **Configured:** 2026-09-16 15:00Z
 **Provider Separation:** Dev Agent (anthropic) ↔ Reviewer Agent (openai)
 **Status:** Ready for production use
+
