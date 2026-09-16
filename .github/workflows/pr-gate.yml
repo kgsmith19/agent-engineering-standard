@@ -1,5 +1,8 @@
 name: Agent Engineering Standard PR Gate
 
+env:
+  DEV_AGENT_MODEL: anthropic/claude-sonnet-4-0
+
 on:
   pull_request:
     types:
@@ -310,7 +313,7 @@ jobs:
               failedSteps.push('Independent review execution failed');
             }
 
-            const metadata = `<!-- agent-metadata:dev:anthropic:claude-sonnet-4-0:${{ github.event_name }}:${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} -->`;
+            const metadata = `<!-- agent-metadata:dev:${{ env.DEV_AGENT_MODEL }}:${{ github.event_name }}:${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} -->`;
             const body = metadata + `
 
 ## Independent LLM Review Failed
