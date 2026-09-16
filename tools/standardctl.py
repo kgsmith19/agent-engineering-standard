@@ -1038,7 +1038,7 @@ def check_issue_config(model: RepoModel) -> List[Finding]:
 
 def check_adapters(model: RepoModel) -> List[Finding]:
     """Provider adapters must exist and contain exactly the import line;
-    any extra content is duplicated policy."""
+    any extra content is duplicated policy. Normalizes line endings to LF."""
     findings: List[Finding] = []
     for name, expected in ADAPTERS.items():
         data = model.read_bytes(name)
@@ -1051,16 +1051,20 @@ def check_adapters(model: RepoModel) -> List[Finding]:
                     "provider adapter is absent",
                 )
             )
-        elif data != expected.encode("utf-8"):
-            findings.append(
-                Finding(
-                    "adapter-policy-duplication",
-                    "error",
-                    name,
-                    "adapter must contain only the canonical import line; "
-                    "policy belongs in AGENTS.md",
+        else:
+            # Normalize line endings (CRLF -> LF) for comparison
+            actual = data.decode("utf-8").replace("\r\n", "\n")
+            expected_normalized = expected.replace("\r\n", "\n")
+            if actual != expected_normalized:
+                findings.append(
+                    Finding(
+                        "adapter-policy-duplication",
+                        "error",
+                        name,
+                        "adapter must contain only the canonical import line; "
+                        "policy belongs in AGENTS.md",
+                    )
                 )
-            )
     return findings
 
 
@@ -1513,7 +1517,10 @@ AUTHORITY_MACHINE_PHRASE = "ultimate machine gate"
 
 def check_agents_authority(model: RepoModel) -> List[Finding]:
     """AGENTS.md keeps the 19 required sections in order and the owner-
-    and machine-authority language."""
+    and machine-authority language. Supports two architectures:
+    1. Monolithic: all 19 sections as ## headings in AGENTS.md
+    2. Routed modules: AGENTS.md as constitution router + AGENTS/*.md modules
+    """
     findings: List[Finding] = []
     text = model.read_text("AGENTS.md")
     if text is None:
@@ -1525,57 +1532,161 @@ def check_agents_authority(model: RepoModel) -> List[Finding]:
                 "AGENTS.md is missing",
             )
         ]
-    headings = [
-        line[3:].strip()
-        for line in text.split("\n")
-        if line.startswith("## ")
+    
+    # Detect routed-modules architecture by checking for module routing
+    is_routed = "Module Index and Routing" in text or (
+        "AGENTS/governance.md" in text
+        and "AGENTS/work.md" in text
+        and "AGENTS/verification.md" in text
+        and "AGENTS/boundaries.md" in text
+    )
+    
+    findings_local: List[Finding] = []
+    
+    if is_routed:
+        # Routed-modules pattern: validate modules exist and sections are present
+        findings_local.extend(_check_routed_modules(model, text))
+    else:
+        # Monolithic pattern: validate sections are inline
+        headings = [
+            line[3:].strip()
+            for line in text.split("\n")
+            if line.startswith("## ")
+        ]
+        cursor = 0
+        missing = []
+        for required in AGENTS_REQUIRED_SECTIONS:
+            try:
+                cursor = headings.index(required, cursor) + 1
+            except ValueError:
+                missing.append(required)
+        if missing:
+            findings_local.append(
+                Finding(
+                    "missing-authority-language",
+                    "error",
+                    "AGENTS.md",
+                    "required sections missing or out of order: %s"
+                    % ", ".join(missing),
+                )
+            )
+    
+    # Authority language checks apply based on architecture
+    if is_routed:
+        # For routed modules, check that critical phrases exist in governance module
+        governance_text = model.read_text("AGENTS/governance.md") or ""
+        critical_phrases = [
+            AUTHORITY_WAIVER_PHRASE,
+            AUTHORITY_MACHINE_PHRASE,
+        ]
+        for phrase in critical_phrases:
+            if phrase not in governance_text:
+                findings_local.append(
+                    Finding(
+                        "missing-authority-language",
+                        "error",
+                        "AGENTS/governance.md",
+                        "missing critical phrase %r" % phrase,
+                    )
+                )
+        # Check override statement in root (binding)
+        if not _OVERRIDE_RE.search(text):
+            findings_local.append(
+                Finding(
+                    "missing-authority-language",
+                    "error",
+                    "AGENTS.md",
+                    "missing an owner-override statement matching "
+                    "/may override .* at any time/i",
+                )
+            )
+    else:
+        # Monolithic architecture: all critical phrases in root
+        if AUTHORITY_WAIVER_PHRASE not in text:
+            findings_local.append(
+                Finding(
+                    "missing-authority-language",
+                    "error",
+                    "AGENTS.md",
+                    "missing the owner-waiver phrase %r" % AUTHORITY_WAIVER_PHRASE,
+                )
+            )
+        if not _OVERRIDE_RE.search(text):
+            findings_local.append(
+                Finding(
+                    "missing-authority-language",
+                    "error",
+                    "AGENTS.md",
+                    "missing an owner-override statement matching "
+                    "/may override .* at any time/i",
+                )
+            )
+        if AUTHORITY_MACHINE_PHRASE not in text:
+            findings_local.append(
+                Finding(
+                    "missing-authority-language",
+                    "error",
+                    "AGENTS.md",
+                    "missing the machine-authority phrase %r"
+                    % AUTHORITY_MACHINE_PHRASE,
+                )
+            )
+    return findings_local
+
+
+def _check_routed_modules(model: RepoModel, root_text: str) -> List[Finding]:
+    """Validate the routed-modules architecture: AGENTS/*.md files exist
+    and contain substantive content. The root AGENTS.md acts as constitution
+    and router; normative rules are distributed across the modules."""
+    findings: List[Finding] = []
+    module_names = ["governance", "work", "verification", "boundaries"]
+    module_files = {
+        name: f"AGENTS/{name}.md" for name in module_names
+    }
+    
+    # Check that all 4 module files exist and are non-empty
+    for name, path in module_files.items():
+        text = model.read_text(path)
+        if text is None:
+            findings.append(
+                Finding(
+                    "missing-routed-module",
+                    "error",
+                    path,
+                    f"required module {path} is missing",
+                )
+            )
+        elif len(text.strip()) < 100:
+            findings.append(
+                Finding(
+                    "empty-routed-module",
+                    "error",
+                    path,
+                    f"module {path} is empty or nearly empty",
+                )
+            )
+    
+    if findings:
+        return findings  # Can't proceed if modules are missing or empty
+    
+    # Validate that the root includes routing anchors to modules
+    required_anchors = [
+        "AGENTS/governance.md",
+        "AGENTS/work.md",
+        "AGENTS/verification.md",
+        "AGENTS/boundaries.md"
     ]
-    cursor = 0
-    missing = []
-    for required in AGENTS_REQUIRED_SECTIONS:
-        try:
-            cursor = headings.index(required, cursor) + 1
-        except ValueError:
-            missing.append(required)
-    if missing:
-        findings.append(
-            Finding(
-                "missing-authority-language",
-                "error",
-                "AGENTS.md",
-                "required sections missing or out of order: %s"
-                % ", ".join(missing),
+    for anchor in required_anchors:
+        if anchor not in root_text:
+            findings.append(
+                Finding(
+                    "missing-module-routing",
+                    "error",
+                    "AGENTS.md",
+                    f"missing routing reference to {anchor}",
+                )
             )
-        )
-    if AUTHORITY_WAIVER_PHRASE not in text:
-        findings.append(
-            Finding(
-                "missing-authority-language",
-                "error",
-                "AGENTS.md",
-                "missing the owner-waiver phrase %r" % AUTHORITY_WAIVER_PHRASE,
-            )
-        )
-    if not _OVERRIDE_RE.search(text):
-        findings.append(
-            Finding(
-                "missing-authority-language",
-                "error",
-                "AGENTS.md",
-                "missing an owner-override statement matching "
-                "/may override .* at any time/i",
-            )
-        )
-    if AUTHORITY_MACHINE_PHRASE not in text:
-        findings.append(
-            Finding(
-                "missing-authority-language",
-                "error",
-                "AGENTS.md",
-                "missing the machine-authority phrase %r"
-                % AUTHORITY_MACHINE_PHRASE,
-            )
-        )
+    
     return findings
 
 
