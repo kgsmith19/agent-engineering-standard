@@ -3,6 +3,8 @@
 .superpowers/
 .agent-runtime/
 .evidence/
+.kilo/agent/
+.kilo/plans/
 
 # Python bytecode caches
 __pycache__/
