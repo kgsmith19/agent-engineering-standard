@@ -310,7 +310,10 @@ jobs:
               failedSteps.push('Independent review execution failed');
             }
 
-            const body = `## Independent LLM Review Failed
+            const metadata = `<!-- agent-metadata:dev:anthropic:claude-sonnet-4-0:${{ github.event_name }}:${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} -->`;
+            const body = metadata + `
+
+## Independent LLM Review Failed
 
             The following step(s) failed:
 
