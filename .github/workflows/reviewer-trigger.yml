@@ -1,0 +1,144 @@
+name: Reviewer Trigger
+
+# Automatically triggers reviewer-agent after dev-agent pushes commits to a PR
+# Enables iterative collaboration loop between dev and reviewer
+
+on:
+  pull_request:
+    types: [synchronize]  # Triggered when new commits are pushed
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  check-collaboration:
+    name: Check for Active Collaboration
+    runs-on: ubuntu-latest
+    outputs:
+      should_review: ${{ steps.check.outputs.should_review }}
+      iteration: ${{ steps.check.outputs.iteration }}
+    steps:
+      - name: Check if collaboration is active
+        id: check
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+            });
+
+            // Look for collaboration markers
+            const collaborationComments = comments.filter(c => 
+              c.body && c.body.includes('<!-- agent-collaboration:')
+            );
+
+            if (collaborationComments.length === 0) {
+              core.setOutput('should_review', 'false');
+              core.setOutput('iteration', '0');
+              return;
+            }
+
+            // Find latest iteration number
+            const iterationRegex = /Iteration:\s*(\d+)\/10/;
+            let maxIteration = 0;
+            for (const comment of collaborationComments) {
+              const match = comment.body.match(iterationRegex);
+              if (match) {
+                maxIteration = Math.max(maxIteration, parseInt(match[1]));
+              }
+            }
+
+            // Check if escalation already occurred
+            const hasEscalation = collaborationComments.some(c =>
+              c.body.includes('<!-- agent-collaboration:escalation -->')
+            );
+
+            if (hasEscalation) {
+              core.setOutput('should_review', 'false');
+              core.info('Escalation already triggered, skipping auto-review');
+              return;
+            }
+
+            if (maxIteration >= 10) {
+              core.setOutput('should_review', 'escalate');
+              core.setOutput('iteration', maxIteration.toString());
+            } else {
+              core.setOutput('should_review', 'true');
+              core.setOutput('iteration', (maxIteration + 1).toString());
+            }
+
+  trigger-reviewer:
+    name: Trigger Reviewer Agent
+    runs-on: ubuntu-latest
+    needs: check-collaboration
+    if: needs.check-collaboration.outputs.should_review == 'true'
+    steps:
+      - name: Trigger reviewer workflow
+        run: |
+          echo "Would trigger reviewer-agent-post-v2.yml here"
+          echo "Iteration: ${{ needs.check-collaboration.outputs.iteration }}"
+          echo "PR: ${{ github.event.pull_request.number }}"
+          echo "Head SHA: ${{ github.event.pull_request.head.sha }}"
+          # TODO: Implement reviewer dispatch when reviewer logic is ready
+
+  trigger-escalation:
+    name: Escalate to Owner
+    runs-on: ubuntu-latest
+    needs: check-collaboration
+    if: needs.check-collaboration.outputs.should_review == 'escalate'
+    steps:
+      - name: Create dev-agent token
+        uses: getsentry/action-github-app-token@v3
+        id: app_token
+        with:
+          app_id: ${{ secrets.DEV_GITHUB_APP_ID }}
+          private_key: ${{ secrets.DEV_GITHUB_APP_PRIVATE_KEY }}
+
+      - name: Post escalation comment
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ steps.app_token.outputs.token }}
+          script: |
+            const metadata = `<!-- agent-metadata:dev-agent:${{ github.event_name }}:${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} -->`;
+            const body = metadata + `
+            <!-- agent-collaboration:escalation -->
+
+            ## 🚨 Escalation to Owner
+
+            **Issue:** Reviewer and dev-agent could not reach agreement after 10 iterations.
+
+            **PR:** #${{ github.event.pull_request.number }}
+            **Commit:** \`${{ github.event.pull_request.head.sha }}\`
+            **Iterations:** ${{ needs.check-collaboration.outputs.iteration }}
+
+            ### Automatic Escalation
+
+            The collaboration loop has reached 10 iterations without resolution.
+            This is an automatic escalation triggered by the reviewer-trigger workflow.
+
+            @${{ github.repository_owner }} — Please review the discussion thread and decide the way forward:
+
+            1. ✅ **Approve dev's current solution** (merge PR)
+            2. 🔄 **Request specific changes** (comment with guidance)
+            3. 🆕 **Alternative direction** (provide new requirements)
+
+            **Waiting for owner manual decision.**
+
+            ---
+
+            **Status:** ⏸️ BLOCKED — Awaiting owner
+            **Escalated:** ${{ github.event.head_commit.timestamp }}
+            `;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: body
+            });
+
+            core.info('Escalation comment posted');
