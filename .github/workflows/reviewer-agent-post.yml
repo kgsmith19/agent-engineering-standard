@@ -45,7 +45,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           APP_ID: ${{ secrets.REVIEW_GITHUB_APP_ID }}
-          APP_KEY: ${{ secrets.REVIEW_GITHUB_APP_PRIVATE_KEY }}
+          APP_KEY_B64: ${{ secrets.REVIEW_GITHUB_APP_PRIVATE_KEY_B64 }}
           INSTALLATION_ID: "155589128"
         with:
           script: |
@@ -53,7 +53,8 @@ jobs:
             
             const { owner, repo } = context.repo;
             const appId = process.env.APP_ID;
-            const appKey = process.env.APP_KEY;
+            // Decode base64-encoded private key
+            const appKey = Buffer.from(process.env.APP_KEY_B64, 'base64').toString('utf-8');
             const installationId = process.env.INSTALLATION_ID;
             
             // Generate JWT for app authentication
@@ -69,7 +70,7 @@ jobs:
               const body = Buffer.from(JSON.stringify(payload)).toString('base64');
               const unsigned = `${header}.${body}`;
               
-              const signer = crypto.createSign('RSA-SHA256');
+            const signer = crypto.createSign('RSA-SHA256');
               signer.update(unsigned);
               const sig = signer.sign(appKey, 'base64');
               
