@@ -38,7 +38,7 @@ jobs:
           github-token: ${{ steps.app_token.outputs.token }}
           script: |
             const prNumber = parseInt('${{ github.event.inputs.pr_number }}');
-            const body = `${{ github.event.inputs.body }}`;
+            const body = JSON.parse('${{ toJSON(github.event.inputs.body) }}');
             
             // Find existing Work State comment by marker
             const marker = '<!-- agent-engineering-standard:work-state:v1 -->';
@@ -78,7 +78,7 @@ jobs:
           github-token: ${{ steps.app_token.outputs.token }}
           script: |
             const issueNumber = parseInt('${{ github.event.inputs.issue_number }}');
-            const body = `${{ github.event.inputs.body }}`;
+            const body = JSON.parse('${{ toJSON(github.event.inputs.body) }}');
             
             // Find existing Work State comment by marker
             const marker = '<!-- agent-engineering-standard:work-state:v1 -->';
