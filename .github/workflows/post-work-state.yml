@@ -3,9 +3,6 @@ name: Post Work State
 # Called by merge-policy and pr-gate workflows to post Work State comments
 # via the dev-agent identity rather than the repository token
 
-env:
-  DEV_AGENT_MODEL: anthropic/claude-sonnet-4-5
-
 on:
   workflow_dispatch:
     inputs:
@@ -43,8 +40,8 @@ jobs:
              const prNumber = parseInt('${{ github.event.inputs.pr_number }}');
              const rawBody = JSON.parse('${{ toJSON(github.event.inputs.body) }}');
 
-             // Prepend agent metadata
-             const metadata = `<!-- agent-metadata:dev:${{ env.DEV_AGENT_MODEL }}:${{ github.event.name }}:${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} -->`;
+             // Prepend agent metadata (identity and run context only, model-agnostic)
+             const metadata = `<!-- agent-metadata:dev-agent:${{ github.event.name }}:${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} -->`;
              const body = metadata + '\n' + rawBody;
 
             // Find existing Work State comment by marker
@@ -87,8 +84,8 @@ jobs:
              const issueNumber = parseInt('${{ github.event.inputs.issue_number }}');
              const rawBody = JSON.parse('${{ toJSON(github.event.inputs.body) }}');
 
-             // Prepend agent metadata
-             const metadata = `<!-- agent-metadata:dev:${{ env.DEV_AGENT_MODEL }}:${{ github.event.name }}:${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} -->`;
+             // Prepend agent metadata (identity and run context only, model-agnostic)
+             const metadata = `<!-- agent-metadata:dev-agent:${{ github.event.name }}:${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} -->`;
              const body = metadata + '\n' + rawBody;
 
             // Find existing Work State comment by marker
