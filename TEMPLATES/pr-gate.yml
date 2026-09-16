@@ -209,9 +209,9 @@ jobs:
     name: __APP_DISPLAY_NAME__ · Independent LLM Review
     uses: ./.github/workflows/llm-review.yml
     with:
-      # Adopter-supplied repository variables; no default ships with the
-      # standard. See AGENTS.md's "Independent LLM Review" subsection and
-      # TEMPLATES/llm-review.yml's adopter instructions.
+      # Harness-supplied at call time; the repository carries no
+      # statically-configured reviewer values. See AGENTS.md's
+      # "Independent LLM Review" subsection and TEMPLATES/llm-review.yml.
       builder_provider_family: ${{ vars.BUILDER_PROVIDER_FAMILY }}
       reviewer_provider_family: ${{ vars.LLM_REVIEW_PROVIDER_FAMILY }}
       reviewer_model: ${{ vars.LLM_REVIEW_MODEL }}

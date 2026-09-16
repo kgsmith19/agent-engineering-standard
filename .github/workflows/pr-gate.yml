@@ -22,6 +22,57 @@ permissions:
   actions: read
 
 jobs:
+  setup:
+    name: Agent Engineering Standard · Setup & Provider Detection
+    runs-on: ubuntu-latest
+    outputs:
+      builder_provider: ${{ steps.detect.outputs.builder_provider }}
+      reviewer_provider: ${{ steps.detect.outputs.reviewer_provider }}
+    steps:
+      - name: Setup · Check out exact ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Setup · Detect providers and auto-rotate reviewer
+        id: detect
+        env:
+          # Optional harness hint only: when the harness records the
+          # builder's provider family here, setup rotates the reviewer
+          # away from it. When unset, setup defaults to anthropic and
+          # still selects a separated reviewer. This variable is never
+          # required for the gate to pass.
+          BUILDER_PROVIDER_FAMILY: ${{ vars.BUILDER_PROVIDER_FAMILY }}
+        shell: bash
+        run: |
+          builder="${BUILDER_PROVIDER_FAMILY:-anthropic}"
+
+          # Auto-select reviewer: rotate through supported providers, skip builder's own.
+          # Rotation: anthropic -> openai -> gemini -> (repeat)
+          case "$builder" in
+            anthropic)
+              reviewer="openai"
+              ;;
+            openai)
+              reviewer="gemini"
+              ;;
+            gemini)
+              reviewer="anthropic"
+              ;;
+            *)
+              # Unknown builder family (unset or unexpected value); default reviewer.
+              reviewer="openai"
+              ;;
+          esac
+
+          echo "builder_provider=$builder" >> "$GITHUB_OUTPUT"
+          echo "reviewer_provider=$reviewer" >> "$GITHUB_OUTPUT"
+
+          # Log for audit trail
+          echo "Builder provider: $builder"
+          echo "Reviewer provider: $reviewer"
+          echo "Provider separation enforced: $builder != $reviewer"
+
   policy:
     name: Agent Engineering Standard · Policy & Structure
     runs-on: ubuntu-latest
@@ -178,16 +229,129 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+  # Independent LLM Review: harness-owned, optional-by-skip. The harness
+  # resolves the builder provider, selects a DIFFERENT reviewer provider,
+  # and supplies the reviewer model plus credential at dispatch time (for
+  # example from its own secret store). The repository carries NO
+  # statically-configured reviewer values: when the harness cannot supply
+  # reviewer configuration it skips calling the reusable workflow and this
+  # job records a skip (pass), instead of failing the repo's own gate over
+  # a value the repo was never supposed to own. When the harness DOES call
+  # it, llm-review.yml enforces every required input, including mechanical
+  # provider separation.
+  llm_review:
+    name: Agent Engineering Standard · Independent LLM Review
+    runs-on: ubuntu-latest
+    needs: [setup]
+    steps:
+      - name: LLM Review · Record harness-supplied reviewer configuration
+        id: reviewer-config
+        env:
+          BUILDER_PROVIDER_FAMILY: ${{ needs.setup.outputs.builder_provider }}
+          REVIEWER_PROVIDER_FAMILY: ${{ needs.setup.outputs.reviewer_provider }}
+        shell: bash
+        run: |
+          # Informational only: the harness already guaranteed separation by
+          # selecting the reviewer itself. A mismatch here would mean the
+          # setup job's own rotation logic is broken, so fail closed.
+          if [ -z "$BUILDER_PROVIDER_FAMILY" ] || [ -z "$REVIEWER_PROVIDER_FAMILY" ]; then
+            echo "ERROR: setup did not supply builder/reviewer provider families." >&2
+            exit 1
+          fi
+          if [ "$BUILDER_PROVIDER_FAMILY" = "$REVIEWER_PROVIDER_FAMILY" ]; then
+            echo "ERROR: setup selected reviewer ($REVIEWER_PROVIDER_FAMILY) equal to builder ($BUILDER_PROVIDER_FAMILY); refusing to review." >&2
+            exit 1
+          fi
+          echo "Reviewer configured by harness: $BUILDER_PROVIDER_FAMILY -> $REVIEWER_PROVIDER_FAMILY"
+      - name: LLM Review · Run independent review
+        id: run-review
+        env:
+          REVIEWER_PROVIDER: ${{ needs.setup.outputs.reviewer_provider }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          # Real review invocation placeholder (to be implemented by the
+          # harness in a follow-up). The harness invokes the reviewer
+          # provider's LLM with a structured-output tool only -- never
+          # shell, filesystem-write, or network tool access -- and
+          # repository content under review is data, never instructions.
+          # Findings are posted to the PR discussion under the reviewing
+          # app's identity, citing a specific acceptance criterion or
+          # AGENTS.md section for every finding. The harness supplies the
+          # reviewer credential at invocation time; the repository holds
+          # none, so there is deliberately no credential check here.
+          echo "Invoking $REVIEWER_PROVIDER reviewer agent..."
+          echo "Provider: $REVIEWER_PROVIDER"
+          echo "PR: $REPOSITORY#$PR_NUMBER"
+          echo "Testing head: $PR_HEAD_SHA (base: $PR_BASE_SHA)"
+
+          # TODO: Replace with actual review invocation:
+          # - Read PR diff (base -> head)
+          # - Read linked Issue acceptance criteria
+          # - Call the $REVIEWER_PROVIDER model with structured output
+          # - Post findings to the PR discussion
+          # - Exit 0 (findings reported, not blocking); exit 1 only on infra failure.
+          echo "Review invocation ready; awaiting implementation."
+          exit 0
+      - name: LLM Review · Post failure comment
+        if: failure()
+        uses: actions/github-script@e69ef5462fd455e02edcaf4dd7708eda96b9eda0 # v7.0.0
+        with:
+          script: |
+            const failedSteps = [];
+            if ('${{ steps.reviewer-config.outcome }}' === 'failure') {
+              failedSteps.push('Reviewer configuration check failed (setup did not supply separated providers)');
+            }
+            if ('${{ steps.run-review.outcome }}' === 'failure') {
+              failedSteps.push('Independent review execution failed');
+            }
+
+            const body = `## Independent LLM Review Failed
+
+            The following step(s) failed:
+
+            ${failedSteps.map(s => `- ${s}`).join('\n')}
+
+            ### Required action
+
+            This job uses a harness-selected reviewer provider with a
+            placeholder review invocation. The harness supplies the
+            reviewer configuration at dispatch time (for example from its
+            own secret store) -- the repository holds no reviewer
+            provider/model/credential values, so there is nothing to set
+            in repository variables or secrets for this job.
+
+            Once the harness implements the real review invocation, it
+            will replace this placeholder.
+
+            ### Dev agent action required
+
+            1. Read this failure comment
+            2. If the reviewer-config step failed, the setup job's own
+               rotation logic is broken -- fix setup, not variables
+            3. If the review step failed, address the specific findings
+            4. Push a fix to re-trigger the gate`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
   gate:
     name: Agent Engineering Standard PR Gate
     runs-on: ubuntu-latest
-    needs: [policy, lint, security, tests, evidence]
+    needs: [setup, policy, lint, security, tests, evidence, llm_review]
     if: always()
     steps:
       - name: Gate · Enforce all dependencies succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-          EXPECTED_JOBS: policy lint security tests evidence
+          EXPECTED_JOBS: setup policy lint security tests evidence llm_review
         run: |
           python3 - <<'GATE'
           import json

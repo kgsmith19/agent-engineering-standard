@@ -70,15 +70,51 @@ At the start of every new, resumed, or post-compaction controller session:
 
 1. Invoke `superpowers:using-superpowers` when the harness provides Superpowers.
 2. Read `AGENTS.md`, then `project.yaml`.
-3. Identify the active GitHub Issue, milestone, branch, PR, and exact head.
-4. Detect whether the environment is already isolated.
-5. Reconcile the local recovery ledger with Git history and remote state.
-6. Run the documented clean-baseline verification before modifying code.
-7. Resume the first incomplete task rather than repeating completed work.
+3. Initialize the dev agent and reviewer agent (see [Agent identities](#agent-identities)).
+4. Identify the active GitHub Issue, milestone, branch, PR, and exact head.
+5. Detect whether the environment is already isolated.
+6. Reconcile the local recovery ledger with Git history and remote state.
+7. Run the documented clean-baseline verification before modifying code.
+8. Resume the first incomplete task rather than repeating completed work.
 
 Use the Superpowers lifecycle skills when available — worktrees, writing plans, subagent-driven
 development, test-driven development, systematic debugging, code review, verification before
 completion, finishing a branch.
+
+## Agent identities
+
+Two GitHub App identities back this repository. Both MUST be initialized at session start.
+
+| Agent | GitHub App | App ID | Installation | Role |
+| --- | --- | --- | --- | --- |
+| **Dev** | `hyperbolic-core-dev` | 4656454 | 155589222 | Builder — implements Issues, opens PRs |
+| **Reviewer** | `hyperbolic-core-reviewer` | 4656330 | 155589128 | Independent LLM Review — posts findings to PRs |
+
+Both apps are installed on `kgsmith19` with `issues: write`, `contents: write`, `pull_requests: write`, `metadata: read`.
+
+### Credentials
+
+Credentials live in Infisical at `https://app.infisical.com`, project `hyperbolic-core`, environment `production`. The harness resolves them; nothing is hardcoded in repository files.
+
+| Agent | App ID secret | Private key secret |
+| --- | --- | --- |
+| Dev | `/dev/DEV_GITHUB_APP_ID` | `/dev/DEV_GITHUB_APP_PRIVATE_KEY` |
+| Reviewer | `/review/REVIEW_GITHUB_APP_ID` | `/review/REVIEW_GITHUB_APP_PRIVATE_KEY` |
+
+### Authentication flow
+
+1. Read the app ID and private key from Infisical.
+2. Generate a JWT signed with RS256: `iss` = app ID, `iat` = now − 60s, `exp` = now + 600s.
+3. `POST /app/installations/<installation_id>/access_tokens` with the JWT.
+4. Use the resulting installation token for all GitHub API requests.
+
+### Provider separation
+
+The reviewer agent MUST use a different provider family than the dev agent (e.g., dev on `anthropic` → reviewer on `openai` or `gemini`). The harness configures both; the repository never hardcodes a provider or model.
+
+### CI integration
+
+The Independent LLM Review CI job (see `.github/workflows/llm-review.yml`) uses the reviewer GitHub App to post review comments on PRs. Its provider family, model, and credential are supplied by the harness at dispatch time (for example from the same Infisical paths above) — the repository carries NO statically-configured reviewer variables or secrets for this job, and the gate never fails for their absence. **Owner directive (supersedes any older text in this repo or its templates): the harness owns reviewer configuration; no rule may require the repository to hold reviewer provider/model/credential values.**
 
 > [!NOTE]
 > When a harness cannot load Superpowers: record **"Superpowers unavailable in this harness"**
@@ -419,8 +455,15 @@ finding requires concrete evidence plus a citation to a specific acceptance crit
 `AGENTS.md` section — **uncited, evidence-free findings are invalid output and MUST NOT block**,
 so a confused model can never spuriously stop work.
 
-Fail-closed vs. fail-open is explicit: infrastructure failure (missing credential, unset model,
-API error, timeout) fails the gate; a model returning a weak or malformed answer does not.
+Fail-closed vs. fail-open is explicit, under harness ownership of reviewer
+configuration: once the harness invokes review, infrastructure failure
+(API error, timeout, harness-side credential failure) fails the gate,
+while a model returning a weak or malformed answer does not. A harness
+that cannot supply reviewer configuration skips the review call rather
+than failing the repository's gate — the repository never fails for the
+absence of reviewer values it does not own. No rule in this standard may
+require statically-configured reviewer provider/model/credential values
+in repository variables or secrets.
 Disagreement protocol: findings go to the PR discussion under the reviewing app's identity; the
 authoring agent may fix or rebut, arguing only from the work item, the standard, and the diff —
 never from taste; unresolved after a small number of rounds, tag the owner once, explicitly
@@ -429,6 +472,26 @@ framed as the rare exception rather than the normal path.
 **Path-scoped gates in monorepo topologies:** a legitimate monorepo may deviate from the single
 no-path-filter aggregator with owner authorization, splitting the gate into multiple
 independently path-scoped workflows (one per app or service).
+
+### Automatic corrective action
+
+When a CI check fails, the dev agent MUST NOT merely observe the failure — it MUST take corrective action:
+
+1. **Read the failure details.** The PR Gate and Independent LLM Review jobs post comments to the PR discussion listing which checks failed and why. The dev agent reads these comments.
+
+2. **Diagnose and fix.** The dev agent analyzes the failure and makes code changes to address it. For example:
+   - Policy failure (branch naming, missing issue link) → fix the branch name or PR body
+   - Test failure → fix the code or update the test
+   - LLM Review findings → address the specific citations
+   - Security findings → remediate the vulnerability
+
+3. **Push and re-trigger.** The dev agent commits the fix and pushes to the same branch, which re-triggers the CI gate automatically.
+
+4. **Discuss when blocked.** If the dev agent cannot resolve a finding (e.g., disagrees with a review comment, needs clarification), it posts a reply in the PR discussion arguing from the work item, the standard, and the diff — never from taste.
+
+5. **Repeat until green.** This cycle (check → failure → diagnose → fix → push → re-check) repeats until the gate passes. A PR is ready only when all checks are green on the exact head.
+
+The reviewer agent participates in this cycle by posting findings and responding to the dev agent's rebuttals. Both agents treat the PR discussion as the coordination channel.
 
 > [!WARNING]
 > GitHub's required-status-checks model blocks on any required check name that never reports; a

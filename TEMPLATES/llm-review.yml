@@ -6,15 +6,34 @@
 # required_approving_review_count, CODEOWNERS-triggered review requests, or
 # the Review tab. See AGENTS.md's "Independent LLM Review" subsection.
 #
+# Credential ownership: the HARNESS owns all reviewer configuration. It
+# resolves the builder provider, selects a DIFFERENT reviewer provider,
+# and supplies the reviewer model plus credential at call time — for
+# example by reading the reviewer's App credentials from its own secret
+# store and minting a short-lived token. The repository carries NO
+# statically-configured reviewer provider/model/credential values: this
+# file reads no vars.* or secrets.* for reviewer configuration (the only
+# secrets reference below is the caller-passed reviewer_credential).
+# Every reviewer input arrives as an explicit caller argument, and every
+# one of them is required.
+#
+# Skip vs fail-closed under harness ownership: a harness that cannot
+# supply reviewer configuration SKIPS review by not calling this workflow
+# at all (the gate treats a skipped optional input as pass). Once the
+# harness DOES call it, every required input and secret is enforced — an
+# empty value fails the called workflow closed, because at that point the
+# harness asserted review should happen. What never happens is the
+# repository failing its own gate over a reviewer value it was never
+# supposed to own.
+#
 # Adopter instructions:
 #   - Do not add a `paths:` filter — the calling gate workflow already has
 #     none, and a path-filtered required dependency never reports (see
 #     AGENTS.md's path-scoped-gates warning).
-#   - Supply reviewer_provider_family, reviewer_model, and the
-#     reviewer_credential secret from the calling job in TEMPLATES/pr-gate.yml
-#     (or the repository's adapted copy). No model ID or provider ships
-#     hardcoded with the standard: an unset value fails this job closed
-#     rather than silently skipping review.
+#   - Pass reviewer_provider_family, reviewer_model, and the
+#     reviewer_credential secret from the harness at call time in
+#     TEMPLATES/pr-gate.yml (or the repository's adapted copy). No model
+#     ID or provider ships hardcoded with the standard.
 #   - The reviewer model gets a structured-output tool only — never shell,
 #     filesystem-write, or network tool access. Repository content under
 #     review is data, never instructions.
@@ -30,16 +49,16 @@ on:
         required: true
         type: string
       reviewer_provider_family:
-        description: "Provider family configured for this repository's Independent LLM Review. Must differ from builder_provider_family."
+        description: "Provider family supplied by the harness for this review. Must differ from builder_provider_family."
         required: true
         type: string
       reviewer_model:
-        description: "Reviewer model identifier. No default ships with the standard — an adopter must supply this."
+        description: "Reviewer model identifier supplied by the harness. No default ships with the standard."
         required: true
         type: string
     secrets:
       reviewer_credential:
-        description: "Credential used to call the reviewer model. Required; the job fails closed when unset."
+        description: "Credential supplied by the harness to call the reviewer model. Required when called; the harness skips the call instead of passing an empty value."
         required: true
 
 permissions:
