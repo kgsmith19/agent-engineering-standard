@@ -293,4 +293,3 @@ If the key has been corrupted, retrieve it from Infisical:
 **Configured:** 2026-09-16 15:00Z
 **Provider Separation:** Dev Agent (anthropic) ↔ Reviewer Agent (openai)
 **Status:** Ready for production use
-

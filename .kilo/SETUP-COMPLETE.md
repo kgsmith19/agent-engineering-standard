@@ -347,4 +347,3 @@ gh workflow run dev-agent-post.yml \
 **Documentation:** `.kilo/AGENT-COMMUNICATION.md` + `.kilo/AGENT-EXAMPLES.md`
 **Testing:** `.kilo/AGENT-EXAMPLES.md` → "Quick Start" section
 **Integration Guide:** Phase 1-3 workflow above
-

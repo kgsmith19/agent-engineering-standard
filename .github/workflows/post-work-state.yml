@@ -110,4 +110,3 @@ jobs:
               });
               core.info(`Created Work State comment ${comment.id} on issue #${issueNumber}`);
             }
-

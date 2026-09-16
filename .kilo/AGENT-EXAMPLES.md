@@ -315,4 +315,3 @@ Refer to:
 - `.kilo/AGENT-COMMUNICATION.md` — Full setup and architecture guide
 - `AGENTS.md` — Policy, credentials, provider separation
 - `.github/workflows/dev-agent-post.yml` — Implementation details
-

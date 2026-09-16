@@ -324,4 +324,3 @@ gh pr view 160 --json comments \
 **Time:** 2026-09-16T16:14Z
 **Repository:** kgsmith19/agent-engineering-standard (main)
 **Authorization:** Full owner authority used; all changes approved
-
