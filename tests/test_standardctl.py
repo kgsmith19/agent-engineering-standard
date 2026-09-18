@@ -2018,5 +2018,76 @@ class ContextBudget(unittest.TestCase):
         self.assertIn("ROTATE_NOW_READ_ONLY", proc.stdout)
 
 
+class ToolOutput(unittest.TestCase):
+    """Stage 14: bounded envelopes keep evidence, drop floods."""
+
+    def _mod(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import tool_output
+            return tool_output
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def test_small_passes_through(self):
+        """Protects fidelity; small outputs are never truncated."""
+        mod = self._mod()
+        env = mod.wrap("ok\n", question="q")
+        self.assertFalse(env["truncated"])
+        self.assertEqual([], mod.validate(env, "ok\n"))
+
+    def test_huge_log_truncates_marked(self):
+        """Protects the envelope; huge logs truncate with marker+handle."""
+        mod = self._mod()
+        big = "x" * 20000 + "\nFAILED t::u\n"
+        env = mod.wrap(big, question="what fills the log")
+        self.assertTrue(env["truncated"])
+        self.assertIn("truncated", env["marker"])
+        self.assertTrue(env["handle"])
+        self.assertTrue(any("FAILED" in line for line in env["critical"]))
+        self.assertEqual([], mod.validate(env, big))
+
+    def test_unmarked_truncation_fails(self):
+        """Protects honesty; silent omission is a validation failure."""
+        mod = self._mod()
+        big = "y" * 20000
+        env = mod.wrap(big, question="q")
+        env["truncated"] = False
+        self.assertTrue(mod.validate(env, big))
+
+    def test_expansion_needs_question(self):
+        """Protects focus; big grabs without a question are refused."""
+        with self.assertRaises(ValueError):
+            self._mod().wrap("z" * 10000, question="  ")
+
+    def test_continuation_retrieves(self):
+        """Protects evidence; byte ranges retrieve exactly."""
+        mod = self._mod()
+        text = "abcdef" * 1000
+        part = mod.retrieve(text, 100, 50)
+        self.assertEqual(text.encode("utf-8")[100:150].decode(), part)
+        with self.assertRaises(ValueError):
+            mod.retrieve(text, 10 ** 9, 10)
+
+    def test_binary_sanitized(self):
+        """Protects the pipeline; binary-ish bytes never break JSON."""
+        mod = self._mod()
+        import json
+        env = mod.wrap("ok\x00\x01\x02\n", question="q")
+        json.dumps(env)
+
+    def test_cli_envelope(self):
+        """Protects the CLI contract; wrapped output reports digest."""
+        import subprocess
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "tool-output",
+             "--text", "FAILED t::u", "--question", "which fails"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        self.assertIn("sha256", proc.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
