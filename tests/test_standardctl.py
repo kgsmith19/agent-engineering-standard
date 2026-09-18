@@ -1951,5 +1951,72 @@ class RepoMap(unittest.TestCase):
         self.assertTrue(all(e["reason"] for e in built["entries"]))
 
 
+class ContextBudget(unittest.TestCase):
+    """Stage 13: rotation happens before compaction, never by summary."""
+
+    def _govern(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            from context_budget import govern
+            return govern
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _fp(self, **over):
+        fp = {"capsule": 900, "rules": 2000, "files": 4000, "skills": 500,
+              "mcp": 0, "tool_output": 2000}
+        fp.update(over)
+        return fp
+
+    def test_healthy_small(self):
+        """Protects the positive path; small footprints continue."""
+        result = self._govern()(self._fp())
+        self.assertEqual("HEALTHY", result["status"])
+
+    def test_giant_tool_output_rotates(self):
+        """Protects the tripwire; giant tool output plans rotation."""
+        result = self._govern()(self._fp(tool_output=40000))
+        self.assertIn(result["status"],
+                      ("ROTATE_AT_BOUNDARY", "ROTATE_NOW_READ_ONLY"))
+
+    def test_hard_max_read_only(self):
+        """Protects the hard max; past 48 KiB only reads until rotate."""
+        result = self._govern()(self._fp(tool_output=50000))
+        self.assertEqual("ROTATE_NOW_READ_ONLY", result["status"])
+
+    def test_expansion_needs_reason(self):
+        """Protects focus; expansions without a question are refused."""
+        result = self._govern()(self._fp(), expansions=2, unresolved=0)
+        self.assertEqual("EXPANSION_REQUIRES_REASON", result["status"])
+
+    def test_phase_change_rotates(self):
+        """Protects mandatory rotation; phase changes rotate."""
+        result = self._govern()(self._fp(), phase_change=True)
+        self.assertEqual("ROTATE_AT_BOUNDARY", result["status"])
+
+    def test_polluted_recovers(self):
+        """Protects state over summary; pollution recovers from capsule."""
+        result = self._govern()(self._fp(), polluted=True)
+        self.assertEqual("RECOVERY_REQUIRED", result["status"])
+        self.assertIn("never summarize", " ".join(result["reasons"]))
+
+    def test_missing_fact_recovers(self):
+        """Protects completeness; missing load-bearing facts recover."""
+        result = self._govern()(self._fp(), missing_load_bearing=True)
+        self.assertEqual("RECOVERY_REQUIRED", result["status"])
+
+    def test_budget_cli_tripwire(self):
+        """Protects the CLI contract; hard-max exits nonzero."""
+        import subprocess
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "context", "budget",
+             "--capsule-bytes", "900", "--tool-bytes", "50000"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertNotEqual(0, proc.returncode)
+        self.assertIn("ROTATE_NOW_READ_ONLY", proc.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
