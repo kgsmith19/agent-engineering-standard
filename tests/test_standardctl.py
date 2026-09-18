@@ -367,13 +367,14 @@ class StandardRepoRejections(FixtureCase):
         self.assertIn("privileged-pr-checkout", check_ids(findings))
 
     def test_verify_rejects_missing_owner_authority_language(self):
-        """Protects the owner-authority contract in AGENTS.md; catches an
-        edit that drops the mandatory waiver-reporting phrase and would
-        erode the override protocol."""
+        """Protects the owner-authority contract in AGENTS/governance.md;
+        catches an edit that drops the mandatory waiver-reporting phrase
+        and would erode the override protocol (routed-modules
+        architecture)."""
         root = self.std_fixture()
-        agents = root / "AGENTS.md"
-        agents.write_text(
-            agents.read_text(encoding="utf-8").replace(
+        governance = root / "AGENTS" / "governance.md"
+        governance.write_text(
+            governance.read_text(encoding="utf-8").replace(
                 "Not run by owner instruction.", "waived"
             ),
             encoding="utf-8",
