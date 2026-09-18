@@ -1236,5 +1236,19 @@ class WorktreeSafety(FixtureCase):
         self.assertFalse(merged.exists())
 
 
+class CapabilityRegistry(FixtureCase):
+    """Stage 5: 264-capability registry is machine-readable audit metadata."""
+
+    def test_canonical_registry_source_parses(self):
+        """Protects the registry input contract; catches a missing or
+        unparseable canonical source."""
+        import json
+        path = WORKTREE / "Canonical" / "capabilities.json"
+        records = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(264, len(records))
+        ids = [r["Capability ID"] for r in records]
+        self.assertEqual(264, len(set(ids)))
+
+
 if __name__ == "__main__":
     unittest.main()
