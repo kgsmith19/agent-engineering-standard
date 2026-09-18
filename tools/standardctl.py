@@ -172,6 +172,7 @@ line/indentation-based structural extraction instead.
 
 import argparse
 import ast
+import csv
 import hashlib
 import json
 import os
@@ -184,6 +185,7 @@ import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from io import StringIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -2132,11 +2134,8 @@ def check_capability_registry(model: RepoModel) -> List[Finding]:
         matrix_text = model.read_text(matrix_path)
         if matrix_text is None:
             raise OSError("missing")
-        import csv as _csv
-        import io as _io
-        matrix_rows = list(
-            _csv.DictReader(_io.StringIO(matrix_text)))
-    except (OSError, _csv.Error) as exc:
+        matrix_rows = list(csv.DictReader(StringIO(matrix_text)))
+    except (OSError, csv.Error) as exc:
         findings.append(
             Finding(
                 "capability-registry",
