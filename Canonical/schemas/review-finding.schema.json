@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "review-finding",
+  "version": "5.0.0",
+  "artifact": "Review Finding",
+  "durable_authority": "Verdict artifact",
+  "description": "Review Finding (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "finding",
+    "severity"
+  ],
+  "properties": {
+    "finding": {
+      "type": "string"
+    },
+    "severity": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

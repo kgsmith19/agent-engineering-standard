@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "standard-lock",
+  "version": "5.0.0",
+  "artifact": "Standard Lock",
+  "durable_authority": "Consuming repo",
+  "description": "Standard Lock (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "standard",
+    "commit"
+  ],
+  "properties": {
+    "standard": {
+      "type": "string"
+    },
+    "commit": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

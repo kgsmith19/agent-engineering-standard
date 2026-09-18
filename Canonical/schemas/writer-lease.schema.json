@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "writer-lease",
+  "version": "5.0.0",
+  "artifact": "Writer Lease",
+  "durable_authority": "Durable coordination",
+  "description": "Writer Lease (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "lease",
+    "holder"
+  ],
+  "properties": {
+    "lease": {
+      "type": "string"
+    },
+    "holder": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "tool-execution",
+  "version": "5.0.0",
+  "artifact": "Tool Execution",
+  "durable_authority": "Evidence/event",
+  "description": "Tool Execution (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "tool",
+    "result"
+  ],
+  "properties": {
+    "tool": {
+      "type": "string"
+    },
+    "result": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

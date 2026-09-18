@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "external-effect",
+  "version": "5.0.0",
+  "artifact": "External Effect",
+  "durable_authority": "Durable receipt",
+  "description": "External Effect (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "effect"
+  ],
+  "properties": {
+    "effect": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

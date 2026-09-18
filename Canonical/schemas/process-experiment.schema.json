@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "process-experiment",
+  "version": "5.0.0",
+  "artifact": "Process Experiment",
+  "durable_authority": "Metrics store",
+  "description": "Process Experiment (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "experiment",
+    "metric"
+  ],
+  "properties": {
+    "experiment": {
+      "type": "string"
+    },
+    "metric": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

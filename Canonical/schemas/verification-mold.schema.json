@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "verification-mold",
+  "version": "5.0.0",
+  "artifact": "Verification Mold",
+  "durable_authority": "Versioned tests/contracts",
+  "description": "Verification Mold (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "mold",
+    "tests"
+  ],
+  "properties": {
+    "mold": {
+      "type": "string"
+    },
+    "tests": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

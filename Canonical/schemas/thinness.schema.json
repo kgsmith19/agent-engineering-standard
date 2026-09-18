@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "thinness",
+  "version": "5.0.0",
+  "artifact": "Thinness Signal",
+  "durable_authority": "Generated",
+  "description": "Thinness Signal (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "score",
+    "axes"
+  ],
+  "properties": {
+    "score": {
+      "type": "string"
+    },
+    "axes": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

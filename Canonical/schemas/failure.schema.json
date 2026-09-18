@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "failure",
+  "version": "5.0.0",
+  "artifact": "Failure Classification",
+  "durable_authority": "Evidence",
+  "description": "Failure Classification (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "failure",
+    "class"
+  ],
+  "properties": {
+    "failure": {
+      "type": "string"
+    },
+    "class": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

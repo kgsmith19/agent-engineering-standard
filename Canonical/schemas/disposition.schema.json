@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "disposition",
+  "version": "5.0.0",
+  "artifact": "Disposition",
+  "durable_authority": "Managed Issue state",
+  "description": "Disposition (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "disposition"
+  ],
+  "properties": {
+    "disposition": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

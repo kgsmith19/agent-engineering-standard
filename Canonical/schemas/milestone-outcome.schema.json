@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "milestone-outcome",
+  "version": "5.0.0",
+  "artifact": "Milestone outcome",
+  "durable_authority": "GitHub Milestone + parent Issue",
+  "description": "Milestone outcome (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "milestone",
+    "outcome"
+  ],
+  "properties": {
+    "milestone": {
+      "type": "string"
+    },
+    "outcome": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

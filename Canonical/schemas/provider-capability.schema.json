@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "provider-capability",
+  "version": "5.0.0",
+  "artifact": "Provider Capability",
+  "durable_authority": "agent-extensions",
+  "description": "Provider Capability (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "provider",
+    "capabilities"
+  ],
+  "properties": {
+    "provider": {
+      "type": "string"
+    },
+    "capabilities": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

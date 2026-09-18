@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "ready",
+  "version": "5.0.0",
+  "artifact": "Definition of Ready",
+  "durable_authority": "Generated receipt",
+  "description": "Definition of Ready (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "issue",
+    "ready"
+  ],
+  "properties": {
+    "issue": {
+      "type": "string"
+    },
+    "ready": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

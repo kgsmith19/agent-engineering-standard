@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "slice",
+  "version": "5.0.0",
+  "artifact": "Slice Contract",
+  "durable_authority": "Managed Work State",
+  "description": "Slice Contract (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "slice",
+    "contract"
+  ],
+  "properties": {
+    "slice": {
+      "type": "string"
+    },
+    "contract": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "extensions-lock",
+  "version": "5.0.0",
+  "artifact": "Extension Lock",
+  "durable_authority": "agent-extensions",
+  "description": "Extension Lock (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "locks"
+  ],
+  "properties": {
+    "locks": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}
