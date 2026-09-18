@@ -295,7 +295,8 @@ jobs:
           # - Post findings to the PR discussion
           # - Exit 0 (findings reported, not blocking); exit 1 only on infra failure.
           echo "Review invocation ready; awaiting implementation."
-          exit 0
+          echo "LIVE-PROOF(#184): forcing review failure to demonstrate the FAIL comment upsert." >&2
+          exit 1
       # This job stays read-only and never posts. The always-post result
       # comment (pass or fail) is delivered by the separate, trusted
       # workflow_run consumer .github/workflows/llm-review-comment.yml, which
