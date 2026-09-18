@@ -65,6 +65,18 @@ mappings:
   - source: AGENTS.md
     dest: AGENTS.md
     mode: adapt
+  - source: AGENTS/governance.md
+    dest: AGENTS/governance.md
+    mode: adapt
+  - source: AGENTS/work.md
+    dest: AGENTS/work.md
+    mode: adapt
+  - source: AGENTS/verification.md
+    dest: AGENTS/verification.md
+    mode: adapt
+  - source: AGENTS/boundaries.md
+    dest: AGENTS/boundaries.md
+    mode: adapt
   - source: CLAUDE.md
     dest: CLAUDE.md
     mode: copy
