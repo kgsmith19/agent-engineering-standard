@@ -4005,6 +4005,29 @@ def build_parser() -> argparse.ArgumentParser:
     p_ready.add_argument("--json", action="store_true")
     p_ready.set_defaults(func=cmd_ready)
 
+    p_prompt = sub.add_parser(
+        "prompt",
+        help="one-outcome prompt contract check/render (advisory)",
+    )
+    prompt_sub = p_prompt.add_subparsers(
+        dest="prompt_command", required=True
+    )
+    p_pcheck = prompt_sub.add_parser("check")
+    p_pcheck.add_argument("--outcome", default="")
+    p_pcheck.add_argument("--repo", default="")
+    p_pcheck.add_argument("--issue", default="")
+    p_pcheck.add_argument("--phase", default="")
+    p_pcheck.add_argument("--role", default="")
+    p_pcheck.add_argument("--risk", default="")
+    p_pcheck.add_argument("--disposition", default="")
+    p_pcheck.add_argument("--write-paths", default="")
+    p_pcheck.add_argument("--protected-paths", default="")
+    p_pcheck.add_argument("--evidence", default="")
+    p_pcheck.add_argument("--stop", default="")
+    p_pcheck.add_argument("--first-action", default="")
+    p_pcheck.add_argument("--json", action="store_true")
+    p_pcheck.set_defaults(func=cmd_prompt)
+
     return parser
 
 
@@ -4106,6 +4129,49 @@ def cmd_ready(args: argparse.Namespace) -> int:
         print(json.dumps({"ready": True, "issue": args.issue}, indent=2))
     else:
         print("ready: READY (%s)" % label)
+    return 0
+
+
+def cmd_prompt(args: argparse.Namespace) -> int:
+    """Advisory prompt-contract check. Exit 0 iff phase-pure."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        from prompt_contract import render, validate
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    contract = {
+        "primary_outcome": args.outcome,
+        "repository": args.repo,
+        "issue": args.issue,
+        "phase": args.phase,
+        "role": args.role,
+        "risk": args.risk,
+        "disposition": args.disposition,
+        "allowed_mutations": "stated",
+        "forbidden_mutations": "stated",
+        "write_paths": args.write_paths,
+        "protected_paths": args.protected_paths,
+        "evidence": args.evidence,
+        "stop_conditions": args.stop,
+        "first_action": args.first_action,
+        "outcomes": ["one"],
+        "phases": args.phase,
+        "authority": args.phase,
+        "hashes": {},
+    }
+    repairs = validate(contract)
+    if repairs:
+        print("prompt: NOT PHASE-PURE")
+        for line in repairs:
+            print("  - %s" % line)
+        return 2
+    if args.json:
+        print(json.dumps({"phase_pure": True,
+                          "prompt": render(contract)}, indent=2))
+    else:
+        print(render(contract))
     return 0
 
 

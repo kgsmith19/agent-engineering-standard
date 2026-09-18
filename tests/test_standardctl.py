@@ -1724,5 +1724,85 @@ class DefinitionOfReady(unittest.TestCase):
         self.assertIn("READY", proc.stdout)
 
 
+class PromptContract(unittest.TestCase):
+    """Stage 10: one-outcome phase-pure prompt contract."""
+
+    def _mod(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import prompt_contract
+            return prompt_contract
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _contract(self, **over):
+        base = {
+            "primary_outcome": "o", "repository": "r", "issue": "108",
+            "phase": "investigate", "role": "builder", "risk": "R2",
+            "disposition": "IMPLEMENT", "allowed_mutations": "a",
+            "forbidden_mutations": "f", "write_paths": "tools/",
+            "protected_paths": "main", "evidence": "verify",
+            "stop_conditions": "green", "first_action": "read spec",
+            "outcomes": ["one"], "phases": "investigate",
+            "authority": "investigate", "hashes": {},
+        }
+        base.update(over)
+        return base
+
+    def test_clean_contract_passes(self):
+        """Protects the positive path; catches a gate that never opens."""
+        self.assertEqual([], self._mod().validate(self._contract()))
+
+    def test_missing_stop_condition_fails(self):
+        """Protects bounded prompts; catches a prompt with no stop."""
+        repairs = self._mod().validate(
+            self._contract(stop_conditions=""))
+        self.assertTrue(any("stop_conditions" in r for r in repairs))
+
+    def test_mega_prompt_rejected(self):
+        """Protects phase purity; catches spec+code+review in one."""
+        repairs = self._mod().validate(
+            self._contract(outcomes=["a", "b"],
+                           phases="investigate,implement,review"))
+        self.assertTrue(any("shippable outcomes" in r for r in repairs))
+        self.assertTrue(any("write phases" in r or "one phase" in r
+                            for r in repairs))
+
+    def test_stale_hash_fails(self):
+        """Protects hash freshness; catches a stale artifact hash."""
+        repairs = self._mod().validate(
+            self._contract(hashes={"a.json": "old"}),
+            known_heads={"a.json": "new"})
+        self.assertTrue(any("stale hash" in r for r in repairs))
+
+    def test_transcript_dump_rejected(self):
+        """Protects context discipline; catches pasted history."""
+        repairs = self._mod().validate(
+            self._contract(transcript_dump=True))
+        self.assertTrue(any("transcript dump" in r for r in repairs))
+
+    def test_render_is_short(self):
+        """Protects brevity; generated prompts stay phase-pure short."""
+        text = self._mod().render(self._contract())
+        self.assertLess(len(text.split()), 180)
+        self.assertIn("First safe action", text)
+
+    def test_prompt_cli_renders(self):
+        """Protects the CLI contract; a clean contract renders exit 0."""
+        import subprocess
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "prompt", "check",
+             "--outcome", "o", "--repo", "r", "--issue", "108",
+             "--phase", "investigate", "--role", "builder", "--risk", "R2",
+             "--disposition", "IMPLEMENT", "--write-paths", "tools/",
+             "--protected-paths", "main", "--evidence", "verify",
+             "--stop", "green", "--first-action", "read spec"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        self.assertIn("First safe action", proc.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
