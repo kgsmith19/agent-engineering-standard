@@ -4028,6 +4028,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_pcheck.add_argument("--json", action="store_true")
     p_pcheck.set_defaults(func=cmd_prompt)
 
+    p_capsule = sub.add_parser(
+        "capsule",
+        help="build/validate a provider-neutral task capsule (advisory)",
+    )
+    capsule_sub = p_capsule.add_subparsers(
+        dest="capsule_command", required=True
+    )
+    p_cbuild = capsule_sub.add_parser("build")
+    p_cbuild.add_argument("--issue", required=True)
+    p_cbuild.add_argument("--outcome", required=True)
+    p_cbuild.add_argument("--phase", default="implement")
+    p_cbuild.add_argument("--role", default="builder")
+    p_cbuild.add_argument("--risk", default="R2")
+    p_cbuild.add_argument("--branch", default="")
+    p_cbuild.add_argument("--base", default="")
+    p_cbuild.add_argument("--next", default="")
+    p_cbuild.add_argument("--json", action="store_true")
+    p_cbuild.set_defaults(func=cmd_capsule)
+
     return parser
 
 
@@ -4172,6 +4191,53 @@ def cmd_prompt(args: argparse.Namespace) -> int:
                           "prompt": render(contract)}, indent=2))
     else:
         print(render(contract))
+    return 0
+
+
+def cmd_capsule(args: argparse.Namespace) -> int:
+    """Build one capsule for the current exact head. Exit 0 with JSON;
+    exit 2 with repair guidance (oversize/secrets/paths)."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        from capsule import build, render
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    import subprocess as _sp
+    proc = _sp.run(["git", "rev-parse", "HEAD"],
+                   capture_output=True, text=True)
+    head = proc.stdout.strip() if proc.returncode == 0 else "unknown"
+    fields = {
+        "schema": "task-capsule", "version": "5.0.0",
+        "issue": args.issue, "outcome": args.outcome,
+        "remaining_claims": "none stated",
+        "phase": args.phase, "role": args.role, "risk": args.risk,
+        "focus_envelope": "this issue only",
+        "allowed_paths": "tools/,tests/",
+        "protected_paths": "main",
+        "branch": args.branch or "issue/%s-work" % args.issue,
+        "base": args.base or head, "head": head,
+        "pr": "none yet", "lease": "controller-held",
+        "extensions": "none", "rule_ids": "see route map",
+        "last_verification": "verify OK",
+        "blocker": "none",
+        "next_action": args.next or "implement per prompt",
+        "stop_conditions": "verify green, gate green",
+        "source_hashes": {"HEAD": head},
+        "redacted": "no secrets held",
+        "expires": "next phase boundary",
+        "producer": "standardctl capsule build",
+    }
+    try:
+        capsule = build(fields)
+    except ValueError as exc:
+        print("capsule: %s" % exc)
+        return 2
+    print(render(capsule))
+    if not args.json:
+        print("capsule: %d bytes (pilot budget 16-24 KiB)"
+              % capsule["_bytes"])
     return 0
 
 
