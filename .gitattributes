@@ -1,0 +1,16 @@
+# Prevent CRLF checkout of line-sensitive files.
+# core.autocrlf=true (Git for Windows default) rewrites LF to CRLF on
+# checkout, which breaks byte-exact comparisons (capability views) and
+# adds diff noise. Force LF for generated/canonical data and scripts.
+
+Canonical/** text eol=lf
+tools/*.py text eol=lf
+tests/*.py text eol=lf
+TEMPLATES/** text eol=lf
+AGENTS.md text eol=lf
+AGENTS/** text eol=lf
+*.json text eol=lf
+*.csv text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
