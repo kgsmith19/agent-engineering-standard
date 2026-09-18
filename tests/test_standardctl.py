@@ -2266,5 +2266,253 @@ class SiblingContract(unittest.TestCase):
         self.assertIn("Stage 15b", proc.stdout)
 
 
+class ProfileCompiler(unittest.TestCase):
+    """Stage 20b: metadata-first candidate selection — bodies JIT, never
+    loaded by the compiler itself.
+
+    Descriptors are Stage 20a SkillDescriptor-shaped records (contract
+    v1.0.0, additive-only): the compiler consumes them as plain data, so
+    selection must succeed without any filesystem access.
+    """
+
+    def _mod(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import profile_compiler
+            return profile_compiler
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _desc(self, name, description="routing blurb", body_bytes=8000,
+              dependencies=(), semantic_id=None, **over):
+        desc = {
+            "name": name,
+            "semantic_id": semantic_id or "capability.%s" % name,
+            "description": description,
+            "body_bytes": body_bytes,
+            "body_tokens_est": max(1, body_bytes // 4),
+            "dependencies": list(dependencies),
+            "body_digest": "sha256:" + "0" * 64,
+            "source_path": "plugins/x/skills/" + name,
+        }
+        desc.update(over)
+        return desc
+
+    def _catalog(self, count=40):
+        return [
+            self._desc("skill-%02d" % i, description="blurb %d" % i)
+            for i in range(count)
+        ]
+
+    def test_descriptor_shape_contract_matches_stage_20a(self):
+        """Protects the sibling contract; the exact Stage 20a field set
+        validates cleanly, and missing/malformed fields get repairs."""
+        mod = self._mod()
+        self.assertEqual([], mod.validate_descriptor(self._desc("ok")))
+        repairs = mod.validate_descriptor({"name": "incomplete"})
+        self.assertTrue(any("semantic_id" in r for r in repairs))
+        repairs = mod.validate_descriptor(
+            self._desc("badid", semantic_id="skill.badid"))
+        self.assertTrue(any("semantic_id" in r for r in repairs))
+
+    def test_dozens_of_skills_select_from_metadata_only(self):
+        """Protects metadata-first; selection reads descriptors alone —
+        source paths never need to exist on disk."""
+        mod = self._mod()
+        catalog = self._catalog(40)
+        result = mod.select_candidates(
+            catalog, ["capability.skill-00", "capability.skill-01"])
+        self.assertTrue(result.ok, result.findings)
+        self.assertEqual(
+            ["capability.skill-00", "capability.skill-01"],
+            [d["semantic_id"] for d in result.selected])
+        meta = mod.discovery_tokens(catalog)
+        bodies = sum(d["body_bytes"] for d in catalog) // 4
+        self.assertLess(meta, bodies // 4)
+
+    def test_ambiguous_descriptor_refused_with_candidates(self):
+        """Protects routing honesty; a keyword hitting several skills is
+        refused with the tied candidates named, never silently picked."""
+        mod = self._mod()
+        catalog = [
+            self._desc("canvas-a", description="artifact designs"),
+            self._desc("canvas-b", description="artifact designs"),
+        ]
+        result = mod.select_candidates(catalog, ["artifact"])
+        self.assertFalse(result.ok)
+        self.assertFalse(result.selected)
+        self.assertTrue(any(
+            "ambiguous" in f and "canvas-a" in f and "canvas-b" in f
+            for f in result.findings), result.findings)
+
+    def test_unique_keyword_match_selects(self):
+        """Protects usable selection; a keyword hitting exactly one
+        descriptor resolves to it."""
+        mod = self._mod()
+        catalog = [
+            self._desc("canvas", description="artifact designs"),
+            self._desc("unrelated", description="other things"),
+        ]
+        result = mod.select_candidates(catalog, ["artifact"])
+        self.assertTrue(result.ok, result.findings)
+        self.assertEqual(
+            ["capability.canvas"],
+            [d["semantic_id"] for d in result.selected])
+
+    def test_transitive_dependency_expanded(self):
+        """Protects closure; selecting a skill activates its capability
+        dependencies transitively, in dependency order."""
+        mod = self._mod()
+        catalog = [
+            self._desc("top", dependencies=["mid"]),
+            self._desc("mid", dependencies=["deep"]),
+            self._desc("deep"),
+        ]
+        result = mod.select_candidates(catalog, ["capability.top"])
+        self.assertTrue(result.ok, result.findings)
+        self.assertEqual(
+            ["capability.deep", "capability.mid", "capability.top"],
+            [d["semantic_id"] for d in result.selected])
+
+    def test_dependency_cycle_refused(self):
+        """Protects termination; dependency cycles are findings, not
+        hangs."""
+        mod = self._mod()
+        catalog = [
+            self._desc("a", dependencies=["b"]),
+            self._desc("b", dependencies=["a"]),
+        ]
+        result = mod.select_candidates(catalog, ["capability.a"])
+        self.assertFalse(result.ok)
+        self.assertTrue(any("cycle" in f for f in result.findings),
+                        result.findings)
+
+    def test_asset_dependency_is_inert(self):
+        """Protects the Stage 20a shape; dependencies that name body-asset
+        directories (no such capability in the index) are inert — they
+        resolve JIT with the body and never block selection."""
+        mod = self._mod()
+        catalog = [
+            self._desc("skill", dependencies=["agents", "references"]),
+        ]
+        result = mod.select_candidates(catalog, ["capability.skill"])
+        self.assertTrue(result.ok, result.findings)
+        self.assertEqual(1, len(result.selected))
+
+    def test_duplicate_capability_fails_closed(self):
+        """Protects index integrity; two skills mapping to one ID is
+        refused like the Stage 20a discovery index."""
+        mod = self._mod()
+        catalog = [self._desc("one"), self._desc("two",
+                                                 semantic_id="capability.one")]
+        with self.assertRaises(ValueError):
+            mod.build_index(catalog)
+
+    def test_over_budget_skill_rejected_not_truncated(self):
+        """Protects budgets; a selection over the token budget is refused
+        whole — nothing is partially selected."""
+        mod = self._mod()
+        catalog = [
+            self._desc("big", body_bytes=20000),
+            self._desc("small", body_bytes=100),
+        ]
+        result = mod.select_candidates(
+            catalog, ["capability.big", "capability.unused"],
+            budget_tokens=1000)
+        self.assertFalse(result.ok)
+        self.assertFalse(result.selected)
+        self.assertTrue(any("over budget" in f for f in result.findings),
+                        result.findings)
+
+    def test_over_policy_budget_rejected(self):
+        """Protects policy; more than one process plus one domain skill is
+        refused by the compiler mechanism."""
+        mod = self._mod()
+        catalog = [self._desc("s%d" % i) for i in range(3)]
+        result = mod.select_candidates(
+            catalog, ["capability.s0", "capability.s1", "capability.s2"])
+        self.assertFalse(result.ok)
+        self.assertTrue(any(
+            "one-process-plus-one-domain" in f for f in result.findings),
+            result.findings)
+
+    def test_budget_covers_transitive_dependencies(self):
+        """Protects honesty; the budget sees the whole activated set."""
+        mod = self._mod()
+        catalog = [
+            self._desc("top", dependencies=["mid"], body_bytes=2000),
+            self._desc("mid", dependencies=["deep"], body_bytes=2000),
+            self._desc("deep", body_bytes=2000),
+        ]
+        result = mod.select_candidates(
+            catalog, ["capability.top"], budget_tokens=1400)
+        self.assertFalse(result.ok)
+        result = mod.select_candidates(
+            catalog, ["capability.top"], budget_tokens=1600)
+        self.assertTrue(result.ok, result.findings)
+        self.assertEqual(3, len(result.selected))
+
+    def test_selected_missing_body_surfaces_contract(self):
+        """Protects JIT integrity; a selected skill with no body on disk
+        surfaces the Stage 20a FileNotFoundError as a repair finding."""
+        mod = self._mod()
+
+        def resolve_body(descriptor, repo_root):
+            raise FileNotFoundError(
+                "selected skill %s has no body" % descriptor["name"])
+
+        result = mod.activate_selected(
+            [self._desc("ghost")], resolve_body, repo_root="anywhere")
+        self.assertFalse(result.ok)
+        self.assertTrue(any("no body" in f for f in result.findings),
+                        result.findings)
+
+    def test_body_hash_change_surfaces_reindex_contract(self):
+        """Protects freshness; a body edited after indexing surfaces the
+        Stage 20a re-index contract."""
+        mod = self._mod()
+
+        def resolve_body(descriptor, repo_root):
+            raise ValueError("body hash changed for %s" % descriptor["name"])
+
+        result = mod.activate_selected(
+            [self._desc("drifted")], resolve_body, repo_root="anywhere")
+        self.assertFalse(result.ok)
+        self.assertTrue(any(
+            "re-index" in f for f in result.findings), result.findings)
+
+    def test_activation_positive_control(self):
+        """Protects the happy path; injected resolution returns bodies and
+        measured tokens."""
+        mod = self._mod()
+        desc = self._desc("real", body_bytes=8000)
+
+        def resolve_body(descriptor, repo_root):
+            return "x" * 8000
+
+        result = mod.activate_selected([desc], resolve_body,
+                                       repo_root="anywhere")
+        self.assertTrue(result.ok, result.findings)
+        self.assertEqual(["x" * 8000],
+                         [b for b in result.bodies.values()])
+        self.assertEqual(2000, result.body_tokens)
+
+    def test_discovery_equivalence_claude_codex_gemini(self):
+        """Protects provider neutrality; the provider label is recorded
+        but selection is identical across the three providers."""
+        mod = self._mod()
+        catalog = self._catalog(40)
+        selections = []
+        for provider in ("claude", "codex", "gemini"):
+            result = mod.select_candidates(
+                catalog, ["capability.skill-07"], provider=provider)
+            self.assertTrue(result.ok, result.findings)
+            self.assertEqual(provider, result.provider)
+            selections.append([d["semantic_id"] for d in result.selected])
+        self.assertEqual(1, len({tuple(s) for s in selections}))
+        self.assertEqual(["capability.skill-07"], selections[0])
+
+
 if __name__ == "__main__":
     unittest.main()
