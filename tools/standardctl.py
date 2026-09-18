@@ -3944,7 +3944,63 @@ def build_parser() -> argparse.ArgumentParser:
     p_prune.add_argument("--json", action="store_true")
     p_prune.set_defaults(func=cmd_worktrees)
 
+    p_thinness = sub.add_parser(
+        "thinness",
+        help="advisory six-axis Thinness Signal score (never gates verify)",
+    )
+    thinness_sub = p_thinness.add_subparsers(
+        dest="thinness_command", required=True
+    )
+    p_tscore = thinness_sub.add_parser("score")
+    p_tscore.add_argument("--axes", required=True,
+                          help="six comma-separated 0-2 values in AXES order")
+    p_tscore.add_argument("--fail", default="",
+                          help="comma-separated failed hard conditions")
+    p_tscore.add_argument("--warn", action="store_true",
+                          help="pilot warning band breached (advisory)")
+    p_tscore.add_argument("--kind", default="issue")
+    p_tscore.add_argument("--json", action="store_true")
+    p_tscore.set_defaults(func=cmd_thinness)
+
     return parser
+
+
+def cmd_thinness(args: argparse.Namespace) -> int:
+    """Advisory thinness score. Always exits 0; never gates verify."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        from thinness import AXES, score
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    try:
+        values = [int(v) for v in str(args.axes).split(",")]
+    except ValueError:
+        print("thinness: --axes must be six comma-separated 0-2 values")
+        return 2
+    if len(values) != 6:
+        print("thinness: --axes must hold exactly six values")
+        return 2
+    failed = [c for c in str(args.fail or "").split(",") if c]
+    try:
+        result = score(dict(zip(AXES, values)),
+                       failed_conditions=failed,
+                       warning_band_hit=bool(args.warn),
+                       kind=str(args.kind))
+    except ValueError as exc:
+        print("thinness: %s" % exc)
+        return 2
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        print("thinness: %d (%s): %s" % (
+            result["total"], result["classification"], result["action"]))
+        for line in result["explanations"]:
+            print("  - %s" % line)
+        if result["split_recommended"]:
+            print("  split recommended")
+    return 0
 
 
 def _doctor_dispatch(args: argparse.Namespace) -> int:

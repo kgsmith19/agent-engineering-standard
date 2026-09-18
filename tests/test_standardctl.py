@@ -1487,5 +1487,83 @@ class ArtifactSchemas(FixtureCase):
             self.assertEqual([], findings)
 
 
+class ThinnessSignal(unittest.TestCase):
+    """Stage 7: six-axis Thinness Signal classifies work size; semantic
+    gates outrank counts; the CLI is advisory-only."""
+
+    def _score(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            from thinness import score
+            return score
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _axes(self, *values):
+        from thinness import AXES
+        sys_path = __import__("sys").path
+        return dict(zip(AXES, values))
+
+    def test_micro_scores_zero(self):
+        """Protects the micro band; catches threshold drift at total 0."""
+        result = self._score()(self._axes(0, 0, 0, 0, 0, 0))
+        self.assertEqual((0, "micro", False),
+                         (result["total"], result["classification"],
+                          result["split_recommended"]))
+
+    def test_preferred_band(self):
+        """Protects the preferred band; catches drift at total 5."""
+        result = self._score()(self._axes(1, 1, 1, 1, 1, 0))
+        self.assertEqual("preferred", result["classification"])
+        self.assertFalse(result["split_recommended"])
+
+    def test_medium_recommends_split(self):
+        """Protects the medium band; catches a missing split signal."""
+        result = self._score()(self._axes(2, 1, 1, 1, 1, 1))
+        self.assertEqual("medium", result["classification"])
+        self.assertTrue(result["split_recommended"])
+
+    def test_large_total(self):
+        """Protects the large band; catches a 9-12 score that does not
+        refuse one Builder."""
+        result = self._score()(self._axes(2, 2, 2, 2, 2, 1))
+        self.assertEqual("large", result["classification"])
+        self.assertTrue(result["split_recommended"])
+
+    def test_semantic_veto_escalates(self):
+        """Protects semantic-outranks-counts; catches a failed hard
+        condition that does not escalate the class (preferred 5
+        becomes medium 5 with veto recorded)."""
+        result = self._score()(self._axes(1, 1, 1, 1, 1, 0),
+                               failed_conditions=["one_writer"])
+        self.assertEqual("medium", result["classification"])
+        self.assertTrue(result["semantic_veto"])
+        self.assertIn("one_writer",
+                      " ".join(result["explanations"]))
+
+    def test_rejects_bad_axis_value(self):
+        """Protects input validation; catches an out-of-range axis."""
+        with self.assertRaises(ValueError):
+            self._score()(self._axes(0, 0, 0, 0, 0, 9))
+
+    def test_rejects_unknown_axis(self):
+        """Protects input validation; catches an unknown axis name."""
+        with self.assertRaises(ValueError):
+            self._score()({"bogus_axis": 1})
+
+    def test_thinness_cli_is_advisory(self):
+        """Protects advisory-only status; catches a thinness command
+        that exits nonzero on a large score."""
+        import subprocess
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "thinness", "score",
+             "--axes", "2,2,2,2,2,2"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr)
+        self.assertIn("large", proc.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
