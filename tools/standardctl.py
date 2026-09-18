@@ -4076,6 +4076,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_cbudget.add_argument("--json", action="store_true")
     p_cbudget.set_defaults(func=cmd_context)
 
+    p_tool = sub.add_parser(
+        "tool-output",
+        help="bounded output envelope demo (advisory)",
+    )
+    p_tool.add_argument("--text", default="",
+                        help="literal text to wrap (else reads stdin)")
+    p_tool.add_argument("--question", default="")
+    p_tool.add_argument("--budget", type=int, default=16384)
+    p_tool.add_argument("--json", action="store_true")
+    p_tool.set_defaults(func=cmd_tool_output)
+
     return parser
 
 
@@ -4345,6 +4356,44 @@ def cmd_context(args: argparse.Namespace) -> int:
             print("  - %s" % line)
         print("  action: %s" % result["action"])
     if result["status"] in ("ROTATE_NOW_READ_ONLY", "RECOVERY_REQUIRED"):
+        return 2
+    return 0
+
+
+def cmd_tool_output(args: argparse.Namespace) -> int:
+    """Wrap stdin/--text in the bounded envelope. Always exit 0."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        from tool_output import validate, wrap
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    text = args.text
+    if not text and not _sys.stdin.isatty():
+        text = _sys.stdin.read()
+    try:
+        envelope = wrap(text, question=args.question, budget=args.budget)
+    except ValueError as exc:
+        print("tool-output: %s" % exc)
+        return 2
+    repairs = validate(envelope, text)
+    if args.json:
+        print(json.dumps(envelope, indent=2))
+    else:
+        print("tool-output: %d of %d bytes%s (sha256 %s)" % (
+            len(envelope["head"].encode("utf-8")),
+            envelope["total_bytes"],
+            ", TRUNCATED" if envelope["truncated"] else "",
+            envelope["digest"][:16]))
+        if envelope["truncated"]:
+            print("  %s" % envelope["marker"])
+        for line in envelope["critical"][:5]:
+            print("  ! %s" % line[:120])
+        print("  handle: %s" % envelope["handle"])
+    if repairs:
+        for line in repairs:
+            print("  INVALID: %s" % line)
         return 2
     return 0
 
