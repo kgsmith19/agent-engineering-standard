@@ -1192,10 +1192,16 @@ def check_unresolved_tokens(model: RepoModel) -> List[Finding]:
 
 
 def check_unauthorized_workflows(model: RepoModel) -> List[Finding]:
-    """Only pr-gate.yml, merge-policy.yml, and llm-review.yml may exist
-    under .github/workflows/ (plus transitional ci.yml while the manifest
-    has no pr-gate mapping)."""
-    allowed = {GATE_WORKFLOW_FILE, MERGE_POLICY_FILE, LLM_REVIEW_WORKFLOW_FILE}
+    """Only standard and harness-layer workflows may exist under
+    .github/workflows/: pr-gate.yml, merge-policy.yml, llm-review.yml,
+    and harness agent-communication workflows (dev-agent-post*.yml,
+    reviewer-agent-post*.yml, post-work-state.yml, reviewer-trigger.yml).
+    Plus transitional ci.yml while manifest has no pr-gate mapping."""
+    allowed = {
+        GATE_WORKFLOW_FILE, MERGE_POLICY_FILE, LLM_REVIEW_WORKFLOW_FILE,
+        "dev-agent-post-v2.yml", "dev-agent-post.yml", "post-work-state.yml",
+        "reviewer-agent-post-v2.yml", "reviewer-agent-post.yml", "reviewer-trigger.yml",
+    }
     if not model.manifest_has_gate_mapping():
         allowed.add(TRANSITIONAL_WORKFLOW_FILE)
     findings: List[Finding] = []
