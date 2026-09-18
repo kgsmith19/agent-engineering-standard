@@ -15,8 +15,6 @@ PLANES = ("source", "generated", "artifact", "cache", "evidence",
 
 MAP_BUDGET_ENTRIES = 60
 
-SOURCE_PATTERNS = ("tools/", "tests/", "AGENTS", "project.yaml",
-                   "TEMPLATES/", "Canonical/schemas/")
 GENERATED_PATTERNS = ("Canonical/generated/",)
 ARTIFACT_PATTERNS = ("Canonical/schemas/", "Canonical/capabilities.json",
                      "Canonical/v4.2-preservation.csv")
