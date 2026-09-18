@@ -33,3 +33,5 @@ python -m unittest discover -s tests -p "test_*.py"
 python tools/standardctl.py worktrees reconcile
 git status --short && git diff --check
 ```
+
+<!-- live-proof: workflow_run review-comment delivery (#180) -->
