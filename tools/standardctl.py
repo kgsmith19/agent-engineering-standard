@@ -2211,6 +2211,112 @@ def check_capability_registry(model: RepoModel) -> List[Finding]:
     return findings
 
 
+ARTIFACT_SCHEMAS_DIR = "Canonical/schemas"
+
+
+def check_artifact_schemas(model: RepoModel) -> List[Finding]:
+    """29 v5 artifact schemas exist, parse, carry name/version/required,
+    and match INVENTORY.json; version mismatches and unknown files fail.
+    Consuming repositories (no Canonical/schemas dir) are exempt."""
+    if not (model.root / ARTIFACT_SCHEMAS_DIR).is_dir():
+        return []
+    findings: List[Finding] = []
+    inventory_path = ARTIFACT_SCHEMAS_DIR + "/INVENTORY.json"
+    inventory_text = model.read_text(inventory_path)
+    if inventory_text is None:
+        return [
+            Finding(
+                "artifact-schema",
+                "error",
+                inventory_path,
+                "schema inventory is missing; run tools/gen_schemas.py",
+            )
+        ]
+    try:
+        inventory = json.loads(inventory_text)
+    except ValueError as exc:
+        return [
+            Finding(
+                "artifact-schema",
+                "error",
+                inventory_path,
+                "schema inventory is unparseable: %s" % exc,
+            )
+        ]
+    if not isinstance(inventory, list):
+        return [
+            Finding(
+                "artifact-schema",
+                "error",
+                inventory_path,
+                "schema inventory is not a list",
+            )
+        ]
+    expected = {entry.get("schema", ""): entry for entry in inventory
+                if isinstance(entry, dict)}
+    on_disk = sorted(
+        p.name for p in (model.root / ARTIFACT_SCHEMAS_DIR).glob(
+            "*.schema.json"))
+    if len(on_disk) != 29 or len(expected) != 29:
+        findings.append(
+            Finding(
+                "artifact-schema",
+                "error",
+                inventory_path,
+                "inventory holds %d schemas (%d on disk), want 29 and 29"
+                % (len(expected), len(on_disk)),
+            )
+        )
+    for name in on_disk:
+        rel = ARTIFACT_SCHEMAS_DIR + "/" + name
+        text = model.read_text(rel)
+        try:
+            schema = json.loads(text)
+        except (TypeError, ValueError) as exc:
+            findings.append(
+                Finding(
+                    "artifact-schema",
+                    "error",
+                    rel,
+                    "schema is unparseable: %s" % exc,
+                )
+            )
+            continue
+        for field in ("name", "version", "required"):
+            if not schema.get(field):
+                findings.append(
+                    Finding(
+                        "artifact-schema",
+                        "error",
+                        rel,
+                        "schema is missing required field %r" % field,
+                    )
+                )
+        entry = expected.get(rel, {})
+        if entry and entry.get("version") != schema.get("version"):
+            findings.append(
+                Finding(
+                    "stale-artifact-schema",
+                    "error",
+                    rel,
+                    "schema version %s does not match inventory %s"
+                    % (schema.get("version"), entry.get("version")),
+                )
+            )
+    for rel in sorted(expected):
+        if (expected[rel].get("version") and
+                not (model.root / rel).is_file()):
+            findings.append(
+                Finding(
+                    "artifact-schema",
+                    "error",
+                    rel,
+                    "inventoried schema file is missing",
+                )
+            )
+    return findings
+
+
 # Check registry: (group, function). --select runs one group; the groups
 # are documented in the verify --help text.
 CHECKS: List[Tuple[str, Any]] = [
@@ -2221,6 +2327,7 @@ CHECKS: List[Tuple[str, Any]] = [
     ("policy", check_agents_authority),
     ("policy", check_manifest_integrity),
     ("policy", check_capability_registry),
+    ("policy", check_artifact_schemas),
     ("policy", check_test_justifications),
     ("lean", check_forbidden_artifacts),
     ("lean", check_agents_line_budget),

@@ -95,6 +95,96 @@ mappings:
   - source: Canonical/generated/SHA256SUMS.txt
     dest: Canonical/generated/SHA256SUMS.txt
     mode: copy
+  - source: Canonical/schemas/milestone-outcome.schema.json
+    dest: Canonical/schemas/milestone-outcome.schema.json
+    mode: copy
+  - source: Canonical/schemas/thin-spec.schema.json
+    dest: Canonical/schemas/thin-spec.schema.json
+    mode: copy
+  - source: Canonical/schemas/slice.schema.json
+    dest: Canonical/schemas/slice.schema.json
+    mode: copy
+  - source: Canonical/schemas/thinness.schema.json
+    dest: Canonical/schemas/thinness.schema.json
+    mode: copy
+  - source: Canonical/schemas/disposition.schema.json
+    dest: Canonical/schemas/disposition.schema.json
+    mode: copy
+  - source: Canonical/schemas/ready.schema.json
+    dest: Canonical/schemas/ready.schema.json
+    mode: copy
+  - source: Canonical/schemas/verification-mold.schema.json
+    dest: Canonical/schemas/verification-mold.schema.json
+    mode: copy
+  - source: Canonical/schemas/mold-qualification.schema.json
+    dest: Canonical/schemas/mold-qualification.schema.json
+    mode: copy
+  - source: Canonical/schemas/task-capsule.schema.json
+    dest: Canonical/schemas/task-capsule.schema.json
+    mode: copy
+  - source: Canonical/schemas/context-budget.schema.json
+    dest: Canonical/schemas/context-budget.schema.json
+    mode: copy
+  - source: Canonical/schemas/extension-catalog.schema.json
+    dest: Canonical/schemas/extension-catalog.schema.json
+    mode: copy
+  - source: Canonical/schemas/extension-profile.schema.json
+    dest: Canonical/schemas/extension-profile.schema.json
+    mode: copy
+  - source: Canonical/schemas/provider-capability.schema.json
+    dest: Canonical/schemas/provider-capability.schema.json
+    mode: copy
+  - source: Canonical/schemas/extensions-lock.schema.json
+    dest: Canonical/schemas/extensions-lock.schema.json
+    mode: copy
+  - source: Canonical/schemas/standards-route.schema.json
+    dest: Canonical/schemas/standards-route.schema.json
+    mode: copy
+  - source: Canonical/schemas/standards-receipt.schema.json
+    dest: Canonical/schemas/standards-receipt.schema.json
+    mode: copy
+  - source: Canonical/schemas/work-state.schema.json
+    dest: Canonical/schemas/work-state.schema.json
+    mode: copy
+  - source: Canonical/schemas/continuity-event.schema.json
+    dest: Canonical/schemas/continuity-event.schema.json
+    mode: copy
+  - source: Canonical/schemas/state-snapshot.schema.json
+    dest: Canonical/schemas/state-snapshot.schema.json
+    mode: copy
+  - source: Canonical/schemas/checkpoint.schema.json
+    dest: Canonical/schemas/checkpoint.schema.json
+    mode: copy
+  - source: Canonical/schemas/writer-lease.schema.json
+    dest: Canonical/schemas/writer-lease.schema.json
+    mode: copy
+  - source: Canonical/schemas/tool-execution.schema.json
+    dest: Canonical/schemas/tool-execution.schema.json
+    mode: copy
+  - source: Canonical/schemas/external-effect.schema.json
+    dest: Canonical/schemas/external-effect.schema.json
+    mode: copy
+  - source: Canonical/schemas/failure.schema.json
+    dest: Canonical/schemas/failure.schema.json
+    mode: copy
+  - source: Canonical/schemas/evidence-manifest.schema.json
+    dest: Canonical/schemas/evidence-manifest.schema.json
+    mode: copy
+  - source: Canonical/schemas/review-finding.schema.json
+    dest: Canonical/schemas/review-finding.schema.json
+    mode: copy
+  - source: Canonical/schemas/release-mold.schema.json
+    dest: Canonical/schemas/release-mold.schema.json
+    mode: copy
+  - source: Canonical/schemas/process-experiment.schema.json
+    dest: Canonical/schemas/process-experiment.schema.json
+    mode: copy
+  - source: Canonical/schemas/standard-lock.schema.json
+    dest: Canonical/schemas/standard-lock.schema.json
+    mode: copy
+  - source: Canonical/schemas/INVENTORY.json
+    dest: Canonical/schemas/INVENTORY.json
+    mode: copy
   - source: CLAUDE.md
     dest: CLAUDE.md
     mode: copy

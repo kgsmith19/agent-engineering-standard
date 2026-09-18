@@ -1,0 +1,176 @@
+[
+  {
+    "artifact": "Milestone outcome",
+    "durable_authority": "GitHub Milestone + parent Issue",
+    "schema": "Canonical/schemas/milestone-outcome.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Thin Spec",
+    "durable_authority": "Issue body or stable linked file",
+    "schema": "Canonical/schemas/thin-spec.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Slice Contract",
+    "durable_authority": "Managed Work State",
+    "schema": "Canonical/schemas/slice.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Thinness Signal",
+    "durable_authority": "Generated",
+    "schema": "Canonical/schemas/thinness.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Disposition",
+    "durable_authority": "Managed Issue state",
+    "schema": "Canonical/schemas/disposition.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Definition of Ready",
+    "durable_authority": "Generated receipt",
+    "schema": "Canonical/schemas/ready.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Verification Mold",
+    "durable_authority": "Versioned tests/contracts",
+    "schema": "Canonical/schemas/verification-mold.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Mold Qualification",
+    "durable_authority": "Evidence receipt",
+    "schema": "Canonical/schemas/mold-qualification.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Task Capsule",
+    "durable_authority": "Generated projection",
+    "schema": "Canonical/schemas/task-capsule.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Context Budget",
+    "durable_authority": "Generated receipt",
+    "schema": "Canonical/schemas/context-budget.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Extension Catalog",
+    "durable_authority": "agent-extensions",
+    "schema": "Canonical/schemas/extension-catalog.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Extension Profile",
+    "durable_authority": "Standard + agent-extensions",
+    "schema": "Canonical/schemas/extension-profile.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Provider Capability",
+    "durable_authority": "agent-extensions",
+    "schema": "Canonical/schemas/provider-capability.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Extension Lock",
+    "durable_authority": "agent-extensions",
+    "schema": "Canonical/schemas/extensions-lock.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Standards Route",
+    "durable_authority": "Generated",
+    "schema": "Canonical/schemas/standards-route.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Standards Receipt",
+    "durable_authority": "Generated evidence",
+    "schema": "Canonical/schemas/standards-receipt.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Work State",
+    "durable_authority": "Managed Issue comment + local projection",
+    "schema": "Canonical/schemas/work-state.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Continuity Event",
+    "durable_authority": "Append-only delta",
+    "schema": "Canonical/schemas/continuity-event.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "State Snapshot",
+    "durable_authority": "Derived cache",
+    "schema": "Canonical/schemas/state-snapshot.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Checkpoint",
+    "durable_authority": "Durable receipt",
+    "schema": "Canonical/schemas/checkpoint.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Writer Lease",
+    "durable_authority": "Durable coordination",
+    "schema": "Canonical/schemas/writer-lease.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Tool Execution",
+    "durable_authority": "Evidence/event",
+    "schema": "Canonical/schemas/tool-execution.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "External Effect",
+    "durable_authority": "Durable receipt",
+    "schema": "Canonical/schemas/external-effect.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Failure Classification",
+    "durable_authority": "Evidence",
+    "schema": "Canonical/schemas/failure.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Evidence Manifest",
+    "durable_authority": "PR artifact",
+    "schema": "Canonical/schemas/evidence-manifest.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Review Finding",
+    "durable_authority": "Verdict artifact",
+    "schema": "Canonical/schemas/review-finding.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Release Mold",
+    "durable_authority": "Release evidence",
+    "schema": "Canonical/schemas/release-mold.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Process Experiment",
+    "durable_authority": "Metrics store",
+    "schema": "Canonical/schemas/process-experiment.schema.json",
+    "version": "5.0.0"
+  },
+  {
+    "artifact": "Standard Lock",
+    "durable_authority": "Consuming repo",
+    "schema": "Canonical/schemas/standard-lock.schema.json",
+    "version": "5.0.0"
+  }
+]

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "state-snapshot",
+  "version": "5.0.0",
+  "artifact": "State Snapshot",
+  "durable_authority": "Derived cache",
+  "description": "State Snapshot (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "snapshot",
+    "at"
+  ],
+  "properties": {
+    "snapshot": {
+      "type": "string"
+    },
+    "at": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

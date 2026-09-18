@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "evidence-manifest",
+  "version": "5.0.0",
+  "artifact": "Evidence Manifest",
+  "durable_authority": "PR artifact",
+  "description": "Evidence Manifest (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "evidence",
+    "artifacts"
+  ],
+  "properties": {
+    "evidence": {
+      "type": "string"
+    },
+    "artifacts": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

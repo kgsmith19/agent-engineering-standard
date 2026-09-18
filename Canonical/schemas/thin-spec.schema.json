@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "thin-spec",
+  "version": "5.0.0",
+  "artifact": "Thin Spec",
+  "durable_authority": "Issue body or stable linked file",
+  "description": "Thin Spec (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "outcome",
+    "behavior_claims"
+  ],
+  "properties": {
+    "outcome": {
+      "type": "string"
+    },
+    "behavior_claims": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

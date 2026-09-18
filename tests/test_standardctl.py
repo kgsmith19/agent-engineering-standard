@@ -1431,5 +1431,61 @@ class CapabilityRegistry(FixtureCase):
             self.assertEqual([], findings)
 
 
+class ArtifactSchemas(FixtureCase):
+    """Stage 6: 29 v5 artifact schemas are versioned machine interfaces."""
+
+    def test_schemas_accept_clean_tree(self):
+        """Protects the positive path; catches a check that can never
+        pass."""
+        findings = standardctl.check_artifact_schemas(
+            standardctl.RepoModel(WORKTREE))
+        errors = [f for f in findings if f.severity == "error"]
+        self.assertEqual([], errors)
+
+    def test_schemas_reject_missing_required_field(self):
+        """Protects schema completeness; catches a schema with required
+        fields stripped."""
+        root = self.std_fixture()
+        import json
+        path = root / "Canonical" / "schemas" / "work-state.schema.json"
+        schema = json.loads(path.read_text(encoding="utf-8"))
+        schema["required"] = []
+        path.write_text(json.dumps(schema, indent=2), encoding="utf-8")
+        findings = standardctl.check_artifact_schemas(self.model(root))
+        self.assertIn("artifact-schema", check_ids(findings))
+
+    def test_schemas_reject_version_drift(self):
+        """Protects inventory freshness; catches a schema bumped without
+        its inventory entry."""
+        root = self.std_fixture()
+        import json
+        path = root / "Canonical" / "schemas" / "work-state.schema.json"
+        schema = json.loads(path.read_text(encoding="utf-8"))
+        schema["version"] = "9.9.9"
+        path.write_text(json.dumps(schema, indent=2), encoding="utf-8")
+        findings = standardctl.check_artifact_schemas(self.model(root))
+        self.assertIn("stale-artifact-schema", check_ids(findings))
+
+    def test_schemas_reject_deleted_schema(self):
+        """Protects the 29-schema inventory; catches a silently dropped
+        schema file."""
+        root = self.std_fixture()
+        (root / "Canonical" / "schemas" / "checkpoint.schema.json").unlink()
+        findings = standardctl.check_artifact_schemas(self.model(root))
+        self.assertIn("artifact-schema", check_ids(findings))
+
+    def test_schemas_exempt_consuming_repo(self):
+        """Protects consuming repos; catches a check that fires where no
+        Canonical/schemas dir exists."""
+        import tempfile
+        with tempfile.TemporaryDirectory(
+                prefix="standardctl-no-schemas-") as raw:
+            target = Path(raw) / "consuming"
+            target.mkdir()
+            findings = standardctl.check_artifact_schemas(
+                standardctl.RepoModel(target))
+            self.assertEqual([], findings)
+
+
 if __name__ == "__main__":
     unittest.main()

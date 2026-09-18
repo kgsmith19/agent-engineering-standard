@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "mold-qualification",
+  "version": "5.0.0",
+  "artifact": "Mold Qualification",
+  "durable_authority": "Evidence receipt",
+  "description": "Mold Qualification (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "qualification"
+  ],
+  "properties": {
+    "qualification": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

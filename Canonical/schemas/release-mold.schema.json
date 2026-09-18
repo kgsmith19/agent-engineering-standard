@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "release-mold",
+  "version": "5.0.0",
+  "artifact": "Release Mold",
+  "durable_authority": "Release evidence",
+  "description": "Release Mold (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "release",
+    "evidence"
+  ],
+  "properties": {
+    "release": {
+      "type": "string"
+    },
+    "evidence": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

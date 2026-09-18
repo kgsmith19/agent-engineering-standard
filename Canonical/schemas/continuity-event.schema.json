@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "continuity-event",
+  "version": "5.0.0",
+  "artifact": "Continuity Event",
+  "durable_authority": "Append-only delta",
+  "description": "Continuity Event (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "event",
+    "at"
+  ],
+  "properties": {
+    "event": {
+      "type": "string"
+    },
+    "at": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

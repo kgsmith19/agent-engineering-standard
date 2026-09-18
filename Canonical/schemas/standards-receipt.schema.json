@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "standards-receipt",
+  "version": "5.0.0",
+  "artifact": "Standards Receipt",
+  "durable_authority": "Generated evidence",
+  "description": "Standards Receipt (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "receipt"
+  ],
+  "properties": {
+    "receipt": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "work-state",
+  "version": "5.0.0",
+  "artifact": "Work State",
+  "durable_authority": "Managed Issue comment + local projection",
+  "description": "Work State (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "issue",
+    "branch",
+    "head"
+  ],
+  "properties": {
+    "issue": {
+      "type": "string"
+    },
+    "branch": {
+      "type": "string"
+    },
+    "head": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

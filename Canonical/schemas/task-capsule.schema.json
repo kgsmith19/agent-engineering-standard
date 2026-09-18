@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "task-capsule",
+  "version": "5.0.0",
+  "artifact": "Task Capsule",
+  "durable_authority": "Generated projection",
+  "description": "Task Capsule (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "capsule",
+    "task"
+  ],
+  "properties": {
+    "capsule": {
+      "type": "string"
+    },
+    "task": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

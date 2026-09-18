@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "context-budget",
+  "version": "5.0.0",
+  "artifact": "Context Budget",
+  "durable_authority": "Generated receipt",
+  "description": "Context Budget (Agent Engineering Standard v5 artifact)",
+  "type": "object",
+  "required": [
+    "budget",
+    "capsule"
+  ],
+  "properties": {
+    "budget": {
+      "type": "string"
+    },
+    "capsule": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}
