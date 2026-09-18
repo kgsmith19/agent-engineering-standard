@@ -1336,6 +1336,70 @@ def check_privileged_pr_checkout(model: RepoModel) -> List[Finding]:
     return findings
 
 
+def review_always_comment_findings(rel: str, text: str) -> List[Finding]:
+    """Directly-testable core of check_review_always_comments: one
+    always-post result-comment step (pass + fail bodies selected by a
+    runFailed verdict), never a failure-only post."""
+    findings: List[Finding] = []
+    compact = " ".join(text.split())
+    has_always_post = (
+        "always()" in text and "Passed" in text and "Failed" in text
+        and "runFailed" in compact
+    )
+    has_failure_only = "failure()" in text and not has_always_post
+    if has_failure_only:
+        findings.append(
+            Finding(
+                "review-missing-always-comment",
+                "error",
+                rel,
+                "review posts only on failure; replace with one "
+                "if: always() pass/fail comment",
+            )
+        )
+    elif not has_always_post:
+        findings.append(
+            Finding(
+                "review-missing-always-comment",
+                "error",
+                rel,
+                "review path has no if: always() result comment (pass + "
+                "fail bodies); a passing review would stay silent",
+            )
+        )
+    return findings
+
+
+def check_review_always_comments(model: RepoModel) -> List[Finding]:
+    """The reusable llm-review workflow ends with one always-post result
+    comment (pass or fail). A pr-gate caller either inlines such a job or
+    delegates via uses: to that workflow (single comment per run); only a
+    caller that inlines its own duplicate review steps without an
+    always-post fails."""
+    findings: List[Finding] = []
+    text = model.read_text(".github/workflows/llm-review.yml")
+    if text is not None:
+        findings.extend(
+            review_always_comment_findings(
+                ".github/workflows/llm-review.yml", text))
+    template = model.read_text("TEMPLATES/llm-review.yml")
+    if template is not None:
+        findings.extend(
+            review_always_comment_findings(
+                "TEMPLATES/llm-review.yml", template))
+    gate = model.workflows().get(GATE_WORKFLOW_FILE)
+    if gate is None:
+        return findings
+    job = gate["structure"].get("jobs", {}).get("llm_review")
+    if job is None:
+        return findings
+    if job.get("uses"):
+        return findings
+    raw = job.get("raw", "") or gate["text"]
+    findings.extend(review_always_comment_findings(gate["rel"], raw))
+    return findings
+
+
 def check_workflow_permissions(model: RepoModel) -> List[Finding]:
     """The standard's workflows declare explicit permissions and the PR
     Gate workflow stays read-only."""
@@ -2337,6 +2401,7 @@ CHECKS: List[Tuple[str, Any]] = [
     ("security", check_action_pinning),
     ("security", check_privileged_pr_checkout),
     ("security", check_workflow_permissions),
+    ("security", check_review_always_comments),
     ("security", check_no_native_review_gating),
     ("security", check_gate_path_filters),
     ("security", check_gate_names),

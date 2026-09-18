@@ -712,6 +712,61 @@ class StandardRepoRejections(FixtureCase):
         findings = standardctl.check_no_native_review_gating(self.model(root))
         self.assertIn("native-review-gating", check_ids(findings))
 
+    def test_verify_rejects_review_path_without_always_comment(self):
+        """Protects the always-post review-result guarantee; catches an
+        llm-review workflow whose only post runs on failure, which would
+        leave a passing review silent with no thread for the dev."""
+        root = self.std_fixture()
+        self.write_workflow(
+            root,
+            "llm-review.yml",
+            "name: Fixture App Review\n"
+            "on:\n"
+            "  workflow_call:\n"
+            "permissions:\n"
+            "  contents: read\n"
+            "  pull-requests: write\n"
+            "jobs:\n"
+            "  review:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - name: Post failure comment\n"
+            "        if: failure()\n"
+            "        run: echo fail\n",
+        )
+        findings = standardctl.check_review_always_comments(
+            self.model(root))
+        self.assertIn("review-missing-always-comment", check_ids(findings))
+
+    def test_verify_accepts_review_path_with_always_comment(self):
+        """Protects the always-post check from false positives; a review
+        path with one if: always() pass/fail result comment verifies
+        clean."""
+        root = self.std_fixture()
+        self.write_workflow(
+            root,
+            "llm-review.yml",
+            "name: Fixture App Review\n"
+            "on:\n"
+            "  workflow_call:\n"
+            "permissions:\n"
+            "  contents: read\n"
+            "  pull-requests: write\n"
+            "jobs:\n"
+            "  review:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - name: Post result comment\n"
+            "        if: always()\n"
+            "        run: echo '## Independent LLM Review Passed'\n"
+            "      - run: echo '## Independent LLM Review Failed'\n"
+            "      - run: echo runFailed\n",
+        )
+        findings = standardctl.check_review_always_comments(
+            self.model(root))
+        self.assertNotIn(
+            "review-missing-always-comment", check_ids(findings))
+
 
 class Acceptance(FixtureCase):
     """The unmutated trees must verify cleanly, anchoring every
