@@ -3300,7 +3300,7 @@ def prune_safe_worktrees(root: Path) -> Tuple[List[str], List[Finding]]:
     deleted: List[str] = []
     findings: List[Finding] = []
     for worktree in worktrees[1:]:
-        wt_path = worktree["path"]
+        wt_path = str(Path(worktree["path"]))
         reasons: List[str] = []
         if worktree.get("locked"):
             reasons.append("worktree is locked")
