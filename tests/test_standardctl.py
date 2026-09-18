@@ -1804,5 +1804,92 @@ class PromptContract(unittest.TestCase):
         self.assertIn("First safe action", proc.stdout)
 
 
+class TaskCapsule(unittest.TestCase):
+    """Stage 11: provider-neutral capsules cold-boot without history."""
+
+    def _mod(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import capsule
+            return capsule
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _fields(self, **over):
+        base = {
+            "schema": "task-capsule", "version": "5.0.0", "issue": "109",
+            "outcome": "o", "remaining_claims": "none",
+            "phase": "implement", "role": "builder", "risk": "R2",
+            "focus_envelope": "this issue",
+            "allowed_paths": "tools/,tests/",
+            "protected_paths": "main", "branch": "b", "base": "abc",
+            "head": "abc", "pr": "none", "lease": "controller",
+            "extensions": "none", "rule_ids": "r1",
+            "last_verification": "verify OK", "blocker": "none",
+            "next_action": "implement", "stop_conditions": "green",
+            "source_hashes": {"HEAD": "abc"}, "redacted": "no secrets",
+            "expires": "phase end", "producer": "standardctl",
+        }
+        base.update(over)
+        return base
+
+    def test_build_round_trip(self):
+        """Protects cold-boot completeness; a built capsule renders to
+        deterministic JSON preserving head within budget."""
+        mod = self._mod()
+        capsule = mod.build(self._fields())
+        text = mod.render(capsule)
+        import json
+        self.assertEqual(capsule["head"],
+                         json.loads(text)["head"])
+        self.assertLessEqual(capsule["_bytes"], 24 * 1024)
+
+    def test_rejects_secrets(self):
+        """Protects redaction; secret-bearing state cannot capsule."""
+        mod = self._mod()
+        with self.assertRaises(ValueError):
+            mod.build(self._fields(blocker="needs api_key=AKIA1 now"))
+
+    def test_rejects_absolute_paths(self):
+        """Protects portability; local absolute paths cannot capsule."""
+        mod = self._mod()
+        with self.assertRaises(ValueError):
+            mod.build(self._fields(
+                next_action="open C:\\code\\repo\\file.py"))
+
+    def test_rejects_session_ids(self):
+        """Protects provider neutrality; vendor session IDs refused."""
+        mod = self._mod()
+        with self.assertRaises(ValueError):
+            mod.build(self._fields(lease="session_id=abc-123"))
+
+    def test_oversize_splits(self):
+        """Protects the budget; oversize fails instead of truncating."""
+        mod = self._mod()
+        with self.assertRaises(ValueError):
+            mod.build(self._fields(next_action="x" * (25 * 1024)))
+
+    def test_missing_source_hashes(self):
+        """Protects hash binding; capsules without sources refused."""
+        mod = self._mod()
+        fields = self._fields()
+        del fields["source_hashes"]
+        with self.assertRaises(ValueError):
+            mod.build(fields)
+
+    def test_capsule_cli_builds(self):
+        """Protects the CLI contract; build exits 0 with JSON head."""
+        import subprocess
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "capsule", "build",
+             "--issue", "109", "--outcome", "cold-boot", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        import json
+        self.assertEqual("109", json.loads(proc.stdout)["issue"])
+
+
 if __name__ == "__main__":
     unittest.main()
