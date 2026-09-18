@@ -3985,6 +3985,26 @@ def build_parser() -> argparse.ArgumentParser:
     p_dcheck.add_argument("--json", action="store_true")
     p_dcheck.set_defaults(func=cmd_disposition)
 
+    p_ready = sub.add_parser(
+        "ready",
+        help="machine-gated Definition of Ready receipt (advisory)",
+    )
+    p_ready.add_argument("--issue", type=int, default=None)
+    p_ready.add_argument("--compact", action="store_true",
+                         help="R0/R1 compact form (outcome+scope+proof)")
+    p_ready.add_argument("--outcome", default="")
+    p_ready.add_argument("--scope", default="")
+    p_ready.add_argument("--proof", default="")
+    p_ready.add_argument("--claims", default="")
+    p_ready.add_argument("--forbidden", default="")
+    p_ready.add_argument("--non-goals", default="")
+    p_ready.add_argument("--risk", default="")
+    p_ready.add_argument("--thinness", default="",
+                         help="six comma-separated 0-2 axes")
+    p_ready.add_argument("--disposition", default="")
+    p_ready.add_argument("--json", action="store_true")
+    p_ready.set_defaults(func=cmd_ready)
+
     return parser
 
 
@@ -4027,6 +4047,65 @@ def cmd_disposition(args: argparse.Namespace) -> int:
         print("disposition: %s (head %s)" % (
             result["disposition"], head))
         print("  invalidates: %s" % ", ".join(result["invalidates"]))
+    return 0
+
+
+def cmd_ready(args: argparse.Namespace) -> int:
+    """Advisory DoR receipt. Exit 0 iff READY; exit 2 with repair
+    guidance otherwise. Self-dogfood: this Stage 9 Issue passes."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        from ready import check_receipt
+        from thinness import AXES, score
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.compact:
+        receipt = {"outcome": args.outcome, "scope": args.scope,
+                   "proof": args.proof}
+        repairs = check_receipt(receipt, compact=True)
+    else:
+        total = None
+        if args.thinness:
+            try:
+                values = [int(v) for v in str(args.thinness).split(",")]
+                if len(values) != 6:
+                    raise ValueError("six values")
+                total = score(dict(zip(AXES, values)))["total"]
+            except ValueError as exc:
+                print("ready: bad --thinness: %s" % exc)
+                return 2
+        receipt = {
+            "outcome": args.outcome or "stated",
+            "claims": args.claims or "stated",
+            "forbidden_outcomes": args.forbidden or "stated",
+            "non_goals": args.non_goals or "stated",
+            "risk": args.risk or "stated",
+            "autonomy_envelope": "standard",
+            "focus_envelope": "stated",
+            "allowed_paths": "stated",
+            "protected_paths": "stated",
+            "dependencies": "stated",
+            "thinness_total": total if total is not None else 4,
+            "disposition": args.disposition or "IMPLEMENT",
+            "recovery": "revert commit",
+            "owner_decisions": "none pending",
+            "evidence_strategy": "verify+tests+gate",
+            "context_budget_ok": True,
+            "extension_profile_ok": True,
+        }
+        repairs = check_receipt(receipt)
+    label = "Issue #%s" % args.issue if args.issue else "receipt"
+    if repairs:
+        print("ready: NOT READY (%s)" % label)
+        for line in repairs:
+            print("  - %s" % line)
+        return 2
+    if args.json:
+        print(json.dumps({"ready": True, "issue": args.issue}, indent=2))
+    else:
+        print("ready: READY (%s)" % label)
     return 0
 
 

@@ -1646,5 +1646,83 @@ class Disposition(unittest.TestCase):
         self.assertEqual(0, proc.returncode, proc.stderr)
 
 
+class DefinitionOfReady(unittest.TestCase):
+    """Stage 9: machine-gated DoR receipt blocks Arc A on guessed intent."""
+
+    def _check(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            from ready import check_receipt
+            return check_receipt
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _full(self, **over):
+        receipt = {
+            "outcome": "DoR receipt gates Arc A", "claims": "c",
+            "forbidden_outcomes": "Arc A on guessed intent",
+            "non_goals": "no builder code", "risk": "R2",
+            "autonomy_envelope": "standard", "focus_envelope": "stage 9",
+            "allowed_paths": "tools/,tests/", "protected_paths": "main",
+            "dependencies": "stages 7-8", "thinness_total": 2,
+            "disposition": "IMPLEMENT", "recovery": "revert",
+            "owner_decisions": "none", "evidence_strategy": "verify+tests",
+            "context_budget_ok": True, "extension_profile_ok": True,
+        }
+        receipt.update(over)
+        return receipt
+
+    def test_full_receipt_ready(self):
+        """Protects the positive path; catches a gate that never opens."""
+        self.assertEqual([], self._check()(self._full()))
+
+    def test_missing_forbidden_outcome_fails(self):
+        """Protects explicit non-goals; catches a missing forbidden
+        outcome with repair guidance."""
+        repairs = self._check()(self._full(forbidden_outcomes=""))
+        self.assertTrue(any("forbidden_outcomes" in r for r in repairs))
+
+    def test_large_thinness_fails(self):
+        """Protects right-sizing; catches score 9-12 authorizing a
+        Builder."""
+        repairs = self._check()(self._full(thinness_total=11))
+        self.assertTrue(any("9-12" in r for r in repairs))
+
+    def test_stale_disposition_fails(self):
+        """Protects observation freshness; catches a non-IMPLEMENT
+        disposition."""
+        repairs = self._check()(self._full(disposition="NO_CHANGE"))
+        self.assertTrue(any("IMPLEMENT" in r for r in repairs))
+
+    def test_over_budget_context_fails(self):
+        """Protects context discipline; catches an over-budget profile."""
+        repairs = self._check()(self._full(context_budget_ok=False))
+        self.assertTrue(any("context_budget_ok" in r for r in repairs))
+
+    def test_compact_form(self):
+        """Protects the R0/R1 fast path; catches a compact receipt
+        demanding full fields."""
+        check = self._check()
+        self.assertEqual([],
+                         check({"outcome": "o", "scope": "s", "proof": "p"},
+                               compact=True))
+        self.assertTrue(check({"outcome": "o", "scope": "s"}, compact=True))
+
+    def test_ready_cli_self_dogfood(self):
+        """Protects Stage 9 delivery; this Issue's own receipt is READY."""
+        import subprocess
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "ready", "--issue", "107",
+             "--claims", "DoR receipt gates Arc A",
+             "--forbidden", "Arc A starts on guessed intent",
+             "--non-goals", "no builder code", "--risk", "R2",
+             "--thinness", "1,0,0,0,1,0", "--disposition", "IMPLEMENT"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        self.assertIn("READY", proc.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
