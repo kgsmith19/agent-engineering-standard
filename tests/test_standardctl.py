@@ -1249,6 +1249,39 @@ class CapabilityRegistry(FixtureCase):
         ids = [r["Capability ID"] for r in records]
         self.assertEqual(264, len(set(ids)))
 
+    def test_generator_is_byte_reproducible(self):
+        """Protects deterministic generation; catches nondeterministic
+        ordering, timestamps, or locale-dependent output."""
+        import hashlib
+        import subprocess
+        for _ in range(2):
+            proc = subprocess.run(
+                ["python", "tools/gen_capabilities.py"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode, proc.stderr)
+        outdir = WORKTREE / "Canonical" / "generated"
+        names = sorted(p.name for p in outdir.glob("*"))
+        self.assertEqual(
+            ["SHA256SUMS.txt", "by-category.md", "by-route.md",
+             "preservation-matrix.csv"],
+            names,
+        )
+        first = {
+            p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in outdir.glob("*")
+        }
+        proc = subprocess.run(
+            ["python", "tools/gen_capabilities.py"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr)
+        second = {
+            p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in outdir.glob("*")
+        }
+        self.assertEqual(first, second)
+
 
 if __name__ == "__main__":
     unittest.main()
