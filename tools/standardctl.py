@@ -4361,7 +4361,8 @@ def cmd_context(args: argparse.Namespace) -> int:
 
 
 def cmd_tool_output(args: argparse.Namespace) -> int:
-    """Wrap stdin/--text in the bounded envelope. Always exit 0."""
+    """Wrap stdin/--text in the bounded envelope. Exit 0 when honest;
+    exit 2 on refusal or validation failure (advisory; never gates)."""
     import sys as _sys
     from pathlib import Path as _Path
     _sys.path.insert(0, str(_Path(__file__).resolve().parent))
@@ -4377,7 +4378,7 @@ def cmd_tool_output(args: argparse.Namespace) -> int:
     except ValueError as exc:
         print("tool-output: %s" % exc)
         return 2
-    repairs = validate(envelope, text)
+    repairs = validate(envelope, text, budget=args.budget)
     if args.json:
         print(json.dumps(envelope, indent=2))
     else:

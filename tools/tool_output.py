@@ -77,14 +77,15 @@ def retrieve(output: str, offset: int, length: int) -> str:
     return raw[offset:offset + length].decode("utf-8", errors="replace")
 
 
-def validate(envelope: Dict[str, Any], output: str) -> List[str]:
+def validate(envelope: Dict[str, Any], output: str,
+             budget: int = ENVELOPE_BYTES_MAX) -> List[str]:
     """Return repair strings; empty means the envelope is honest."""
     repairs = []
     raw = _sanitize(output).encode("utf-8")
     want = hashlib.sha256(raw).hexdigest()
     if envelope.get("digest") != want:
         repairs.append("envelope digest does not match output bytes")
-    truncated = len(raw) > ENVELOPE_BYTES_MAX
+    truncated = len(raw) > budget
     if truncated and not envelope.get("truncated"):
         repairs.append("unmarked truncation: output exceeds the envelope "
                        "but truncated is false")
