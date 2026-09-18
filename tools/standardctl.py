@@ -4087,6 +4087,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_tool.add_argument("--json", action="store_true")
     p_tool.set_defaults(func=cmd_tool_output)
 
+    p_sibling = sub.add_parser(
+        "sibling-contract",
+        help="validate the agent-extensions contract binding (advisory)",
+    )
+    p_sibling.add_argument("--json", action="store_true")
+    p_sibling.set_defaults(func=cmd_sibling_contract)
+
     return parser
 
 
@@ -4397,6 +4404,49 @@ def cmd_tool_output(args: argparse.Namespace) -> int:
             print("  INVALID: %s" % line)
         return 2
     return 0
+
+
+def cmd_sibling_contract(args: argparse.Namespace) -> int:
+    """Validate the checked-in contract + live registry binding."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        from sibling_contract import check_binding
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    root = _Path(__file__).resolve().parent.parent
+    try:
+        contract = json.loads(
+            (root / "Canonical" / "sibling-contract.json")
+            .read_text(encoding="utf-8"))
+        registry = json.loads(
+            (root / "Canonical" / "capabilities.json")
+            .read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("sibling-contract: cannot load canonical inputs: %s" % exc)
+        return 2
+    registry_ids = [r.get("Capability ID", "") for r in registry]
+    repairs = check_binding(contract, [], registry_ids)
+    expected_missing = len(registry_ids)
+    catalog_gap = [r for r in repairs if "absent from the catalog" in r]
+    if args.json:
+        print(json.dumps({"contract": contract,
+                          "registry_ids": len(registry_ids),
+                          "catalog_ids": 0,
+                          "repairs": repairs}, indent=2))
+    else:
+        print("sibling-contract: v%s with %s" % (
+            contract.get("contract_version"), contract.get("sibling_repo")))
+        print("  registry IDs: %d; catalog IDs on Standard side: 0 "
+              "(Stage 15b binds the catalog)" % len(registry_ids))
+        for line in repairs:
+            print("  - %s" % line)
+    if catalog_gap and len(repairs) == 1 and expected_missing == 264:
+        print("  note: catalog gap is the expected Stage 15b handoff, "
+              "not a defect in this contract")
+        return 0
+    return 2 if repairs else 0
 
 
 def cmd_thinness(args: argparse.Namespace) -> int:

@@ -2089,5 +2089,83 @@ class ToolOutput(unittest.TestCase):
         self.assertIn("sha256", proc.stdout)
 
 
+class SiblingContract(unittest.TestCase):
+    """Stage 15a: versioned Standard-side contract for extension supply."""
+
+    def _mod(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import sibling_contract
+            return sibling_contract
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _contract(self, **over):
+        base = {
+            "contract_version": "1.0.0",
+            "sibling_repo": "kgsmith19/agent-extensions",
+            "sibling_min_commit": "pinned-by-15b",
+            "compatibility": "additive-only",
+            "capability_namespace": "v5 IDs",
+            "failure_behavior": "fail closed",
+            "offline_bootstrap": "supported",
+        }
+        base.update(over)
+        return base
+
+    def test_checked_in_contract_valid(self):
+        """Protects the handoff; the merged contract binds cleanly."""
+        mod = self._mod()
+        import json
+        contract = json.loads(
+            (WORKTREE / "Canonical" / "sibling-contract.json")
+            .read_text(encoding="utf-8"))
+        self.assertEqual([], mod.validate_contract(contract))
+        self.assertEqual("1.0.0", mod.CONTRACT_VERSION)
+
+    def test_missing_capability_fails(self):
+        """Protects coverage; catalog gaps fail with repair guidance."""
+        repairs = self._mod().check_binding(
+            self._contract(), ["AGENT-001"], ["AGENT-001", "AGENT-002"])
+        self.assertTrue(any("absent from the catalog" in r for r in repairs))
+
+    def test_version_skew_fails(self):
+        """Protects sync; stale references refuse binding."""
+        repairs = self._mod().check_binding(
+            self._contract(), [], [], contract_ref="0.9.0")
+        self.assertTrue(any("stale contract" in r for r in repairs))
+
+    def test_hash_mismatch_fails(self):
+        """Protects integrity; rendered-profile drift is caught."""
+        repairs = self._mod().check_binding(
+            self._contract(), [], [], rendered_hash="aa",
+            expected_hash="bb")
+        self.assertTrue(any("hash mismatch" in r for r in repairs))
+
+    def test_offline_needs_support(self):
+        """Protects field use; offline without support fails."""
+        repairs = self._mod().check_binding(
+            self._contract(offline_bootstrap=""), [], [], offline=True)
+        self.assertTrue(any("offline bootstrap" in r for r in repairs))
+
+    def test_bad_version_rejected(self):
+        """Protects versioning; non-semver contracts are refused."""
+        repairs = self._mod().validate_contract(
+            self._contract(contract_version="v1"))
+        self.assertTrue(any("semver" in r for r in repairs))
+
+    def test_contract_cli_reports(self):
+        """Protects the CLI contract; binding report exits 0 with the
+        expected 15b handoff note."""
+        import subprocess
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "sibling-contract"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        self.assertIn("Stage 15b", proc.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
