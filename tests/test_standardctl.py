@@ -1891,5 +1891,65 @@ class TaskCapsule(unittest.TestCase):
         self.assertEqual("109", json.loads(proc.stdout)["issue"])
 
 
+class RepoMap(unittest.TestCase):
+    """Stage 12: bounded map locates code without loading the repo."""
+
+    def _mod(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import repo_map
+            return repo_map
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def test_every_path_has_reason(self):
+        """Protects focus; a reason-less entry cannot enter the map."""
+        with self.assertRaises(ValueError):
+            self._mod().build([{"path": "tools/x.py", "reason": " "}])
+
+    def test_wrong_plane_fails(self):
+        """Protects plane honesty; generated files are never source."""
+        with self.assertRaises(ValueError):
+            self._mod().build([{
+                "path": "Canonical/generated/by-category.md",
+                "reason": "r", "plane": "source"}])
+
+    def test_generated_edit_refused(self):
+        """Protects generated views; direct edits route to the tool."""
+        self.assertIsNotNone(
+            self._mod().validate_edit("Canonical/generated/by-route.md",
+                                      "generated"))
+        self.assertIsNone(
+            self._mod().validate_edit("tools/standardctl.py", "source"))
+
+    def test_oversize_map_fails(self):
+        """Protects the budget; whole-tree dumps cannot be maps."""
+        mod = self._mod()
+        with self.assertRaises(ValueError):
+            mod.build([{"path": "f%d.py" % i, "reason": "r"}
+                       for i in range(61)])
+
+    def test_cyclic_map_fails(self):
+        """Protects DAG shape; duplicate paths are cycles."""
+        with self.assertRaises(ValueError):
+            self._mod().build([
+                {"path": "tools/a.py", "reason": "r1"},
+                {"path": "tools/a.py", "reason": "r2"}])
+
+    def test_repo_map_cli_bounded(self):
+        """Protects the CLI contract; the map is small and reasoned."""
+        import subprocess
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "repo-map", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        import json
+        built = json.loads(proc.stdout)
+        self.assertLessEqual(len(built["entries"]), 60)
+        self.assertTrue(all(e["reason"] for e in built["entries"]))
+
+
 if __name__ == "__main__":
     unittest.main()

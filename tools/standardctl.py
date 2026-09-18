@@ -4047,6 +4047,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_cbuild.add_argument("--json", action="store_true")
     p_cbuild.set_defaults(func=cmd_capsule)
 
+    p_repomap = sub.add_parser(
+        "repo-map",
+        help="bounded repository map with per-path reasons (advisory)",
+    )
+    p_repomap.add_argument("--scope", default="",
+                           help="focus envelope prefix filter")
+    p_repomap.add_argument("--json", action="store_true")
+    p_repomap.set_defaults(func=cmd_repo_map)
+
     return parser
 
 
@@ -4238,6 +4247,57 @@ def cmd_capsule(args: argparse.Namespace) -> int:
     if not args.json:
         print("capsule: %d bytes (pilot budget 16-24 KiB)"
               % capsule["_bytes"])
+    return 0
+
+
+REPO_MAP_SEED = (
+    ("tools/standardctl.py",
+     "single CLI: verify/init/update + advisory check commands"),
+    ("tools/thinness.py", "six-axis thinness scorer (Stage 7)"),
+    ("tools/disposition.py", "exact-head disposition outcomes (Stage 8)"),
+    ("tools/ready.py", "DoR receipt gate for Arc A (Stage 9)"),
+    ("tools/prompt_contract.py", "one-outcome prompt renderer (Stage 10)"),
+    ("tools/capsule.py", "provider-neutral capsule builder (Stage 11)"),
+    ("tools/repo_map.py", "bounded map builder (this stage)"),
+    ("tools/gen_capabilities.py", "registry view generator (Stage 5)"),
+    ("tools/gen_schemas.py", "schema inventory generator (Stage 6)"),
+    ("tests/test_standardctl.py", "unittest suite: 108 probes and counting"),
+    ("project.yaml", "facts/commands source of truth"),
+    ("TEMPLATES/manifest.yaml", "init/update distribution contract"),
+    ("AGENTS.md", "root router: constitution + module index"),
+    ("Canonical/capabilities.json", "264-capability source (Stage 5)"),
+    ("Canonical/schemas/INVENTORY.json", "29-schema inventory (Stage 6)"),
+    (".github/workflows/pr-gate.yml", "sole required check aggregator"),
+)
+
+
+def cmd_repo_map(args: argparse.Namespace) -> int:
+    """Print the bounded map. Advisory; exit 0. Scope filters entries."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        from repo_map import build
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    entries = [{"path": path, "reason": reason}
+               for path, reason in REPO_MAP_SEED]
+    if args.scope:
+        entries = [e for e in entries
+                   if e["path"].startswith(args.scope)]
+    try:
+        built = build(entries)
+    except ValueError as exc:
+        print("repo-map: %s" % exc)
+        return 2
+    if args.json:
+        print(json.dumps(built, indent=2))
+    else:
+        print("repo-map: %d entries (bounded; never authoritative)"
+              % len(built["entries"]))
+        for entry in built["entries"]:
+            print("  [%s] %s — %s" % (entry["plane"], entry["path"],
+                                      entry["reason"]))
     return 0
 
 
