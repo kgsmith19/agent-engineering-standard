@@ -1282,6 +1282,26 @@ class CapabilityRegistry(FixtureCase):
         }
         self.assertEqual(first, second)
 
+    def test_preservation_matrix_counts(self):
+        """Protects the 234/234 preservation firewall; catches a dropped
+        or altered v4.2 capability ID."""
+        import csv
+        with open(WORKTREE / "Canonical" / "v4.2-preservation.csv",
+                  encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        self.assertEqual(264, len(rows))
+        ids = [r["Capability ID"] for r in rows]
+        self.assertEqual(264, len(set(ids)))
+        present = [r for r in rows
+                   if r["v4.2 Status"].strip().upper().startswith("PRESENT")]
+        self.assertEqual(234, len(present))
+        import json
+        records = json.loads(
+            (WORKTREE / "Canonical" / "capabilities.json")
+            .read_text(encoding="utf-8"))
+        reg_ids = {r["Capability ID"] for r in records}
+        self.assertEqual(reg_ids, set(ids))
+
 
 if __name__ == "__main__":
     unittest.main()
