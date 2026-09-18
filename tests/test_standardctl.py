@@ -1565,5 +1565,86 @@ class ThinnessSignal(unittest.TestCase):
         self.assertIn("large", proc.stdout)
 
 
+class Disposition(unittest.TestCase):
+    """Stage 8: exact-head disposition with first-class NO_CHANGE."""
+
+    def _decide(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            from disposition import decide
+            return decide
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _obs(self, **over):
+        obs = {"environment": "e", "command": "c", "head": "h",
+               "expected": "x", "observed": "x", "evidence": "e"}
+        obs.update(over)
+        return obs
+
+    def test_implement_needs_observation(self):
+        """Protects observation-first; catches IMPLEMENT without proof."""
+        with self.assertRaises(ValueError):
+            self._decide()("IMPLEMENT", observation=self._obs(head=""))
+
+    def test_no_change_needs_proof(self):
+        """Protects honest NO_CHANGE; catches abstention without proof."""
+        with self.assertRaises(ValueError):
+            self._decide()("NO_CHANGE", observation=self._obs())
+        ok = self._decide()("NO_CHANGE", observation=self._obs(),
+                            satisfied=True)
+        self.assertEqual("NO_CHANGE", ok["disposition"])
+        config_only = self._decide()("NO_CHANGE", observation=self._obs(),
+                                     code_is_remedy=False)
+        self.assertEqual("not-code-remedy", config_only["reason"])
+
+    def test_insufficient_evidence_names_missing(self):
+        """Protects precise follow-up; catches a vague evidence gap."""
+        with self.assertRaises(ValueError):
+            self._decide()("INSUFFICIENT_EVIDENCE",
+                           observation=self._obs(), missing="  ")
+        ok = self._decide()("INSUFFICIENT_EVIDENCE",
+                            observation=self._obs(),
+                            missing="exact head of target env")
+        self.assertIn("target env", ok["missing"])
+
+    def test_owner_decision_needs_ambiguity(self):
+        """Protects against work avoidance; catches OWNER_DECISION
+        without a concrete ambiguity."""
+        with self.assertRaises(ValueError):
+            self._decide()("OWNER_DECISION", observation=self._obs(),
+                           ambiguity=" ")
+        ok = self._decide()("OWNER_DECISION", observation=self._obs(),
+                            ambiguity="ship or hold needs owner call")
+        self.assertIn("owner call", ok["ambiguity"])
+
+    def test_disposition_invalidates_derived(self):
+        """Protects freshness; catches a decision that leaves derived
+        artifacts valid."""
+        ok = self._decide()("IMPLEMENT", observation=self._obs())
+        self.assertEqual(["readiness", "molds", "capsules"],
+                         ok["invalidates"])
+
+    def test_disposition_cli_guards_no_change(self):
+        """Protects the CLI contract; catches a proof-less NO_CHANGE
+        exiting zero."""
+        import subprocess
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "disposition", "check",
+             "--outcome", "NO_CHANGE", "--expected", "x", "--observed", "x",
+             "--evidence", "y"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertNotEqual(0, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "disposition", "check",
+             "--outcome", "IMPLEMENT", "--expected", "x", "--observed", "x",
+             "--evidence", "y"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

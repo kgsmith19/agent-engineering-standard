@@ -3962,7 +3962,72 @@ def build_parser() -> argparse.ArgumentParser:
     p_tscore.add_argument("--json", action="store_true")
     p_tscore.set_defaults(func=cmd_thinness)
 
+    p_disposition = sub.add_parser(
+        "disposition",
+        help="advisory exact-head disposition check (never gates verify)",
+    )
+    disposition_sub = p_disposition.add_subparsers(
+        dest="disposition_command", required=True
+    )
+    p_dcheck = disposition_sub.add_parser("check")
+    p_dcheck.add_argument("--outcome", required=True,
+                          choices=["IMPLEMENT", "NO_CHANGE",
+                                   "INSUFFICIENT_EVIDENCE", "OWNER_DECISION"])
+    p_dcheck.add_argument("--head", default="",
+                          help="exact head the observation binds to")
+    p_dcheck.add_argument("--expected", default="")
+    p_dcheck.add_argument("--observed", default="")
+    p_dcheck.add_argument("--evidence", default="")
+    p_dcheck.add_argument("--satisfied", action="store_true")
+    p_dcheck.add_argument("--not-code-remedy", action="store_true")
+    p_dcheck.add_argument("--missing", default="")
+    p_dcheck.add_argument("--ambiguity", default="")
+    p_dcheck.add_argument("--json", action="store_true")
+    p_dcheck.set_defaults(func=cmd_disposition)
+
     return parser
+
+
+def cmd_disposition(args: argparse.Namespace) -> int:
+    """Advisory disposition check. Exit 0 iff the contract holds."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        from disposition import decide
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    import subprocess as _sp
+    head = args.head
+    if not head:
+        proc = _sp.run(["git", "rev-parse", "HEAD"],
+                       capture_output=True, text=True)
+        head = proc.stdout.strip() if proc.returncode == 0 else "unknown"
+    observation = {
+        "environment": "%s/%s" % (sys.platform,
+                                  getattr(sys, "version", "").split()[0]),
+        "command": "standardctl disposition check",
+        "head": head,
+        "expected": args.expected,
+        "observed": args.observed,
+        "evidence": args.evidence,
+    }
+    try:
+        result = decide(
+            args.outcome, observation=observation,
+            satisfied=bool(args.satisfied),
+            code_is_remedy=not bool(args.not_code_remedy),
+            missing=args.missing, ambiguity=args.ambiguity)
+    except ValueError as exc:
+        print("disposition: %s" % exc)
+        return 2
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        print("disposition: %s (head %s)" % (
+            result["disposition"], head))
+        print("  invalidates: %s" % ", ".join(result["invalidates"]))
+    return 0
 
 
 def cmd_thinness(args: argparse.Namespace) -> int:
