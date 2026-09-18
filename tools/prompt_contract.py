@@ -52,7 +52,6 @@ def validate(contract: Dict[str, Any],
             % len(outcomes))
     phases = [p.strip() for p in str(
         contract.get("phases", "") or "").split(",") if p.strip()]
-    writes = [p for p in phases if p.strip() in WRITE_PHASES]
     if len(phases) > 1:
         repairs.append(
             "prompt spans phases %s: one phase per prompt" % phases)
