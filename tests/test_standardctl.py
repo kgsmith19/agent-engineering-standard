@@ -1835,8 +1835,8 @@ class TaskCapsule(unittest.TestCase):
         return base
 
     def test_build_round_trip(self):
-        """Protects cold-boot completeness; a built capsule renders and
-        re-parses byte-identically."""
+        """Protects cold-boot completeness; a built capsule renders to
+        deterministic JSON preserving head within budget."""
         mod = self._mod()
         capsule = mod.build(self._fields())
         text = mod.render(capsule)

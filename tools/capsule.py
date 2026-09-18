@@ -47,11 +47,6 @@ def scan_forbidden(capsule: Dict[str, Any]) -> List[str]:
     if _SECRET_RE.search(blob):
         repairs.append("capsule carries secret-like material: redact it; "
                        "capsules never hold credentials")
-    paths = []
-    for key in ("allowed_paths", "protected_paths", "next_action",
-                "blocker", "evidence" if "evidence" in capsule else "issue"):
-        value = str(capsule.get(key, "") or "")
-        paths.extend(_ABSPATH_RE.findall(value))
     if _ABSPATH_RE.search(json.dumps(
             {k: capsule.get(k, "") for k in
              ("next_action", "blocker", "allowed_paths",
