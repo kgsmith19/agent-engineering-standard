@@ -296,72 +296,11 @@ jobs:
           # - Exit 0 (findings reported, not blocking); exit 1 only on infra failure.
           echo "Review invocation ready; awaiting implementation."
           exit 0
-      - name: LLM Review · Build result comment
-        if: always()
-        id: build-comment
-        uses: actions/github-script@e69ef5462fd455e02edcaf4dd7708eda96b9eda0 # v7.0.0
-        with:
-          script: |
-            const failedSteps = [];
-            if ('${{ steps.reviewer-config.outcome }}' === 'failure') {
-              failedSteps.push('Reviewer configuration check failed (setup did not supply separated providers)');
-            }
-            if ('${{ steps.run-review.outcome }}' === 'failure') {
-              failedSteps.push('Independent review execution failed');
-            }
-
-            const metadata = `<!-- agent-metadata:dev-agent:${{ github.event_name }}:${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} -->`;
-            const runFailed =
-              failedSteps.length > 0 || '${{ job.status }}' === 'failure';
-            const lines = [
-              metadata,
-              '',
-              '## Independent LLM Review ' + (runFailed ? 'Failed' : 'Passed'),
-              '',
-              runFailed
-                ? 'The reviewer found issues on this head, or the review infrastructure failed. Read the major points below.'
-                : 'The reviewer found no blocking issues on this head. No reply is required unless you disagree.',
-              '',
-              '### Major points',
-              '',
-              ...(runFailed
-                ? failedSteps.map(s => `- ${s}`)
-                : ['- No blocking findings. The full step log carries the detail.']),
-              '',
-              '### Required action',
-              '',
-              'This job uses a harness-selected reviewer provider with a',
-              'placeholder review invocation. The harness supplies the',
-              'reviewer configuration at dispatch time (for example from its',
-              'own secret store) -- the repository holds no reviewer',
-              'provider/model/credential values, so there is nothing to set',
-              'in repository variables or secrets for this job.',
-              '',
-              'Once the harness implements the real review invocation, it',
-              'will replace this placeholder.',
-              '',
-              '### Reply protocol',
-              '',
-              '1. Read this result comment (pass or fail, one posts per run)',
-              '2. Fix what is valid, or rebut in-thread with evidence from',
-              "   the work item, the standard, or the diff -- never from taste",
-              '3. No reply is needed when there are no findings',
-              '4. Push a fix to re-trigger the gate',
-            ];
-            core.setOutput('body', lines.join('\n'));
-
-      - name: LLM Review · Post result comment via dev-agent
-        if: always() && steps.build-comment.outputs.body
-        run: |
-          gh workflow run dev-agent-post-v2.yml \
-            --ref main \
-            -f action=post_comment \
-            -f issue_number="${{ github.event.pull_request.number }}" \
-            -f body@- << 'EOF'
-          ${{ steps.build-comment.outputs.body }}
-          EOF
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+      # This job stays read-only and never posts. The always-post result
+      # comment (pass or fail) is delivered by the separate, trusted
+      # workflow_run consumer .github/workflows/llm-review-comment.yml, which
+      # runs after this gate with pull-requests: write and reads this job's
+      # conclusion via the Actions API. See AGENTS/boundaries.md.
 
   gate:
     name: Agent Engineering Standard PR Gate

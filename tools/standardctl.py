@@ -1196,11 +1196,14 @@ def check_unresolved_tokens(model: RepoModel) -> List[Finding]:
 def check_unauthorized_workflows(model: RepoModel) -> List[Finding]:
     """Only standard and harness-layer workflows may exist under
     .github/workflows/: pr-gate.yml, merge-policy.yml, llm-review.yml,
-    and harness agent-communication workflows (dev-agent-post*.yml,
+    llm-review-comment.yml (the workflow_run consumer that posts the
+    review result after the read-only gate), and harness
+    agent-communication workflows (dev-agent-post*.yml,
     reviewer-agent-post*.yml, post-work-state.yml, reviewer-trigger.yml).
     Plus transitional ci.yml while manifest has no pr-gate mapping."""
     allowed = {
         GATE_WORKFLOW_FILE, MERGE_POLICY_FILE, LLM_REVIEW_WORKFLOW_FILE,
+        "llm-review-comment.yml",
         "dev-agent-post-v2.yml", "dev-agent-post.yml", "post-work-state.yml",
         "reviewer-agent-post-v2.yml", "reviewer-agent-post.yml", "reviewer-trigger.yml",
     }
@@ -1370,11 +1373,19 @@ def review_always_comment_findings(rel: str, text: str) -> List[Finding]:
     return findings
 
 
+REVIEW_COMMENT_CONSUMER_FILE = ".github/workflows/llm-review-comment.yml"
+
+
 def check_review_always_comments(model: RepoModel) -> List[Finding]:
-    """The reusable llm-review workflow ends with one always-post result
-    comment (pass or fail). A pr-gate caller either inlines such a job or
-    delegates via uses: to that workflow (single comment per run); only a
-    caller that inlines its own duplicate review steps without an
+    """Every review path guarantees one always-post result comment (pass
+    or fail). The reusable llm-review workflow and its TEMPLATES source
+    post directly (pull-requests: write), so a consuming repo whose gate
+    delegates via ``uses:`` is covered by that workflow. When the gate
+    instead inlines a read-only review job (this repository: pr-gate is
+    read-only and cannot post), delivery moves to a separate
+    ``workflow_run`` consumer (llm-review-comment.yml) that fires after the
+    gate and posts the result. That consumer must carry the always-post
+    pass/fail body; only an inline gate with neither a consumer nor its own
     always-post fails."""
     findings: List[Finding] = []
     text = model.read_text(".github/workflows/llm-review.yml")
@@ -1394,6 +1405,14 @@ def check_review_always_comments(model: RepoModel) -> List[Finding]:
     if job is None:
         return findings
     if job.get("uses"):
+        return findings
+    # Inline read-only gate review job: the always-post guarantee is
+    # satisfied by the workflow_run consumer that posts after the gate.
+    consumer = model.read_text(REVIEW_COMMENT_CONSUMER_FILE)
+    if consumer is not None:
+        findings.extend(
+            review_always_comment_findings(
+                REVIEW_COMMENT_CONSUMER_FILE, consumer))
         return findings
     raw = job.get("raw", "") or gate["text"]
     findings.extend(review_always_comment_findings(gate["rel"], raw))

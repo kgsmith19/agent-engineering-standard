@@ -72,9 +72,16 @@ authoring agent may fix or rebut, arguing only from the work item, the standard,
 never from taste; unresolved after a small number of rounds, tag the owner once, explicitly
 framed as the rare exception rather than the normal path.
 
-Every Independent LLM Review run ends with exactly one `if: always()` result comment (pass or
-fail), so the dev agent has a single in-thread reply target regardless of outcome — no silent
-passes, no failure-only posts.
+Every Independent LLM Review run ends with exactly one result comment (pass or fail), so the dev
+agent has a single in-thread reply target regardless of outcome — no silent passes, no
+failure-only posts. Because the PR Gate is read-only and cannot post, delivery is split: a
+consuming repo whose gate delegates via `uses:` to the reusable `llm-review.yml` is posted by
+that workflow directly (it declares `pull-requests: write`); this repository, whose gate inlines
+a read-only review job, delivers through a separate `workflow_run` consumer
+(`.github/workflows/llm-review-comment.yml`) that runs after the gate in the trusted base-branch
+context, reads the review job's conclusion via the Actions API, and upserts one comment under the
+reviewer app identity. The consumer reads run metadata only — it never checks out or downloads
+PR-controlled content, so it stays clear of the privileged-checkout boundary.
 
 **Path-scoped gates in monorepo topologies:** a legitimate monorepo may deviate from the single
 no-path-filter aggregator with owner authorization, splitting the gate into multiple

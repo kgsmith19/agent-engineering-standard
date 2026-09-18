@@ -1,0 +1,143 @@
+name: Agent Engineering Standard · LLM Review Comment
+
+# Delivery half of the Independent LLM Review, split out because the PR Gate
+# is deliberately read-only (contents: read, pull-requests: read) and cannot
+# post. GitHub's designed answer for "read-only/PR-triggered gate + write a
+# comment" is the workflow_run trigger: this workflow runs AFTER the gate, in
+# the trusted base-branch context, with its own write permission.
+#
+# It reads the triggering gate run's "Independent LLM Review" job and its step
+# conclusions via the Actions API (no artifact download, no checkout of
+# PR-controlled content, so it never trips privileged-pr-checkout), builds one
+# pass/fail result comment, and upserts it under the reviewer app identity so
+# the dev has a single in-thread reply target. Fires on completed regardless
+# of conclusion — good or bad, exactly one comment per gate run.
+
+on:
+  workflow_run:
+    workflows: ["Agent Engineering Standard PR Gate"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  comment:
+    name: Agent Engineering Standard · Post Independent LLM Review Result
+    runs-on: ubuntu-latest
+    # Only PR-triggered gate runs carry a PR to comment on; skip push-to-main.
+    if: github.event.workflow_run.event == 'pull_request'
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    steps:
+      - name: Compute review result from the gate run
+        id: result
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Resolve the PR this gate run belongs to.
+            let prNumber =
+              (run.pull_requests && run.pull_requests[0] && run.pull_requests[0].number) || null;
+            if (!prNumber) {
+              const { data: prs } = await github.rest.pulls.list({
+                owner, repo, state: 'open',
+                head: `${owner}:${run.head_branch}`,
+              });
+              if (prs.length) prNumber = prs[0].number;
+            }
+            if (!prNumber) {
+              core.info('No pull request associated with this gate run; skipping.');
+              core.setOutput('skip', 'true');
+              return;
+            }
+
+            // Read the Independent LLM Review job + its step conclusions.
+            const { data: jobsData } = await github.rest.actions.listJobsForWorkflowRun({
+              owner, repo, run_id: run.id, per_page: 100,
+            });
+            const reviewJob = jobsData.jobs.find(j => /Independent LLM Review/.test(j.name));
+            const steps = (reviewJob && reviewJob.steps) || [];
+            const failedSteps = steps
+              .filter(s => s.conclusion && !['success', 'skipped', 'neutral'].includes(s.conclusion))
+              .map(s => s.name);
+            const reviewConclusion = reviewJob ? reviewJob.conclusion : 'missing';
+            const runFailed = reviewConclusion !== 'success' || failedSteps.length > 0;
+
+            const head = '## Independent LLM Review ' + (runFailed ? 'Failed' : 'Passed');
+            const verdict = runFailed
+              ? 'The reviewer found issues on this head, or the review infrastructure failed. Read the major points below.'
+              : 'The reviewer found no blocking issues on this head. No reply is required unless you disagree.';
+            const points = runFailed
+              ? (failedSteps.length
+                  ? failedSteps.map(s => `- ${s}`).join('\n')
+                  : `- Review job concluded: ${reviewConclusion}`)
+              : '- No blocking findings. The full step log carries the detail.';
+
+            const marker = '<!-- llm-review-result -->';
+            const body = [
+              marker, '',
+              head, '',
+              verdict, '',
+              '### Major points', '',
+              points, '',
+              '### Reply protocol', '',
+              '1. Read this result comment (pass or fail, one posts per run)',
+              '2. Fix what is valid, or rebut in-thread with evidence from the work item, the standard, or the diff — never from taste',
+              '3. No reply is needed when there are no findings',
+              '4. Push a fix to re-trigger the gate', '',
+              `Gate run: ${run.html_url}`,
+              `Head: \`${run.head_sha}\``,
+            ].join('\n');
+
+            core.setOutput('skip', 'false');
+            core.setOutput('pr', String(prNumber));
+            core.setOutput('body', body);
+
+      - name: Create reviewer app token
+        if: steps.result.outputs.skip != 'true'
+        id: app_token
+        uses: getsentry/action-github-app-token@v3
+        with:
+          app_id: ${{ secrets.REVIEW_GITHUB_APP_ID }}
+          private_key: ${{ secrets.REVIEW_GITHUB_APP_PRIVATE_KEY }}
+
+      - name: Upsert result comment as the reviewer app
+        # always() keeps the result comment posting on every completed gate
+        # run — a passing (not runFailed) review is never left silent.
+        if: always() && steps.result.outputs.skip != 'true'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          PR: ${{ steps.result.outputs.pr }}
+          BODY: ${{ steps.result.outputs.body }}
+        with:
+          github-token: ${{ steps.app_token.outputs.token }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pr = parseInt(process.env.PR, 10);
+            const body = process.env.BODY;
+            const marker = '<!-- llm-review-result -->';
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner, repo, issue_number: pr, per_page: 100,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: existing.id, body,
+              });
+              core.info(`Updated existing review comment ${existing.id}`);
+            } else {
+              const { data: created } = await github.rest.issues.createComment({
+                owner, repo, issue_number: pr, body,
+              });
+              core.info(`Created review comment ${created.id}`);
+            }
