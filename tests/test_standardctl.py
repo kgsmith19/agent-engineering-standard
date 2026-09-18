@@ -767,6 +767,50 @@ class StandardRepoRejections(FixtureCase):
         self.assertNotIn(
             "review-missing-always-comment", check_ids(findings))
 
+    def test_verify_rejects_missing_review_comment_consumer(self):
+        """Protects the delivery half of the always-post guarantee: this
+        repository's gate inlines a read-only review job that never posts,
+        so the workflow_run consumer llm-review-comment.yml is the only
+        thing that delivers the result comment. Deleting it must fail
+        closed — otherwise a passing (or failing) review would silently
+        never reach the PR conversation."""
+        root = self.std_fixture()
+        (root / ".github" / "workflows" / "llm-review-comment.yml").unlink()
+        findings = standardctl.check_review_always_comments(
+            self.model(root))
+        self.assertIn("review-missing-always-comment", check_ids(findings))
+
+    def test_verify_rejects_review_comment_consumer_without_always_post(self):
+        """Protects the pass-branch of the delivery guarantee: a consumer
+        that posts only on failure (no if: always() pass/fail body) would
+        leave a passing review silent. Catches a consumer edit that drops
+        the always-post result comment."""
+        root = self.std_fixture()
+        self.write_workflow(
+            root,
+            "llm-review-comment.yml",
+            "name: Fixture App Review Comment\n"
+            "on:\n"
+            "  workflow_run:\n"
+            "    workflows: [\"Fixture App PR Gate\"]\n"
+            "    types: [completed]\n"
+            "permissions:\n"
+            "  contents: read\n"
+            "  actions: read\n"
+            "jobs:\n"
+            "  comment:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    permissions:\n"
+            "      pull-requests: write\n"
+            "    steps:\n"
+            "      - name: Post failure only\n"
+            "        if: failure()\n"
+            "        run: echo posted\n",
+        )
+        findings = standardctl.check_review_always_comments(
+            self.model(root))
+        self.assertIn("review-missing-always-comment", check_ids(findings))
+
 
 class Acceptance(FixtureCase):
     """The unmutated trees must verify cleanly, anchoring every
