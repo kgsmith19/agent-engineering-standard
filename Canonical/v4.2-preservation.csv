@@ -1,0 +1,265 @@
+Capability ID,Capability,v4.2 Status,v5 Status,v5 Category,Verification
+GOV-001,Owner sovereignty and override freedom,PRESENT,PRESERVED,Governance,Exact stable ID retained in final v5 registry; no silent normative removal.
+GOV-002,Source precedence hierarchy,PRESENT,PRESERVED,Governance,Exact stable ID retained in final v5 registry; no silent normative removal.
+GOV-003,One normal machine merge authority,PRESENT,PRESERVED,Governance,Exact stable ID retained in final v5 registry; no silent normative removal.
+GOV-004,Least-privilege routine agent identity,PRESENT,PRESERVED,Governance,Exact stable ID retained in final v5 registry; no silent normative removal.
+GOV-005,Separate owner administrative credentials,PRESENT,PRESERVED,Governance,Exact stable ID retained in final v5 registry; no silent normative removal.
+GOV-006,Owner-proven policy-change authorization,PRESENT,PRESERVED,Governance,Exact stable ID retained in final v5 registry; no silent normative removal.
+GOV-007,Capability lifecycle and promotion states,PRESENT,PRESERVED,Governance,Exact stable ID retained in final v5 registry; no silent normative removal.
+GOV-008,Master Capability Registry omission firewall,PRESENT,PRESERVED,Governance,Exact stable ID retained in final v5 registry; no silent normative removal.
+GOV-009,No capability only in conversation,PRESENT,PRESERVED,Governance,Exact stable ID retained in final v5 registry; no silent normative removal.
+DISC-001,Ephemeral single-surface idea capture,PRESENT,PRESERVED,Discovery and Autonomy,Exact stable ID retained in final v5 registry; no silent normative removal.
+DISC-002,AI Shape/Draft before commitment,PRESENT,PRESERVED,Discovery and Autonomy,Exact stable ID retained in final v5 registry; no silent normative removal.
+DISC-003,Decision-changing research contract,PRESENT,PRESERVED,Discovery and Autonomy,Exact stable ID retained in final v5 registry; no silent normative removal.
+DISC-004,Bounded research budget and stop rule,PRESENT,PRESERVED,Discovery and Autonomy,Exact stable ID retained in final v5 registry; no silent normative removal.
+DISC-005,Explicit Outcome/Bet GO CHANGE DEFER KILL promotion,PRESENT,PRESERVED,Discovery and Autonomy,Exact stable ID retained in final v5 registry; no silent normative removal.
+DISC-006,Versioned Product Truth,PRESENT,PRESERVED,Discovery and Autonomy,Exact stable ID retained in final v5 registry; no silent normative removal.
+DISC-007,Evidence-weighted Autonomy Envelope,PRESENT,PRESERVED,Discovery and Autonomy,Exact stable ID retained in final v5 registry; no silent normative removal.
+DISC-008,Reversibility blast-radius novelty ambiguity factors,PRESENT,PRESERVED,Discovery and Autonomy,Exact stable ID retained in final v5 registry; no silent normative removal.
+DISC-009,Autonomous guardrailed advisory owner-gated modes,PRESENT,PRESERVED,Discovery and Autonomy,Exact stable ID retained in final v5 registry; no silent normative removal.
+DISC-010,No duplicate discovery backlog,PRESENT,PRESERVED,Discovery and Autonomy,Exact stable ID retained in final v5 registry; no silent normative removal.
+THIN-001,Thin Milestone outcome boundary,PRESENT,PRESERVED,Thin Work,Exact stable ID retained in final v5 registry; no silent normative removal.
+THIN-002,Thin Spec semantic boundary,PRESENT,PRESERVED,Thin Work,Exact stable ID retained in final v5 registry; no silent normative removal.
+THIN-003,One observable Issue outcome,PRESENT,PRESERVED,Thin Work,Exact stable ID retained in final v5 registry; no silent normative removal.
+THIN-004,Vertical Thin Slice decomposition,PRESENT,PRESERVED,Thin Work,Exact stable ID retained in final v5 registry; no silent normative removal.
+THIN-005,Parent and native sub-Issue dependencies,PRESENT,PRESERVED,Thin Work,Exact stable ID retained in final v5 registry; no silent normative removal.
+THIN-006,Slice Complexity Signal,PRESENT,PRESERVED,Thin Work,Exact stable ID retained in final v5 registry; no silent normative removal.
+THIN-007,Machine-gated Definition of Ready,PRESENT,PRESERVED,Thin Work,Exact stable ID retained in final v5 registry; no silent normative removal.
+THIN-008,Stable one-outcome Prompt Contract,PRESENT,PRESERVED,Thin Work,Exact stable ID retained in final v5 registry; no silent normative removal.
+THIN-009,One branch worktree writer PR proof strategy,PRESENT,PRESERVED,Thin Work,Exact stable ID retained in final v5 registry; no silent normative removal.
+THIN-010,Reversible or recoverable delivery unit,PRESENT,PRESERVED,Thin Work,Exact stable ID retained in final v5 registry; no silent normative removal.
+SPEC-001,Intent Contract,PRESENT,PRESERVED,Specification,Exact stable ID retained in final v5 registry; no silent normative removal.
+SPEC-002,Stable acceptance claim IDs,PRESENT,PRESERVED,Specification,Exact stable ID retained in final v5 registry; no silent normative removal.
+SPEC-003,Stable invariant IDs,PRESENT,PRESERVED,Specification,Exact stable ID retained in final v5 registry; no silent normative removal.
+SPEC-004,Stable forbidden-outcome IDs,PRESENT,PRESERVED,Specification,Exact stable ID retained in final v5 registry; no silent normative removal.
+SPEC-005,Explicit non-goals,PRESENT,PRESERVED,Specification,Exact stable ID retained in final v5 registry; no silent normative removal.
+SPEC-006,EARS requirement forms,PRESENT,PRESERVED,Specification,Exact stable ID retained in final v5 registry; no silent normative removal.
+SPEC-007,Example Mapping,PRESENT,PRESERVED,Specification,Exact stable ID retained in final v5 registry; no silent normative removal.
+SPEC-008,Specification by Example,PRESENT,PRESERVED,Specification,Exact stable ID retained in final v5 registry; no silent normative removal.
+SPEC-009,BDD domain scenarios,PRESENT,PRESERVED,Specification,Exact stable ID retained in final v5 registry; no silent normative removal.
+SPEC-010,ATDD acceptance agreement,PRESENT,PRESERVED,Specification,Exact stable ID retained in final v5 registry; no silent normative removal.
+SPEC-011,Risk-adaptive Compact Structured Assured profiles,PRESENT,PRESERVED,Specification,Exact stable ID retained in final v5 registry; no silent normative removal.
+SPEC-012,Fresh Specification Critic,PRESENT,PRESERVED,Specification,Exact stable ID retained in final v5 registry; no silent normative removal.
+SPEC-013,Semantic Spec digest and version,PRESENT,PRESERVED,Specification,Exact stable ID retained in final v5 registry; no silent normative removal.
+SPEC-014,Spec-change proof invalidation graph,PRESENT,PRESERVED,Specification,Exact stable ID retained in final v5 registry; no silent normative removal.
+DOC-001,README human front door,PRESENT,PRESERVED,Documentation,Exact stable ID retained in final v5 registry; no silent normative removal.
+DOC-002,Short AGENTS constitution router,PRESENT,PRESERVED,Documentation,Exact stable ID retained in final v5 registry; no silent normative removal.
+DOC-003,AGENTS bounded bootloader target,PRESENT,PRESERVED,Documentation,Exact stable ID retained in final v5 registry; no silent normative removal.
+DOC-004,Import-only provider adapters,PRESENT,PRESERVED,Documentation,Exact stable ID retained in final v5 registry; no silent normative removal.
+DOC-005,Canonical routed standards modules,PRESENT,PRESERVED,Documentation,Exact stable ID retained in final v5 registry; no silent normative removal.
+DOC-006,Normative explanatory generated ephemeral classes,PRESENT,PRESERVED,Documentation,Exact stable ID retained in final v5 registry; no silent normative removal.
+DOC-007,Documentation authority metadata,PRESENT,PRESERVED,Documentation,Exact stable ID retained in final v5 registry; no silent normative removal.
+DOC-008,Documentation freshness triggers,PRESENT,PRESERVED,Documentation,Exact stable ID retained in final v5 registry; no silent normative removal.
+DOC-009,Unique normative rule IDs,PRESENT,PRESERVED,Documentation,Exact stable ID retained in final v5 registry; no silent normative removal.
+DOC-010,No duplicate normative authority,PRESENT,PRESERVED,Documentation,Exact stable ID retained in final v5 registry; no silent normative removal.
+DOC-011,Cookbook and Overview non-authority separation,PRESENT,PRESERVED,Documentation,Exact stable ID retained in final v5 registry; no silent normative removal.
+DOC-012,Progressive disclosure and context budget,PRESENT,PRESERVED,Documentation,Exact stable ID retained in final v5 registry; no silent normative removal.
+DOC-013,Semantic-preserving template formatting,PRESENT,PRESERVED,Documentation,Exact stable ID retained in final v5 registry; no silent normative removal.
+DOC-014,Historical Test Ledger is non-gating,PRESENT,PRESERVED,Documentation,Exact stable ID retained in final v5 registry; no silent normative removal.
+DOC-015,Frozen requirement-translation corpus,PRESENT,PRESERVED,Documentation,Exact stable ID retained in final v5 registry; no silent normative removal.
+VF-001,Two completed SDVFD arcs,PRESENT,PRESERVED,Verification First,Exact stable ID retained in final v5 registry; no silent normative removal.
+VF-002,Verification Arc with zero production code,PRESENT,PRESERVED,Verification First,Exact stable ID retained in final v5 registry; no silent normative removal.
+VF-003,Verification Mold per slice,PRESENT,PRESERVED,Verification First,Exact stable ID retained in final v5 registry; no silent normative removal.
+VF-004,Qualified RED before implementation,PRESENT,PRESERVED,Verification First,Exact stable ID retained in final v5 registry; no silent normative removal.
+VF-005,True-RED failure-reason validation,PRESENT,PRESERVED,Verification First,Exact stable ID retained in final v5 registry; no silent normative removal.
+VF-006,Criterion-to-evidence traceability,PRESENT,PRESERVED,Verification First,Exact stable ID retained in final v5 registry; no silent normative removal.
+VF-007,Independent oracle qualification,PRESENT,PRESERVED,Verification First,Exact stable ID retained in final v5 registry; no silent normative removal.
+VF-008,Independent Mold Attack,PRESENT,PRESERVED,Verification First,Exact stable ID retained in final v5 registry; no silent normative removal.
+VF-009,Mold process meta-tests,PRESENT,PRESERVED,Verification First,Exact stable ID retained in final v5 registry; no silent normative removal.
+VF-010,Frozen mold hash and protected paths,PRESENT,PRESERVED,Verification First,Exact stable ID retained in final v5 registry; no silent normative removal.
+VF-011,Builder implementation authorization gate,PRESENT,PRESERVED,Verification First,Exact stable ID retained in final v5 registry; no silent normative removal.
+VF-012,Explicit mold reopen and requalification,PRESENT,PRESERVED,Verification First,Exact stable ID retained in final v5 registry; no silent normative removal.
+VF-013,Intent-change invalidation of authorization,PRESENT,PRESERVED,Verification First,Exact stable ID retained in final v5 registry; no silent normative removal.
+VF-014,Release Verification Mold,PRESENT,PRESERVED,Verification First,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-001,Seven-part Test Quality Contract,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-002,Empty-green prohibition,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-003,Oracle-change firewall,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-004,TDD RED GREEN REFACTOR,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-005,Acceptance and E2E testing,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-006,Consumer-driven contract testing,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-007,Integration and real persistence testing,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-008,Property-based invariant testing,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-009,Metamorphic relation testing,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-010,State-machine model testing,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-011,Differential and reference testing,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-012,Targeted mutation testing,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-013,Risk-directed fuzz testing,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-014,Security scanner synthetic canaries,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-015,Performance and load budgets,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-016,Fault injection and chaos testing,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-017,Narrow formal and model checking,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+TEST-018,Test-impact-aware selection,PRESENT,PRESERVED,Testing,Exact stable ID retained in final v5 registry; no silent normative removal.
+CONT-001,Disposable model context principle,PRESENT,PRESERVED,Continuity,Exact stable ID retained in final v5 registry; no silent normative removal.
+CONT-002,Git and GitHub outrank recollection,PRESENT,PRESERVED,Continuity,Exact stable ID retained in final v5 registry; no silent normative removal.
+CONT-003,Durable Agent Continuity Protocol,PRESENT,PRESERVED,Continuity,Exact stable ID retained in final v5 registry; no silent normative removal.
+CONT-004,Append-only Continuity Journal,PRESENT,PRESERVED,Continuity,Exact stable ID retained in final v5 registry; no silent normative removal.
+CONT-005,Hash-chained typed continuity events,PRESENT,PRESERVED,Continuity,Exact stable ID retained in final v5 registry; no silent normative removal.
+CONT-006,Derived State Snapshot,PRESENT,PRESERVED,Continuity,Exact stable ID retained in final v5 registry; no silent normative removal.
+CONT-007,Bounded provider-neutral Task Capsule,PRESENT,PRESERVED,Continuity,Exact stable ID retained in final v5 registry; no silent normative removal.
+CONT-008,Atomic checkpoint transaction,PRESENT,PRESERVED,Continuity,Exact stable ID retained in final v5 registry; no silent normative removal.
+CONT-009,Deterministic replay and live reconciliation,PRESENT,PRESERVED,Continuity,Exact stable ID retained in final v5 registry; no silent normative removal.
+CONT-010,Handoff Acceptance Test,PRESENT,PRESERVED,Continuity,Exact stable ID retained in final v5 registry; no silent normative removal.
+CONT-011,Generation-bound one-writer lease,PRESENT,PRESERVED,Continuity,Exact stable ID retained in final v5 registry; no silent normative removal.
+CONT-012,Idempotent external side effects,PRESENT,PRESERVED,Continuity,Exact stable ID retained in final v5 registry; no silent normative removal.
+CONT-013,Continuity schema evolution and migration,PRESENT,PRESERVED,Continuity,Exact stable ID retained in final v5 registry; no silent normative removal.
+CONT-014,Continuity retention and redaction,PRESENT,PRESERVED,Continuity,Exact stable ID retained in final v5 registry; no silent normative removal.
+CONT-015,Clean-room provider-switch restore,PRESENT,PRESERVED,Continuity,Exact stable ID retained in final v5 registry; no silent normative removal.
+CONT-016,Cross-provider continuity benchmark,PRESENT,PRESERVED,Continuity,Exact stable ID retained in final v5 registry; no silent normative removal.
+AGENT-001,Provider-neutral semantic roles,PRESENT,PRESERVED,Agents and Parallelism,Exact stable ID retained in final v5 registry; no silent normative removal.
+AGENT-002,Read-only Context Scout,PRESENT,PRESERVED,Agents and Parallelism,Exact stable ID retained in final v5 registry; no silent normative removal.
+AGENT-003,Focused fresh task briefs,PRESENT,PRESERVED,Agents and Parallelism,Exact stable ID retained in final v5 registry; no silent normative removal.
+AGENT-004,Isolated worktree per implementation Issue,PRESENT,PRESERVED,Agents and Parallelism,Exact stable ID retained in final v5 registry; no silent normative removal.
+AGENT-005,Atomic remote branch claim,PRESENT,PRESERVED,Agents and Parallelism,Exact stable ID retained in final v5 registry; no silent normative removal.
+AGENT-006,DISPATCHING ACTIVE COMPLETE BLOCKED UNKNOWN states,PRESENT,PRESERVED,Agents and Parallelism,Exact stable ID retained in final v5 registry; no silent normative removal.
+AGENT-007,One mutable writer,PRESENT,PRESERVED,Agents and Parallelism,Exact stable ID retained in final v5 registry; no silent normative removal.
+AGENT-008,Deterministic parallel safety analysis,PRESENT,PRESERVED,Agents and Parallelism,Exact stable ID retained in final v5 registry; no silent normative removal.
+AGENT-009,Fresh-provider independent verifier,PRESENT,PRESERVED,Agents and Parallelism,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-001,Provider-separated Builder and Reviewer,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-002,Trusted pinned reviewer runtime,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-003,Passive bounded review context,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-004,PASS BLOCK INCONCLUSIVE verdicts,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-005,Separate infrastructure and policy failures,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-006,Deterministic citation validation,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-007,Stable finding fingerprints,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-008,Scope-locked later rounds,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-009,Resolution by original citation,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-010,Bounded remediation attempts,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-011,Frozen reviewer evaluation corpus,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-012,Only validated P0/P1 findings block,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-013,P2 findings remain advisory,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-014,One primary reviewer plus one fallback,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-015,Verdict-shopping prohibition,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-016,End-to-end canary before blocking promotion,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+REV-017,No retroactive review weakening,PRESENT,PRESERVED,Independent Review,Exact stable ID retained in final v5 registry; no silent normative removal.
+CI-001,One final required PR Gate,PRESENT,PRESERVED,Control Plane,Exact stable ID retained in final v5 registry; no silent normative removal.
+CI-002,Exact expected lane-set validation,PRESENT,PRESERVED,Control Plane,Exact stable ID retained in final v5 registry; no silent normative removal.
+CI-003,Exact-head stale protection,PRESENT,PRESERVED,Control Plane,Exact stable ID retained in final v5 registry; no silent normative removal.
+CI-004,Required workflows always report,PRESENT,PRESERVED,Control Plane,Exact stable ID retained in final v5 registry; no silent normative removal.
+CI-005,Internal relevance detection,PRESENT,PRESERVED,Control Plane,Exact stable ID retained in final v5 registry; no silent normative removal.
+CI-006,Read-only code-executing workers,PRESENT,PRESERVED,Control Plane,Exact stable ID retained in final v5 registry; no silent normative removal.
+CI-007,Privileged jobs execute no PR code,PRESENT,PRESERVED,Control Plane,Exact stable ID retained in final v5 registry; no silent normative removal.
+CI-008,Full-SHA action and runtime pins,PRESENT,PRESERVED,Control Plane,Exact stable ID retained in final v5 registry; no silent normative removal.
+CI-009,Expected-head native auto-merge binding,PRESENT,PRESERVED,Control Plane,Exact stable ID retained in final v5 registry; no silent normative removal.
+CI-010,Control-plane self-modification guard,PRESENT,PRESERVED,Control Plane,Exact stable ID retained in final v5 registry; no silent normative removal.
+CI-011,Live settings and ruleset read-back,PRESENT,PRESERVED,Control Plane,Exact stable ID retained in final v5 registry; no silent normative removal.
+CI-012,Owner bypass and zero native approvals,PRESENT,PRESERVED,Control Plane,Exact stable ID retained in final v5 registry; no silent normative removal.
+EVID-001,Proof-carrying pull request,PRESENT,PRESERVED,Evidence,Exact stable ID retained in final v5 registry; no silent normative removal.
+EVID-002,Exact-head evidence manifest,PRESENT,PRESERVED,Evidence,Exact stable ID retained in final v5 registry; no silent normative removal.
+EVID-003,Stable evidence IDs,PRESENT,PRESERVED,Evidence,Exact stable ID retained in final v5 registry; no silent normative removal.
+EVID-004,Claim-linked selectors and commands,PRESENT,PRESERVED,Evidence,Exact stable ID retained in final v5 registry; no silent normative removal.
+EVID-005,SHA-256 artifact binding,PRESENT,PRESERVED,Evidence,Exact stable ID retained in final v5 registry; no silent normative removal.
+EVID-006,Managed Issue and PR Evidence Index,PRESENT,PRESERVED,Evidence,Exact stable ID retained in final v5 registry; no silent normative removal.
+EVID-007,Failure artifacts uploaded always,PRESENT,PRESERVED,Evidence,Exact stable ID retained in final v5 registry; no silent normative removal.
+EVID-008,Provider runtime prompt provenance,PRESENT,PRESERVED,Evidence,Exact stable ID retained in final v5 registry; no silent normative removal.
+EVID-009,Evidence expiration and retention,PRESENT,PRESERVED,Evidence,Exact stable ID retained in final v5 registry; no silent normative removal.
+FAIL-001,Operational Recovery Loop,PRESENT,PRESERVED,Failure and Recovery,Exact stable ID retained in final v5 registry; no silent normative removal.
+FAIL-002,Failure preservation before retry,PRESENT,PRESERVED,Failure and Recovery,Exact stable ID retained in final v5 registry; no silent normative removal.
+FAIL-003,Failure taxonomy and UNKNOWN class,PRESENT,PRESERVED,Failure and Recovery,Exact stable ID retained in final v5 registry; no silent normative removal.
+FAIL-004,One accountable lane per failure,PRESENT,PRESERVED,Failure and Recovery,Exact stable ID retained in final v5 registry; no silent normative removal.
+FAIL-005,Retry-versus-repair contract,PRESENT,PRESERVED,Failure and Recovery,Exact stable ID retained in final v5 registry; no silent normative removal.
+FAIL-006,Bounded diagnostic retry budget,PRESENT,PRESERVED,Failure and Recovery,Exact stable ID retained in final v5 registry; no silent normative removal.
+FAIL-007,Retry-to-green flake signal,PRESENT,PRESERVED,Failure and Recovery,Exact stable ID retained in final v5 registry; no silent normative removal.
+FAIL-008,Partial-green never complete,PRESENT,PRESERVED,Failure and Recovery,Exact stable ID retained in final v5 registry; no silent normative removal.
+FAIL-009,Recovery acceptance criteria,PRESENT,PRESERVED,Failure and Recovery,Exact stable ID retained in final v5 registry; no silent normative removal.
+FAIL-010,Escaped-defect cheapest-boundary tightening,PRESENT,PRESERVED,Failure and Recovery,Exact stable ID retained in final v5 registry; no silent normative removal.
+REL-001,One VERIFY Issue per Milestone,PRESENT,PRESERVED,Release and Runtime,Exact stable ID retained in final v5 registry; no silent normative removal.
+REL-002,Release-level exact-main verification,PRESENT,PRESERVED,Release and Runtime,Exact stable ID retained in final v5 registry; no silent normative removal.
+REL-003,Qualified Release Verification Mold,PRESENT,PRESERVED,Release and Runtime,Exact stable ID retained in final v5 registry; no silent normative removal.
+REL-004,Canary promotion decision contract,PRESENT,PRESERVED,Release and Runtime,Exact stable ID retained in final v5 registry; no silent normative removal.
+REL-005,Automated halt and rollback thresholds,PRESENT,PRESERVED,Release and Runtime,Exact stable ID retained in final v5 registry; no silent normative removal.
+REL-006,Backup restore verification,PRESENT,PRESERVED,Release and Runtime,Exact stable ID retained in final v5 registry; no silent normative removal.
+REL-007,Runtime high-signal invariants,PRESENT,PRESERVED,Release and Runtime,Exact stable ID retained in final v5 registry; no silent normative removal.
+REL-008,SBOM generation,PRESENT,PRESERVED,Release and Runtime,Exact stable ID retained in final v5 registry; no silent normative removal.
+REL-009,Artifact attestation and provenance,PRESENT,PRESERVED,Release and Runtime,Exact stable ID retained in final v5 registry; no silent normative removal.
+REL-010,Selected release evidence promotion,PRESENT,PRESERVED,Release and Runtime,Exact stable ID retained in final v5 registry; no silent normative removal.
+TOOL-001,Complete canonical artifact inventory,PRESENT,PRESERVED,Templates and Tooling,Exact stable ID retained in final v5 registry; no silent normative removal.
+TOOL-002,Versioned JSON Schemas,PRESENT,PRESERVED,Templates and Tooling,Exact stable ID retained in final v5 registry; no silent normative removal.
+TOOL-003,Positive and negative template fixtures,PRESENT,PRESERVED,Templates and Tooling,Exact stable ID retained in final v5 registry; no silent normative removal.
+TOOL-004,Canonical and active template synchronization,PRESENT,PRESERVED,Templates and Tooling,Exact stable ID retained in final v5 registry; no silent normative removal.
+TOOL-005,No successful placeholder commands,PRESENT,PRESERVED,Templates and Tooling,Exact stable ID retained in final v5 registry; no silent normative removal.
+TOOL-006,Modular standardctl architecture,PRESENT,PRESERVED,Templates and Tooling,Exact stable ID retained in final v5 registry; no silent normative removal.
+TOOL-007,Capabilities ready invalidate triage commands,PRESENT,PRESERVED,Templates and Tooling,Exact stable ID retained in final v5 registry; no silent normative removal.
+TOOL-008,Exact-SHA standard.lock written last,PRESENT,PRESERVED,Templates and Tooling,Exact stable ID retained in final v5 registry; no silent normative removal.
+TOOL-009,Digest-pinned offline bootstrap bundle,PRESENT,PRESERVED,Templates and Tooling,Exact stable ID retained in final v5 registry; no silent normative removal.
+TOOL-010,CLI compatibility and alias preservation,PRESENT,PRESERVED,Templates and Tooling,Exact stable ID retained in final v5 registry; no silent normative removal.
+MET-001,Outcome and DORA metrics,PRESENT,PRESERVED,Metrics and Improvement,Exact stable ID retained in final v5 registry; no silent normative removal.
+MET-002,Gate latency and first-pass-green metrics,PRESENT,PRESERVED,Metrics and Improvement,Exact stable ID retained in final v5 registry; no silent normative removal.
+MET-003,Reviewer precision recall and false-block metrics,PRESENT,PRESERVED,Metrics and Improvement,Exact stable ID retained in final v5 registry; no silent normative removal.
+MET-004,Context and cold-resume metrics,PRESENT,PRESERVED,Metrics and Improvement,Exact stable ID retained in final v5 registry; no silent normative removal.
+MET-005,Mold qualification and mutation metrics,PRESENT,PRESERVED,Metrics and Improvement,Exact stable ID retained in final v5 registry; no silent normative removal.
+MET-006,Failure and recovery metrics,PRESENT,PRESERVED,Metrics and Improvement,Exact stable ID retained in final v5 registry; no silent normative removal.
+MET-007,Documentation and template metrics,PRESENT,PRESERVED,Metrics and Improvement,Exact stable ID retained in final v5 registry; no silent normative removal.
+MET-008,Discovery and autonomy outcome metrics,PRESENT,PRESERVED,Metrics and Improvement,Exact stable ID retained in final v5 registry; no silent normative removal.
+MET-009,Decision-changing research ratio,PRESENT,PRESERVED,Metrics and Improvement,Exact stable ID retained in final v5 registry; no silent normative removal.
+MET-010,Capability ROI experiments and eject thresholds,PRESENT,PRESERVED,Metrics and Improvement,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-001,Autonomous phase advancement,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-002,Machine-selected next safe action,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-003,Automatic fresh-role dispatch,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-004,Policy-constrained provider selection,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-005,Human-by-exception escalation,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-006,Stop-only-on-defined conditions,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-007,Bounded autonomous self-healing loop,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-008,Automatic validated remediation dispatch,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-009,Exactly-once transition and dispatch semantics,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-010,Dependency-safe autonomous slice continuation,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-011,Autonomous Issue and Milestone progression,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-012,Merge-triggered cleanup and continuation,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-013,Automatic Release-Mold handoff,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-014,Orchestration attempt time cost budgets,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-015,Deadlock and no-progress detection,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-016,Cross-provider orchestration replay equivalence,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+ORC-017,No model self-promotion of authority,PRESENT,PRESERVED,Autonomous Orchestration,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-001,Canonical Standards Index,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-002,Always-On Constitutional Bootloader,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-003,Deterministic Standards Route Compiler,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-004,Meta-Context Applicability Engine,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-005,Standards Context Receipt,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-006,Standards Acceptance Test,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-007,Fail-Closed Missing-Bootstrap State,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-008,Pre-Write Standards Authorization,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-009,Pre-Tool Policy Enforcement Point,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-010,Critical Rules Cannot Be Prompt-Only,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-011,Rule-to-Enforcement Traceability,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-012,Applicable Instruction-Set Hashing,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-013,Context Freshness Invalidation,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-014,Dynamic Path-Risk-Phase Re-Routing,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-015,Provider-Native Instruction Adapters,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-016,Cross-Provider Instruction Equivalence,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-017,Instruction Hierarchy Conflict Tests,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-018,Untrusted-Content Instruction Boundary,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-019,Subagent Standards Inheritance,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-020,Standards Compliance Event Trail,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-021,PR-Gate Compliance Receipt Validation,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-022,Instruction Drift and Conflict Detection,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-023,Standards Self-Modification Firewall,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+STD-024,Standards Adherence Canary Benchmark,PRESENT,PRESERVED,Standards Adherence and Meta-Context,Exact stable ID retained in final v5 registry; no silent normative removal.
+DISC-011,First-class IMPLEMENT NO_CHANGE INSUFFICIENT_EVIDENCE OWNER_DECISION outcomes,N/A — new research integration,NEW,Discovery and Autonomy,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+THIN-011,Quantified semantic thinness bands,N/A — new research integration,NEW,Thin Work,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+THIN-012,Pull-request logical LOC and authored-file warning bands,N/A — new research integration,NEW,Thin Work,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+CONT-017,Zero automatic-compaction operating target,N/A — new research integration,NEW,Continuity,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+CONT-018,Context Budget Governor and planned fresh-session rotation,N/A — new research integration,NEW,Continuity,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+CONT-019,Bounded tool-output bytes with continuation handles,N/A — new research integration,NEW,Continuity,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+CONT-020,Concise directory domain symbol and source-plane map,N/A — new research integration,NEW,Continuity,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+EXT-001,Catalog separated from active and resident extension profile,N/A — new research integration,NEW,Extensions and Capability Supply,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+EXT-002,AVAILABLE STAGED ENABLED RESIDENT INVOKED VERIFIED DEGRADED lifecycle,N/A — new research integration,NEW,Extensions and Capability Supply,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+EXT-003,Metadata-only discovery and JIT skill-body loading,N/A — new research integration,NEW,Extensions and Capability Supply,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+EXT-004,Task extension footprint and MCP activation budgets,N/A — new research integration,NEW,Extensions and Capability Supply,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+EXT-005,Phase-specific extension profiles,N/A — new research integration,NEW,Extensions and Capability Supply,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+EXT-006,Formal standard-to-agent-extensions sibling contract,N/A — new research integration,NEW,Extensions and Capability Supply,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+EXT-007,Exact extension locks source license and provenance,N/A — new research integration,NEW,Extensions and Capability Supply,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+EXT-008,Provider capability manifest and conformance status,N/A — new research integration,NEW,Extensions and Capability Supply,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+EXT-009,Real-provider canaries and automatic DEGRADED adapters,N/A — new research integration,NEW,Extensions and Capability Supply,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+EXT-010,Generated provider and harness configuration,N/A — new research integration,NEW,Extensions and Capability Supply,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+IMP-001,Clean Implementation Charter,N/A — new research integration,NEW,Implementation Quality,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+IMP-002,Stack-native lint analysis and architecture gates,N/A — new research integration,NEW,Implementation Quality,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+IMP-003,Library versus local implementation decision contract,N/A — new research integration,NEW,Implementation Quality,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+IMP-004,Explicit source generated artifact cache evidence protected planes,N/A — new research integration,NEW,Implementation Quality,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+IMP-005,Post-GREEN code simplifier pilot,N/A — new research integration,NEW,Implementation Quality,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+STD-025,Monotonic deny-only policy guard,N/A — new research integration,NEW,Standards Adherence and Meta-Context,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+STD-026,Trusted base-policy self-modification enforcement,N/A — new research integration,NEW,Standards Adherence and Meta-Context,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+STD-027,Immutable tool execution identity with frozen arguments and results,N/A — new research integration,NEW,Standards Adherence and Meta-Context,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+AGENT-010,No default multi-agent councils,N/A — new research integration,NEW,Agents and Parallelism,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+AGENT-011,Explicit SAFE-only tool concurrency,N/A — new research integration,NEW,Agents and Parallelism,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+TEST-019,Model-visible input and policy record-replay,N/A — new research integration,NEW,Testing,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+TOOL-011,Controlled Superpowers and skill-load budget,N/A — new research integration,NEW,Templates and Tooling,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."
+FAIL-011,Systematic debugging owns unexpected failure,N/A — new research integration,NEW,Failure and Recovery,"Registered with normative home, enforcement, schema, canary, metric, evidence, and eject path."

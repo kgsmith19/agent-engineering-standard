@@ -1236,5 +1236,200 @@ class WorktreeSafety(FixtureCase):
         self.assertFalse(merged.exists())
 
 
+class CapabilityRegistry(FixtureCase):
+    """Stage 5: 264-capability registry is machine-readable audit metadata."""
+
+    def test_canonical_registry_source_parses(self):
+        """Protects the registry input contract; catches a missing or
+        unparseable canonical source."""
+        import json
+        path = WORKTREE / "Canonical" / "capabilities.json"
+        records = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(264, len(records))
+        ids = [r["Capability ID"] for r in records]
+        self.assertEqual(264, len(set(ids)))
+
+    def test_generator_is_byte_reproducible(self):
+        """Protects deterministic generation; catches nondeterministic
+        ordering, timestamps, or locale-dependent output."""
+        import hashlib
+        import subprocess
+        for _ in range(2):
+            proc = subprocess.run(
+                ["python", "tools/gen_capabilities.py"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode, proc.stderr)
+        outdir = WORKTREE / "Canonical" / "generated"
+        names = sorted(p.name for p in outdir.glob("*"))
+        self.assertEqual(
+            ["SHA256SUMS.txt", "by-category.md", "by-route.md",
+             "preservation-matrix.csv"],
+            names,
+        )
+        first = {
+            p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in outdir.glob("*")
+        }
+        proc = subprocess.run(
+            ["python", "tools/gen_capabilities.py"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr)
+        second = {
+            p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in outdir.glob("*")
+        }
+        self.assertEqual(first, second)
+
+    def test_preservation_matrix_counts(self):
+        """Protects the 234/234 preservation firewall; catches a dropped
+        or altered v4.2 capability ID."""
+        import csv
+        with open(WORKTREE / "Canonical" / "v4.2-preservation.csv",
+                  encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        self.assertEqual(264, len(rows))
+        ids = [r["Capability ID"] for r in rows]
+        self.assertEqual(264, len(set(ids)))
+        present = [r for r in rows
+                   if r["v4.2 Status"].strip().upper().startswith("PRESENT")]
+        self.assertEqual(234, len(present))
+        import json
+        records = json.loads(
+            (WORKTREE / "Canonical" / "capabilities.json")
+            .read_text(encoding="utf-8"))
+        reg_ids = {r["Capability ID"] for r in records}
+        self.assertEqual(reg_ids, set(ids))
+
+    def test_registry_rejects_duplicate_id(self):
+        """Protects ID uniqueness; catches a duplicated capability ID
+        with the record count held at 264 so only the duplicate probe
+        can fire."""
+        root = self.std_fixture()
+        import json
+        path = root / "Canonical" / "capabilities.json"
+        records = json.loads(path.read_text(encoding="utf-8"))
+        records[1] = dict(records[0])
+        path.write_text(json.dumps(records, indent=2), encoding="utf-8")
+        findings = standardctl.check_capability_registry(self.model(root))
+        messages = [f.message for f in findings
+                    if f.check_id == "capability-registry"]
+        self.assertTrue(
+            any("duplicate Capability ID" in message for message in messages),
+            "duplicate probe must fire; got: %s" % messages)
+
+    def test_registry_rejects_missing_id(self):
+        """Protects completeness; catches a silently dropped capability."""
+        root = self.std_fixture()
+        import json
+        path = root / "Canonical" / "capabilities.json"
+        records = json.loads(path.read_text(encoding="utf-8"))
+        path.write_text(json.dumps(records[1:], indent=2), encoding="utf-8")
+        findings = standardctl.check_capability_registry(self.model(root))
+        self.assertIn("capability-registry", check_ids(findings))
+
+    def test_registry_rejects_missing_required_field(self):
+        """Protects the canary/metric/eject firewall; catches a record
+        missing Metric."""
+        root = self.std_fixture()
+        import json
+        path = root / "Canonical" / "capabilities.json"
+        records = json.loads(path.read_text(encoding="utf-8"))
+        del records[0]["Metric"]
+        path.write_text(json.dumps(records, indent=2), encoding="utf-8")
+        findings = standardctl.check_capability_registry(self.model(root))
+        self.assertIn("capability-registry", check_ids(findings))
+
+    def test_registry_rejects_stale_generated_view(self):
+        """Protects view freshness; catches a generated view older than
+        its source."""
+        root = self.std_fixture()
+        view = root / "Canonical" / "generated" / "by-category.md"
+        view.write_text(view.read_text(encoding="utf-8") + "\nStale.\n",
+                        encoding="utf-8")
+        findings = standardctl.check_capability_registry(self.model(root))
+        self.assertIn("stale-capability-view", check_ids(findings))
+
+    def test_registry_accepts_clean_tree(self):
+        """Protects the positive path; catches a check that can never
+        pass."""
+        findings = standardctl.check_capability_registry(
+            standardctl.RepoModel(WORKTREE))
+        errors = [f for f in findings if f.severity == "error"]
+        self.assertEqual([], errors)
+
+    def test_registry_rejects_missing_matrix(self):
+        """Protects the matrix-input contract; catches a deleted
+        preservation matrix instead of crashing."""
+        root = self.std_fixture()
+        (root / "Canonical" / "v4.2-preservation.csv").unlink()
+        findings = standardctl.check_capability_registry(self.model(root))
+        self.assertIn("capability-registry", check_ids(findings))
+
+    def test_registry_rejects_present_count_drift(self):
+        """Protects the 234/234 firewall; catches a demoted v4.2
+        capability that breaks the exact PRESENT count."""
+        root = self.std_fixture()
+        import csv
+        matrix = root / "Canonical" / "v4.2-preservation.csv"
+        with open(matrix, encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        rows[0]["v4.2 Status"] = "SUPERSEDED"
+        with open(matrix, "w", encoding="utf-8", newline="\n") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0]),
+                                    lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(rows)
+        findings = standardctl.check_capability_registry(self.model(root))
+        messages = [f.message for f in findings
+                    if f.check_id == "capability-registry"]
+        self.assertTrue(
+            any("PRESENT rows" in message for message in messages),
+            "count probe must fire; got: %s" % messages)
+
+    def test_registry_rejects_matrix_id_mismatch(self):
+        """Protects matrix/registry coherence; catches a matrix row ID
+        that no longer exists in the registry."""
+        root = self.std_fixture()
+        import csv
+        matrix = root / "Canonical" / "v4.2-preservation.csv"
+        with open(matrix, encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        rows[0]["Capability ID"] = "XXXX-999"
+        with open(matrix, "w", encoding="utf-8", newline="\n") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0]),
+                                    lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(rows)
+        findings = standardctl.check_capability_registry(self.model(root))
+        messages = [f.message for f in findings
+                    if f.check_id == "capability-registry"]
+        self.assertTrue(
+            any("does not equal" in message for message in messages),
+            "mismatch probe must fire; got: %s" % messages)
+
+    def test_registry_rejects_unparseable_source(self):
+        """Protects the input contract; catches a corrupt registry file
+        instead of crashing."""
+        root = self.std_fixture()
+        (root / "Canonical" / "capabilities.json").write_text(
+            "{not json", encoding="utf-8")
+        findings = standardctl.check_capability_registry(self.model(root))
+        self.assertIn("capability-registry", check_ids(findings))
+
+    def test_registry_exempts_consuming_repo(self):
+        """Protects consuming repos; catches a firewall that fires where
+        no Canonical dir exists (mirrors manifest-integrity exemption)."""
+        import tempfile
+        with tempfile.TemporaryDirectory(
+                prefix="standardctl-no-canon-") as raw:
+            target = Path(raw) / "consuming"
+            target.mkdir()
+            findings = standardctl.check_capability_registry(
+                standardctl.RepoModel(target))
+            self.assertEqual([], findings)
+
+
 if __name__ == "__main__":
     unittest.main()
