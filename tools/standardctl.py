@@ -4056,6 +4056,26 @@ def build_parser() -> argparse.ArgumentParser:
     p_repomap.add_argument("--json", action="store_true")
     p_repomap.set_defaults(func=cmd_repo_map)
 
+    p_context = sub.add_parser(
+        "context",
+        help="zero-compaction budget governor readout (advisory)",
+    )
+    context_sub = p_context.add_subparsers(
+        dest="context_command", required=True
+    )
+    p_cbudget = context_sub.add_parser("budget")
+    p_cbudget.add_argument("--capsule-bytes", type=int, default=0)
+    p_cbudget.add_argument("--rules-bytes", type=int, default=0)
+    p_cbudget.add_argument("--files-bytes", type=int, default=0)
+    p_cbudget.add_argument("--skills-bytes", type=int, default=0)
+    p_cbudget.add_argument("--mcp-bytes", type=int, default=0)
+    p_cbudget.add_argument("--tool-bytes", type=int, default=0)
+    p_cbudget.add_argument("--expansions", type=int, default=0)
+    p_cbudget.add_argument("--unresolved", type=int, default=0)
+    p_cbudget.add_argument("--phase-change", action="store_true")
+    p_cbudget.add_argument("--json", action="store_true")
+    p_cbudget.set_defaults(func=cmd_context)
+
     return parser
 
 
@@ -4298,6 +4318,34 @@ def cmd_repo_map(args: argparse.Namespace) -> int:
         for entry in built["entries"]:
             print("  [%s] %s — %s" % (entry["plane"], entry["path"],
                                       entry["reason"]))
+    return 0
+
+
+def cmd_context(args: argparse.Namespace) -> int:
+    """Advisory budget readout. Exit 0 unless ROTATE_NOW/RECOVERY (2)."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        from context_budget import govern
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    result = govern(
+        {"capsule": args.capsule_bytes, "rules": args.rules_bytes,
+         "files": args.files_bytes, "skills": args.skills_bytes,
+         "mcp": args.mcp_bytes, "tool_output": args.tool_bytes},
+        expansions=args.expansions, unresolved=args.unresolved,
+        phase_change=bool(args.phase_change))
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        print("context: %s (%d bytes)" % (result["status"],
+                                          result["total_bytes"]))
+        for line in result["reasons"]:
+            print("  - %s" % line)
+        print("  action: %s" % result["action"])
+    if result["status"] in ("ROTATE_NOW_READ_ONLY", "RECOVERY_REQUIRED"):
+        return 2
     return 0
 
 
