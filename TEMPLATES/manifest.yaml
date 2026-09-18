@@ -77,6 +77,24 @@ mappings:
   - source: AGENTS/boundaries.md
     dest: AGENTS/boundaries.md
     mode: adapt
+  - source: Canonical/capabilities.json
+    dest: Canonical/capabilities.json
+    mode: copy
+  - source: Canonical/v4.2-preservation.csv
+    dest: Canonical/v4.2-preservation.csv
+    mode: copy
+  - source: Canonical/generated/by-category.md
+    dest: Canonical/generated/by-category.md
+    mode: copy
+  - source: Canonical/generated/by-route.md
+    dest: Canonical/generated/by-route.md
+    mode: copy
+  - source: Canonical/generated/preservation-matrix.csv
+    dest: Canonical/generated/preservation-matrix.csv
+    mode: copy
+  - source: Canonical/generated/SHA256SUMS.txt
+    dest: Canonical/generated/SHA256SUMS.txt
+    mode: copy
   - source: CLAUDE.md
     dest: CLAUDE.md
     mode: copy
