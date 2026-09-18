@@ -63,19 +63,15 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   review:
     name: __APP_DISPLAY_NAME__ · Independent LLM Review
     runs-on: ubuntu-latest
     steps:
-      - name: LLM Review · Check out exact ref
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
       - name: LLM Review · Enforce provider separation
+        id: provider-separation
         env:
           BUILDER_PROVIDER_FAMILY: ${{ inputs.builder_provider_family }}
           REVIEWER_PROVIDER_FAMILY: ${{ inputs.reviewer_provider_family }}
@@ -89,6 +85,7 @@ jobs:
             exit 1
           fi
       - name: LLM Review · Verify reviewer configuration is present
+        id: verify-config
         env:
           REVIEWER_MODEL: ${{ inputs.reviewer_model }}
           REVIEWER_CREDENTIAL: ${{ secrets.reviewer_credential }}
@@ -98,6 +95,7 @@ jobs:
             exit 1
           fi
       - name: LLM Review · Run independent review
+        id: run-review
         run: |
           echo "Replace this placeholder with the repository's real LLM"
           echo "Review invocation. The reviewer model gets a structured-"
@@ -109,3 +107,59 @@ jobs:
           echo "every finding. Never replace this placeholder with an"
           echo "empty success."
           exit 1
+      - name: LLM Review · Post result comment
+        if: always()
+        uses: actions/github-script@e69ef5462fd455e02edcaf4dd7708eda96b9eda0 # v7.0.0
+        with:
+          script: |
+            const failedSteps = [];
+            if ('${{ steps.provider-separation.outcome }}' === 'failure') {
+              failedSteps.push('Provider separation check failed');
+            }
+            if ('${{ steps.verify-config.outcome }}' === 'failure') {
+              failedSteps.push('Reviewer configuration verification failed');
+            }
+            if ('${{ steps.run-review.outcome }}' === 'failure') {
+              failedSteps.push('Independent review execution failed');
+            }
+            const runFailed =
+              failedSteps.length > 0 || '${{ job.status }}' === 'failure';
+            const head =
+              '## Independent LLM Review ' +
+              (runFailed ? 'Failed' : 'Passed');
+            const verdict = runFailed
+              ? 'The reviewer found issues on this head, or the review ' +
+                'infrastructure failed. Read the major points below.'
+              : 'The reviewer found no blocking issues on this head. ' +
+                'No reply is required unless you disagree.';
+
+            const body = `${head}
+
+            ${verdict}
+
+            ### Major points
+
+            ${runFailed ? failedSteps.map(s => `- ${s}`).join('\n') : '- No blocking findings. The full step log carries the detail.'}
+
+            ### Required action
+
+            This job is currently using a placeholder. The harness needs to configure:
+            - \`LLM_REVIEW_PROVIDER_FAMILY\` repository variable
+            - \`LLM_REVIEW_MODEL\` repository variable
+            - \`LLM_REVIEW_CREDENTIAL\` repository secret
+
+            Once configured, the real LLM review invocation will replace this placeholder.
+
+            ### Reply protocol
+
+            1. Read this result comment (pass or fail, one posts per run)
+            2. Fix what is valid, or rebut in-thread with evidence from the work item, the standard, or the diff — never from taste
+            3. No reply is needed when there are no findings
+            4. Push a fix to re-trigger the gate`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });

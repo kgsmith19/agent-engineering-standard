@@ -85,8 +85,8 @@ jobs:
           echo "every finding. Never replace this placeholder with an"
           echo "empty success."
           exit 1
-      - name: LLM Review · Post failure comment
-        if: failure()
+      - name: LLM Review · Post result comment
+        if: always()
         uses: actions/github-script@e69ef5462fd455e02edcaf4dd7708eda96b9eda0 # v7.0.0
         with:
           script: |
@@ -100,12 +100,24 @@ jobs:
             if ('${{ steps.run-review.outcome }}' === 'failure') {
               failedSteps.push('Independent review execution failed');
             }
+            const runFailed =
+              failedSteps.length > 0 || '${{ job.status }}' === 'failure';
+            const head =
+              '## Independent LLM Review ' +
+              (runFailed ? 'Failed' : 'Passed');
+            const verdict = runFailed
+              ? 'The reviewer found issues on this head, or the review ' +
+                'infrastructure failed. Read the major points below.'
+              : 'The reviewer found no blocking issues on this head. ' +
+                'No reply is required unless you disagree.';
 
-            const body = `## Independent LLM Review Failed
+            const body = `${head}
 
-            The following step(s) failed:
+            ${verdict}
 
-            ${failedSteps.map(s => `- ${s}`).join('\n')}
+            ### Major points
+
+            ${runFailed ? failedSteps.map(s => `- ${s}`).join('\n') : '- No blocking findings. The full step log carries the detail.'}
 
             ### Required action
 
@@ -116,11 +128,11 @@ jobs:
 
             Once configured, the real LLM review invocation will replace this placeholder.
 
-            ### Dev agent action required
+            ### Reply protocol
 
-            1. Read this failure comment
-            2. Verify the repository variables are set
-            3. If variables are set but the review still fails, address the specific findings
+            1. Read this result comment (pass or fail, one posts per run)
+            2. Fix what is valid, or rebut in-thread with evidence from the work item, the standard, or the diff — never from taste
+            3. No reply is needed when there are no findings
             4. Push a fix to re-trigger the gate`;
 
             await github.rest.issues.createComment({
