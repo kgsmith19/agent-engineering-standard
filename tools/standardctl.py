@@ -1933,6 +1933,285 @@ def check_no_native_review_gating(model: RepoModel) -> List[Finding]:
     return findings
 
 
+CAPABILITY_REQUIRED_FIELDS = (
+    "Capability ID", "Category", "Capability", "Normative Home",
+    "Machine Enforcement", "Template/Schema", "Test/Canary", "Metric",
+    "Fail-Closed Behavior", "Evidence", "Eject/Override",
+)
+
+CAPABILITY_GENERATED_FILES = (
+    "by-category.md", "by-route.md",
+    "preservation-matrix.csv", "SHA256SUMS.txt",
+)
+
+
+def _render_capability_view(name, records, matrix_rows):
+    """Byte-exact regeneration of one generated view, mirroring
+    tools/gen_capabilities.py without shelling out. Returns None for
+    unknown names (caller only passes known names)."""
+    if name == "by-category.md":
+        lines = [
+            "<!-- Generated from Canonical/capabilities.json; do not edit. -->",
+            "",
+            "# Capabilities by Category",
+            "",
+        ]
+        groups = {}
+        for record in records:
+            if isinstance(record, dict):
+                groups.setdefault(
+                    str(record.get("Category", "") or "").strip(),
+                    []).append(record)
+        for category in sorted(groups):
+            members = sorted(groups[category],
+                             key=lambda r: str(r.get("Capability ID", "")))
+            lines.append("## %s (%d)" % (category, len(members)))
+            lines.append("")
+            for member in members:
+                lines.append(
+                    "- %s — %s"
+                    % (member.get("Capability ID", "?"),
+                       member.get("Capability", "?")))
+            lines.append("")
+        return "\n".join(lines)
+    if name == "by-route.md":
+        lines = [
+            "<!-- Generated from Canonical/capabilities.json; do not edit. -->",
+            "",
+            "# Capabilities by Route",
+            "",
+        ]
+        groups = {}
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            category = str(record.get("Category", "") or "").strip()
+            home = str(record.get("Normative Home", "") or "").strip()
+            first = home.split(" and ")[0].split(",")[0].strip()
+            groups.setdefault("%s :: %s" % (category, first), []).append(
+                record)
+        for route in sorted(groups):
+            members = sorted(groups[route],
+                             key=lambda r: str(r.get("Capability ID", "")))
+            lines.append("## %s (%d)" % (route, len(members)))
+            lines.append("")
+            for member in members:
+                lines.append("- %s" % member.get("Capability ID", "?"))
+            lines.append("")
+        return "\n".join(lines)
+    if name == "preservation-matrix.csv":
+        present = {
+            str(row.get("Capability ID", ""))
+            for row in matrix_rows
+            if str(row.get("v4.2 Status", "")).strip().upper().startswith(
+                "PRESENT")
+        }
+        by_id = {str(r.get("Capability ID", "")): r for r in records
+                 if isinstance(r, dict)}
+        ordered = sorted(set(list(by_id) + [
+            str(r.get("Capability ID", "")) for r in matrix_rows]))
+        lines = ["Capability ID,Capability,v5 Category,Preserved-v4.2"]
+        for cid in ordered:
+            record = by_id.get(cid, {})
+            lines.append(
+                "%s,%s,%s,%s"
+                % (cid, record.get("Capability", ""),
+                   record.get("Category", ""),
+                   "yes" if cid in present else "no"))
+        return "\n".join(lines) + "\n"
+    if name == "SHA256SUMS.txt":
+        sums = []
+        for view in ("by-category.md", "by-route.md",
+                     "preservation-matrix.csv"):
+            expected = _render_capability_view(view, records, matrix_rows)
+            digest = hashlib.sha256(
+                expected.encode("utf-8")).hexdigest()
+            sums.append("%s  %s" % (digest, view))
+        return "\n".join(sums) + "\n"
+    return None
+
+
+def check_capability_registry(model: RepoModel) -> List[Finding]:
+    """264-capability registry firewall: unique IDs, 234/234 v4.2
+    preservation, required canary/metric/eject fields, and fresh
+    generated views. Consuming repositories (no Canonical dir) are
+    exempt, mirroring check_manifest_integrity."""
+    if not (model.root / "Canonical").is_dir():
+        return []
+    findings: List[Finding] = []
+    source_path = "Canonical/capabilities.json"
+    source_text = model.read_text(source_path)
+    if source_text is None:
+        return [
+            Finding(
+                "capability-registry",
+                "error",
+                source_path,
+                "canonical capability registry is missing",
+            )
+        ]
+    try:
+        records = json.loads(source_text)
+    except ValueError as exc:
+        return [
+            Finding(
+                "capability-registry",
+                "error",
+                source_path,
+                "canonical capability registry is unparseable: %s" % exc,
+            )
+        ]
+    if not isinstance(records, list):
+        return [
+            Finding(
+                "capability-registry",
+                "error",
+                source_path,
+                "canonical capability registry is not a list",
+            )
+        ]
+    if len(records) != 264:
+        findings.append(
+            Finding(
+                "capability-registry",
+                "error",
+                source_path,
+                "registry holds %d records, want exactly 264" % len(records),
+            )
+        )
+    seen: Dict[str, int] = {}
+    for index, record in enumerate(records):
+        label = "records[%d]" % index
+        if not isinstance(record, dict):
+            findings.append(
+                Finding(
+                    "capability-registry",
+                    "error",
+                    source_path,
+                    "%s is not a mapping" % label,
+                )
+            )
+            continue
+        cid = str(record.get("Capability ID", ""))
+        if not cid:
+            findings.append(
+                Finding(
+                    "capability-registry",
+                    "error",
+                    source_path,
+                    "%s has no Capability ID" % label,
+                )
+            )
+            continue
+        if cid in seen:
+            findings.append(
+                Finding(
+                    "capability-registry",
+                    "error",
+                    source_path,
+                    "duplicate Capability ID %s (%s and %s)"
+                    % (cid, seen[cid], label),
+                )
+            )
+        else:
+            seen[cid] = label
+        for field in CAPABILITY_REQUIRED_FIELDS:
+            if not str(record.get(field, "") or "").strip():
+                findings.append(
+                    Finding(
+                        "capability-registry",
+                        "error",
+                        source_path,
+                        "%s (%s) is missing required field %r"
+                        % (label, cid, field),
+                    )
+                )
+    matrix_path = "Canonical/v4.2-preservation.csv"
+    matrix_rows: List[Dict[str, str]] = []
+    try:
+        matrix_text = model.read_text(matrix_path)
+        if matrix_text is None:
+            raise OSError("missing")
+        import csv as _csv
+        import io as _io
+        matrix_rows = list(
+            _csv.DictReader(_io.StringIO(matrix_text)))
+    except (OSError, _csv.Error) as exc:
+        findings.append(
+            Finding(
+                "capability-registry",
+                "error",
+                matrix_path,
+                "preservation matrix unreadable: %s" % exc,
+            )
+        )
+        matrix_rows = []
+    if matrix_rows:
+        matrix_ids = [str(r.get("Capability ID", "")) for r in matrix_rows]
+        if len(matrix_rows) != 264 or len(set(matrix_ids)) != 264:
+            findings.append(
+                Finding(
+                    "capability-registry",
+                    "error",
+                    matrix_path,
+                    "preservation matrix holds %d rows (%d unique), "
+                    "want 264 unique" % (len(matrix_rows),
+                                         len(set(matrix_ids))),
+                )
+            )
+        if set(matrix_ids) != set(seen):
+            findings.append(
+                Finding(
+                    "capability-registry",
+                    "error",
+                    matrix_path,
+                    "preservation matrix ID set does not equal the "
+                    "registry ID set",
+                )
+            )
+        present = sum(
+            1 for r in matrix_rows
+            if str(r.get("v4.2 Status", "")).strip().upper().startswith(
+                "PRESENT"))
+        if present != 234:
+            findings.append(
+                Finding(
+                    "capability-registry",
+                    "error",
+                    matrix_path,
+                    "preservation matrix shows %d v4.2 PRESENT rows, "
+                    "want exactly 234" % present,
+                )
+            )
+    for name in CAPABILITY_GENERATED_FILES:
+        rel = "Canonical/generated/" + name
+        actual = model.read_text(rel)
+        if actual is None:
+            findings.append(
+                Finding(
+                    "stale-capability-view",
+                    "error",
+                    rel,
+                    "generated capability view is missing; run "
+                    "tools/gen_capabilities.py",
+                )
+            )
+            continue
+        expected = _render_capability_view(name, records, matrix_rows)
+        if expected is not None and actual != expected:
+            findings.append(
+                Finding(
+                    "stale-capability-view",
+                    "error",
+                    rel,
+                    "generated capability view does not match "
+                    "Canonical/capabilities.json; run "
+                    "tools/gen_capabilities.py",
+                )
+            )
+    return findings
+
+
 # Check registry: (group, function). --select runs one group; the groups
 # are documented in the verify --help text.
 CHECKS: List[Tuple[str, Any]] = [
@@ -1942,6 +2221,7 @@ CHECKS: List[Tuple[str, Any]] = [
     ("policy", check_root_self_lock),
     ("policy", check_agents_authority),
     ("policy", check_manifest_integrity),
+    ("policy", check_capability_registry),
     ("policy", check_test_justifications),
     ("lean", check_forbidden_artifacts),
     ("lean", check_agents_line_budget),

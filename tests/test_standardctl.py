@@ -1302,6 +1302,57 @@ class CapabilityRegistry(FixtureCase):
         reg_ids = {r["Capability ID"] for r in records}
         self.assertEqual(reg_ids, set(ids))
 
+    def test_registry_rejects_duplicate_id(self):
+        """Protects ID uniqueness; catches a duplicated capability ID."""
+        root = self.std_fixture()
+        import json
+        path = root / "Canonical" / "capabilities.json"
+        records = json.loads(path.read_text(encoding="utf-8"))
+        records.append(dict(records[0]))
+        path.write_text(json.dumps(records, indent=2), encoding="utf-8")
+        findings = standardctl.check_capability_registry(self.model(root))
+        self.assertIn("capability-registry", check_ids(findings))
+
+    def test_registry_rejects_missing_id(self):
+        """Protects completeness; catches a silently dropped capability."""
+        root = self.std_fixture()
+        import json
+        path = root / "Canonical" / "capabilities.json"
+        records = json.loads(path.read_text(encoding="utf-8"))
+        path.write_text(json.dumps(records[1:], indent=2), encoding="utf-8")
+        findings = standardctl.check_capability_registry(self.model(root))
+        self.assertIn("capability-registry", check_ids(findings))
+
+    def test_registry_rejects_missing_required_field(self):
+        """Protects the canary/metric/eject firewall; catches a record
+        missing Metric."""
+        root = self.std_fixture()
+        import json
+        path = root / "Canonical" / "capabilities.json"
+        records = json.loads(path.read_text(encoding="utf-8"))
+        del records[0]["Metric"]
+        path.write_text(json.dumps(records, indent=2), encoding="utf-8")
+        findings = standardctl.check_capability_registry(self.model(root))
+        self.assertIn("capability-registry", check_ids(findings))
+
+    def test_registry_rejects_stale_generated_view(self):
+        """Protects view freshness; catches a generated view older than
+        its source."""
+        root = self.std_fixture()
+        view = root / "Canonical" / "generated" / "by-category.md"
+        view.write_text(view.read_text(encoding="utf-8") + "\nStale.\n",
+                        encoding="utf-8")
+        findings = standardctl.check_capability_registry(self.model(root))
+        self.assertIn("stale-capability-view", check_ids(findings))
+
+    def test_registry_accepts_clean_tree(self):
+        """Protects the positive path; catches a check that can never
+        pass."""
+        findings = standardctl.check_capability_registry(
+            standardctl.RepoModel(WORKTREE))
+        errors = [f for f in findings if f.severity == "error"]
+        self.assertEqual([], errors)
+
 
 if __name__ == "__main__":
     unittest.main()
