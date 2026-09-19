@@ -1,0 +1,64 @@
+{
+  "_frozen": true,
+  "_provenance": "Stage 31 #122 (mold-qualification meta-tests). Hand-authored, adjudicated oracle: every entry's expected_repairs must equal tools/meta_tests.check_meta(entry.claims). IDs (mold-qual.<class>.<nn>) are stable; never renumber, never repurpose.",
+  "entries": [
+    {
+      "claims": {
+        "controls_expected": ["mold-qual.control.red", "mold-qual.control.receipt"],
+        "controls_run": ["mold-qual.control.red", "mold-qual.control.receipt"],
+        "hash_pairs": [
+          {"actual": "abc123", "expected": "abc123", "path": "Canonical/corpus/mold-qualification/adversarial.json"}
+        ],
+        "production_writes": ["tools/mold_qualification.py", "tests/test_standardctl.py", "Canonical/corpus/mold-qualification/adversarial.json"],
+        "protected_paths": ["src/protected-impl.py"]
+      },
+      "expected_repairs": [],
+      "id": "mold-qual.meta.01",
+      "note": "Control: tools/tests/corpus writes only, both controls ran, hashes match, so the session is clean."
+    },
+    {
+      "claims": {
+        "controls_expected": ["mold-qual.control.red"],
+        "controls_run": ["mold-qual.control.red"],
+        "hash_pairs": [],
+        "production_writes": ["tools/mold_qualification.py", "src/ship.py"],
+        "protected_paths": ["src/protected-impl.py"]
+      },
+      "expected_repairs": [
+        "production write 'src/ship.py': Arc A authorizes no production writes (forbidden prefixes: src/, packages/, apps/, services/)"
+      ],
+      "id": "mold-qual.meta.02",
+      "note": "Judged production write: src/ship.py sits under the frozen src/ prefix, so the session is rejected."
+    },
+    {
+      "claims": {
+        "controls_expected": ["mold-qual.control.red", "mold-qual.control.receipt"],
+        "controls_run": ["mold-qual.control.red"],
+        "hash_pairs": [],
+        "production_writes": ["tools/mold_qualification.py"],
+        "protected_paths": ["src/protected-impl.py"]
+      },
+      "expected_repairs": [
+        "missing control 'mold-qual.control.receipt': the expected control canary did not run; execute it and record it"
+      ],
+      "id": "mold-qual.meta.03",
+      "note": "Judged missing control: the receipt control never ran, so the session is rejected."
+    },
+    {
+      "claims": {
+        "controls_expected": [],
+        "controls_run": [],
+        "hash_pairs": [
+          {"actual": "deadbeef", "expected": "abc123", "path": "Canonical/corpus/mold-qualification/adversarial.json"}
+        ],
+        "production_writes": ["tools/mold_qualification.py"],
+        "protected_paths": []
+      },
+      "expected_repairs": [
+        "hash mismatch for 'Canonical/corpus/mold-qualification/adversarial.json': expected 'abc123' != actual 'deadbeef'; the artifact changed after recording"
+      ],
+      "id": "mold-qual.meta.04",
+      "note": "Judged hash mismatch: the recorded digest differs from the actual artifact, so the session is rejected."
+    }
+  ]
+}

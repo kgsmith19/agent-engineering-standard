@@ -1,0 +1,523 @@
+{
+  "_frozen": true,
+  "_provenance": "Stage 31 #122 (mold-qualification). Hand-authored, adjudicated oracle: every entry's expected_rules and expected_verdict must equal the output of tools/mold_qualification.qualify(entry.run) — rejected or qualified-with-receipt. IDs (mold-qual.<class>.<nn>) are stable; never renumber, never repurpose.",
+  "entries": [
+    {
+      "expected_rules": ["hard_coded_example"],
+      "expected_verdict": "rejected",
+      "id": "mold-qual.hard-coded.01",
+      "note": "Judged hard-coded: t-red shows true RED, but t-hard asserts one literal total with no variation, so the oracle cannot generalize.",
+      "run": {
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mold": "demo-mold",
+        "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "provider": "anthropic/claude",
+        "risk": "R3",
+        "tests": [
+          {
+            "alternative_impl_ok": true,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-red",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "expected total 42, observed 41 on the externally visible summary",
+            "status": "failed",
+            "swallows_errors": false
+          },
+          {
+            "alternative_impl_ok": false,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": true,
+            "id": "t-hard",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "",
+            "status": "passed",
+            "swallows_errors": false
+          }
+        ]
+      }
+    },
+    {
+      "expected_rules": ["omitted_state"],
+      "expected_verdict": "rejected",
+      "id": "mold-qual.omitted-state.01",
+      "note": "Judged omitted: t-red shows true RED, but t-omit leaves the empty-cart dimension unexercised, so the failure shape can hide.",
+      "run": {
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mold": "demo-mold",
+        "mold_digest": "570ed18f6bab6106b9089d765f4c32682f0da78445b97218c4ec65c09de80b4f",
+        "provider": "anthropic/claude",
+        "risk": "R3",
+        "tests": [
+          {
+            "alternative_impl_ok": true,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-red",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "expected total 42, observed 41 on the externally visible summary",
+            "status": "failed",
+            "swallows_errors": false
+          },
+          {
+            "alternative_impl_ok": false,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-omit",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": true,
+            "red_reason": "",
+            "status": "passed",
+            "swallows_errors": false
+          }
+        ]
+      }
+    },
+    {
+      "expected_rules": ["swallowed_error"],
+      "expected_verdict": "rejected",
+      "id": "mold-qual.swallowed-error.01",
+      "note": "Judged swallowed: t-red shows true RED, but t-swallow wraps the behavior in try/except-pass, so failures stay invisible.",
+      "run": {
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mold": "demo-mold",
+        "mold_digest": "a52e4b296c9f1c65a5dc43a5c52ccd4f265a47757ffcde3a3aab4a29a49388ab",
+        "provider": "anthropic/claude",
+        "risk": "R3",
+        "tests": [
+          {
+            "alternative_impl_ok": true,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-red",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "expected total 42, observed 41 on the externally visible summary",
+            "status": "failed",
+            "swallows_errors": false
+          },
+          {
+            "alternative_impl_ok": false,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-swallow",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "",
+            "status": "passed",
+            "swallows_errors": true
+          }
+        ]
+      }
+    },
+    {
+      "expected_rules": ["mock_only_assertion"],
+      "expected_verdict": "rejected",
+      "id": "mold-qual.mock-only.01",
+      "note": "Judged mock-only: t-red shows true RED, but t-mock asserts the mock ledger and never the real subject.",
+      "run": {
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mold": "demo-mold",
+        "mold_digest": "f7f7681270430abca904ede732e741bd7adad29274a350aa9f05c427c58419b4",
+        "provider": "anthropic/claude",
+        "risk": "R3",
+        "tests": [
+          {
+            "alternative_impl_ok": true,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-red",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "expected total 42, observed 41 on the externally visible summary",
+            "status": "failed",
+            "swallows_errors": false
+          },
+          {
+            "alternative_impl_ok": false,
+            "asserts_mock_only": true,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-mock",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "",
+            "status": "passed",
+            "swallows_errors": false
+          }
+        ]
+      }
+    },
+    {
+      "expected_rules": ["setup_self_assertion"],
+      "expected_verdict": "rejected",
+      "id": "mold-qual.setup-self.01",
+      "note": "Judged self-assertion: t-red shows true RED, but t-setup asserts the seed the fixture itself just wrote.",
+      "run": {
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mold": "demo-mold",
+        "mold_digest": "bf085451968f5f33be1b384884c05a68689484467bdb9207113d163a2e7bc585",
+        "provider": "anthropic/claude",
+        "risk": "R3",
+        "tests": [
+          {
+            "alternative_impl_ok": true,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-red",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "expected total 42, observed 41 on the externally visible summary",
+            "status": "failed",
+            "swallows_errors": false
+          },
+          {
+            "alternative_impl_ok": false,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": true,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-setup",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "",
+            "status": "passed",
+            "swallows_errors": false
+          }
+        ]
+      }
+    },
+    {
+      "expected_rules": ["structural_failure_not_red"],
+      "expected_verdict": "rejected",
+      "id": "mold-qual.structural-not-red.01",
+      "note": "Judged structural: t-import is a fixture import crash, so it is structural failure mistaken for RED, never true RED.",
+      "run": {
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mold": "demo-mold",
+        "mold_digest": "84dbc6c59f3befd5418cc2fc843d7909e24cdd33a5bd5859f8b07cf0594925e1",
+        "provider": "anthropic/claude",
+        "risk": "R3",
+        "tests": [
+          {
+            "alternative_impl_ok": true,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-red",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "expected total 42, observed 41 on the externally visible summary",
+            "status": "failed",
+            "swallows_errors": false
+          },
+          {
+            "alternative_impl_ok": false,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-import",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": true,
+            "omits_relevant_state": false,
+            "red_reason": "ImportError: no module named helper (fixture crash)",
+            "status": "failed",
+            "swallows_errors": false
+          }
+        ]
+      }
+    },
+    {
+      "expected_rules": ["equivalent_mutant"],
+      "expected_verdict": "rejected",
+      "id": "mold-qual.equivalent-mutant.01",
+      "note": "Judged equivalent: t-red shows true RED, but t-mutant survives a behavior-preserving edit, so the oracle is mutation-blind.",
+      "run": {
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mold": "demo-mold",
+        "mold_digest": "743fe048e2f421986fbda576ad2995b209351a959ecb6d8df1d613e3082309ce",
+        "provider": "anthropic/claude",
+        "risk": "R3",
+        "tests": [
+          {
+            "alternative_impl_ok": true,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-red",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "expected total 42, observed 41 on the externally visible summary",
+            "status": "failed",
+            "swallows_errors": false
+          },
+          {
+            "alternative_impl_ok": false,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-mutant",
+            "is_equivalent_mutant": true,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "",
+            "status": "passed",
+            "swallows_errors": false
+          }
+        ]
+      }
+    },
+    {
+      "expected_rules": [],
+      "expected_verdict": "qualified",
+      "id": "mold-qual.acceptance.01",
+      "note": "Control: t-red shows true RED and t-alt accepts a genuinely valid alternative implementation, so the Mold qualifies clean with a receipt.",
+      "run": {
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mold": "demo-mold",
+        "mold_digest": "de257aa6f739051cd586a5bb6a55a6b1bb39c6f3cb845eb5defba808805faf6b",
+        "provider": "anthropic/claude",
+        "risk": "R3",
+        "tests": [
+          {
+            "alternative_impl_ok": true,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-red",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "expected total 42, observed 41 on the externally visible summary",
+            "status": "failed",
+            "swallows_errors": false
+          },
+          {
+            "alternative_impl_ok": true,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-alt",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "",
+            "status": "passed",
+            "swallows_errors": false
+          }
+        ]
+      }
+    },
+    {
+      "expected_rules": ["no_alternative_acceptance"],
+      "expected_verdict": "rejected",
+      "id": "mold-qual.no-alternative.01",
+      "note": "Judged no-alternative: t-red shows true RED but nothing accepts a valid alternative at R3, so the oracle may be overfitted.",
+      "run": {
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mold": "demo-mold",
+        "mold_digest": "f31914e4fa7165738f65c53469c48d6d6737efab5890813399c1aba4e3dbc2ed",
+        "provider": "anthropic/claude",
+        "risk": "R3",
+        "tests": [
+          {
+            "alternative_impl_ok": false,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-red",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "expected total 42, observed 41 on the externally visible summary",
+            "status": "failed",
+            "swallows_errors": false
+          },
+          {
+            "alternative_impl_ok": false,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-pass",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "",
+            "status": "passed",
+            "swallows_errors": false
+          }
+        ]
+      }
+    },
+    {
+      "expected_rules": ["no_true_red"],
+      "expected_verdict": "rejected",
+      "id": "mold-qual.no-red.01",
+      "note": "Judged no-red: t-alt accepts an alternative but no failed test shows RED for the right reason, so GREEN was never earned.",
+      "run": {
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mold": "demo-mold",
+        "mold_digest": "3b71fb54f4a9428d4c6636e93d085f88896c02ac406bd0fd9300a7e98ac93db5",
+        "provider": "anthropic/claude",
+        "risk": "R3",
+        "tests": [
+          {
+            "alternative_impl_ok": true,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-alt",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "",
+            "status": "passed",
+            "swallows_errors": false
+          },
+          {
+            "alternative_impl_ok": false,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-pass",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "",
+            "status": "passed",
+            "swallows_errors": false
+          }
+        ]
+      }
+    },
+    {
+      "expected_rules": ["empty_or_placeholder", "no_alternative_acceptance", "no_true_red", "skipped_or_filtered"],
+      "expected_verdict": "rejected",
+      "id": "mold-qual.empty-green.01",
+      "note": "Judged empty-green: t-skip never ran and t-empty covers nothing, so the run can never qualify; RED and alternative acceptance are both absent too.",
+      "run": {
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mold": "demo-mold",
+        "mold_digest": "196d28847a54de17ae5e5ef8a4b0bc5cbd889c1b152d523e9ff833758deee534",
+        "provider": "anthropic/claude",
+        "risk": "R3",
+        "tests": [
+          {
+            "alternative_impl_ok": false,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "full",
+            "hard_codes_example": false,
+            "id": "t-skip",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "",
+            "status": "skipped",
+            "swallows_errors": false
+          },
+          {
+            "alternative_impl_ok": false,
+            "asserts_mock_only": false,
+            "asserts_observable": true,
+            "asserts_setup_state": false,
+            "claims": ["claim-total"],
+            "coverage_kind": "empty",
+            "hard_codes_example": false,
+            "id": "t-empty",
+            "is_equivalent_mutant": false,
+            "is_structural_failure": false,
+            "omits_relevant_state": false,
+            "red_reason": "",
+            "status": "passed",
+            "swallows_errors": false
+          }
+        ]
+      }
+    }
+  ]
+}
