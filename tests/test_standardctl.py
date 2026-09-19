@@ -2514,5 +2514,246 @@ class ProfileCompiler(unittest.TestCase):
         self.assertEqual(["capability.skill-07"], selections[0])
 
 
+class McpProfileGovernance(unittest.TestCase):
+    """Stage 21b Standard half: the MCP/connector profile schema fields and
+    the activation contract the Stage 21a sibling mechanism must enforce.
+
+    The Standard pins the schema and the fail-closed/advisory boundary as
+    plain data; agent-extensions' ``agent_extensions.sync.mcp_governance``
+    (McpServer, fail-closed validate_activation, advisory limits,
+    record_activation) is the disjoint enforcement half and is referenced
+    read-only — never imported here, so tests stay environment-free.
+    """
+
+    def _mod(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import mcp_profile
+            return mcp_profile
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _server(self, name="srv", transport="stdio", endpoint="stdio:uvx",
+                capabilities=("search",), kind="read", schema_bytes=1024,
+                idempotent=True, activated_at=None, ttl_seconds=None, **over):
+        server = {
+            "name": name,
+            "transport": transport,
+            "endpoint": endpoint,
+            "capabilities": list(capabilities),
+            "kind": kind,
+            "schema_bytes": schema_bytes,
+            "idempotent": idempotent,
+            "activated_at": activated_at,
+            "ttl_seconds": ttl_seconds,
+        }
+        server.update(over)
+        return server
+
+    def _profile(self, active=(), candidates=(), **over):
+        profile = {
+            "standing_servers": [],
+            "active_servers": list(active),
+            "candidate_servers": list(candidates),
+            "phase": "task",
+            "provider": "local",
+            "native_capabilities": [],
+        }
+        profile.update(over)
+        return profile
+
+    def test_server_field_set_matches_stage_21a_sibling_contract(self):
+        """Protects the sibling contract; the Standard declaration carries
+        exactly the Stage 21a McpServer field set — additive-only."""
+        mod = self._mod()
+        self.assertEqual(
+            ("name", "transport", "endpoint", "capabilities", "kind",
+             "schema_bytes", "idempotent", "activated_at", "ttl_seconds"),
+            mod.SERVER_FIELDS)
+
+    def test_transport_keys_match_stage_21a_provider_manifests(self):
+        """Protects provider neutrality; the per-provider config key for an
+        http server endpoint matches the Stage 19/21a manifest contract."""
+        mod = self._mod()
+        self.assertEqual("url", mod.TRANSPORT_KEYS["claude"])
+        self.assertEqual("serverUrl", mod.TRANSPORT_KEYS["codex"])
+        self.assertEqual("serverUrl", mod.TRANSPORT_KEYS["antigravity"])
+        self.assertEqual("url", mod.TRANSPORT_KEYS["local"])
+
+    def test_profile_default_declares_zero_standing_servers(self):
+        """Protects the zero-standing default; standing servers are a
+        profile-level finding, not a tolerated state."""
+        mod = self._mod()
+        self.assertEqual({"findings": [], "warnings": []},
+                         mod.validate_profile(self._profile()))
+        profile = self._profile(
+            standing_servers=[self._server("standing")])
+        repairs = mod.validate_profile(profile)
+        self.assertTrue(any("standing" in r for r in repairs["findings"]),
+                        repairs)
+
+    def test_malformed_server_declaration_gets_repairs(self):
+        """Protects the schema; a declaration missing required fields or
+        using an unknown transport/kind is refused with repair guidance."""
+        mod = self._mod()
+        self.assertEqual([], mod.validate_server(self._server()))
+        repairs = mod.validate_server({"name": "partial"})
+        self.assertTrue(any("transport" in r for r in repairs), repairs)
+        repairs = mod.validate_server(self._server(transport="websocket"))
+        self.assertTrue(any("transport" in r for r in repairs), repairs)
+        repairs = mod.validate_server(self._server(kind="delete"))
+        self.assertTrue(any("kind" in r for r in repairs), repairs)
+
+    def test_too_many_active_servers_is_advisory_not_blocking(self):
+        """Protects the pilot posture; numeric limits stay advisory —
+        warnings only, never findings that refuse activation."""
+        mod = self._mod()
+        active = [self._server("s%d" % i) for i in range(4)]
+        result = mod.validate_activation(
+            self._server("new"), profile=self._profile(active=active))
+        self.assertEqual([], result["findings"])
+        self.assertTrue(any("advisory" in w for w in result["warnings"]))
+        result = mod.validate_profile(
+            self._profile(active=active, candidates=[
+                self._server("c%d" % i) for i in range(6)]))
+        self.assertEqual([], result["findings"])
+        self.assertTrue(any("pilot" in w for w in result["warnings"]))
+
+    def test_giant_schema_and_unused_capability_are_advisory(self):
+        """Protects footprint hygiene; a 64KiB+ schema and a candidate with
+        no capabilities warn but never block."""
+        mod = self._mod()
+        active = [self._server("big", schema_bytes=128 * 1024)]
+        candidates = [self._server("unused", capabilities=[])]
+        result = mod.validate_profile(
+            self._profile(active=active, candidates=candidates))
+        self.assertEqual([], result["findings"])
+        self.assertTrue(any(
+            "big" in w and "schema" in w for w in result["warnings"]))
+        self.assertTrue(any(
+            "unused" in w for w in result["warnings"]))
+
+    def test_duplicate_native_capability_fails_closed_native_wins(self):
+        """Protects tool footprint; a capability the provider already has
+        natively is refused — the native tool wins over the MCP server."""
+        mod = self._mod()
+        result = mod.validate_activation(
+            self._server("dup", capabilities=("search",)),
+            profile=self._profile(native_capabilities=["search"]))
+        self.assertFalse(result["findings"] == [])
+        self.assertTrue(any(
+            "duplicate capability" in f and "native" in f
+            for f in result["findings"]), result["findings"])
+
+    def test_secret_exposure_fails_closed(self):
+        """Protects secrets; a declared endpoint or capability carrying a
+        secret-shaped string is never activatable."""
+        mod = self._mod()
+        result = mod.validate_activation(
+            self._server("leaky", endpoint="https://x?p=sk-ant-abc12345"),
+            profile=self._profile())
+        self.assertTrue(any(
+            "secret exposure" in f for f in result["findings"]))
+        result = mod.validate_activation(
+            self._server("leaky2", capabilities=["key=ghp_abcdefgh12"]),
+            profile=self._profile())
+        self.assertTrue(any(
+            "secret exposure" in f for f in result["findings"]))
+
+    def test_egress_violation_fails_closed(self):
+        """Protects the egress boundary; http endpoints off the allowlist
+        are refused, allowlisted hosts pass."""
+        mod = self._mod()
+        result = mod.validate_activation(
+            self._server("wide", transport="http",
+                         endpoint="https://evil.example.com/mcp"),
+            profile=self._profile())
+        self.assertTrue(any(
+            "egress violation" in f and "evil.example.com" in f
+            for f in result["findings"]))
+        result = mod.validate_activation(
+            self._server("ok", transport="http",
+                         endpoint="https://api.anthropic.com/mcp"),
+            profile=self._profile())
+        self.assertEqual([], result["findings"])
+        self.assertIn("api.anthropic.com", mod.EGRESS_ALLOWLIST)
+
+    def test_write_connector_during_research_phase_fails_closed(self):
+        """Protects research integrity; research-phase loads refuse write
+        connectors outright, and task-phase writes must be idempotent."""
+        mod = self._mod()
+        result = mod.validate_activation(
+            self._server("writer", kind="write"),
+            profile=self._profile(phase="research"))
+        self.assertTrue(any(
+            "write connector" in f and "research" in f
+            for f in result["findings"]))
+        result = mod.validate_activation(
+            self._server("writer", kind="write", idempotent=True),
+            profile=self._profile(phase="task"))
+        self.assertEqual([], result["findings"])
+        result = mod.validate_activation(
+            self._server("writer", kind="write", idempotent=False),
+            profile=self._profile(phase="task"))
+        self.assertTrue(any(
+            "idempoten" in f for f in result["findings"]))
+
+    def test_stale_session_fails_closed(self):
+        """Protects expiry; an activation past its ttl is refused, a fresh
+        one passes, and an unparseable stamp is a finding."""
+        mod = self._mod()
+        stale = self._server(
+            "stale", activated_at="2026-01-01T00:00:00Z", ttl_seconds=60)
+        result = mod.validate_activation(stale, profile=self._profile())
+        self.assertTrue(any(
+            "stale session" in f for f in result["findings"]))
+        fresh = self._server(
+            "fresh", activated_at="2099-01-01T00:00:00Z", ttl_seconds=60)
+        result = mod.validate_activation(fresh, profile=self._profile())
+        self.assertEqual([], result["findings"])
+        broken = self._server("broken", activated_at="not-a-time",
+                              ttl_seconds=60)
+        result = mod.validate_activation(broken, profile=self._profile())
+        self.assertTrue(any(
+            "unparseable" in f for f in result["findings"]))
+
+    def test_http_server_unknown_provider_fails_closed(self):
+        """Protects the transport boundary; an http server may only target
+        a provider whose manifest declares an MCP transport key."""
+        mod = self._mod()
+        result = mod.validate_activation(
+            self._server("ghost", transport="http",
+                         endpoint="https://github.com/mcp"),
+            profile=self._profile(provider="unknown-provider"))
+        self.assertTrue(any(
+            "transport key" in f for f in result["findings"]))
+
+    def test_apply_activation_updates_capsule_and_budget(self):
+        """Protects the live update path; activation stamps the server and
+        feeds the Task Capsule active list and Context Budget count that
+        Stage 21a consumes."""
+        mod = self._mod()
+        capsule = {}
+        budget = {}
+        stamped = mod.apply_activation(
+            self._server("srv"), capsule, budget)
+        self.assertEqual("srv", stamped["name"])
+        self.assertTrue(stamped["activated_at"])
+        self.assertEqual(["srv"], capsule["active_servers"])
+        self.assertEqual(1, budget["mcp_active"])
+        mod.apply_activation(self._server("srv2"), capsule, budget)
+        self.assertEqual(2, budget["mcp_active"])
+
+    def test_ignores_declared_native_tools(self):
+        """Protects the disjoint boundary; a server whose capabilities
+        overlap nothing native activates cleanly alongside them."""
+        mod = self._mod()
+        result = mod.validate_activation(
+            self._server("clean"),
+            profile=self._profile(native_capabilities=["bash", "edit"]))
+        self.assertEqual([], result["findings"])
+
+
 if __name__ == "__main__":
     unittest.main()
