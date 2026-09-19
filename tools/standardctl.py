@@ -4292,6 +4292,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_qual.add_argument("--json", action="store_true")
     p_qual.set_defaults(func=cmd_mold_qualify)
 
+    p_port = sub.add_parser(
+        "verify-portfolio",
+        help="verification portfolio selection readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_port.add_argument(
+        "--project", default="",
+        help="path to a JSON project file; without it, validates "
+             "the frozen selection and rejection fixture sets")
+    p_port.add_argument(
+        "--corpus", default="Canonical/corpus/verification-portfolio",
+        help="frozen corpus dir holding portfolios.json for "
+             "validation mode")
+    p_port.add_argument("--json", action="store_true")
+    p_port.set_defaults(func=cmd_verify_portfolio)
+
     return parser
 
 
@@ -5193,6 +5209,89 @@ def cmd_mold_qualify(args: argparse.Namespace) -> int:
             print("  - %s" % line)
         print("  corpus: %d adversarial, %d meta, rules %s"
               % (len(adv_entries), meta_count, ", ".join(rules)))
+    return 0
+
+
+def cmd_verify_portfolio(args: argparse.Namespace) -> int:
+    """Advisory verification-portfolio readout. With --project,
+    selects that portfolio; without it, validates the frozen
+    selection oracle (every selection entry reproduces its
+    expected map and expected_total_s, rejection entries produce
+    their rule, IDs unique, all 9 selection plus 2 rejection
+    classes present) and prints findings. Always exits 0 on
+    findings — advisory never gates; only an unreadable file
+    exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import verification_portfolio
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.project:
+        try:
+            project = json.loads(
+                _Path(args.project).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("verify-portfolio: cannot load project: %s" % exc)
+            return 2
+        if not isinstance(project, dict):
+            print("verify-portfolio: project must be a JSON object")
+            return 2
+        result = verification_portfolio.select_portfolio(project)
+        findings = [
+            {"id": f["id"], "rule": f["rule"], "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "select",
+                "project": args.project,
+                "ok": result.ok,
+                "portfolio": result.portfolio,
+                "commands": result.commands,
+                "total_estimated_s": result.total_estimated_s,
+                "rationales": result.rationales,
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("verify-portfolio: %s%s" % (
+                args.project, " — OK" if not findings else " (findings)"))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"], item["finding"]))
+            print("  portfolio: %s (est %ss)"
+                  % (result.portfolio, result.total_estimated_s))
+        return 0
+    corpus_path = _Path(args.corpus) / "portfolios.json"
+    try:
+        corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("verify-portfolio: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        verification_portfolio.validate_portfolio_corpus(corpus)
+    ok = not findings
+    classes = sorted({str(e.get("class", ""))
+                      for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "classes": classes,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("verify-portfolio: %s%s" % (
+            args.corpus, " — OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, classes %s"
+              % (len(entries), ", ".join(classes)))
     return 0
 
 
