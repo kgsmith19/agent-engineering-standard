@@ -4276,6 +4276,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_role.add_argument("--json", action="store_true")
     p_role.set_defaults(func=cmd_role_authority)
 
+    p_qual = sub.add_parser(
+        "mold-qualify",
+        help="mold qualification gate readout and frozen-corpus "
+             "validation (advisory)",
+    )
+    p_qual.add_argument(
+        "--run", default="",
+        help="path to a JSON qualification-run file; without it, "
+             "validates the frozen adversarial and meta fixture sets")
+    p_qual.add_argument(
+        "--corpus", default="Canonical/corpus/mold-qualification",
+        help="frozen corpus dir holding adversarial.json and "
+             "meta.json for validation mode")
+    p_qual.add_argument("--json", action="store_true")
+    p_qual.set_defaults(func=cmd_mold_qualify)
+
     return parser
 
 
@@ -5080,6 +5096,103 @@ def cmd_role_authority(args: argparse.Namespace) -> int:
             print("  - %s" % line)
         print("  canaries: %d entries, rules %s"
               % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_mold_qualify(args: argparse.Namespace) -> int:
+    """Advisory mold-qualification readout. With --run, qualifies
+    that run file; without it, validates the frozen adversarial
+    oracle (every entry's computed rules == expected_rules,
+    verdict == expected_verdict, IDs unique) and the meta
+    fixtures (computed repairs == expected_repairs). Always
+    exits 0 on findings — advisory never gates; only an
+    unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import mold_qualification
+        import meta_tests
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.run:
+        try:
+            run = json.loads(
+                _Path(args.run).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("mold-qualify: cannot load run: %s" % exc)
+            return 2
+        if not isinstance(run, dict):
+            print("mold-qualify: run must be a JSON object")
+            return 2
+        result = mold_qualification.qualify(run)
+        findings = [
+            {"id": f["id"], "rule": f["rule"], "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "qualify",
+                "run": args.run,
+                "verdict": result.verdict,
+                "ok": result.ok,
+                "receipt": result.receipt,
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("mold-qualify: %s — %s" % (
+                args.run, result.verdict.upper()))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"], item["finding"]))
+            if result.receipt is not None:
+                print("  receipt run_digest: %s"
+                      % result.receipt["run_digest"])
+        return 0
+    corpus_dir = _Path(args.corpus)
+    try:
+        adversarial = json.loads(
+            (corpus_dir / "adversarial.json")
+            .read_text(encoding="utf-8"))
+        meta = json.loads(
+            (corpus_dir / "meta.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("mold-qualify: cannot load corpus: %s" % exc)
+        return 2
+    adv_findings, adv_entries = \
+        mold_qualification.validate_adversarial(adversarial)
+    meta_findings = meta_tests.validate_meta_corpus(meta)
+    findings = adv_findings + meta_findings
+    ok = not findings
+    meta_count = 0
+    meta_doc = meta
+    if isinstance(meta_doc, dict):
+        raw = meta_doc.get("entries")
+        meta_count = len(raw) if isinstance(raw, list) else 0
+    elif isinstance(meta_doc, list):
+        meta_count = len(meta_doc)
+    rules = sorted({str(r)
+                    for e in adv_entries if isinstance(e, dict)
+                    for r in (e.get("expected_rules") or [])})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "adversarial": len(adv_entries),
+            "meta": meta_count,
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("mold-qualify: %s%s" % (
+            args.corpus, " — OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d adversarial, %d meta, rules %s"
+              % (len(adv_entries), meta_count, ", ".join(rules)))
     return 0
 
 

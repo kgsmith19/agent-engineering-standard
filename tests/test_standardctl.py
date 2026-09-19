@@ -4481,5 +4481,493 @@ class RolePathAuthority(unittest.TestCase):
         self.assertEqual(2, proc.returncode)
 
 
+class MoldQualification(unittest.TestCase):
+    """Stage 31: mold qualification gate with digest-bound receipts.
+
+    A Verification Mold earns trust only by rejecting hard-coded
+    examples, omitted state, swallowed errors, mock-only
+    assertions, setup self-assertions, structural failures, and
+    equivalent mutants — while accepting a genuinely valid
+    alternative implementation with RED shown first. Every proof
+    point below has a dedicated test. Pure contract in
+    tools/mold_qualification.py and tools/meta_tests.py plus the
+    frozen corpus under Canonical/corpus/mold-qualification/.
+    """
+
+    RISK = "R3"
+    HEAD = HEAD_A
+    PROVIDER = "anthropic/claude"
+    MOLD = "demo-mold"
+
+    ARC_A_FILES = (
+        "tests/test_standardctl.py",
+        "tools/standardctl.py",
+        "tools/superpowers_router.py",
+        "tools/plan_lint.py",
+        "Canonical/corpus/spec-notation/README.md",
+        "Canonical/corpus/spec-notation/corpus.json",
+        "tools/spec_notation.py",
+        "Canonical/corpus/spec-critic/README.md",
+        "Canonical/corpus/spec-critic/eval.json",
+        "tools/spec_critic.py",
+        "Canonical/corpus/verification-mold/README.md",
+        "Canonical/corpus/verification-mold/negative.json",
+        "Canonical/corpus/verification-mold/positive.json",
+        "tools/verification_mold.py",
+        "Canonical/corpus/role-authority/README.md",
+        "Canonical/corpus/role-authority/canaries.json",
+        "tools/role_authority.py",
+    )
+
+    def _mq(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import mold_qualification
+            return mold_qualification
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _mt(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import meta_tests
+            return meta_tests
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_dir(self):
+        return (WORKTREE / "Canonical" / "corpus"
+                / "mold-qualification")
+
+    def _adversarial(self):
+        doc = json.loads(
+            (self._corpus_dir() / "adversarial.json")
+            .read_text(encoding="utf-8"))
+        if isinstance(doc, dict):
+            return doc["entries"]
+        return doc
+
+    def _meta(self):
+        doc = json.loads(
+            (self._corpus_dir() / "meta.json")
+            .read_text(encoding="utf-8"))
+        if isinstance(doc, dict):
+            return doc["entries"]
+        return doc
+
+    def _digest(self, name=None):
+        import hashlib
+        return hashlib.sha256(
+            (name or self.MOLD).encode("utf-8")).hexdigest()
+
+    def _test(self, tid, **overrides):
+        base = {
+            "id": tid,
+            "claims": ["claim-1"],
+            "status": "passed",
+            "red_reason": "",
+            "asserts_observable": True,
+            "swallows_errors": False,
+            "asserts_mock_only": False,
+            "asserts_setup_state": False,
+            "hard_codes_example": False,
+            "omits_relevant_state": False,
+            "is_structural_failure": False,
+            "is_equivalent_mutant": False,
+            "alternative_impl_ok": False,
+            "coverage_kind": "full",
+        }
+        base.update(overrides)
+        return base
+
+    def _red_alt(self, tid="t-red"):
+        return self._test(
+            tid, status="failed",
+            red_reason="expected total 42, observed 41 on the "
+                       "externally visible summary",
+            alternative_impl_ok=True)
+
+    def _run(self, tests, risk=None, mold=None):
+        return {
+            "mold": mold or self.MOLD,
+            "mold_digest": self._digest(mold or self.MOLD),
+            "risk": risk or self.RISK,
+            "tests": tests,
+            "provider": self.PROVIDER,
+            "head": self.HEAD,
+        }
+
+    def _rules(self, result):
+        return sorted({f["rule"] for f in result.findings})
+
+    def _assert_valid_findings(self, mod, result):
+        for finding in result.findings:
+            self.assertEqual([], mod.validate_finding(finding),
+                             finding)
+
+    def test_hard_coded_example_rejected(self):
+        """Proof 1: a test asserting one literal example with no
+        variation trips hard_coded_example, so a Mold that only
+        checks a single hard-coded value can never qualify."""
+        mq = self._mq()
+        run = self._run([self._red_alt(),
+                         self._test("t-hard",
+                                    hard_codes_example=True)])
+        result = mq.qualify(run)
+        self.assertEqual("rejected", result.verdict)
+        self.assertIn("hard_coded_example", self._rules(result))
+        self.assertFalse(result.ok)
+        self.assertIsNone(result.receipt)
+        self.assertTrue(any("t-hard" in f["finding"]
+                            for f in result.findings))
+        self._assert_valid_findings(mq, result)
+
+    def test_omitted_state_rejected(self):
+        """Proof 2: a test leaving a failure-shape-relevant
+        dimension unexercised trips omitted_state, so partial
+        state coverage cannot pass the gate."""
+        mq = self._mq()
+        run = self._run([self._red_alt(),
+                         self._test("t-omit",
+                                    omits_relevant_state=True)])
+        result = mq.qualify(run)
+        self.assertEqual("rejected", result.verdict)
+        self.assertIn("omitted_state", self._rules(result))
+        self.assertFalse(result.ok)
+        self.assertIsNone(result.receipt)
+        self.assertTrue(any("t-omit" in f["finding"]
+                            for f in result.findings))
+        self._assert_valid_findings(mq, result)
+
+    def test_swallowed_error_rejected(self):
+        """Proof 3: a try/except-pass around the behavior under
+        test trips swallowed_error, so a Mold that hides failures
+        can never qualify."""
+        mq = self._mq()
+        run = self._run([self._red_alt(),
+                         self._test("t-swallow",
+                                    swallows_errors=True)])
+        result = mq.qualify(run)
+        self.assertEqual("rejected", result.verdict)
+        self.assertIn("swallowed_error", self._rules(result))
+        self.assertFalse(result.ok)
+        self.assertIsNone(result.receipt)
+        self.assertTrue(any("t-swallow" in f["finding"]
+                            for f in result.findings))
+        self._assert_valid_findings(mq, result)
+
+    def test_mock_only_assertion_rejected(self):
+        """Proof 4: asserting only mock state and never the real
+        subject trips mock_only_assertion, so mock-only evidence
+        cannot authorize implementation."""
+        mq = self._mq()
+        run = self._run([self._red_alt(),
+                         self._test("t-mock",
+                                    asserts_mock_only=True)])
+        result = mq.qualify(run)
+        self.assertEqual("rejected", result.verdict)
+        self.assertIn("mock_only_assertion", self._rules(result))
+        self.assertFalse(result.ok)
+        self.assertIsNone(result.receipt)
+        self.assertTrue(any("t-mock" in f["finding"]
+                            for f in result.findings))
+        self._assert_valid_findings(mq, result)
+
+    def test_setup_self_assertion_rejected(self):
+        """Proof 5: asserting state the fixture itself just wrote
+        trips setup_self_assertion, so self-fulfilling setup
+        checks cannot pass the gate."""
+        mq = self._mq()
+        run = self._run([self._red_alt(),
+                         self._test("t-setup",
+                                    asserts_setup_state=True)])
+        result = mq.qualify(run)
+        self.assertEqual("rejected", result.verdict)
+        self.assertIn("setup_self_assertion", self._rules(result))
+        self.assertFalse(result.ok)
+        self.assertIsNone(result.receipt)
+        self.assertTrue(any("t-setup" in f["finding"]
+                            for f in result.findings))
+        self._assert_valid_findings(mq, result)
+
+    def test_structural_failure_not_mistaken_for_red(self):
+        """Proof 6: a failed test that is an import error or
+        fixture crash trips structural_failure_not_red, so a
+        structural break is never mistaken for RED-for-the-right-
+        reason."""
+        mq = self._mq()
+        run = self._run([
+            self._red_alt(),
+            self._test("t-struct", status="failed",
+                       red_reason="ImportError: no module named "
+                                  "helper (setup crash)",
+                       is_structural_failure=True),
+        ])
+        result = mq.qualify(run)
+        self.assertEqual("rejected", result.verdict)
+        self.assertIn("structural_failure_not_red",
+                      self._rules(result))
+        self.assertFalse(result.ok)
+        self.assertIsNone(result.receipt)
+        self.assertTrue(any("t-struct" in f["finding"]
+                            for f in result.findings))
+        self._assert_valid_findings(mq, result)
+
+    def test_equivalent_mutant_rejected(self):
+        """Proof 7: an oracle that cannot distinguish the mutant
+        from the reference trips equivalent_mutant, so a mutation-
+        blind Mold can never qualify."""
+        mq = self._mq()
+        run = self._run([self._red_alt(),
+                         self._test("t-mutant",
+                                    is_equivalent_mutant=True)])
+        result = mq.qualify(run)
+        self.assertEqual("rejected", result.verdict)
+        self.assertIn("equivalent_mutant", self._rules(result))
+        self.assertFalse(result.ok)
+        self.assertIsNone(result.receipt)
+        self.assertTrue(any("t-mutant" in f["finding"]
+                            for f in result.findings))
+        self._assert_valid_findings(mq, result)
+
+    def test_valid_alternative_implementation_accepted(self):
+        """Proof 8: the frozen acceptance fixture qualifies clean
+        — a genuinely valid alternative implementation is
+        accepted, a receipt is issued, and its digests verify."""
+        mq = self._mq()
+        entries = {e["id"]: e for e in self._adversarial()}
+        entry = entries["mold-qual.acceptance.01"]
+        result = mq.qualify(entry["run"])
+        self.assertEqual([], self._rules(result))
+        self.assertEqual("qualified", result.verdict)
+        self.assertTrue(result.ok)
+        self.assertIsNotNone(result.receipt)
+        self.assertEqual([], mq.verify_receipt(result.receipt,
+                                               entry["run"]))
+
+    def test_empty_skipped_filtered_placeholder_never_qualify(self):
+        """Proof 9: skipped/filtered statuses and empty/
+        placeholder coverage each reject an otherwise perfect
+        run, so empty-green can never qualify."""
+        mq = self._mq()
+        variants = [
+            ("t-skipped", {"status": "skipped"},
+             "skipped_or_filtered"),
+            ("t-filtered", {"status": "filtered"},
+             "skipped_or_filtered"),
+            ("t-empty", {"coverage_kind": "empty"},
+             "empty_or_placeholder"),
+            ("t-placeholder", {"coverage_kind": "placeholder"},
+             "empty_or_placeholder"),
+        ]
+        for tid, override, rule in variants:
+            run = self._run([self._red_alt(),
+                             self._test(tid, **override)])
+            result = mq.qualify(run)
+            self.assertEqual("rejected", result.verdict, tid)
+            self.assertIn(rule, self._rules(result), tid)
+            self.assertFalse(result.ok, tid)
+            self.assertIsNone(result.receipt, tid)
+
+    def test_deterministic_repeat_agrees(self):
+        """Proof 10: qualify is a pure function of its input —
+        two calls on the same run agree on verdict and on the
+        identical receipt run_digest."""
+        mq = self._mq()
+        run = self._run([self._red_alt(),
+                         self._test("t-pass",
+                                    alternative_impl_ok=True)])
+        first = mq.qualify(run)
+        second = mq.qualify(run)
+        self.assertEqual(first.verdict, second.verdict)
+        self.assertIsNotNone(first.receipt)
+        self.assertIsNotNone(second.receipt)
+        self.assertEqual(first.receipt["run_digest"],
+                         second.receipt["run_digest"])
+        self.assertEqual(first.receipt, second.receipt)
+
+    def test_receipt_binding_verifies(self):
+        """Proof 11: verify_receipt passes on a good receipt and
+        yields repairs for a tampered mold_digest, a tampered
+        head, or tampered run content."""
+        mq = self._mq()
+        run = self._run([self._red_alt(),
+                         self._test("t-pass")])
+        result = mq.qualify(run)
+        self.assertEqual("qualified", result.verdict)
+        receipt = result.receipt
+        self.assertEqual([], mq.verify_receipt(receipt, run))
+        bad_digest = dict(receipt, mold_digest="0" * 64)
+        self.assertTrue(mq.verify_receipt(bad_digest, run),
+                        "tampered mold_digest must repair")
+        self.assertTrue(any("mold_digest" in r for r in
+                            mq.verify_receipt(bad_digest, run)))
+        bad_head = dict(receipt, head=HEAD_B)
+        self.assertTrue(any("head" in r for r in
+                            mq.verify_receipt(bad_head, run)),
+                        "tampered head must repair")
+        tampered = dict(run, provider="someone-else/other")
+        self.assertTrue(any("run_digest" in r for r in
+                            mq.verify_receipt(receipt, tampered)),
+                        "tampered run content must repair")
+
+    def test_meta_tests_reject_production_writes_missing_controls_hash_mismatch(self):
+        """Proof 12: the frozen meta fixtures decide correctly —
+        the clean session passes while a production write, a
+        missing control, and a hash mismatch each produce their
+        expected repair."""
+        mt = self._mt()
+        entries = {e["id"]: e for e in self._meta()}
+        self.assertEqual(
+            {"mold-qual.meta.01", "mold-qual.meta.02",
+             "mold-qual.meta.03", "mold-qual.meta.04"},
+            set(entries))
+        for cid, entry in sorted(entries.items()):
+            computed = mt.check_meta(entry["claims"])
+            self.assertEqual(sorted(entry["expected_repairs"]),
+                             sorted(computed), cid)
+        self.assertEqual([], mt.check_meta(
+            entries["mold-qual.meta.01"]["claims"]))
+        self.assertTrue(any("production write" in r for r in
+                            mt.check_meta(
+                                entries["mold-qual.meta.02"]
+                                ["claims"])))
+        self.assertTrue(any("missing control" in r for r in
+                            mt.check_meta(
+                                entries["mold-qual.meta.03"]
+                                ["claims"])))
+        self.assertTrue(any("hash mismatch" in r for r in
+                            mt.check_meta(
+                                entries["mold-qual.meta.04"]
+                                ["claims"])))
+
+    def test_meta_arc_a_session_is_clean(self):
+        """Proof 13: the REAL Arc A session evidence (files
+        committed by PRs #188-193) is clean under check_meta, and
+        the frozen production-prefix list is non-empty so the
+        test is not vacuous."""
+        mt = self._mt()
+        self.assertGreaterEqual(len(self.ARC_A_FILES), 10)
+        self.assertTrue(mt.PRODUCTION_PREFIXES,
+                        "frozen production prefixes must exist")
+        claims = {
+            "production_writes": list(self.ARC_A_FILES),
+            "protected_paths": ["src/protected-impl.py"],
+            "controls_run": ["mold-qual.control.red",
+                             "mold-qual.control.receipt"],
+            "controls_expected": ["mold-qual.control.red",
+                                  "mold-qual.control.receipt"],
+            "hash_pairs": [{
+                "path": "Canonical/corpus/mold-qualification/"
+                        "adversarial.json",
+                "expected": "abc123",
+                "actual": "abc123",
+            }],
+        }
+        self.assertEqual([], mt.check_meta(claims))
+
+    def test_frozen_corpus_oracle(self):
+        """Proof 14: every frozen adversarial entry computes its
+        expected rules and verdict, IDs are unique and
+        well-formed, and all rule classes are present."""
+        import re
+        mq = self._mq()
+        entries = self._adversarial()
+        self.assertGreaterEqual(len(entries), 10)
+        id_re = re.compile(r"^mold-qual\.[a-z-]+\.\d{2}$")
+        ids = []
+        covered = set()
+        for entry in entries:
+            cid = entry["id"]
+            self.assertRegex(cid, id_re)
+            ids.append(cid)
+            self.assertTrue(str(entry.get("note", "")).strip(),
+                            cid)
+            result = mq.qualify(entry["run"])
+            self.assertEqual(sorted(entry["expected_rules"]),
+                             self._rules(result), cid)
+            self.assertEqual(entry["expected_verdict"],
+                             result.verdict, cid)
+            covered.update(entry["expected_rules"])
+        self.assertEqual(len(ids), len(set(ids)))
+        for rule in ("hard_coded_example", "omitted_state",
+                     "swallowed_error", "mock_only_assertion",
+                     "setup_self_assertion",
+                     "structural_failure_not_red",
+                     "equivalent_mutant",
+                     "no_alternative_acceptance", "no_true_red",
+                     "skipped_or_filtered",
+                     "empty_or_placeholder"):
+            self.assertIn(rule, covered, rule)
+        qualified = [e for e in entries
+                     if e["expected_verdict"] == "qualified"]
+        self.assertTrue(qualified)
+        self.assertTrue(all(e["expected_rules"] == []
+                            for e in qualified))
+        findings, _ = mq.validate_adversarial(
+            json.loads((self._corpus_dir() / "adversarial.json")
+                       .read_text(encoding="utf-8")))
+        self.assertEqual([], findings)
+
+    def test_standardctl_mold_qualify_advisory_subcommand(self):
+        """Proof 15: the advisory CLI validates the real corpus
+        (ok), qualifies a --run file as JSON, exits 0 on
+        rejections, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "mold-qualify",
+             "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertGreaterEqual(payload["adversarial"], 10)
+        self.assertGreaterEqual(payload["meta"], 4)
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-run.json"
+            good_path.write_text(json.dumps(self._run(
+                [self._red_alt(), self._test("t-pass")])),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "mold-qualify", "--run", str(good_path),
+                 "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("qualified", payload["verdict"])
+            bad_path = Path(tmp) / "bad-run.json"
+            bad_path.write_text(json.dumps(self._run(
+                [self._red_alt(),
+                 self._test("t-hard",
+                            hard_codes_example=True)])),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "mold-qualify", "--run", str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "mold-qualify",
+             "--run", "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "mold-qualify",
+             "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
 if __name__ == "__main__":
     unittest.main()
