@@ -1,0 +1,158 @@
+{
+  "_frozen": true,
+  "_provenance": "Stage 30 #121 (role-authority). Hand-authored, adjudicated oracle: every entry's expected outcome must equal the decision from tools/role_authority.evaluate_canary(entry) — allowed or refused-with-expected_rule. IDs (role-authority.<class>.<nn>) are stable; never renumber, never repurpose.",
+  "entries": [
+    {
+      "expected": "refused",
+      "expected_rule": "forbidden-path",
+      "id": "role-authority.forbidden.01",
+      "note": "Judged forbidden: spec_author drafting code under src/ leaves its authorized specs/ and plans/ roots.",
+      "path": "src/ship.py",
+      "role": "spec_author"
+    },
+    {
+      "expected": "refused",
+      "expected_rule": "forbidden-path",
+      "id": "role-authority.forbidden.02",
+      "note": "Judged forbidden: spec_critic may write only critic findings, never implementation code.",
+      "path": "src/anything.py",
+      "role": "spec_critic"
+    },
+    {
+      "expected": "refused",
+      "expected_rule": "forbidden-path",
+      "id": "role-authority.forbidden.03",
+      "note": "Judged forbidden: mold_designer drafting molds must not touch implementation sources.",
+      "path": "src/mold.py",
+      "role": "mold_designer"
+    },
+    {
+      "expected": "refused",
+      "expected_rule": "forbidden-path",
+      "id": "role-authority.forbidden.04",
+      "note": "Judged forbidden: mold_qualifier verdicts live under evidence/qualification/, never tools/.",
+      "path": "tools/standardctl.py",
+      "role": "mold_qualifier"
+    },
+    {
+      "expected": "refused",
+      "expected_rule": "forbidden-path",
+      "id": "role-authority.forbidden.05",
+      "note": "Judged forbidden: builder implementation roots exclude Canonical/ contract state.",
+      "path": "Canonical/sibling-contract.json",
+      "role": "builder"
+    },
+    {
+      "expected": "refused",
+      "expected_rule": "forbidden-path",
+      "id": "role-authority.forbidden.06",
+      "note": "Judged forbidden: verifier touching src/ is self-review contamination; verdicts only.",
+      "path": "src/fix.py",
+      "role": "verifier"
+    },
+    {
+      "expected": "refused",
+      "expected_rule": "forbidden-path",
+      "id": "role-authority.forbidden.07",
+      "note": "Judged forbidden: reviewer verdicts live under evidence/review/, never tools/.",
+      "path": "tools/x.py",
+      "role": "reviewer"
+    },
+    {
+      "expected": "refused",
+      "expected_rule": "forbidden-path",
+      "id": "role-authority.forbidden.08",
+      "note": "Judged forbidden: remediator scope covers src/ and remediation evidence, never tools/.",
+      "path": "tools/standardctl.py",
+      "role": "remediator"
+    },
+    {
+      "expected": "refused",
+      "expected_rule": "frozen-root",
+      "id": "role-authority.frozen.01",
+      "note": "Judged frozen: builder drafting under Canonical/corpus/ hits the immutable frozen root.",
+      "path": "Canonical/corpus/spec-notation/corpus.json",
+      "role": "builder"
+    },
+    {
+      "expected": "refused",
+      "expected_rule": "path-traversal",
+      "id": "role-authority.traversal.01",
+      "note": "Judged traversal: leading .. escapes the root and is refused before any root check.",
+      "path": "../Canonical/schemas/x",
+      "role": "builder"
+    },
+    {
+      "expected": "refused",
+      "expected_rule": "self-promotion",
+      "id": "role-authority.self-promotion.01",
+      "note": "Judged self-promotion: a builder receipt presented for a verifier write cannot authorize it.",
+      "path": "evidence/verification/report.json",
+      "receipt_role": "builder",
+      "role": "verifier"
+    },
+    {
+      "expected": "refused",
+      "expected_rule": "stale-receipt",
+      "id": "role-authority.stale.01",
+      "note": "Judged stale: receipt head b*40 differs from current head a*40, so the write is blocked.",
+      "current_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path": "src/fix.py",
+      "receipt_head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "role": "builder"
+    },
+    {
+      "expected": "refused",
+      "expected_rule": "no-receipt",
+      "id": "role-authority.inheritance.01",
+      "note": "Judged escalation refused: a verifier-only parent cannot delegate a builder receipt to its child.",
+      "parent_roles": [
+        "verifier"
+      ],
+      "path": "src/fix.py",
+      "role": "builder"
+    },
+    {
+      "expected": "refused",
+      "expected_rule": "owner-override",
+      "id": "role-authority.override.01",
+      "note": "Judged refused: an override with an empty scope is vague, never an explicit owner decision.",
+      "override": {
+        "decision": "allow hotfix landing",
+        "owner": "kgsmith19",
+        "scope": ""
+      },
+      "path": "src/fix.py",
+      "role": "builder"
+    },
+    {
+      "expected": "allowed",
+      "expected_rule": "owner-override",
+      "id": "role-authority.override.02",
+      "note": "Control: a fully explicit owner override (owner, decision, scope) is honored, never implicit.",
+      "override": {
+        "decision": "allow hotfix landing",
+        "owner": "kgsmith19",
+        "scope": "issue-121 src/fix.py"
+      },
+      "path": "src/fix.py",
+      "role": "builder"
+    },
+    {
+      "expected": "allowed",
+      "expected_rule": "write-root",
+      "id": "role-authority.control.01",
+      "note": "Control: builder writing src/fix.py sits inside its authorized src/ implementation root.",
+      "path": "src/fix.py",
+      "role": "builder"
+    },
+    {
+      "expected": "allowed",
+      "expected_rule": "write-root",
+      "id": "role-authority.control.02",
+      "note": "Control: verifier writing evidence/verification/report.json sits inside its verdict root.",
+      "path": "evidence/verification/report.json",
+      "role": "verifier"
+    }
+  ]
+}

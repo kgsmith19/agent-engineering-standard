@@ -4258,6 +4258,24 @@ def build_parser() -> argparse.ArgumentParser:
     p_mold.add_argument("--json", action="store_true")
     p_mold.set_defaults(func=cmd_verification_mold)
 
+    p_role = sub.add_parser(
+        "role-authority",
+        help="verification role path-authority readout and "
+             "frozen-canary validation (advisory)",
+    )
+    p_role.add_argument(
+        "--canaries", default="Canonical/corpus/role-authority",
+        help="frozen corpus dir holding canaries.json for "
+             "validation mode")
+    p_role.add_argument("--role", default="",
+                        help="role for one-off authorize")
+    p_role.add_argument("--path", default="",
+                        help="path for one-off authorize")
+    p_role.add_argument("--head", default="",
+                        help="head for the self-issued fresh receipt")
+    p_role.add_argument("--json", action="store_true")
+    p_role.set_defaults(func=cmd_role_authority)
+
     return parser
 
 
@@ -4992,6 +5010,76 @@ def cmd_thinness(args: argparse.Namespace) -> int:
             print("  - %s" % line)
         if result["split_recommended"]:
             print("  split recommended")
+    return 0
+
+
+def cmd_role_authority(args: argparse.Namespace) -> int:
+    """Advisory role path-authority readout."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import role_authority
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.role and args.path:
+        import subprocess as _sp
+        head = args.head
+        if not head:
+            proc = _sp.run(["git", "rev-parse", "HEAD"],
+                           capture_output=True, text=True)
+            head = (proc.stdout.strip() if proc.returncode == 0
+                    else "canary-head")
+        receipt = role_authority.issue_receipt(
+            args.role, "cli-agent", "cli/provider", head, 1)
+        decision = role_authority.check_write(
+            args.role, [receipt], args.path, current_head=head)
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "authorize",
+                "role": args.role,
+                "path": args.path,
+                "head": head,
+                "allowed": decision.allowed,
+                "rule": decision.rule,
+                "finding": decision.finding,
+            }, indent=2))
+        else:
+            print("role-authority: %s %s %s (%s)" % (
+                args.role, args.path,
+                "ALLOWED" if decision.allowed else "REFUSED",
+                decision.rule))
+            if decision.finding:
+                print("  - %s" % decision.finding["finding"])
+        return 0
+    corpus_path = _Path(args.canaries) / "canaries.json"
+    try:
+        corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("role-authority: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = role_authority.validate_canaries(corpus)
+    ok = not findings
+    rules = sorted({e.get("expected_rule", "")
+                    for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "canaries",
+            "canaries": args.canaries,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("role-authority: %s%s" % (
+            args.canaries, " — OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  canaries: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
     return 0
 
 
