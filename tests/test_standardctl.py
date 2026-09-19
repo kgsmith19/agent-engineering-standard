@@ -2969,5 +2969,269 @@ class SuperpowersRouter(unittest.TestCase):
             for f in payload["findings"]), payload["findings"])
 
 
+class PlanDisciplineLint(unittest.TestCase):
+    """Stage 26: plan-shape discipline — the lint/eval corpus proves the
+    tool rejects re-litigated approved decisions, mega-plans, layer-only
+    plans, plans with no true RED, hidden multi-PR plans, irrelevant
+    research, and ceremony on micro tasks.
+
+    Plans are plain data (a dict), never files: plans stay local and
+    gitignored, there is no permanent plan tracker, and thinness is
+    caller-supplied from tools/thinness.py (the lint never recomputes).
+    """
+
+    def _mod(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import plan_lint
+            return plan_lint
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _step(self, kind, title, **over):
+        step = {"kind": kind, "title": title}
+        step.update(over)
+        return step
+
+    def _plan(self, **over):
+        plan = {
+            "title": "one bounded behavior slice",
+            "shape": "bounded",
+            "spec_status": "none",
+            "outcomes": ["the new rule is observable at one boundary"],
+            "steps": [
+                self._step("red", "failing test for the new behavior"),
+                self._step("implement", "smallest change that passes"),
+                self._step("verify", "run the narrowest check"),
+            ],
+            "decisions": [],
+            "research_refs": [],
+            "cited_refs": [],
+            "evidence": ["the new test passes at the exact head"],
+            "thinness": 4,
+        }
+        plan.update(over)
+        return plan
+
+    def test_approved_spec_re_litigation_rejected(self):
+        """Proof 1: a plan that reopens an owner-approved decision is
+        rejected with the decision id named; the same plan without the
+        reopen lints clean."""
+        mod = self._mod()
+        plan = self._plan(
+            spec_status="owner_approved",
+            decisions=[{"id": "D1", "approved": True, "reopen": True}],
+        )
+        findings = mod.lint(plan)
+        self.assertTrue(any(
+            "re-litigates owner-approved decision D1" in f
+            for f in findings), findings)
+        self.assertTrue(any(
+            "approved decisions are inputs, not proposals" in f
+            for f in findings), findings)
+        clean = self._plan(
+            spec_status="owner_approved",
+            decisions=[{"id": "D1", "approved": True}],
+        )
+        self.assertEqual([], mod.lint(clean))
+
+    def test_mega_plan_rejected(self):
+        """Proof 2: a 30-step bounded plan is a mega-plan and must split;
+        a plan within the thin-slice cap lints clean."""
+        mod = self._mod()
+        mega = self._plan(
+            steps=[self._step("verify", "step %d" % i) for i in range(30)],
+        )
+        findings = mod.lint(mega)
+        self.assertTrue(any(
+            "mega-plan" in f and "split" in f for f in findings), findings)
+        self.assertEqual([], mod.lint(self._plan()))
+
+    def test_layer_only_plan_rejected(self):
+        """Proof 3: steps tagged across layers with no red step are a
+        layer-only plan (and still owe the missing true RED)."""
+        mod = self._mod()
+        plan = self._plan(steps=[
+            self._step("implement", "api change", layer="api"),
+            self._step("implement", "db change", layer="db"),
+            self._step("implement", "ui change", layer="ui"),
+        ])
+        findings = mod.lint(plan)
+        self.assertTrue(any(
+            "layer-only" in f for f in findings), findings)
+        self.assertTrue(any(
+            "no true RED" in f for f in findings), findings)
+
+    def test_plan_without_true_red_rejected(self):
+        """Proof 4: a behavior-changing plan with implement steps but no
+        red step is rejected; adding a red step before the first
+        implement step clears it."""
+        mod = self._mod()
+        plan = self._plan(steps=[
+            self._step("implement", "change the parser"),
+            self._step("verify", "run the parser tests"),
+        ])
+        findings = mod.lint(plan)
+        self.assertTrue(any(
+            "no true RED" in f for f in findings), findings)
+        red_first = self._plan(steps=[
+            self._step("red", "failing parser test"),
+            self._step("implement", "change the parser"),
+            self._step("verify", "run the parser tests"),
+        ])
+        self.assertEqual([], mod.lint(red_first))
+
+    def test_multi_pr_plan_rejected(self):
+        """Proof 5: two declared outcomes hide two independent PRs; the
+        plan must split."""
+        mod = self._mod()
+        plan = self._plan(outcomes=["add feature A", "add feature B"])
+        findings = mod.lint(plan)
+        self.assertTrue(any(
+            "hides 2 independent PRs" in f and "split" in f
+            for f in findings), findings)
+
+    def test_irrelevant_research_rejected(self):
+        """Proof 6: an injected research ref no step cites is irrelevant
+        research; a cited ref lints clean."""
+        mod = self._mod()
+        plan = self._plan(
+            research_refs=["unrelated industry survey"],
+            steps=[
+                self._step("red", "failing test"),
+                self._step("implement", "the change"),
+            ],
+        )
+        findings = mod.lint(plan)
+        self.assertTrue(any(
+            "irrelevant research" in f and "unrelated industry survey" in f
+            for f in findings), findings)
+        cited = self._plan(
+            research_refs=["profiling report"],
+            steps=[
+                self._step("red", "failing test",
+                           cites=["profiling report"]),
+                self._step("implement", "the change"),
+            ],
+        )
+        self.assertEqual([], mod.lint(cited))
+
+    def test_micro_task_ceremony_rejected(self):
+        """Proof 7: a micro plan (MICRO_STEPS or fewer steps) imposing
+        more than the narrowest check is ceremony; minimal evidence lints
+        clean."""
+        mod = self._mod()
+        heavy = self._plan(
+            thinness=2,
+            steps=[
+                self._step("red", "failing one-line test"),
+                self._step("implement", "one-line change"),
+            ],
+            evidence=["full regression matrix", "benchmark report",
+                      "manual QA transcript"],
+        )
+        findings = mod.lint(heavy)
+        self.assertTrue(any("ceremony" in f for f in findings), findings)
+        minimal = self._plan(
+            thinness=2,
+            steps=[
+                self._step("red", "failing check"),
+                self._step("implement", "one-line fix"),
+            ],
+            evidence=["the failing check now passes"],
+        )
+        self.assertEqual([], mod.lint(minimal))
+
+    def test_entry_rule_micro_and_approved_spec(self):
+        """Protects the entry rule: micro tasks get no plan and minimal
+        ceremony; an owner-approved spec routes to execution planning
+        with an explicit do-not-re-open-design note."""
+        mod = self._mod()
+        rule = mod.entry_rule(
+            {"thinness": 2, "spec_status": "none",
+             "behavior_change": False})
+        self.assertEqual("none", rule["plan_shape"])
+        self.assertEqual("minimal", rule["ceremony"])
+        rule = mod.entry_rule(
+            {"thinness": 5, "spec_status": "owner_approved",
+             "behavior_change": True})
+        self.assertEqual("bounded", rule["plan_shape"])
+        self.assertTrue(any(
+            "owner-approved" in n and "do not re-open design" in n
+            for n in rule["notes"]), rule["notes"])
+
+    def test_spike_shape_contract(self):
+        """Protects the spike shape: red/implement steps are a
+        misdeclaration (spikes produce findings, not shippable code); a
+        pure research spike with a short findings note lints clean."""
+        mod = self._mod()
+        misdeclared = self._plan(
+            shape="spike",
+            outcomes=[],
+            steps=[self._step("implement", "build it anyway")],
+        )
+        findings = mod.lint(misdeclared)
+        self.assertTrue(any("misdeclared" in f for f in findings),
+                        findings)
+        pure = self._plan(
+            shape="spike",
+            outcomes=[],
+            steps=[self._step("research", "profile the hot path")],
+            evidence=["short findings note"],
+            thinness=3,
+        )
+        self.assertEqual([], mod.lint(pure))
+
+    def test_thinness_bands_match_tools_thinness(self):
+        """Protects threshold reuse; the plan bands map
+        tools/thinness.py classify() one-to-one across 0-12."""
+        mod = self._mod()
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            from thinness import classify
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+        mapping = {"micro": "micro", "preferred": "preferred",
+                   "medium": "split-required",
+                   "large": "never-one-Builder"}
+        for total in range(13):
+            self.assertEqual(mapping[classify(total)], mod.band(total))
+
+    def test_standardctl_plan_lint_advisory_subcommand(self):
+        """Protects the advisory CLI; the subcommand exits 0 and emits
+        the lint JSON — findings included, since advisory never gates."""
+        plan_path = Path(tempfile.mkdtemp()) / "plan.json"
+        plan_path.write_text(json.dumps(self._plan()), encoding="utf-8")
+        self.addCleanup(shutil.rmtree, str(plan_path.parent), True)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "plan-lint",
+             "--plan", str(plan_path), "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertEqual("bounded", payload["shape"])
+        self.assertEqual([], payload["findings"])
+        self.assertTrue(payload["ok"])
+        bad = Path(tempfile.mkdtemp()) / "bad.json"
+        bad.write_text(json.dumps(self._plan(outcomes=["a", "b"])),
+                       encoding="utf-8")
+        self.addCleanup(shutil.rmtree, str(bad.parent), True)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "plan-lint",
+             "--plan", str(bad), "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertFalse(payload["ok"])
+        self.assertTrue(any(
+            "hides 2 independent PRs" in f for f in payload["findings"]),
+            payload["findings"])
+
+
 if __name__ == "__main__":
     unittest.main()

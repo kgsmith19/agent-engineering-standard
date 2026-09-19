@@ -4196,6 +4196,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_route.add_argument("--json", action="store_true")
     p_route.set_defaults(func=cmd_superpowers_route)
 
+    p_planlint = sub.add_parser(
+        "plan-lint",
+        help="lint a local JSON plan for shape discipline (advisory)",
+    )
+    p_planlint.add_argument(
+        "--plan", required=True,
+        help="path to a JSON plan file; plans stay local/gitignored and "
+             "are read only at your request",
+    )
+    p_planlint.add_argument("--json", action="store_true")
+    p_planlint.set_defaults(func=cmd_plan_lint)
+
     return parser
 
 
@@ -4609,6 +4621,45 @@ def cmd_superpowers_route(args: argparse.Namespace) -> int:
         for d in result.selected:
             print("  selected: %s (%s)" % (d.get("semantic_id"),
                                            d.get("name")))
+    return 0
+
+
+def cmd_plan_lint(args: argparse.Namespace) -> int:
+    """Advisory plan-shape lint. Always exits 0 on a readable plan —
+    findings never gate. Reads one user-supplied JSON plan file; plans
+    stay local/gitignored and nothing is tracked or persisted."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        from plan_lint import lint
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    try:
+        plan = json.loads(
+            _Path(args.plan).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("plan-lint: cannot load plan: %s" % exc)
+        return 2
+    if not isinstance(plan, dict):
+        print("plan-lint: plan must be a JSON object")
+        return 2
+    findings = lint(plan)
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "plan": args.plan,
+            "title": plan.get("title", ""),
+            "shape": plan.get("shape", ""),
+            "findings": findings,
+            "ok": not findings,
+        }, indent=2))
+    else:
+        print("plan-lint: %s (%s)%s" % (
+            plan.get("title", "<untitled>"), plan.get("shape", "?"),
+            "" if findings else " — OK"))
+        for line in findings:
+            print("  - %s" % line)
     return 0
 
 
