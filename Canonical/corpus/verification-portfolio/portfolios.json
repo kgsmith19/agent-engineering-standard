@@ -1,0 +1,169 @@
+{
+  "_frozen": true,
+  "_provenance": "Stage 32 #123 (verification-portfolio). Hand-authored, adjudicated oracle: every selection entry's expected map and expected_total_s must equal the output of tools/verification_portfolio.select_portfolio(entry.project); rejection entries must produce their rule. IDs (verify-portfolio.<class>.<nn>) are stable; never renumber, never repurpose.",
+  "entries": [
+    {
+      "id": "verify-portfolio.js.01",
+      "class": "js",
+      "note": "Judged cheapest-capable: js-stack generic crud claim selects example_based with an npm-test-family command.",
+      "budget": 60,
+      "project": {
+        "stack": "js",
+        "claims": [{"id": "c-js-1", "failure_shape": "crud", "risk": "R2", "kind": "generic"}],
+        "commands": {"example_based": "npm test -- --grep example_based"},
+        "runtime_budget_s": 60
+      },
+      "expected": {"c-js-1": ["example_based"]},
+      "expected_total_s": 5
+    },
+    {
+      "id": "verify-portfolio.python.01",
+      "class": "python",
+      "note": "Judged cheapest-capable: python-stack generic crud claim selects example_based with a pytest-family command.",
+      "budget": 60,
+      "project": {
+        "stack": "python",
+        "claims": [{"id": "c-py-1", "failure_shape": "crud", "risk": "R2", "kind": "generic"}],
+        "commands": {"example_based": "pytest -m example_based"},
+        "runtime_budget_s": 60
+      },
+      "expected": {"c-py-1": ["example_based"]},
+      "expected_total_s": 5
+    },
+    {
+      "id": "verify-portfolio.dotnet.01",
+      "class": "dotnet",
+      "note": "Judged cheapest-capable: dotnet-stack generic crud claim selects example_based with a dotnet-test-family command.",
+      "budget": 60,
+      "project": {
+        "stack": "dotnet",
+        "claims": [{"id": "c-dotnet-1", "failure_shape": "crud", "risk": "R2", "kind": "generic"}],
+        "commands": {"example_based": "dotnet test --filter ExampleBased"},
+        "runtime_budget_s": 60
+      },
+      "expected": {"c-dotnet-1": ["example_based"]},
+      "expected_total_s": 5
+    },
+    {
+      "id": "verify-portfolio.mixed.01",
+      "class": "mixed",
+      "note": "Judged cheapest-capable: mixed-stack crud plus workflow claims select example_based plus scenario_test with commands from two families.",
+      "budget": 120,
+      "project": {
+        "stack": "mixed",
+        "claims": [
+          {"id": "m-1", "failure_shape": "crud", "risk": "R2", "kind": "generic"},
+          {"id": "m-2", "failure_shape": "workflow", "risk": "R2", "kind": "generic"}
+        ],
+        "commands": {
+          "example_based": "pytest -m example_based",
+          "scenario_test": "npm test -- --grep scenario_test"
+        },
+        "runtime_budget_s": 120
+      },
+      "expected": {"m-1": ["example_based"], "m-2": ["scenario_test"]},
+      "expected_total_s": 25
+    },
+    {
+      "id": "verify-portfolio.parser.01",
+      "class": "parser",
+      "note": "Judged property/fuzz-heavy: parser-kind claim selects property_based plus fuzz for grammar-shaped failures.",
+      "budget": 300,
+      "project": {
+        "stack": "python",
+        "claims": [{"id": "p-1", "failure_shape": "parse", "risk": "R2", "kind": "parser"}],
+        "commands": {
+          "property_based": "pytest -m property_based",
+          "fuzz": "hypothesis fuzz corpus/"
+        },
+        "runtime_budget_s": 300
+      },
+      "expected": {"p-1": ["property_based", "fuzz"]},
+      "expected_total_s": 210
+    },
+    {
+      "id": "verify-portfolio.adapter.01",
+      "class": "adapter",
+      "note": "Judged contract-heavy: adapter-kind claim selects contract_test plus example_based for interface promises.",
+      "budget": 60,
+      "project": {
+        "stack": "python",
+        "claims": [{"id": "a-1", "failure_shape": "adapter", "risk": "R2", "kind": "adapter"}],
+        "commands": {
+          "contract_test": "pytest -m contract_test",
+          "example_based": "pytest -m example_based"
+        },
+        "runtime_budget_s": 60
+      },
+      "expected": {"a-1": ["contract_test", "example_based"]},
+      "expected_total_s": 20
+    },
+    {
+      "id": "verify-portfolio.ui.01",
+      "class": "ui",
+      "note": "Judged focused E2E: ui-kind claim selects exactly one e2e technique, never a full suite.",
+      "budget": 120,
+      "project": {
+        "stack": "js",
+        "claims": [{"id": "u-1", "failure_shape": "ui", "risk": "R2", "kind": "ui"}],
+        "commands": {"e2e_focused": "npx playwright test --focused"},
+        "runtime_budget_s": 120
+      },
+      "expected": {"u-1": ["e2e_focused"]},
+      "expected_total_s": 90
+    },
+    {
+      "id": "verify-portfolio.auth-state-matrix.01",
+      "class": "auth-state-matrix",
+      "note": "Judged auth/state matrix: auth-kind and state-kind claims each select state_matrix plus example_based for role and state cross-products.",
+      "budget": 120,
+      "project": {
+        "stack": "python",
+        "claims": [
+          {"id": "a-1", "failure_shape": "auth", "risk": "R2", "kind": "auth"},
+          {"id": "s-1", "failure_shape": "state", "risk": "R2", "kind": "state"}
+        ],
+        "commands": {
+          "state_matrix": "pytest -m state_matrix",
+          "example_based": "pytest -m example_based"
+        },
+        "runtime_budget_s": 120
+      },
+      "expected": {"a-1": ["state_matrix", "example_based"], "s-1": ["state_matrix", "example_based"]},
+      "expected_total_s": 50
+    },
+    {
+      "id": "verify-portfolio.r0-docs.01",
+      "class": "r0-docs",
+      "note": "Judged trivial: R0 docs claim selects an empty portfolio with no evidence and no findings.",
+      "budget": 60,
+      "project": {
+        "stack": "python",
+        "claims": [{"id": "d-1", "failure_shape": "docs", "risk": "R0", "kind": "docs"}],
+        "commands": {},
+        "runtime_budget_s": 60
+      },
+      "expected": {"d-1": []},
+      "expected_total_s": 0
+    },
+    {
+      "id": "verify-portfolio.missing-command.01",
+      "class": "missing-command",
+      "note": "Judged missing: parser-kind portfolio selects fuzz but the project provides no fuzz command, so a no-op can never satisfy it.",
+      "project": {
+        "stack": "python",
+        "claims": [{"id": "p-mc-1", "failure_shape": "parse", "risk": "R2", "kind": "parser"}],
+        "commands": {"property_based": "pytest -m property_based"},
+        "runtime_budget_s": 300
+      },
+      "expected_rule": "missing_command"
+    },
+    {
+      "id": "verify-portfolio.excessive-portfolio.01",
+      "class": "excessive-portfolio",
+      "note": "Judged excessive: one claim forced through four techniques trips the never-force-everything guard.",
+      "expected": {"c-big-1": ["example_based", "property_based", "contract_test", "scenario_test"]},
+      "expected_rule": "excessive_portfolio"
+    }
+  ]
+}

@@ -4969,5 +4969,484 @@ class MoldQualification(unittest.TestCase):
         self.assertEqual(2, proc.returncode)
 
 
+class VerificationPortfolio(unittest.TestCase):
+    """Stage 32: verification portfolio router — cheapest evidence
+    portfolio capable of disproving each claim, selected by failure
+    shape and never by quota. Every proof point below has a dedicated
+    test. Pure contract in tools/verification_portfolio.py plus the
+    frozen corpus under Canonical/corpus/verification-portfolio/.
+    """
+
+    SELECTION_CLASSES = (
+        "js", "python", "dotnet", "mixed", "parser", "adapter",
+        "ui", "auth-state-matrix", "r0-docs",
+    )
+
+    REJECTION_CLASSES = ("missing-command", "excessive-portfolio")
+
+    def _vp(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import verification_portfolio
+            return verification_portfolio
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_dir(self):
+        return (WORKTREE / "Canonical" / "corpus"
+                / "verification-portfolio")
+
+    def _doc(self):
+        return json.loads(
+            (self._corpus_dir() / "portfolios.json")
+            .read_text(encoding="utf-8"))
+
+    def _entries(self):
+        doc = self._doc()
+        if isinstance(doc, dict):
+            return doc["entries"]
+        return doc
+
+    def _claim(self, cid, kind="generic", shape="crud",
+               risk="R2"):
+        return {"id": cid, "failure_shape": shape,
+                "risk": risk, "kind": kind}
+
+    def _project(self, stack="python", claims=None,
+                 commands=None, budget=120):
+        return {
+            "stack": stack,
+            "claims": (claims if claims is not None
+                       else [self._claim("c-1")]),
+            "commands": (commands if commands is not None
+                         else {"example_based":
+                               "pytest -m example_based"}),
+            "runtime_budget_s": budget,
+        }
+
+    def _rules(self, result):
+        return sorted({f["rule"] for f in result.findings})
+
+    def test_js_stack_selects_js_commands(self):
+        """Proof 1: a js-stack project selects its portfolio with
+        npm-test-family commands, so js evidence runs under the js
+        harness instead of a foreign one."""
+        vp = self._vp()
+        project = self._project(
+            stack="js", claims=[self._claim("c-js-1")],
+            commands={"example_based":
+                      "npm test -- --grep example_based"},
+            budget=60)
+        result = vp.select_portfolio(project)
+        self.assertEqual({"c-js-1": ["example_based"]},
+                         result.portfolio)
+        self.assertIn("npm", result.commands["example_based"])
+        self.assertEqual([], result.findings)
+        self.assertTrue(result.ok)
+
+    def test_python_stack_selects_pytest_family(self):
+        """Proof 2: a python-stack project selects its portfolio
+        with pytest-family commands, so python evidence runs under
+        pytest instead of a foreign harness."""
+        vp = self._vp()
+        project = self._project(
+            stack="python", claims=[self._claim("c-py-1")],
+            commands={"example_based":
+                      "pytest -m example_based"},
+            budget=60)
+        result = vp.select_portfolio(project)
+        self.assertEqual({"c-py-1": ["example_based"]},
+                         result.portfolio)
+        self.assertIn("pytest",
+                      result.commands["example_based"])
+        self.assertEqual([], result.findings)
+        self.assertTrue(result.ok)
+
+    def test_dotnet_stack_selects_dotnet_commands(self):
+        """Proof 3: a dotnet-stack project selects its portfolio
+        with dotnet-test-family commands, so dotnet evidence runs
+        under dotnet test instead of a foreign harness."""
+        vp = self._vp()
+        project = self._project(
+            stack="dotnet", claims=[self._claim("c-dotnet-1")],
+            commands={"example_based":
+                      "dotnet test --filter ExampleBased"},
+            budget=60)
+        result = vp.select_portfolio(project)
+        self.assertEqual({"c-dotnet-1": ["example_based"]},
+                         result.portfolio)
+        self.assertIn("dotnet", result.commands["example_based"]
+                      .lower())
+        self.assertEqual([], result.findings)
+        self.assertTrue(result.ok)
+
+    def test_mixed_stack_needs_two_families(self):
+        """Proof 4: a mixed-stack project with commands from one
+        stack family gets a repair, while commands spanning two
+        families are clean, so mixed evidence cannot silently run
+        half the stack."""
+        vp = self._vp()
+        one_family = self._project(
+            stack="mixed",
+            claims=[self._claim("m-1"),
+                    self._claim("m-2", shape="workflow")],
+            commands={"example_based": "pytest -m example_based",
+                      "scenario_test": "pytest -m scenario_test"},
+            budget=120)
+        repairs = vp.stack_ok(one_family)
+        self.assertTrue(repairs)
+        self.assertTrue(any("two families" in r for r in repairs),
+                        repairs)
+        two_families = self._project(
+            stack="mixed",
+            claims=[self._claim("m-1"),
+                    self._claim("m-2", shape="workflow")],
+            commands={"example_based": "pytest -m example_based",
+                      "scenario_test":
+                      "npm test -- --grep scenario_test"},
+            budget=120)
+        self.assertEqual([], vp.stack_ok(two_families))
+        result = vp.select_portfolio(two_families)
+        self.assertEqual([], result.findings)
+
+    def test_parser_gets_property_fuzz_heavy(self):
+        """Proof 5: a parser-kind claim selects property_based
+        plus fuzz, so grammar-shaped failures face generative and
+        exploratory coverage instead of bare examples."""
+        vp = self._vp()
+        project = self._project(
+            stack="python",
+            claims=[self._claim("p-1", kind="parser",
+                                shape="parse")],
+            commands={"property_based":
+                      "pytest -m property_based",
+                      "fuzz": "hypothesis fuzz corpus/"},
+            budget=300)
+        result = vp.select_portfolio(project)
+        self.assertEqual({"property_based", "fuzz"},
+                         set(result.portfolio["p-1"]))
+        self.assertEqual([], result.findings)
+
+    def test_adapter_gets_contract_heavy(self):
+        """Proof 6: an adapter-kind claim selects contract_test
+        plus example_based, so interface promises are pinned by
+        contracts with examples as corroboration."""
+        vp = self._vp()
+        project = self._project(
+            stack="python",
+            claims=[self._claim("a-1", kind="adapter",
+                                shape="adapter")],
+            commands={"contract_test":
+                      "pytest -m contract_test",
+                      "example_based":
+                      "pytest -m example_based"},
+            budget=60)
+        result = vp.select_portfolio(project)
+        self.assertEqual({"contract_test", "example_based"},
+                         set(result.portfolio["a-1"]))
+        self.assertEqual([], result.findings)
+
+    def test_ui_gets_focused_e2e_only(self):
+        """Proof 7: a ui-kind claim selects exactly one e2e
+        technique, so UI evidence stays a focused slice and never
+        bloats into a full-suite run."""
+        vp = self._vp()
+        project = self._project(
+            stack="js",
+            claims=[self._claim("u-1", kind="ui",
+                                shape="ui")],
+            commands={"e2e_focused":
+                      "npx playwright test --focused"},
+            budget=120)
+        result = vp.select_portfolio(project)
+        self.assertEqual(["e2e_focused"],
+                         result.portfolio["u-1"])
+        self.assertEqual(1, len(result.portfolio["u-1"]))
+
+    def test_auth_state_gets_matrix(self):
+        """Proof 8: auth-kind and state-kind claims each select
+        state_matrix plus example_based, so role and state
+        cross-products are exercised instead of spot-checked."""
+        vp = self._vp()
+        project = self._project(
+            stack="python",
+            claims=[self._claim("a-1", kind="auth",
+                                shape="auth"),
+                    self._claim("s-1", kind="state",
+                                shape="state")],
+            commands={"state_matrix":
+                      "pytest -m state_matrix",
+                      "example_based":
+                      "pytest -m example_based"},
+            budget=120)
+        result = vp.select_portfolio(project)
+        self.assertEqual({"state_matrix", "example_based"},
+                         set(result.portfolio["a-1"]))
+        self.assertEqual({"state_matrix", "example_based"},
+                         set(result.portfolio["s-1"]))
+        self.assertEqual([], result.findings)
+
+    def test_r0_docs_needs_no_portfolio(self):
+        """Proof 9: a trivial R0 docs claim selects an empty
+        portfolio with no findings, proving docs need no evidence
+        instead of forcing quota coverage onto prose."""
+        vp = self._vp()
+        project = self._project(
+            stack="python",
+            claims=[self._claim("d-1", kind="docs",
+                                shape="docs", risk="R0")],
+            commands={}, budget=60)
+        result = vp.select_portfolio(project)
+        self.assertEqual({"d-1": []}, result.portfolio)
+        self.assertEqual(0, result.total_estimated_s)
+        self.assertEqual([], result.findings)
+        self.assertTrue(result.ok)
+        self.assertIn("trivial R0 docs",
+                      result.rationales["d-1"])
+
+    def test_missing_command_rejected(self):
+        """Proof 10: a selected technique with no command — or
+        with a no-op command string — yields a missing_command
+        finding naming the technique, so a successful no-op can
+        never satisfy a selected technique."""
+        vp = self._vp()
+        project = self._project(
+            stack="python",
+            claims=[self._claim("p-mc-1", kind="parser",
+                                shape="parse")],
+            commands={"property_based":
+                      "pytest -m property_based"},
+            budget=300)
+        result = vp.select_portfolio(project)
+        self.assertIn("missing_command", self._rules(result))
+        self.assertTrue(any("fuzz" in f["finding"]
+                            for f in result.findings
+                            if f["rule"] == "missing_command"))
+        for finding in result.findings:
+            self.assertEqual([], vp.validate_finding(finding),
+                             finding)
+        for noop in ("true", "echo ok", "", ":", "exit 0"):
+            with self.subTest(noop=noop):
+                project = self._project(
+                    stack="python",
+                    claims=[self._claim("p-mc-1", kind="parser",
+                                        shape="parse")],
+                    commands={"property_based":
+                              "pytest -m property_based",
+                              "fuzz": noop},
+                    budget=300)
+                result = vp.select_portfolio(project)
+                self.assertIn("missing_command",
+                              self._rules(result), noop)
+        project = self._project(
+            stack="python",
+            claims=[self._claim("p-mc-1", kind="parser",
+                                shape="parse")],
+            commands={"property_based":
+                      "pytest -m property_based",
+                      "fuzz": "true"},
+            budget=300)
+        result = vp.select_portfolio(project)
+        self.assertTrue(
+            any("no-op command does not satisfy fuzz" in f["finding"]
+                for f in result.findings
+                if f["rule"] == "missing_command"),
+            [f["finding"] for f in result.findings])
+
+    def test_excessive_portfolio_rejected(self):
+        """Proof 11: a claim assigned more than 3 techniques — or
+        a portfolio containing all 8 — trips the excessive
+        guard, while honest selection never exceeds 2 per claim,
+        so no claim is ever forced through everything."""
+        vp = self._vp()
+        bloated = {"c-big-1": ["example_based",
+                               "property_based",
+                               "contract_test",
+                               "scenario_test"]}
+        rules = sorted({f["rule"] for f in
+                        vp.check_excessive(bloated)})
+        self.assertIn("excessive_portfolio", rules)
+        everything = {"c-all-1": list(vp.TECHNIQUES)}
+        rules = sorted({f["rule"] for f in
+                        vp.check_excessive(everything)})
+        self.assertIn("excessive_portfolio", rules)
+        self.assertEqual([], vp.check_excessive(
+            {"c-ok-1": ["property_based", "fuzz"]}))
+        project = self._project(
+            stack="python",
+            claims=[self._claim("p-1", kind="parser",
+                                shape="parse")],
+            commands={"property_based":
+                      "pytest -m property_based",
+                      "fuzz": "hypothesis fuzz corpus/"},
+            budget=300)
+        result = vp.select_portfolio(project)
+        for techs in result.portfolio.values():
+            self.assertLessEqual(len(techs), 2)
+        self.assertNotIn("excessive_portfolio",
+                         self._rules(result))
+
+    def test_budget_exceeded_fails_loud(self):
+        """Proof 12: a tiny budget with an R2 claim yields a
+        budget_exceeded finding naming the claim, yet the cheapest
+        portfolio is still assigned, so over-budget work fails
+        loud instead of silently skipping evidence."""
+        vp = self._vp()
+        project = self._project(
+            stack="python",
+            claims=[self._claim("c-budget-1")],
+            commands={"example_based":
+                      "pytest -m example_based"},
+            budget=1)
+        result = vp.select_portfolio(project)
+        self.assertIn("budget_exceeded", self._rules(result))
+        self.assertTrue(result.portfolio["c-budget-1"],
+                        "over-budget claims must keep a portfolio")
+        self.assertTrue(
+            any("c-budget-1" in f["finding"]
+                for f in result.findings
+                if f["rule"] == "budget_exceeded"),
+            [f["finding"] for f in result.findings])
+
+    def test_runtime_estimates_reported(self):
+        """Proof 13: total_estimated_s equals the frozen
+        cost-table sum over the deduplicated technique set, so
+        the reported runtime is honest instead of guessed."""
+        vp = self._vp()
+        project = self._project(
+            stack="python",
+            claims=[self._claim("p-1", kind="parser",
+                                shape="parse")],
+            commands={"property_based":
+                      "pytest -m property_based",
+                      "fuzz": "hypothesis fuzz corpus/"},
+            budget=300)
+        result = vp.select_portfolio(project)
+        self.assertEqual(
+            vp.TECHNIQUE_COST_S["property_based"]
+            + vp.TECHNIQUE_COST_S["fuzz"],
+            result.total_estimated_s)
+        mixed = self._project(
+            stack="mixed",
+            claims=[self._claim("m-1"),
+                    self._claim("m-2", shape="workflow")],
+            commands={"example_based": "pytest -m example_based",
+                      "scenario_test":
+                      "npm test -- --grep scenario_test"},
+            budget=120)
+        result = vp.select_portfolio(mixed)
+        self.assertEqual(
+            vp.TECHNIQUE_COST_S["example_based"]
+            + vp.TECHNIQUE_COST_S["scenario_test"],
+            result.total_estimated_s)
+
+    def test_frozen_corpus_oracle(self):
+        """Proof 14: every frozen corpus entry reproduces its
+        expected claim-to-techniques map and runtime total, or
+        its expected rejection rule, with unique well-formed IDs
+        and all 9 selection plus 2 rejection classes present."""
+        import re
+        vp = self._vp()
+        doc = self._doc()
+        findings, entries = vp.validate_portfolio_corpus(doc)
+        self.assertEqual([], findings)
+        self.assertGreaterEqual(len(entries), 11)
+        id_re = re.compile(r"^verify-portfolio\.[a-z0-9-]+\.\d{2}$")
+        ids = []
+        classes = set()
+        for entry in entries:
+            cid = entry["id"]
+            self.assertRegex(cid, id_re)
+            ids.append(cid)
+            classes.add(entry["class"])
+            self.assertTrue(str(entry.get("note", "")).strip(),
+                            cid)
+        self.assertEqual(len(ids), len(set(ids)))
+        for cls in self.SELECTION_CLASSES:
+            self.assertIn(cls, classes, cls)
+        for cls in self.REJECTION_CLASSES:
+            self.assertIn(cls, classes, cls)
+        by_id = {e["id"]: e for e in entries}
+        for entry in entries:
+            cid = entry["id"]
+            if entry["class"] in self.SELECTION_CLASSES:
+                result = vp.select_portfolio(entry["project"])
+                self.assertEqual(
+                    {k: set(v) for k, v in
+                     entry["expected"].items()},
+                    {k: set(v) for k, v in
+                     result.portfolio.items()}, cid)
+                self.assertEqual(entry["expected_total_s"],
+                                 result.total_estimated_s, cid)
+        missing = by_id["verify-portfolio.missing-command.01"]
+        result = vp.select_portfolio(missing["project"])
+        self.assertIn("missing_command", self._rules(result))
+        bloated = by_id["verify-portfolio.excessive-portfolio.01"]
+        guard = sorted({f["rule"] for f in
+                        vp.check_excessive(bloated["expected"])})
+        self.assertIn("excessive_portfolio", guard)
+
+    def test_standardctl_verify_portfolio_advisory_subcommand(self):
+        """Proof 15: the advisory CLI validates the real corpus
+        (ok), selects a --project file as JSON, exits 0 on
+        findings, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "verify-portfolio",
+             "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertGreaterEqual(payload["entries"], 11)
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-project.json"
+            good_path.write_text(json.dumps(self._project()),
+                                 encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "verify-portfolio", "--project", str(good_path),
+                 "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual({"c-1": ["example_based"]},
+                             payload["portfolio"])
+            bad_project = self._project(
+                stack="python",
+                claims=[self._claim("p-mc-1", kind="parser",
+                                    shape="parse")],
+                commands={"property_based":
+                          "pytest -m property_based"},
+                budget=300)
+            bad_path = Path(tmp) / "bad-project.json"
+            bad_path.write_text(json.dumps(bad_project),
+                                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "verify-portfolio", "--project", str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "verify-portfolio",
+             "--project", "no/such/project.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "verify-portfolio",
+             "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
 if __name__ == "__main__":
     unittest.main()
