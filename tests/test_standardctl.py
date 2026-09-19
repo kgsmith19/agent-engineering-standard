@@ -3474,5 +3474,327 @@ class SpecNotationSelection(unittest.TestCase):
         self.assertEqual(2, proc.returncode)
 
 
+class SpecCriticGate(unittest.TestCase):
+    """Stage 28: fresh specification critic — the frozen eval proves the
+    critic challenges tenant ambiguity, contradictory examples,
+    untestable adjectives, missing timeouts, hidden migration order,
+    overconstrained implementation, and giant Specs, while never
+    burdening compact work (the trivial-task false-positive control).
+
+    The corpus under Canonical/corpus/spec-critic/ is the frozen
+    oracle: every entry's expected_rules must equal the computed
+    critique findings, IDs are stable, and all eight classes are
+    present. The critic raises findings only — it has no write
+    authority over Specs.
+    """
+
+    CLASSES = (
+        "tenant-ambiguity", "contradictory-examples",
+        "untestable-adjective", "missing-timeout", "migration-order",
+        "overconstraint", "giant-spec", "compact-control",
+    )
+
+    def _mod(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import spec_critic
+            return spec_critic
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _eval(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus" / "spec-critic"
+             / "eval.json").read_text(encoding="utf-8"))
+
+    def _entries(self):
+        corpus = self._eval()
+        if isinstance(corpus, dict):
+            return corpus["entries"]
+        return corpus
+
+    def _base_spec(self, **overrides):
+        spec = {
+            "title": "probe spec",
+            "risk": "R2",
+            "assured": True,
+            "statements": ["The handler records each settled charge."],
+            "examples": [],
+            "criteria": ["Replays return the stored receipt."],
+            "migration_steps": [],
+            "external_calls": [],
+        }
+        spec.update(overrides)
+        return spec
+
+    def test_ambiguous_tenant_ownership_detected(self):
+        """Proof 1: a statement naming tenant/workspace without an
+        explicit owning actor is a blocker ambiguous_owner finding."""
+        mod = self._mod()
+        spec = self._base_spec(statements=[
+            "Each tenant sees only their own workspace data.",
+        ])
+        result = mod.critique(spec)
+        self.assertEqual("critiqued", result.status)
+        self.assertEqual("assured", result.scope)
+        rules = [f["rule"] for f in result.findings]
+        self.assertIn("ambiguous_owner", rules)
+        owning = self._base_spec(statements=[
+            "Each workspace is owned by a single tenant organization.",
+        ])
+        owned_rules = [f["rule"] for f in mod.critique(owning).findings]
+        self.assertNotIn("ambiguous_owner", owned_rules)
+
+    def test_contradictory_examples_detected(self):
+        """Proof 2: two examples sharing given+when but differing on
+        then is a blocker contradictory_examples finding."""
+        mod = self._mod()
+        spec = self._base_spec(examples=[
+            {"given": "charge C with key K",
+             "when": "the handler receives C twice with K",
+             "then": "the ledger holds one entry"},
+            {"given": "charge C with key K",
+             "when": "the handler receives C twice with K",
+             "then": "the ledger holds two entries"},
+        ])
+        result = mod.critique(spec)
+        rules = [f["rule"] for f in result.findings]
+        self.assertIn("contradictory_examples", rules)
+        sev = [f["severity"] for f in result.findings
+               if f["rule"] == "contradictory_examples"]
+        self.assertTrue(sev)
+        self.assertTrue(all(s == "blocker" for s in sev))
+
+    def test_untestable_adjective_detected(self):
+        """Proof 3: a vague adjective with no measurement is a major
+        untestable_adjective finding; a sentence carrying a digit/unit
+        bound (within 200 ms) does NOT trip the rule."""
+        mod = self._mod()
+        spec = self._base_spec(statements=[
+            "The dashboard loads fast for all viewers.",
+        ])
+        result = mod.critique(spec)
+        rules = [f["rule"] for f in result.findings]
+        self.assertIn("untestable_adjective", rules)
+        sev = [f["severity"] for f in result.findings
+               if f["rule"] == "untestable_adjective"]
+        self.assertTrue(all(s == "major" for s in sev))
+        measured = self._base_spec(statements=[
+            "The dashboard loads fast, within 200 ms for all viewers.",
+        ])
+        measured_rules = [f["rule"]
+                          for f in mod.critique(measured).findings]
+        self.assertNotIn("untestable_adjective", measured_rules)
+
+    def test_missing_timeout_detected(self):
+        """Proof 4: named external calls with no timeout/deadline bound
+        in any statement or criterion is a blocker missing_timeout."""
+        mod = self._mod()
+        spec = self._base_spec(
+            statements=["The handler charges the billing API."],
+            external_calls=["billing-api charge"])
+        result = mod.critique(spec)
+        rules = [f["rule"] for f in result.findings]
+        self.assertIn("missing_timeout", rules)
+        bounded = self._base_spec(
+            statements=["The handler charges the billing API "
+                        "with a 5 second timeout."],
+            external_calls=["billing-api charge"])
+        bounded_rules = [f["rule"]
+                         for f in mod.critique(bounded).findings]
+        self.assertNotIn("missing_timeout", bounded_rules)
+
+    def test_hidden_migration_order_detected(self):
+        """Proof 5: several migration steps with no before/after/order
+        /phase wording anywhere is a blocker hidden_migration_order."""
+        mod = self._mod()
+        spec = self._base_spec(
+            statements=["The migration copies user records."],
+            migration_steps=["copy user records", "copy invoice records",
+                             "switch reads to the new store"])
+        result = mod.critique(spec)
+        rules = [f["rule"] for f in result.findings]
+        self.assertIn("hidden_migration_order", rules)
+        ordered = self._base_spec(
+            statements=["The migration copies user records in two "
+                        "phases, invoices after users."],
+            migration_steps=["copy user records", "copy invoice records"])
+        ordered_rules = [f["rule"]
+                         for f in mod.critique(ordered).findings]
+        self.assertNotIn("hidden_migration_order", ordered_rules)
+
+    def test_overconstrained_implementation_detected(self):
+        """Proof 6: a criterion naming implementation artifacts
+        (Postgres/table/column) is a major overconstrained finding."""
+        mod = self._mod()
+        spec = self._base_spec(criteria=[
+            "Store the audit trail in a Postgres table "
+            "with a dedicated column.",
+        ])
+        result = mod.critique(spec)
+        rules = [f["rule"] for f in result.findings]
+        self.assertIn("overconstrained_implementation", rules)
+        sev = [f["severity"] for f in result.findings
+               if f["rule"] == "overconstrained_implementation"]
+        self.assertTrue(all(s == "major" for s in sev))
+
+    def test_giant_spec_detected(self):
+        """Proof 7: statements + criteria beyond 20 is a blocker
+        giant_spec finding telling the owner to split the Spec."""
+        mod = self._mod()
+        statements = [
+            "Behavior B%02d: the handler accepts input I%02d "
+            "and returns output O%02d." % (n, n, n) for n in range(1, 13)]
+        criteria = ["Check C%02d: input I%02d yields output O%02d."
+                    % (n, n, n) for n in range(1, 11)]
+        result = mod.critique(
+            self._base_spec(statements=statements, criteria=criteria))
+        rules = [f["rule"] for f in result.findings]
+        self.assertIn("giant_spec", rules)
+        text = " ".join(f["finding"] for f in result.findings
+                        if f["rule"] == "giant_spec").lower()
+        self.assertIn("split", text)
+
+    def test_compact_control_no_false_positive(self):
+        """False-positive control: compact scope returns skipped with
+        zero findings even when the text holds vague words; the same
+        words as assured R2 produce findings."""
+        mod = self._mod()
+        vague = ["The empty-state message loads fast and stays simple."]
+        compact = self._base_spec(risk="R1", assured=False,
+                                  statements=vague)
+        skipped = mod.critique(compact)
+        self.assertEqual("skipped", skipped.status)
+        self.assertEqual("compact", skipped.scope)
+        self.assertEqual([], skipped.findings)
+        self.assertTrue(skipped.ok)
+        assured = self._base_spec(risk="R2", assured=True,
+                                  statements=vague)
+        critiqued = mod.critique(assured)
+        self.assertEqual("critiqued", critiqued.status)
+        self.assertIn("untestable_adjective",
+                      [f["rule"] for f in critiqued.findings])
+
+    def test_gates_ready_semantics(self):
+        """Proof 8: a blocker fails ready for assured R2/R3; a
+        major-only Spec stays ready; compact work is always ready."""
+        mod = self._mod()
+        blocker = self._base_spec(statements=[
+            "Each tenant sees only their own workspace data.",
+        ])
+        ready, reasons = mod.gates_ready(blocker)
+        self.assertFalse(ready)
+        self.assertTrue(reasons)
+        major_only = self._base_spec(statements=[
+            "The dashboard loads fast for all viewers.",
+        ])
+        ready_major, reasons_major = mod.gates_ready(major_only)
+        self.assertTrue(ready_major)
+        self.assertEqual([], reasons_major)
+        compact = self._base_spec(
+            risk="R1", assured=False,
+            statements=["The empty-state message loads fast."])
+        ready_compact, reasons_compact = mod.gates_ready(compact)
+        self.assertTrue(ready_compact)
+        self.assertEqual([], reasons_compact)
+
+    def test_frozen_eval_is_oracle(self):
+        """Proof 9: every frozen eval entry's expected_rules equal the
+        computed critique rules and expected_scope equals the computed
+        scope; IDs are unique and well-formed and all 8 classes are
+        present, so the eval is a real frozen oracle."""
+        import re
+        mod = self._mod()
+        entries = self._entries()
+        self.assertGreaterEqual(len(entries), 8)
+        id_re = re.compile(r"^spec-critic\.[a-z-]+\.\d{2}$")
+        ids = [entry["id"] for entry in entries]
+        self.assertEqual(len(ids), len(set(ids)))
+        classes = set()
+        for entry in entries:
+            self.assertRegex(entry["id"], id_re)
+            cls = entry["id"].split(".")[1]
+            self.assertIn(cls, self.CLASSES)
+            classes.add(cls)
+            result = mod.critique(entry["spec"])
+            computed = sorted({f["rule"] for f in result.findings})
+            self.assertEqual(
+                sorted(entry["expected_rules"]), computed,
+                "%s: eval oracle disagrees with critique" % entry["id"])
+            self.assertEqual(
+                entry["expected_scope"], result.scope, entry["id"])
+        self.assertEqual(set(self.CLASSES), classes)
+
+    def test_finding_schema_validation(self):
+        """Proof 10: a valid finding passes validation; missing or
+        unknown fields and a bad severity each return repair
+        guidance."""
+        mod = self._mod()
+        valid = {
+            "id": "ambiguous_owner-1",
+            "rule": "ambiguous_owner",
+            "finding": "ambiguous tenant ownership: name the owner",
+            "severity": "blocker",
+            "excerpt": "Each tenant sees data.",
+        }
+        self.assertEqual([], mod.validate_finding(valid))
+        missing = {"rule": "ambiguous_owner", "severity": "blocker"}
+        self.assertTrue(mod.validate_finding(missing))
+        extra = dict(valid, surprise="extra field")
+        self.assertTrue(any("unknown field" in r
+                            for r in mod.validate_finding(extra)),
+                        mod.validate_finding(extra))
+        bad_sev = dict(valid, severity="critical")
+        self.assertTrue(any("severity" in r
+                            for r in mod.validate_finding(bad_sev)),
+                        mod.validate_finding(bad_sev))
+
+    def test_standardctl_spec_critic_advisory_subcommand(self):
+        """Protects the advisory CLI: eval mode validates the frozen
+        corpus (ok true), --spec mode returns JSON findings for a
+        flawed Spec, findings still exit 0 (advisory never gates),
+        and only an unreadable file exits 2."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "spec-critic", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(len(self._entries()), payload["entries"])
+
+        with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".json", delete=False,
+                encoding="utf-8") as handle:
+            json.dump(self._base_spec(statements=[
+                "Each tenant sees only their own workspace data.",
+            ]), handle)
+            spec_path = handle.name
+        try:
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py", "spec-critic",
+                 "--spec", spec_path, "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+        finally:
+            os.unlink(spec_path)
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertFalse(payload["ok"])
+        self.assertTrue(any(f["rule"] == "ambiguous_owner"
+                            for f in payload["findings"]),
+                        payload["findings"])
+
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "spec-critic",
+             "--spec", "no/such/spec.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
 if __name__ == "__main__":
     unittest.main()

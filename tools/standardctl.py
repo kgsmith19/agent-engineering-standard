@@ -4227,6 +4227,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_spec.add_argument("--json", action="store_true")
     p_spec.set_defaults(func=cmd_spec_notation)
 
+    p_critic = sub.add_parser(
+        "spec-critic",
+        help="fresh Spec critic readout and frozen-eval "
+             "validation (advisory)",
+    )
+    p_critic.add_argument(
+        "--spec", default="",
+        help="path to a JSON spec file; without it, validates the "
+             "frozen eval set")
+    p_critic.add_argument(
+        "--eval", default="Canonical/corpus/spec-critic/eval.json",
+        help="frozen eval path for validation mode")
+    p_critic.add_argument("--json", action="store_true")
+    p_critic.set_defaults(func=cmd_spec_critic)
+
     return parser
 
 
@@ -4759,6 +4774,90 @@ def cmd_spec_notation(args: argparse.Namespace) -> int:
                  measurements["divergent_interpretations"],
                  measurements["notation_tokens_est"],
                  measurements["plain_tokens_est"]))
+    return 0
+
+
+def cmd_spec_critic(args: argparse.Namespace) -> int:
+    """Advisory fresh-Spec critic. With --spec, critiques that spec
+    file; without it, validates the frozen eval set (every entry's
+    expected_rules must equal the computed critique rules, IDs
+    unique, all 8 classes present) and prints findings. Always exits
+    0 on findings — advisory never gates; only an unreadable file
+    exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import spec_critic
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.spec:
+        try:
+            spec = json.loads(
+                _Path(args.spec).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("spec-critic: cannot load spec: %s" % exc)
+            return 2
+        if not isinstance(spec, dict):
+            print("spec-critic: spec must be a JSON object")
+            return 2
+        result = spec_critic.critique(spec)
+        ready, reasons = spec_critic.gates_ready(spec)
+        findings = [
+            {"id": f["id"], "rule": f["rule"], "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "critique",
+                "spec": args.spec,
+                "status": result.status,
+                "scope": result.scope,
+                "ok": result.ok,
+                "ready": ready,
+                "reasons": reasons,
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("spec-critic: %s (%s)%s" % (
+                args.spec, result.status,
+                "" if findings else " — OK"))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"], item["finding"]))
+            if not ready:
+                print("  not ready: %s" % "; ".join(reasons))
+        return 0
+    try:
+        corpus = json.loads(
+            _Path(args.eval).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("spec-critic: cannot load eval: %s" % exc)
+        return 2
+    findings, entries = spec_critic.validate_eval(corpus)
+    ok = not findings
+    rules = sorted({f["rule"]
+                    for e in entries if isinstance(e, dict)
+                    for f in spec_critic.critique(
+                        e.get("spec") or {}).findings})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "eval",
+            "eval": args.eval,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("spec-critic: %s%s" % (
+            args.eval, " — OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  eval: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
     return 0
 
 
