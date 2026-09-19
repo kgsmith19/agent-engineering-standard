@@ -3796,5 +3796,364 @@ class SpecCriticGate(unittest.TestCase):
         self.assertEqual(2, proc.returncode)
 
 
+class VerificationMoldContract(unittest.TestCase):
+    """Stage 29: verification mold contract — one executable claim to
+    evidence binding per implementation slice, proved by eight frozen
+    positive molds and six rejection fixtures. The validator accepts
+    real observable evidence and rejects missing claims, duplicate
+    weak evidence, implementation-coupled oracles, mocked behavior,
+    overconstrained internals, and unobservable assertions.
+    Schema/contract only; no production implementation.
+    """
+
+    POSITIVE_CLASSES = (
+        "crud", "retry", "auth", "parser", "migration", "workflow",
+        "ui", "control-plane",
+    )
+
+    NEGATIVE_CLASSES = (
+        "missing-claim", "duplicate-weak-evidence",
+        "implementation-coupled-oracle", "mocked-behavior-under-test",
+        "overconstrained-internals", "unobservable-assertion",
+    )
+
+    TECHNIQUE_MAP = {
+        "crud": "example_based", "state": "scenario_test",
+        "auth": "example_based", "parse": "property_based",
+        "migration": "scenario_test", "workflow": "scenario_test",
+        "ui": "example_based", "control_plane": "contract_test",
+    }
+
+    def _mod(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import verification_mold
+            return verification_mold
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_dir(self):
+        return (WORKTREE / "Canonical" / "corpus"
+                / "verification-mold")
+
+    def _doc(self, name):
+        return json.loads(
+            (self._corpus_dir() / name).read_text(encoding="utf-8"))
+
+    def _positives(self):
+        doc = self._doc("positive.json")
+        if isinstance(doc, dict):
+            return doc["entries"]
+        return doc
+
+    def _negatives(self):
+        doc = self._doc("negative.json")
+        if isinstance(doc, dict):
+            return doc["entries"]
+        return doc
+
+    def _rules(self, mold):
+        mod = self._mod()
+        return sorted(
+            {f["rule"] for f in mod.critique(mold).findings})
+
+    def _severities(self, mold, rule):
+        mod = self._mod()
+        return [f["severity"]
+                for f in mod.critique(mold).findings
+                if f["rule"] == rule]
+
+    def _base_mold(self, **overrides):
+        mold = {
+            "mold": "probe-mold",
+            "slice": "probe-slice",
+            "spec_ref": "spec-probe.01",
+            "claims": [{
+                "id": "probe-claim",
+                "behavior": "the probe returns its receipt",
+                "failure_shape": "crud",
+                "risk": "R2",
+            }],
+            "tests": [{
+                "id": "probe-t1",
+                "claims": ["probe-claim"],
+                "technique": "example_based",
+                "oracle": "seeded example compared with the shown "
+                          "receipt",
+                "observable": "receipt shown to the caller",
+                "mocks": [],
+                "covers_internals": False,
+            }],
+            "evidence": [{
+                "claim": "probe-claim",
+                "kind": "test-report",
+                "source": "pytest tests/test_probe.py::test_receipt",
+            }],
+        }
+        mold.update(overrides)
+        return mold
+
+    def test_positive_molds_all_accept(self):
+        """Acceptance: every frozen positive mold validates with zero
+        findings, so the contract never rejects real observable
+        evidence."""
+        mod = self._mod()
+        positives = self._positives()
+        self.assertEqual(8, len(positives))
+        for mold in positives:
+            result = mod.critique(mold)
+            self.assertEqual([], result.findings, mold.get("mold"))
+            self.assertTrue(result.ok)
+            self.assertEqual([], mod.validate_mold(mold),
+                             mold.get("mold"))
+
+    def test_missing_claim_rejected(self):
+        """Rejection 1: a declared claim with no evidencing test is a
+        blocker missing-claim finding naming the claim."""
+        mold = self._base_mold()
+        mold["claims"].append({
+            "id": "probe-unevidenced",
+            "behavior": "the probe also files a copy",
+            "failure_shape": "crud",
+            "risk": "R2",
+        })
+        self.assertIn("missing-claim", self._rules(mold))
+        self.assertTrue(
+            all(s == "blocker"
+                for s in self._severities(mold, "missing-claim")))
+        empty_claims = self._base_mold()
+        empty_claims["tests"][0]["claims"] = []
+        self.assertIn("missing-claim", self._rules(empty_claims))
+
+    def test_duplicate_weak_evidence_rejected(self):
+        """Rejection 2: two tests asserting the same claim with the
+        same technique and identical observable text are duplicate
+        weak evidence, not corroboration."""
+        mold = self._base_mold()
+        second = dict(mold["tests"][0])
+        second["id"] = "probe-t2"
+        second["oracle"] = ("second seeded example compared with "
+                            "the shown receipt")
+        mold["tests"].append(second)
+        self.assertIn("duplicate-weak-evidence", self._rules(mold))
+        self.assertTrue(
+            all(s == "major"
+                for s in self._severities(
+                    mold, "duplicate-weak-evidence")))
+        distinct = self._base_mold()
+        other = dict(distinct["tests"][0])
+        other["id"] = "probe-t2"
+        other["observable"] = "copy filed for the auditor"
+        distinct["tests"].append(other)
+        self.assertNotIn("duplicate-weak-evidence",
+                         self._rules(distinct))
+
+    def test_implementation_coupled_oracle_rejected(self):
+        """Rejection 3: a test whose oracle names storage or library
+        artifacts (Postgres/table/column) is an implementation-coupled
+        oracle, not a behavior check."""
+        mold = self._base_mold()
+        mold["tests"][0]["oracle"] = (
+            "rows asserted in the Postgres table with the expected "
+            "column values")
+        self.assertIn("implementation-coupled-oracle",
+                      self._rules(mold))
+        self.assertTrue(
+            all(s == "major"
+                for s in self._severities(
+                    mold, "implementation-coupled-oracle")))
+
+    def test_mocked_behavior_under_test_rejected(self):
+        """Rejection 4: a test mocking the very claim it evidences
+        (mock entry equal to the claim id) proves nothing and is a
+        blocker mocked-behavior-under-test finding."""
+        mold = self._base_mold()
+        mold["tests"][0]["mocks"] = ["probe-claim"]
+        self.assertIn("mocked-behavior-under-test",
+                      self._rules(mold))
+        self.assertTrue(
+            all(s == "blocker"
+                for s in self._severities(
+                    mold, "mocked-behavior-under-test")))
+        subject = self._base_mold()
+        subject["tests"][0]["mocks"] = ["subject stand-in"]
+        self.assertIn("mocked-behavior-under-test",
+                      self._rules(subject))
+
+    def test_overconstrained_internals_rejected(self):
+        """Rejection 5: reaching into internals for a low-risk (R0)
+        claim, or asserting one claim through internals twice, is
+        overconstrained — internals exposure is not warranted."""
+        mold = self._base_mold()
+        mold["claims"][0]["risk"] = "R0"
+        mold["tests"][0]["covers_internals"] = True
+        self.assertIn("overconstrained-internals",
+                      self._rules(mold))
+        self.assertTrue(
+            all(s == "major"
+                for s in self._severities(
+                    mold, "overconstrained-internals")))
+        twice = self._base_mold()
+        twice["tests"][0]["covers_internals"] = True
+        again = dict(twice["tests"][0])
+        again["id"] = "probe-t2"
+        again["observable"] = "copy filed for the auditor"
+        twice["tests"].append(again)
+        self.assertIn("overconstrained-internals",
+                      self._rules(twice))
+
+    def test_unobservable_assertion_rejected(self):
+        """Rejection 6: a test with no observable result, or one
+        asserting a private internal (_-prefixed word), asserts
+        nothing the world can see."""
+        mold = self._base_mold()
+        mold["tests"][0]["observable"] = ""
+        self.assertIn("unobservable-assertion", self._rules(mold))
+        self.assertTrue(
+            all(s == "blocker"
+                for s in self._severities(
+                    mold, "unobservable-assertion")))
+        private = self._base_mold()
+        private["tests"][0]["observable"] = (
+            "snapshot of _cache exposed")
+        self.assertIn("unobservable-assertion",
+                      self._rules(private))
+
+    def test_unknown_claim_reference_repaired(self):
+        """Repair: a test referencing an undeclared claim id gets a
+        repair string naming the unknown id, so the binding cannot
+        silently point nowhere."""
+        mod = self._mod()
+        mold = self._base_mold()
+        mold["tests"][0]["claims"] = ["no-such-claim"]
+        repairs = mod.validate_mold(mold)
+        self.assertTrue(repairs)
+        self.assertTrue(any("no-such-claim" in r for r in repairs),
+                        repairs)
+
+    def test_technique_selection_is_frozen(self):
+        """Frozen mapping: select_technique returns the documented
+        failure-shape default for all eight shapes, so technique
+        choice is by failure shape and risk, never by quota."""
+        mod = self._mod()
+        for shape, technique in self.TECHNIQUE_MAP.items():
+            claim = {"id": "probe-%s" % shape,
+                     "behavior": "probe behavior",
+                     "failure_shape": shape, "risk": "R2"}
+            self.assertEqual(technique, mod.select_technique(claim),
+                             shape)
+
+    def test_frozen_fixtures_are_oracle(self):
+        """Oracle integrity: every negative fixture produces exactly
+        its expected_rules and positives produce none; IDs are unique
+        and well-formed and all 8 positive plus 6 negative classes are
+        present, so the corpus is a real frozen oracle."""
+        import re
+        mod = self._mod()
+        positives = self._positives()
+        negatives = self._negatives()
+        self.assertEqual(8, len(positives))
+        self.assertEqual(6, len(negatives))
+        pos_re = re.compile(r"^mold-positive\.[a-z-]+\.\d{2}$")
+        neg_re = re.compile(r"^mold-negative\.[a-z-]+\.\d{2}$")
+        ids = []
+        pos_classes = set()
+        for mold in positives:
+            mid = mold["mold"]
+            self.assertRegex(mid, pos_re)
+            ids.append(mid)
+            pos_classes.add(mid.split(".")[1])
+            self.assertEqual([], self._rules(mold), mid)
+        neg_classes = set()
+        for mold in negatives:
+            mid = mold["mold"]
+            self.assertRegex(mid, neg_re)
+            ids.append(mid)
+            neg_classes.add(mid.split(".")[1])
+            self.assertEqual(sorted(mold["expected_rules"]),
+                             self._rules(mold), mid)
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(set(self.POSITIVE_CLASSES), pos_classes)
+        self.assertEqual(set(self.NEGATIVE_CLASSES), neg_classes)
+        findings, _ = mod.validate_corpus(
+            self._doc("positive.json"), self._doc("negative.json"))
+        self.assertEqual([], findings)
+
+    def test_finding_schema_validation(self):
+        """Finding contract: a valid finding passes validation; a
+        missing field, an unknown field, and a bad severity each
+        return repair guidance."""
+        mod = self._mod()
+        valid = {
+            "id": "missing-claim-1",
+            "rule": "missing-claim",
+            "finding": "claim has no evidencing test: add one",
+            "severity": "blocker",
+            "excerpt": "probe-unevidenced",
+        }
+        self.assertEqual([], mod.validate_finding(valid))
+        missing = {"rule": "missing-claim", "severity": "blocker"}
+        self.assertTrue(mod.validate_finding(missing))
+        extra = dict(valid, surprise="extra field")
+        self.assertTrue(any("unknown field" in r
+                            for r in mod.validate_finding(extra)),
+                        mod.validate_finding(extra))
+        bad_sev = dict(valid, severity="critical")
+        self.assertTrue(any("severity" in r
+                            for r in mod.validate_finding(bad_sev)),
+                        mod.validate_finding(bad_sev))
+
+    def test_standardctl_verification_mold_advisory_subcommand(self):
+        """Protects the advisory CLI: corpus mode validates both
+        fixture sets (ok true), --mold mode returns JSON findings for
+        a flawed mold, findings still exit 0 (advisory never gates),
+        and only an unreadable file exits 2."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "verification-mold",
+             "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+
+        flawed = self._base_mold()
+        flawed["claims"].append({
+            "id": "probe-unevidenced",
+            "behavior": "the probe also files a copy",
+            "failure_shape": "crud",
+            "risk": "R2",
+        })
+        with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".json", delete=False,
+                encoding="utf-8") as handle:
+            json.dump(flawed, handle)
+            mold_path = handle.name
+        try:
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "verification-mold", "--mold", mold_path, "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+        finally:
+            os.unlink(mold_path)
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertFalse(payload["ok"])
+        self.assertTrue(any(f["rule"] == "missing-claim"
+                            for f in payload["findings"]),
+                        payload["findings"])
+
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "verification-mold",
+             "--mold", "no/such/mold.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
 if __name__ == "__main__":
     unittest.main()

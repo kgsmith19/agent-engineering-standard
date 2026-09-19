@@ -4242,6 +4242,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_critic.add_argument("--json", action="store_true")
     p_critic.set_defaults(func=cmd_spec_critic)
 
+    p_mold = sub.add_parser(
+        "verification-mold",
+        help="verification mold claim-to-evidence readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_mold.add_argument(
+        "--mold", default="",
+        help="path to a JSON mold file; without it, validates the "
+             "frozen positive and rejection fixture sets")
+    p_mold.add_argument(
+        "--corpus", default="Canonical/corpus/verification-mold",
+        help="frozen corpus dir holding positive.json and "
+             "negative.json for validation mode")
+    p_mold.add_argument("--json", action="store_true")
+    p_mold.set_defaults(func=cmd_verification_mold)
+
     return parser
 
 
@@ -4857,6 +4873,86 @@ def cmd_spec_critic(args: argparse.Namespace) -> int:
         for line in findings:
             print("  - %s" % line)
         print("  eval: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_verification_mold(args: argparse.Namespace) -> int:
+    """Advisory verification-mold readout. With --mold, critiques
+    that mold file; without it, validates the frozen positive and
+    rejection fixture sets (positives have zero findings, negatives
+    produce exactly their expected_rules, IDs unique, all 8
+    positive plus 6 negative classes present) and prints findings.
+    Always exits 0 on findings — advisory never gates; only an
+    unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import verification_mold
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.mold:
+        try:
+            mold = json.loads(
+                _Path(args.mold).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("verification-mold: cannot load mold: %s" % exc)
+            return 2
+        if not isinstance(mold, dict):
+            print("verification-mold: mold must be a JSON object")
+            return 2
+        result = verification_mold.critique(mold)
+        findings = [
+            {"id": f["id"], "rule": f["rule"], "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "critique",
+                "mold": args.mold,
+                "ok": result.ok,
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("verification-mold: %s%s" % (
+                args.mold, " — OK" if not findings else " (findings)"))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"], item["finding"]))
+        return 0
+    corpus_dir = _Path(args.corpus)
+    try:
+        positive = json.loads(
+            (corpus_dir / "positive.json").read_text(encoding="utf-8"))
+        negative = json.loads(
+            (corpus_dir / "negative.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("verification-mold: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = verification_mold.validate_corpus(
+        positive, negative)
+    ok = not findings
+    rules = sorted({f["rule"] for e in entries
+                    if isinstance(e, dict)
+                    for f in verification_mold.critique(e).findings})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("verification-mold: %s%s" % (
+            args.corpus, " — OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
               % (len(entries), ", ".join(rules)))
     return 0
 
