@@ -3233,5 +3233,246 @@ class PlanDisciplineLint(unittest.TestCase):
             payload["findings"])
 
 
+class SpecNotationSelection(unittest.TestCase):
+    """Stage 27: spec-notation selection — the frozen adjudicated corpus
+    proves the contract routes cosmetic/local-bug work to plain criteria,
+    stateful workflows to EARS, authorization decisions to Specification
+    by Example, retry/idempotency to ATDD, and deployment/recovery to
+    BDD, stepping back to example mapping when ambiguity is high, with
+    over-/under-specification guards and honest token cost.
+
+    The corpus under Canonical/corpus/spec-notation/ is the frozen
+    oracle: entries are hand-adjudicated, IDs are stable across
+    test/file renames, and every expected_notation must equal
+    select_notation(task).
+    """
+
+    def _mod(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import spec_notation
+            return spec_notation
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus" / "spec-notation"
+             / "corpus.json").read_text(encoding="utf-8"))
+
+    def test_plain_wins_for_cosmetic_r0(self):
+        """Proof 1: a cosmetic R0 UI task selects plain with no findings,
+        and forcing a heavyweight notation trips the over-specification
+        guard, so plain criteria stay the ceiling on cosmetic work."""
+        mod = self._mod()
+        task = {"ambiguity": 0, "risk": "R0", "ui_or_text": True}
+        result = mod.select_notation(task)
+        self.assertEqual("plain", result.notation)
+        self.assertTrue(result.ok, result.findings)
+        self.assertEqual([], result.pre_steps)
+        forced = mod.select_notation(task, force="ears")
+        self.assertEqual("ears", forced.notation)
+        self.assertFalse(forced.ok)
+        self.assertTrue(any(
+            "over-specified" in f and "plain criteria are clearer here" in f
+            for f in forced.findings), forced.findings)
+
+    def test_under_specification_guard(self):
+        """Proof 2: plain criteria for a stateful R2 task are a finding,
+        not a valid selection — both when plain is forced and when the
+        natural ambiguity>=2 re-select lands on plain."""
+        mod = self._mod()
+        task = {"ambiguity": 0, "risk": "R2", "stateful": True}
+        forced = mod.select_notation(task, force="plain")
+        self.assertEqual("plain", forced.notation)
+        self.assertFalse(forced.ok)
+        self.assertTrue(any(
+            "under-specified" in f and "cannot carry this behavior" in f
+            for f in forced.findings), forced.findings)
+        natural = mod.select_notation({"ambiguity": 2, "risk": "R2"})
+        self.assertFalse(natural.ok)
+        self.assertTrue(any(
+            "under-specified" in f for f in natural.findings),
+            natural.findings)
+
+    def test_stateful_workflow_selects_ears(self):
+        """Proof 3: a stateful R2 workflow with condition-trigger pairs
+        selects EARS with a when/then rationale and no findings."""
+        mod = self._mod()
+        result = mod.select_notation(
+            {"ambiguity": 1, "risk": "R2", "stateful": True})
+        self.assertEqual("ears", result.notation)
+        self.assertTrue(result.ok, result.findings)
+        self.assertIn("when/then", result.rationale.lower())
+
+    def test_authorization_selects_specification_by_example(self):
+        """Proof 4: an authorization decision selects Specification by
+        Example (the actor/resource/action decision table) over plain
+        criteria, with no findings."""
+        mod = self._mod()
+        result = mod.select_notation(
+            {"ambiguity": 1, "risk": "R2", "authorization": True})
+        self.assertEqual("specification_by_example", result.notation)
+        self.assertTrue(result.ok, result.findings)
+
+    def test_retry_selects_test_first_notation(self):
+        """Proof 5: retry/idempotency and concurrency select ATDD (the
+        frozen test-first rule), and concurrency_or_retry outranks
+        external_effects in the frozen precedence."""
+        mod = self._mod()
+        result = mod.select_notation(
+            {"ambiguity": 1, "risk": "R2", "concurrency_or_retry": True})
+        self.assertEqual("atdd", result.notation)
+        self.assertTrue(result.ok, result.findings)
+        both = mod.select_notation({
+            "ambiguity": 0, "risk": "R2",
+            "concurrency_or_retry": True, "external_effects": True})
+        self.assertEqual("atdd", both.notation)
+        self.assertTrue(both.ok, both.findings)
+
+    def test_deployment_recovery_selects_bdd(self):
+        """Proof 6: external effects (deployment, recovery) select BDD
+        given/when/then, and external_effects outrank stateful in the
+        frozen precedence."""
+        mod = self._mod()
+        deploy = mod.select_notation(
+            {"ambiguity": 1, "risk": "R3", "external_effects": True})
+        self.assertEqual("bdd", deploy.notation)
+        self.assertTrue(deploy.ok, deploy.findings)
+        recovery = mod.select_notation({
+            "ambiguity": 1, "risk": "R2",
+            "stateful": True, "external_effects": True})
+        self.assertEqual("bdd", recovery.notation)
+        self.assertTrue(recovery.ok, recovery.findings)
+
+    def test_high_ambiguity_steps_back_to_example_mapping(self):
+        """Proof 7: ambiguity >= 2 steps back to example mapping first
+        (pre_steps non-empty) and then re-selects from the mapped rules,
+        so a mapped stateful task lands on EARS with the pre-step kept."""
+        mod = self._mod()
+        result = mod.select_notation(
+            {"ambiguity": 2, "risk": "R2", "stateful": True})
+        self.assertEqual("ears", result.notation)
+        self.assertTrue(result.pre_steps)
+        self.assertIn("example", result.pre_steps[0].lower())
+        self.assertIn("map", result.pre_steps[0].lower())
+        mapped = mod.select_notation(
+            {"ambiguity": 0, "risk": "R2", "stateful": True})
+        self.assertEqual(mapped.notation, result.notation)
+        self.assertEqual([], mapped.pre_steps)
+
+    def test_frozen_corpus_is_adjudicated_oracle(self):
+        """Proof 8: every frozen corpus entry's expected_notation equals
+        select_notation(task); IDs are unique and well-formed, every
+        category matches its ID, and all eight categories are present,
+        so the corpus is a real adjudicated oracle."""
+        import re
+        mod = self._mod()
+        corpus = self._corpus()
+        self.assertIs(True, corpus.get("_frozen"))
+        entries = corpus["entries"]
+        id_re = re.compile(r"^spec-notation\.[a-z-]+\.\d{2}$")
+        ids = [entry["id"] for entry in entries]
+        self.assertEqual(len(ids), len(set(ids)))
+        categories = set()
+        for entry in entries:
+            self.assertRegex(entry["id"], id_re)
+            self.assertIn(entry["category"], mod.CATEGORIES)
+            self.assertEqual(
+                entry["id"].split(".")[1], entry["category"],
+                "ID category segment must match the entry category")
+            categories.add(entry["category"])
+            result = mod.select_notation(entry["task"])
+            self.assertEqual(
+                entry["expected_notation"], result.notation,
+                "%s: corpus oracle disagrees with select_notation (%s)"
+                % (entry["id"], result.findings))
+        self.assertEqual(set(mod.CATEGORIES), categories)
+
+    def test_corpus_measurements_are_honest(self):
+        """Proof 9: every entry carries positive token estimates, the
+        aggregate sums are reported by measure(), and every non-plain
+        entry records an adjudication note, so no judgment call is
+        unrecorded and no interpretation can silently diverge."""
+        mod = self._mod()
+        entries = self._corpus()["entries"]
+        for entry in entries:
+            cost = entry["cost"]
+            for field in ("notation_tokens_est", "plain_tokens_est"):
+                self.assertIsInstance(cost[field], int, entry["id"])
+                self.assertNotIsInstance(cost[field], bool, entry["id"])
+                self.assertGreater(cost[field], 0, entry["id"])
+        aggregate = mod.measure(entries)
+        self.assertEqual(len(entries), aggregate["entries"])
+        self.assertEqual(
+            sum(e["cost"]["notation_tokens_est"] for e in entries),
+            aggregate["notation_tokens_est"])
+        self.assertEqual(
+            sum(e["cost"]["plain_tokens_est"] for e in entries),
+            aggregate["plain_tokens_est"])
+        single = mod.measure(entries[0])
+        for field in ("over_specification", "under_specification",
+                      "divergent_interpretations", "notation_tokens_est",
+                      "plain_tokens_est"):
+            self.assertIn(field, single)
+        self.assertEqual(0, aggregate["over_specification"])
+        self.assertEqual(0, aggregate["under_specification"])
+        self.assertEqual(0, aggregate["divergent_interpretations"])
+        unadjudicated = {
+            "id": "spec-notation.probe.99",
+            "expected_notation": "ears",
+            "task": {"stateful": True, "risk": "R2"},
+        }
+        self.assertEqual(
+            1, mod.measure(unadjudicated)["divergent_interpretations"])
+
+    def test_standardctl_spec_notation_advisory_subcommand(self):
+        """Protects the advisory CLI: corpus mode validates the frozen
+        corpus (ok true, aggregate measurements included), task-flag mode
+        prints a selection, findings still exit 0 (advisory never gates),
+        and only an unreadable corpus exits 2."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "spec-notation", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(
+            len(self._corpus()["entries"]),
+            payload["measurements"]["entries"])
+
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "spec-notation",
+             "--ambiguity", "1", "--risk", "R2", "--stateful", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertEqual("ears", payload["notation"])
+        self.assertTrue(payload["ok"])
+
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "spec-notation",
+             "--ambiguity", "2", "--risk", "R2", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertFalse(payload["ok"])
+        self.assertTrue(any(
+            "under-specified" in f for f in payload["findings"]),
+            payload["findings"])
+
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "spec-notation",
+             "--corpus", "no/such/corpus.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -4208,6 +4208,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_planlint.add_argument("--json", action="store_true")
     p_planlint.set_defaults(func=cmd_plan_lint)
 
+    p_spec = sub.add_parser(
+        "spec-notation",
+        help="spec-notation selection readout and frozen-corpus "
+             "validation (advisory)",
+    )
+    p_spec.add_argument(
+        "--ambiguity", type=int, default=None,
+        help="ambiguity 0-3; any task flag switches to selection mode")
+    p_spec.add_argument("--risk", default="R1", help="risk tier R0-R3")
+    p_spec.add_argument("--stateful", action="store_true")
+    p_spec.add_argument("--concurrency", action="store_true")
+    p_spec.add_argument("--external-effects", action="store_true")
+    p_spec.add_argument("--ui-text", action="store_true")
+    p_spec.add_argument(
+        "--corpus", default="Canonical/corpus/spec-notation/corpus.json",
+        help="frozen corpus path for validation mode")
+    p_spec.add_argument("--json", action="store_true")
+    p_spec.set_defaults(func=cmd_spec_notation)
+
     return parser
 
 
@@ -4660,6 +4679,86 @@ def cmd_plan_lint(args: argparse.Namespace) -> int:
             "" if findings else " — OK"))
         for line in findings:
             print("  - %s" % line)
+    return 0
+
+
+def cmd_spec_notation(args: argparse.Namespace) -> int:
+    """Advisory spec-notation readout. With task flags, prints the
+    notation selection for one task; without them, validates the frozen
+    corpus (expected_notation must equal select_notation, IDs unique,
+    categories complete) and prints findings plus aggregate
+    measurements. Always exits 0 on findings — advisory never gates;
+    only an unreadable corpus exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import spec_notation
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    selection_requested = (
+        args.ambiguity is not None or args.stateful or args.concurrency
+        or args.external_effects or args.ui_text)
+    if selection_requested:
+        task = {
+            "ambiguity": args.ambiguity if args.ambiguity is not None else 0,
+            "risk": args.risk,
+            "stateful": bool(args.stateful),
+            "concurrency_or_retry": bool(args.concurrency),
+            "external_effects": bool(args.external_effects),
+            "ui_or_text": bool(args.ui_text),
+        }
+        result = spec_notation.select_notation(task)
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "selection",
+                "task": task,
+                "notation": result.notation,
+                "pre_steps": result.pre_steps,
+                "findings": result.findings,
+                "rationale": result.rationale,
+                "ok": result.ok,
+            }, indent=2))
+        else:
+            print("spec-notation: %s%s" % (
+                result.notation, "" if result.ok else " (findings)"))
+            for step in result.pre_steps:
+                print("  pre-step: %s" % step)
+            for line in result.findings:
+                print("  - %s" % line)
+            print("  %s" % result.rationale)
+        return 0
+    try:
+        corpus = json.loads(
+            _Path(args.corpus).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("spec-notation: cannot load corpus: %s" % exc)
+        return 2
+    findings, measurements = spec_notation.validate_corpus(corpus)
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": not findings,
+            "findings": findings,
+            "measurements": measurements,
+        }, indent=2))
+    else:
+        print("spec-notation: %s%s" % (
+            args.corpus, " — OK" if not findings else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  measurements: %d entries, over-specified %d, "
+              "under-specified %d, divergent interpretations %d, "
+              "notation tokens %d (plain %d)"
+              % (measurements["entries"],
+                 measurements["over_specification"],
+                 measurements["under_specification"],
+                 measurements["divergent_interpretations"],
+                 measurements["notation_tokens_est"],
+                 measurements["plain_tokens_est"]))
     return 0
 
 

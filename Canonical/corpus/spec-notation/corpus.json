@@ -1,0 +1,290 @@
+{
+  "_frozen": true,
+  "_provenance": "Stage 27 #118 (spec-notation). Hand-authored, adjudicated oracle: every entry's expected_notation must equal tools/spec_notation.select_notation(task). IDs (spec-notation.<category>.<nn>) are stable across test/file renames; never renumber, never repurpose.",
+  "entries": [
+    {
+      "id": "spec-notation.cosmetic.01",
+      "category": "cosmetic",
+      "task": {
+        "ambiguity": 0,
+        "risk": "R0",
+        "stateful": false,
+        "concurrency_or_retry": false,
+        "external_effects": false,
+        "ui_or_text": true,
+        "authorization": false
+      },
+      "expected_notation": "plain",
+      "translation": [
+        "Rename the settings dialog's 'Cancel' button label to 'Close'.",
+        "No other label, layout, or control changes."
+      ],
+      "adjudication": "plain already says everything a reviewer needs; EARS conditions or a Gherkin scenario would add ceremony to a label swap.",
+      "cost": {"notation_tokens_est": 26, "plain_tokens_est": 26}
+    },
+    {
+      "id": "spec-notation.cosmetic.02",
+      "category": "cosmetic",
+      "task": {
+        "ambiguity": 0,
+        "risk": "R1",
+        "stateful": false,
+        "concurrency_or_retry": false,
+        "external_effects": false,
+        "ui_or_text": true,
+        "authorization": false
+      },
+      "expected_notation": "plain",
+      "translation": [
+        "Reword the dashboard empty-state message to: 'No projects yet - create your first project to get started.'",
+        "Applies to the dashboard empty state only."
+      ],
+      "adjudication": "R1 wording change; the frozen cosmetic rule (ui_or_text, ambiguity 0, R0/R1) selects plain so no one reaches for a scenario framework.",
+      "cost": {"notation_tokens_est": 30, "plain_tokens_est": 30}
+    },
+    {
+      "id": "spec-notation.local-bug.01",
+      "category": "local-bug",
+      "task": {
+        "ambiguity": 0,
+        "risk": "R1",
+        "stateful": false,
+        "concurrency_or_retry": false,
+        "external_effects": false,
+        "ui_or_text": false,
+        "authorization": false
+      },
+      "expected_notation": "plain",
+      "translation": [
+        "A quantity of 0 is rejected with the message 'quantity must be at least 1'.",
+        "No other quantity values change behavior."
+      ],
+      "adjudication": "One input, one outcome: the plain criterion is the exact behavior, and a bug fix this narrow gains nothing from scenario structure.",
+      "cost": {"notation_tokens_est": 24, "plain_tokens_est": 24}
+    },
+    {
+      "id": "spec-notation.local-bug.02",
+      "category": "local-bug",
+      "task": {
+        "ambiguity": 0,
+        "risk": "R1",
+        "stateful": false,
+        "concurrency_or_retry": false,
+        "external_effects": false,
+        "ui_or_text": false,
+        "authorization": false
+      },
+      "expected_notation": "plain",
+      "translation": [
+        "When the config file exists but is empty, the CLI exits with code 2 and prints 'config file is empty'.",
+        "A missing file keeps the existing 'file not found' path."
+      ],
+      "adjudication": "A single when/then fits a plain criterion; EARS pays off only when conditions interlock over state, so plain wins here by the frozen rules.",
+      "cost": {"notation_tokens_est": 30, "plain_tokens_est": 30}
+    },
+    {
+      "id": "spec-notation.stateful-workflow.01",
+      "category": "stateful-workflow",
+      "task": {
+        "ambiguity": 1,
+        "risk": "R2",
+        "stateful": true,
+        "concurrency_or_retry": false,
+        "external_effects": false,
+        "ui_or_text": false,
+        "authorization": false
+      },
+      "expected_notation": "ears",
+      "translation": [
+        "When the cart is empty, the system shall disable checkout.",
+        "When the cart holds items, the system shall enable checkout and show the item count."
+      ],
+      "adjudication": "Two conditions interlock on persisted cart state; EARS when/then sentences pin each pair so 'enabled' cannot drift the way plain bullets let it.",
+      "cost": {"notation_tokens_est": 34, "plain_tokens_est": 22}
+    },
+    {
+      "id": "spec-notation.stateful-workflow.02",
+      "category": "stateful-workflow",
+      "task": {
+        "ambiguity": 1,
+        "risk": "R2",
+        "stateful": true,
+        "concurrency_or_retry": false,
+        "external_effects": false,
+        "ui_or_text": false,
+        "authorization": false
+      },
+      "expected_notation": "ears",
+      "translation": [
+        "When the session has been idle for 30 minutes, the system shall lock the vault.",
+        "When the vault is locked, the system shall require re-authentication on the next action."
+      ],
+      "adjudication": "Idle/locked is a condition-trigger pair over session state; EARS names the trigger and the obligation in one sentence where plain criteria kept paraphrasing differently.",
+      "cost": {"notation_tokens_est": 32, "plain_tokens_est": 20}
+    },
+    {
+      "id": "spec-notation.authorization.01",
+      "category": "authorization",
+      "task": {
+        "ambiguity": 1,
+        "risk": "R2",
+        "stateful": false,
+        "concurrency_or_retry": false,
+        "external_effects": false,
+        "ui_or_text": false,
+        "authorization": true
+      },
+      "expected_notation": "specification_by_example",
+      "translation": [
+        "actor | action | outcome",
+        "admin | delete project | allow",
+        "member | delete project | deny (403)",
+        "member | read project | allow"
+      ],
+      "adjudication": "The outcome space is a table (actor x action); Specification by Example pins the boundary rows so a divergent implementation cannot invent a ninth permission.",
+      "cost": {"notation_tokens_est": 36, "plain_tokens_est": 24}
+    },
+    {
+      "id": "spec-notation.authorization.02",
+      "category": "authorization",
+      "task": {
+        "ambiguity": 2,
+        "risk": "R2",
+        "stateful": false,
+        "concurrency_or_retry": false,
+        "external_effects": false,
+        "ui_or_text": false,
+        "authorization": true
+      },
+      "expected_notation": "specification_by_example",
+      "translation": [
+        "actor | resource | outcome",
+        "owner | export invoices | allow",
+        "accountant | export invoices | allow",
+        "viewer | export invoices | deny (403)"
+      ],
+      "adjudication": "Ambiguity 2 forces example mapping first (pre-step); the mapped rules re-select to a decision table - the judgment is that the table, not the mapping output, is the deliverable.",
+      "cost": {"notation_tokens_est": 36, "plain_tokens_est": 24}
+    },
+    {
+      "id": "spec-notation.migration.01",
+      "category": "migration",
+      "task": {
+        "ambiguity": 1,
+        "risk": "R2",
+        "stateful": false,
+        "concurrency_or_retry": false,
+        "external_effects": true,
+        "ui_or_text": false,
+        "authorization": false
+      },
+      "expected_notation": "bdd",
+      "translation": [
+        "Given a v4 database with 10,000 accounts, when the migration runs, then v5 holds the same 10,000 accounts with emails lowercased.",
+        "Given a backfill that failed at row 4,301, when the migration re-runs, then it resumes at 4,301 and the total stays 10,000."
+      ],
+      "adjudication": "Side effects live in the database, outside the process; bdd given/when/then stages the observable end state, which an EARS sentence cannot.",
+      "cost": {"notation_tokens_est": 48, "plain_tokens_est": 26}
+    },
+    {
+      "id": "spec-notation.migration.02",
+      "category": "migration",
+      "task": {
+        "ambiguity": 2,
+        "risk": "R2",
+        "stateful": true,
+        "concurrency_or_retry": false,
+        "external_effects": false,
+        "ui_or_text": false,
+        "authorization": false
+      },
+      "expected_notation": "ears",
+      "translation": [
+        "When a config uses a deprecated key, the system shall map it to the v2 key on load.",
+        "When a config has an unknown key, the system shall keep it and log a warning."
+      ],
+      "adjudication": "Example mapping (pre-step) surfaced the unknown-key question; the mapped rules re-select to EARS because each is a condition-trigger pair over loaded state.",
+      "cost": {"notation_tokens_est": 34, "plain_tokens_est": 22}
+    },
+    {
+      "id": "spec-notation.retry-idempotency.01",
+      "category": "retry-idempotency",
+      "task": {
+        "ambiguity": 1,
+        "risk": "R2",
+        "stateful": false,
+        "concurrency_or_retry": true,
+        "external_effects": false,
+        "ui_or_text": false,
+        "authorization": false
+      },
+      "expected_notation": "atdd",
+      "translation": [
+        "RED first: test_replay_same_idempotency_key_charges_once - POST the same charge twice with one key, assert one ledger entry.",
+        "RED first: test_distinct_keys_settle_separately - two charges with distinct keys, assert two ledger entries."
+      ],
+      "adjudication": "Idempotency is only provable by replay, so the contract is the failing test written first (atdd); a prose requirement let one implementation dedupe and another double-charge.",
+      "cost": {"notation_tokens_est": 44, "plain_tokens_est": 26}
+    },
+    {
+      "id": "spec-notation.retry-idempotency.02",
+      "category": "retry-idempotency",
+      "task": {
+        "ambiguity": 0,
+        "risk": "R2",
+        "stateful": false,
+        "concurrency_or_retry": true,
+        "external_effects": true,
+        "ui_or_text": false,
+        "authorization": false
+      },
+      "expected_notation": "atdd",
+      "translation": [
+        "RED first: test_failed_webhook_retries_with_backoff - fail delivery twice, assert attempts at t+1m and t+5m, then success stops the schedule.",
+        "RED first: test_retry_never_duplicates_a_delivered_webhook - succeed then crash before ack, assert exactly one delivered event."
+      ],
+      "adjudication": "concurrency_or_retry and external_effects both apply; the frozen precedence sends retry contracts to the test-first loop (atdd) because the schedule is only observable through tests.",
+      "cost": {"notation_tokens_est": 46, "plain_tokens_est": 28}
+    },
+    {
+      "id": "spec-notation.deployment.01",
+      "category": "deployment",
+      "task": {
+        "ambiguity": 1,
+        "risk": "R3",
+        "stateful": false,
+        "concurrency_or_retry": false,
+        "external_effects": true,
+        "ui_or_text": false,
+        "authorization": false
+      },
+      "expected_notation": "bdd",
+      "translation": [
+        "Given the green stack passes health checks, when cutover runs, then new requests route to green and in-flight blue requests complete.",
+        "Given a green health check fails after cutover, when the rollback fires, then traffic returns to blue within 60 seconds."
+      ],
+      "adjudication": "Deployment effects (traffic split, rollback window) are observable in the world; the given/when/then scenarios double as the cutover runbook's acceptance checks.",
+      "cost": {"notation_tokens_est": 46, "plain_tokens_est": 26}
+    },
+    {
+      "id": "spec-notation.recovery.01",
+      "category": "recovery",
+      "task": {
+        "ambiguity": 1,
+        "risk": "R2",
+        "stateful": true,
+        "concurrency_or_retry": false,
+        "external_effects": true,
+        "ui_or_text": false,
+        "authorization": false
+      },
+      "expected_notation": "bdd",
+      "translation": [
+        "Given job J was marked running when the worker crashed, when the supervisor restarts, then J is requeued exactly once.",
+        "Given J's side effect already ran, when the supervisor restarts, then requeueing J does not repeat the side effect."
+      ],
+      "adjudication": "Recovery names observable effects (requeue, side-effect suppression); external_effects outranks stateful in the frozen precedence, and given/when/then stages the crash.",
+      "cost": {"notation_tokens_est": 44, "plain_tokens_est": 26}
+    }
+  ]
+}
