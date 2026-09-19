@@ -4155,5 +4155,331 @@ class VerificationMoldContract(unittest.TestCase):
         self.assertEqual(2, proc.returncode)
 
 
+class RolePathAuthority(unittest.TestCase):
+    """Stage 30: verification role separation with path authority.
+
+    Eight frozen roles (Spec Author/Critic, Mold Designer/Qualifier,
+    Builder, Verifier, Reviewer, Remediator) each hold write authority
+    only inside their own roots; every proof point below has a
+    dedicated test. Pure contract in tools/role_authority.py plus the
+    frozen canary oracle under Canonical/corpus/role-authority/.
+    """
+
+    ROLES = (
+        "spec_author", "spec_critic", "mold_designer", "mold_qualifier",
+        "builder", "verifier", "reviewer", "remediator",
+    )
+
+    FORBIDDEN_MATRIX = {
+        "spec_author": "src/ship.py",
+        "spec_critic": "src/anything.py",
+        "mold_designer": "src/mold.py",
+        "mold_qualifier": "tools/standardctl.py",
+        "builder": "Canonical/sibling-contract.json",
+        "verifier": "src/fix.py",
+        "reviewer": "tools/x.py",
+        "remediator": "tools/standardctl.py",
+    }
+
+    def _mod(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import role_authority
+            return role_authority
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_dir(self):
+        return (WORKTREE / "Canonical" / "corpus"
+                / "role-authority")
+
+    def _canaries(self):
+        doc = json.loads(
+            (self._corpus_dir() / "canaries.json")
+            .read_text(encoding="utf-8"))
+        if isinstance(doc, dict):
+            return doc["entries"]
+        return doc
+
+    def _receipt(self, role, head=None, agent="agent-1",
+                 provider="anthropic/claude", seq=1):
+        mod = self._mod()
+        return mod.issue_receipt(
+            role, agent, provider,
+            head if head is not None else HEAD_A, seq)
+
+    def test_forbidden_write_rejected_for_every_role(self):
+        """Proof 1: every role has at least one forbidden write and
+        it is refused with forbidden-path, so no role writes outside
+        its authorized roots."""
+        mod = self._mod()
+        self.assertEqual(tuple(self.ROLES), tuple(mod.ROLES))
+        self.assertEqual(set(self.ROLES),
+                         set(self.FORBIDDEN_MATRIX))
+        for role, path in self.FORBIDDEN_MATRIX.items():
+            receipt = self._receipt(role)
+            decision = mod.check_write(
+                role, [receipt], path, current_head=HEAD_A)
+            self.assertFalse(decision.allowed, role)
+            self.assertEqual("forbidden-path", decision.rule, role)
+            self.assertEqual([], mod.validate_finding(
+                decision.finding), role)
+
+    def test_frozen_roots_refuse_every_role(self):
+        """Proof 2: frozen corpora are immutable to all roles — a
+        write under Canonical/corpus/ is refused with frozen-root
+        for every one of the 8 roles."""
+        mod = self._mod()
+        for role in self.ROLES:
+            receipt = self._receipt(role)
+            decision = mod.check_write(
+                role, [receipt],
+                "Canonical/corpus/spec-notation/corpus.json",
+                current_head=HEAD_A)
+            self.assertFalse(decision.allowed, role)
+            self.assertEqual("frozen-root", decision.rule, role)
+
+    def test_path_traversal_refused(self):
+        """Proof 3: a path with .. escaping its root is normalized
+        and refused as path_traversal instead of being resolved."""
+        mod = self._mod()
+        receipt = self._receipt("builder")
+        for path in ("../Canonical/schemas/x",
+                     "src/../../../etc/passwd"):
+            decision = mod.check_write(
+                "builder", [receipt], path, current_head=HEAD_A)
+            self.assertFalse(decision.allowed, path)
+            self.assertEqual("path-traversal", decision.rule, path)
+
+    def test_provider_separation_enforced_r2_r3(self):
+        """Proof 4: R2/R3 blocking review requires reviewer family
+        != builder family; R0/R1 stays advisory and always passes,
+        as does a genuinely different family."""
+        mod = self._mod()
+        blocked, _ = mod.provider_separation_ok(
+            "anthropic/claude", "anthropic/claude-2", "R2")
+        self.assertFalse(blocked)
+        blocked, _ = mod.provider_separation_ok(
+            "openai/gpt-a", "openai/gpt-b", "R3")
+        self.assertFalse(blocked)
+        ok, _ = mod.provider_separation_ok(
+            "anthropic/claude", "anthropic/claude-2", "R0")
+        self.assertTrue(ok)
+        ok, _ = mod.provider_separation_ok(
+            "anthropic/claude", "anthropic/claude-2", "R1")
+        self.assertTrue(ok)
+        ok, _ = mod.provider_separation_ok(
+            "anthropic/claude", "openai/gpt", "R3")
+        self.assertTrue(ok)
+
+    def test_self_promotion_refused(self):
+        """Proof 5: a builder receipt cannot authorize a verifier
+        write — presenting another role's receipt is self-promotion
+        and is refused."""
+        mod = self._mod()
+        builder_receipt = self._receipt("builder")
+        decision = mod.check_write(
+            "verifier", [builder_receipt],
+            "evidence/verification/report.json",
+            current_head=HEAD_A)
+        self.assertFalse(decision.allowed)
+        self.assertEqual("self-promotion", decision.rule)
+
+    def test_stale_receipt_rejected(self):
+        """Proof 6: a receipt whose head != current head yields a
+        stale repair and blocks the write it would otherwise allow."""
+        mod = self._mod()
+        stale = self._receipt("builder", head=HEAD_B)
+        repairs = mod.validate_receipt(
+            stale, current_head=HEAD_A,
+            authorized_roles=list(self.ROLES))
+        self.assertTrue(any("stale" in r for r in repairs), repairs)
+        decision = mod.check_write(
+            "builder", [stale], "src/fix.py", current_head=HEAD_A)
+        self.assertFalse(decision.allowed)
+        self.assertEqual("stale-receipt", decision.rule)
+        fresh = self._receipt("builder", head=HEAD_A)
+        self.assertEqual([], mod.validate_receipt(
+            fresh, current_head=HEAD_A,
+            authorized_roles=list(self.ROLES)))
+
+    def test_same_agent_role_reuse_disclosed(self):
+        """Proof 7: builder+verifier receipts under one agent id are
+        NOT silently independent — disclosure names the agent and
+        both roles; split agents stay silent."""
+        mod = self._mod()
+        both = [self._receipt("builder", agent="agent-7"),
+                self._receipt("verifier", agent="agent-7")]
+        disclosures = mod.disclose_roles(both)
+        self.assertTrue(disclosures, disclosures)
+        self.assertTrue(any("agent-7" in d and "builder" in d
+                            and "verifier" in d
+                            for d in disclosures), disclosures)
+        split = [self._receipt("builder", agent="agent-7"),
+                 self._receipt("verifier", agent="agent-9")]
+        self.assertEqual([], mod.disclose_roles(split))
+        same = [self._receipt("builder", agent="agent-7"),
+                self._receipt("builder", agent="agent-7")]
+        self.assertEqual([], mod.disclose_roles(same))
+
+    def test_child_inheritance_cannot_escalate(self):
+        """Proof 8: a child granted verifier under a parent holding
+        builder+verifier gets only verifier-derived auth (via the
+        parent agent); a child granted builder under a
+        verifier-only parent gets nothing."""
+        mod = self._mod()
+        parent = [self._receipt("builder", agent="parent-1"),
+                  self._receipt("verifier", agent="parent-1")]
+        child = mod.inherit("verifier", parent)
+        self.assertEqual(1, len(child))
+        self.assertEqual("verifier", child[0]["role"])
+        self.assertEqual("parent-1", child[0]["via"])
+        decision = mod.check_write(
+            "verifier", child, "evidence/verification/r.json",
+            current_head=HEAD_A)
+        self.assertTrue(decision.allowed, decision)
+        escalated = mod.inherit(
+            "builder", [self._receipt("verifier", agent="parent-1")])
+        self.assertEqual([], escalated)
+        decision = mod.check_write(
+            "builder", escalated, "src/fix.py",
+            current_head=HEAD_A)
+        self.assertFalse(decision.allowed)
+
+    def test_owner_override_explicit_only(self):
+        """Proof 9: only an explicit owner override (owner
+        kgsmith19 plus non-empty decision and scope) is honored;
+        a missing scope, an empty decision, or a wrong owner is
+        refused."""
+        mod = self._mod()
+        valid = {"owner": "kgsmith19",
+                 "decision": "allow hotfix landing",
+                 "scope": "issue-121 src/fix.py"}
+        ok, _ = mod.owner_override_ok(valid)
+        self.assertTrue(ok)
+        for bad in ({"owner": "kgsmith19",
+                     "decision": "allow hotfix landing",
+                     "scope": ""},
+                    {"owner": "kgsmith19",
+                     "decision": "",
+                     "scope": "issue-121 src/fix.py"},
+                    {"owner": "someone-else",
+                     "decision": "allow hotfix landing",
+                     "scope": "issue-121 src/fix.py"},
+                    {"decision": "allow", "scope": "x"}):
+            ok, reason = mod.owner_override_ok(bad)
+            self.assertFalse(ok, bad)
+            self.assertTrue(reason, bad)
+
+    def test_fresh_context_role_completion(self):
+        """Proof 10: in a subprocess with a cleaned environment (no
+        inherited secrets) a builder receipt completes an authorized
+        write and is refused outside its paths — role completion
+        works without ambient authority."""
+        import sys
+        keep = {}
+        for key, value in os.environ.items():
+            upper = key.upper()
+            if upper in ("PATH", "SYSTEMROOT") \
+                    or upper.startswith("PYTHON"):
+                keep[key] = value
+        for key in keep:
+            upper = key.upper()
+            self.assertNotIn(upper, ("GH_TOKEN", "GITHUB_TOKEN"))
+            self.assertFalse(upper.endswith("_KEY"), key)
+            self.assertFalse(upper.endswith("_SECRET"), key)
+        code = (
+            "import json;"
+            "from role_authority import check_write, issue_receipt;"
+            "head='HEAD-FRESH-0001';"
+            "receipt=issue_receipt("
+            "'builder','builder-agent','anthropic/claude',head,1);"
+            "ok=check_write('builder',[receipt],'src/fix.py',"
+            "current_head=head);"
+            "no=check_write('builder',[receipt],"
+            "'Canonical/sibling-contract.json',current_head=head);"
+            "print(json.dumps({'allowed':ok.allowed,"
+            "'allowed_rule':ok.rule,"
+            "'refused':(not no.allowed),"
+            "'refused_rule':no.rule}))"
+        )
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True, text=True,
+            cwd=str(WORKTREE / "tools"), env=keep,
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["allowed"], payload)
+        self.assertEqual("write-root", payload["allowed_rule"])
+        self.assertTrue(payload["refused"], payload)
+        self.assertEqual("forbidden-path", payload["refused_rule"])
+
+    def test_frozen_canaries_oracle(self):
+        """Proof 11: every frozen canary computes its expected
+        outcome (allowed or refused-with-expected_rule); IDs are
+        unique and well-formed and all 8 roles are covered."""
+        import re
+        mod = self._mod()
+        canaries = self._canaries()
+        self.assertGreaterEqual(len(canaries), 15)
+        id_re = re.compile(r"^role-authority\.[a-z-]+\.\d{2}$")
+        ids = []
+        roles = set()
+        for entry in canaries:
+            cid = entry["id"]
+            self.assertRegex(cid, id_re)
+            ids.append(cid)
+            roles.add(entry["role"])
+            self.assertTrue(str(entry.get("note", "")).strip(), cid)
+            decision = mod.evaluate_canary(entry)
+            if entry["expected"] == "allowed":
+                self.assertTrue(decision.allowed, cid)
+            else:
+                self.assertFalse(decision.allowed, cid)
+            self.assertEqual(entry["expected_rule"], decision.rule,
+                             cid)
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(set(self.ROLES), roles & set(self.ROLES))
+        findings, _ = mod.validate_canaries(
+            json.loads((self._corpus_dir() / "canaries.json")
+                       .read_text(encoding="utf-8")))
+        self.assertEqual([], findings)
+
+    def test_standardctl_role_authority_advisory_subcommand(self):
+        """Proof 12: the advisory CLI runs the canary set on the
+        real corpus (ok), answers one-off authorize queries as JSON,
+        exits 0 on findings, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "role-authority",
+             "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertGreaterEqual(payload["entries"], 15)
+
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "role-authority",
+             "--role", "builder", "--path", "src/fix.py", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["allowed"], payload)
+        self.assertEqual("write-root", payload["rule"])
+
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "role-authority",
+             "--canaries", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
 if __name__ == "__main__":
     unittest.main()
