@@ -1,0 +1,279 @@
+{
+  "_frozen": true,
+  "_provenance": "Stage 28 #119 (spec-critic). Hand-authored, adjudicated oracle: every entry's expected_rules must equal the sorted rule set from tools/spec_critic.critique(spec), and expected_scope must equal the computed scope. IDs (spec-critic.<class>.<nn>) are stable; never renumber, never repurpose.",
+  "entries": [
+    {
+      "expected_rules": [
+        "ambiguous_owner"
+      ],
+      "expected_scope": "assured",
+      "id": "spec-critic.tenant-ambiguity.01",
+      "note": "Judged ambiguous: 'their own' implies ownership without naming the owning actor, so isolation could drift.",
+      "spec": {
+        "assured": true,
+        "criteria": [
+          "A second tenant never receives rows belonging to the first."
+        ],
+        "examples": [],
+        "external_calls": [],
+        "migration_steps": [],
+        "risk": "R2",
+        "statements": [
+          "Each tenant sees only their own workspace data.",
+          "The handler records each settled charge.",
+          "Replays return the stored receipt."
+        ],
+        "title": "Tenant workspace isolation"
+      }
+    },
+    {
+      "expected_rules": [
+        "ambiguous_owner"
+      ],
+      "expected_scope": "assured",
+      "id": "spec-critic.tenant-ambiguity.02",
+      "note": "Judged ambiguous: 'shares one workspace across seats' names no owning actor for the account, so access scope is unverifiable.",
+      "spec": {
+        "assured": true,
+        "criteria": [
+          "Seats under one account never see rows from another account."
+        ],
+        "examples": [],
+        "external_calls": [],
+        "migration_steps": [],
+        "risk": "R3",
+        "statements": [
+          "Each account shares one workspace across seats.",
+          "The handler records each settled charge.",
+          "Replays return the stored receipt."
+        ],
+        "title": "Shared account workspace"
+      }
+    },
+    {
+      "expected_rules": [
+        "contradictory_examples"
+      ],
+      "expected_scope": "assured",
+      "id": "spec-critic.contradictory-examples.01",
+      "note": "Judged contradictory: identical given+when strings promise one entry in the first example and two in the second.",
+      "spec": {
+        "assured": true,
+        "criteria": [
+          "Replays of key K return the original receipt."
+        ],
+        "examples": [
+          {
+            "given": "charge C with key K",
+            "then": "the ledger holds one entry",
+            "when": "the handler receives C twice with K"
+          },
+          {
+            "given": "charge C with key K",
+            "then": "the ledger holds two entries",
+            "when": "the handler receives C twice with K"
+          }
+        ],
+        "external_calls": [],
+        "migration_steps": [],
+        "risk": "R2",
+        "statements": [
+          "The handler records each settled charge.",
+          "Replays return the stored receipt.",
+          "A duplicate delivery never creates a second ledger entry."
+        ],
+        "title": "Idempotent charge replay"
+      }
+    },
+    {
+      "expected_rules": [
+        "untestable_adjective"
+      ],
+      "expected_scope": "assured",
+      "id": "spec-critic.untestable-adjective.01",
+      "note": "Judged untestable: 'fast' and 'simple' carry no digit or unit, so no test can pass or fail on them.",
+      "spec": {
+        "assured": true,
+        "criteria": [
+          "Replays return the stored receipt."
+        ],
+        "examples": [],
+        "external_calls": [],
+        "migration_steps": [],
+        "risk": "R2",
+        "statements": [
+          "The dashboard loads fast for all viewers.",
+          "The empty-state message stays simple.",
+          "The handler records each settled charge."
+        ],
+        "title": "Dashboard empty state"
+      }
+    },
+    {
+      "expected_rules": [
+        "untestable_adjective"
+      ],
+      "expected_scope": "assured",
+      "id": "spec-critic.untestable-adjective.02",
+      "note": "Judged untestable: 'robust' and 'flexible' describe no observable bound; a latency or capacity number would clear them.",
+      "spec": {
+        "assured": true,
+        "criteria": [
+          "Replays return the stored receipt."
+        ],
+        "examples": [],
+        "external_calls": [],
+        "migration_steps": [],
+        "risk": "R2",
+        "statements": [
+          "The retry path stays robust under load.",
+          "The export stays flexible for operators.",
+          "The handler records each settled charge."
+        ],
+        "title": "Export resilience"
+      }
+    },
+    {
+      "expected_rules": [
+        "missing_timeout"
+      ],
+      "expected_scope": "assured",
+      "id": "spec-critic.missing-timeout.01",
+      "note": "Judged missing: the billing call names no timeout or deadline anywhere, so verification cannot observe the bound.",
+      "spec": {
+        "assured": true,
+        "criteria": [
+          "A settled charge keeps its receipt."
+        ],
+        "examples": [],
+        "external_calls": [
+          "billing-api charge"
+        ],
+        "migration_steps": [],
+        "risk": "R2",
+        "statements": [
+          "The handler charges the billing API.",
+          "The handler records each settled charge.",
+          "Replays return the stored receipt."
+        ],
+        "title": "Billing charge call"
+      }
+    },
+    {
+      "expected_rules": [
+        "hidden_migration_order"
+      ],
+      "expected_scope": "assured",
+      "id": "spec-critic.migration-order.01",
+      "note": "Judged hidden: three steps with no before/after/order/phase wording, so steps could run out of sequence.",
+      "spec": {
+        "assured": true,
+        "criteria": [
+          "All user records appear in the new store."
+        ],
+        "examples": [],
+        "external_calls": [],
+        "migration_steps": [
+          "copy user records",
+          "copy invoice records",
+          "switch reads to the new store"
+        ],
+        "risk": "R2",
+        "statements": [
+          "The migration copies user records.",
+          "The migration copies invoice records.",
+          "The handler records each settled charge."
+        ],
+        "title": "User store migration"
+      }
+    },
+    {
+      "expected_rules": [
+        "overconstrained_implementation"
+      ],
+      "expected_scope": "assured",
+      "id": "spec-critic.overconstraint.01",
+      "note": "Judged overconstrained: the criterion pins Postgres storage instead of the observable audit behavior.",
+      "spec": {
+        "assured": true,
+        "criteria": [
+          "Store the audit trail in a Postgres table with a dedicated column."
+        ],
+        "examples": [],
+        "external_calls": [],
+        "migration_steps": [],
+        "risk": "R2",
+        "statements": [
+          "The handler records each settled entry.",
+          "Replays return the stored receipt.",
+          "A duplicate delivery never creates a second ledger entry."
+        ],
+        "title": "Audit trail storage"
+      }
+    },
+    {
+      "expected_rules": [
+        "giant_spec"
+      ],
+      "expected_scope": "assured",
+      "id": "spec-critic.giant-spec.01",
+      "note": "Judged giant: 12 statements plus 10 criteria exceed the 20-item ceiling, so the Spec must split into thin slices.",
+      "spec": {
+        "assured": true,
+        "criteria": [
+          "Check 1: request 1 yields receipt 1.",
+          "Check 2: request 2 yields receipt 2.",
+          "Check 3: request 3 yields receipt 3.",
+          "Check 4: request 4 yields receipt 4.",
+          "Check 5: request 5 yields receipt 5.",
+          "Check 6: request 6 yields receipt 6.",
+          "Check 7: request 7 yields receipt 7.",
+          "Check 8: request 8 yields receipt 8.",
+          "Check 9: request 9 yields receipt 9.",
+          "Check 10: request 10 yields receipt 10."
+        ],
+        "examples": [],
+        "external_calls": [],
+        "migration_steps": [],
+        "risk": "R2",
+        "statements": [
+          "Behavior 1: the handler accepts request 1 and returns receipt 1.",
+          "Behavior 2: the handler accepts request 2 and returns receipt 2.",
+          "Behavior 3: the handler accepts request 3 and returns receipt 3.",
+          "Behavior 4: the handler accepts request 4 and returns receipt 4.",
+          "Behavior 5: the handler accepts request 5 and returns receipt 5.",
+          "Behavior 6: the handler accepts request 6 and returns receipt 6.",
+          "Behavior 7: the handler accepts request 7 and returns receipt 7.",
+          "Behavior 8: the handler accepts request 8 and returns receipt 8.",
+          "Behavior 9: the handler accepts request 9 and returns receipt 9.",
+          "Behavior 10: the handler accepts request 10 and returns receipt 10.",
+          "Behavior 11: the handler accepts request 11 and returns receipt 11.",
+          "Behavior 12: the handler accepts request 12 and returns receipt 12."
+        ],
+        "title": "Ledger replay surface"
+      }
+    },
+    {
+      "expected_rules": [],
+      "expected_scope": "compact",
+      "id": "spec-critic.compact-control.01",
+      "note": "Control: vague words present but the work is compact (R1, not assured), so the critic must stay silent.",
+      "spec": {
+        "assured": false,
+        "criteria": [
+          "The dialog shows the Close label."
+        ],
+        "examples": [],
+        "external_calls": [],
+        "migration_steps": [],
+        "risk": "R1",
+        "statements": [
+          "The empty-state message loads fast and stays simple.",
+          "The label reads Close.",
+          "The handler records each settled charge."
+        ],
+        "title": "Empty-state label"
+      }
+    }
+  ]
+}
