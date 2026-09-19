@@ -4178,6 +4178,24 @@ def build_parser() -> argparse.ArgumentParser:
     p_sibling.add_argument("--json", action="store_true")
     p_sibling.set_defaults(func=cmd_sibling_contract)
 
+    p_route = sub.add_parser(
+        "superpowers-route",
+        help="phase-routed superpowers selection readout (advisory)",
+    )
+    p_route.add_argument("--catalog", default="",
+                         help="path to a JSON array of Stage 20a "
+                              "descriptors; empty catalog demonstrates "
+                              "fail-closed findings")
+    p_route.add_argument("--phase", required=True)
+    p_route.add_argument("--behavior-change", action="store_true")
+    p_route.add_argument("--unexpected-failure", action="store_true")
+    p_route.add_argument("--spec-approved", action="store_true")
+    p_route.add_argument("--no-superpowers", action="store_true")
+    p_route.add_argument("--provider", default="claude")
+    p_route.add_argument("--budget", type=int, default=None)
+    p_route.add_argument("--json", action="store_true")
+    p_route.set_defaults(func=cmd_superpowers_route)
+
     return parser
 
 
@@ -4531,6 +4549,67 @@ def cmd_sibling_contract(args: argparse.Namespace) -> int:
               "not a defect in this contract")
         return 0
     return 2 if repairs else 0
+
+
+def cmd_superpowers_route(args: argparse.Namespace) -> int:
+    """Advisory phase-route readout. Always exits 0; never gates verify."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        from superpowers_router import route
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    catalog: list = []
+    if args.catalog:
+        try:
+            catalog = json.loads(
+                _Path(args.catalog).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("superpowers-route: cannot load catalog: %s" % exc)
+            return 2
+        if not isinstance(catalog, list):
+            print("superpowers-route: catalog must be a JSON array of "
+                  "Stage 20a descriptors")
+            return 2
+    signals = {
+        "owner_spec_approved": bool(args.spec_approved),
+        "behavior_change": bool(args.behavior_change),
+        "unexpected_failure": bool(args.unexpected_failure),
+    }
+    result = route(catalog, args.phase, signals=signals,
+                   provider=args.provider,
+                   superpowers=not args.no_superpowers,
+                   budget_tokens=args.budget)
+    if args.json:
+        print(json.dumps({
+            "phase": result.phase,
+            "provider": result.provider,
+            "superpowers": not args.no_superpowers,
+            "requests": result.requests,
+            "selected": result.selected,
+            "findings": result.findings,
+            "suppressed": result.suppressed,
+            "fallback": result.fallback,
+            "manual_process": result.manual_process,
+            "discovery_tokens": result.discovery_tokens,
+            "body_tokens_est": result.body_tokens_est,
+            "ok": result.ok,
+        }, indent=2))
+    else:
+        print("superpowers-route: phase %r for %s%s" % (
+            result.phase, result.provider,
+            "" if not args.no_superpowers else " (no superpowers)"))
+        if result.fallback:
+            print("  manual fallback: %s" % result.manual_process)
+        for note in result.suppressed:
+            print("  suppressed: %s" % note)
+        for line in result.findings:
+            print("  - %s" % line)
+        for d in result.selected:
+            print("  selected: %s (%s)" % (d.get("semantic_id"),
+                                           d.get("name")))
+    return 0
 
 
 def cmd_thinness(args: argparse.Namespace) -> int:

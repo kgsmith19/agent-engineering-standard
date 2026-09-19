@@ -2755,5 +2755,219 @@ class McpProfileGovernance(unittest.TestCase):
         self.assertEqual([], result["findings"])
 
 
+class SuperpowersRouter(unittest.TestCase):
+    """Stage 25a: phase-routed Superpowers selection — metadata-first,
+    fail closed, bodies never loaded at routing time.
+
+    Descriptors are Stage 20a SkillDescriptor-shaped records consumed as
+    plain data; routing turns Standard phase policy into capability
+    requests resolved against whatever catalog the caller supplies via
+    the Stage 20b profile compiler.
+    """
+
+    ROUTED = (
+        "using-superpowers", "brainstorming", "writing-plans",
+        "executing-plans", "test-driven-development",
+        "requesting-code-review", "systematic-debugging",
+        "verification-before-completion", "finishing-a-development-branch",
+        "writing-clearly-and-concisely",
+    )
+
+    def _mod(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import superpowers_router
+            return superpowers_router
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _desc(self, name, description="routing blurb", body_bytes=8000,
+              dependencies=(), semantic_id=None, **over):
+        desc = {
+            "name": name,
+            "semantic_id": semantic_id or "capability.%s" % name,
+            "description": description,
+            "body_bytes": body_bytes,
+            "body_tokens_est": max(1, body_bytes // 4),
+            "dependencies": list(dependencies),
+            "body_digest": "sha256:" + "0" * 64,
+            "source_path": "plugins/x/skills/" + name,
+        }
+        desc.update(over)
+        return desc
+
+    def _catalog(self, count=41):
+        slugs = list(self.ROUTED)
+        while len(slugs) < count:
+            slugs.append("filler-%02d" % len(slugs))
+        return [
+            self._desc(slug, description="blurb for %s" % slug)
+            for slug in slugs[:count]
+        ]
+
+    def test_routing_uses_metadata_only(self):
+        """Protects the context goal; routing over a 40+-skill catalog
+        selects from descriptors alone — source paths never need to exist
+        and discovery cost stays tiny next to total body cost."""
+        mod = self._mod()
+        catalog = self._catalog(41)
+        result = mod.route(catalog, "implement")
+        self.assertTrue(result.ok, result.findings)
+        self.assertEqual(
+            ["capability.test-driven-development"],
+            [d["semantic_id"] for d in result.selected])
+        self.assertEqual(["test-driven-development"], result.requests)
+        bodies = sum(d["body_bytes"] for d in catalog) // 4
+        self.assertLess(result.discovery_tokens, bodies // 4)
+
+    def test_owner_approved_spec_suppresses_brainstorming(self):
+        """Protects the design trigger; an owner-approved Spec drops the
+        brainstorming request with a suppression note, while the default
+        design route still requests it."""
+        mod = self._mod()
+        catalog = self._catalog(41)
+        result = mod.route(catalog, "design")
+        self.assertTrue(result.ok, result.findings)
+        self.assertEqual(["brainstorming"], result.requests)
+        self.assertEqual(
+            ["capability.brainstorming"],
+            [d["semantic_id"] for d in result.selected])
+        self.assertEqual([], result.suppressed)
+        result = mod.route(catalog, "design",
+                           signals={"owner_spec_approved": True})
+        self.assertTrue(result.ok, result.findings)
+        self.assertNotIn("brainstorming", result.requests)
+        self.assertFalse(result.selected)
+        self.assertTrue(any(
+            "brainstorming" in note and "not re-triggered" in note
+            for note in result.suppressed), result.suppressed)
+
+    def test_behavior_change_routes_to_tdd_first(self):
+        """Protects the implement trigger; a declared behavior change
+        guarantees the TDD capability is requested first and selected —
+        including when extra requests trail it."""
+        mod = self._mod()
+        catalog = self._catalog(41)
+        result = mod.route(catalog, "implement",
+                           signals={"behavior_change": True})
+        self.assertTrue(result.ok, result.findings)
+        self.assertEqual("test-driven-development", result.requests[0])
+        self.assertIn(
+            "capability.test-driven-development",
+            [d["semantic_id"] for d in result.selected])
+        result = mod.route(
+            catalog, "implement", signals={"behavior_change": True},
+            extra_requests=["systematic-debugging"])
+        self.assertTrue(result.ok, result.findings)
+        self.assertEqual(
+            ["test-driven-development", "systematic-debugging"],
+            result.requests)
+
+    def test_unexpected_failure_routes_to_systematic_debugging(self):
+        """Protects the failure trigger; an unexpected failure in any
+        write phase overrides the route to systematic debugging before
+        any fix."""
+        mod = self._mod()
+        catalog = self._catalog(41)
+        for phase in ("implement", "execute", "integrate"):
+            result = mod.route(catalog, phase,
+                               signals={"unexpected_failure": True})
+            self.assertTrue(result.ok, result.findings)
+            self.assertEqual(["systematic-debugging"], result.requests)
+            self.assertEqual(
+                ["capability.systematic-debugging"],
+                [d["semantic_id"] for d in result.selected])
+            self.assertTrue(any(
+                "unexpected_failure" in note and phase in note
+                for note in result.suppressed), result.suppressed)
+
+    def test_multi_skill_request_rejected_over_budget(self):
+        """Protects the one-process-plus-one-domain policy; extra requests
+        beyond the phase route are refused whole — finding, empty
+        selection, nothing truncated."""
+        mod = self._mod()
+        catalog = self._catalog(41)
+        result = mod.route(
+            catalog, "implement",
+            extra_requests=["brainstorming", "systematic-debugging",
+                            "writing-plans"])
+        self.assertFalse(result.ok)
+        self.assertFalse(result.selected)
+        self.assertTrue(any(
+            "one-process-plus-one-domain" in f for f in result.findings),
+            result.findings)
+        self.assertEqual(
+            ["test-driven-development", "brainstorming",
+             "systematic-debugging", "writing-plans"],
+            result.requests)
+
+    def test_provider_without_superpowers_falls_back_to_manual(self):
+        """Protects the honest fallback; a provider without Superpowers
+        gets the phase's manual process with no selection — never a faked
+        skill load."""
+        mod = self._mod()
+        for phase in ("debug", "design"):
+            result = mod.route([], phase, superpowers=False)
+            self.assertTrue(result.fallback)
+            self.assertFalse(result.selected)
+            self.assertFalse(result.requests)
+            self.assertEqual(mod.MANUAL_FALLBACKS[phase],
+                             result.manual_process)
+            self.assertTrue(result.manual_process)
+            self.assertTrue(result.ok, result.findings)
+        self.assertIn("root cause", mod.MANUAL_FALLBACKS["debug"])
+
+    def test_unknown_phase_fails_closed(self):
+        """Protects the phase contract; an unknown phase is a finding
+        with no selection — never a crash."""
+        mod = self._mod()
+        result = mod.route(self._catalog(41), "release")
+        self.assertFalse(result.ok)
+        self.assertFalse(result.selected)
+        self.assertTrue(any(
+            "unknown phase" in f and "release" in f
+            for f in result.findings), result.findings)
+
+    def test_standardctl_superpowers_route_advisory_subcommand(self):
+        """Protects the advisory CLI; the subcommand exits 0 and emits the
+        route JSON — findings included, since advisory never gates."""
+        catalog_path = Path(tempfile.mkdtemp()) / "catalog.json"
+        catalog_path.write_text(json.dumps(self._catalog(41)),
+                                encoding="utf-8")
+        self.addCleanup(shutil.rmtree, str(catalog_path.parent), True)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "superpowers-route",
+             "--phase", "implement", "--catalog", str(catalog_path),
+             "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertEqual("implement", payload["phase"])
+        self.assertEqual("claude", payload["provider"])
+        self.assertEqual(["test-driven-development"], payload["requests"])
+        self.assertEqual(
+            ["capability.test-driven-development"],
+            [d["semantic_id"] for d in payload["selected"]])
+        self.assertFalse(payload["fallback"])
+        self.assertTrue(payload["ok"])
+        empty = Path(tempfile.mkdtemp()) / "empty.json"
+        empty.write_text("[]", encoding="utf-8")
+        self.addCleanup(shutil.rmtree, str(empty.parent), True)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py", "superpowers-route",
+             "--phase", "implement", "--catalog", str(empty), "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertFalse(payload["ok"])
+        self.assertFalse(payload["selected"])
+        self.assertTrue(any(
+            "absent from discovery index" in f
+            for f in payload["findings"]), payload["findings"])
+
+
 if __name__ == "__main__":
     unittest.main()
