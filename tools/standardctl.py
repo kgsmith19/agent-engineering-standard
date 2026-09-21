@@ -220,6 +220,28 @@ ADAPTERS = {
     "GEMINI.md": "# GEMINI.md\n\n@AGENTS.md\n",
 }
 
+# T11 outcome-first titles + fixed defined terms (#207). Mirrors
+# tools/outcome_terms.py REQUIRED_TEMPLATE_FIELDS verbatim: the
+# check fails a template that drops any of these fields.
+OUTCOME_TERMS_REQUIRED_FIELDS = (
+    "Outcome",
+    "Release",
+    "Context",
+    "Behavior claims",
+    "Must remain true",
+    "Must never happen",
+    "Examples and boundaries",
+    "Risk",
+    "Test strategy",
+    "Artifact requirements",
+    "Lean design",
+    "Dependencies",
+    "Security and recovery",
+    "Scope",
+    "Owner overrides",
+    "Handoff",
+)
+
 GATE_WORKFLOW_NAME = "Agent Engineering Standard PR Gate"
 GATE_JOB_NAME = "Agent Engineering Standard PR Gate"
 MERGE_POLICY_NAME = "Agent Engineering Standard Merge Policy"
@@ -1036,6 +1058,53 @@ def check_issue_config(model: RepoModel) -> List[Finding]:
             )
         ]
     return []
+
+
+def check_outcome_terms(model: RepoModel) -> List[Finding]:
+    """T11 outcome/term firewall: TEMPLATES/ISSUE.md keeps every
+    required template field (AC3 self-guard); term definitions stay
+    fixed in tools/outcome_terms.py. Consuming repositories (no
+    TEMPLATES dir) are exempt. Title/term/stage-ID rejection fixtures
+    are unit-tested against tools/outcome_terms directly."""
+    if not (model.root / "TEMPLATES").is_dir():
+        return []
+    findings: List[Finding] = []
+    body = model.read_text("TEMPLATES/ISSUE.md")
+    if body is None:
+        return [
+            Finding(
+                "outcome-terms-field-loss",
+                "error",
+                "TEMPLATES/ISSUE.md",
+                "canonical issue template is missing",
+            )
+        ]
+    present = set(
+        m.group(1).strip()
+        for m in re.finditer(r"^##\s+(.+?)\s*$", body,
+                             re.MULTILINE)
+    )
+    for field in OUTCOME_TERMS_REQUIRED_FIELDS:
+        if field not in present:
+            findings.append(
+                Finding(
+                    "outcome-terms-field-loss",
+                    "error",
+                    "TEMPLATES/ISSUE.md",
+                    "template field dropped: ## %s is missing" % field,
+                )
+            )
+    terms_path = model.root / "tools" / "outcome_terms.py"
+    if not terms_path.is_file():
+        findings.append(
+            Finding(
+                "outcome-terms-missing",
+                "error",
+                "tools/outcome_terms.py",
+                "fixed defined-terms module is missing",
+            )
+        )
+    return findings
 
 
 def check_adapters(model: RepoModel) -> List[Finding]:
@@ -2405,6 +2474,7 @@ def check_artifact_schemas(model: RepoModel) -> List[Finding]:
 CHECKS: List[Tuple[str, Any]] = [
     ("policy", check_template_pairs),
     ("policy", check_issue_config),
+    ("policy", check_outcome_terms),
     ("policy", check_adapters),
     ("policy", check_root_self_lock),
     ("policy", check_agents_authority),
