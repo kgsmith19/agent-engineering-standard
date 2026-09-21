@@ -1,0 +1,184 @@
+{
+  "_frozen": true,
+  "_provenance": "T05 #202 (tracker-pipeline-gate). Hand-authored, adjudicated oracle: every entry expected fragment reproduces the contract checkers exactly. Do not edit without a structured reopen.",
+  "entries": [
+    {
+      "id": "tpg.tracker.01",
+      "note": "Two writers on one slice violate the atomic claim.",
+      "target": "tracker",
+      "record": {
+        "writers": [
+          "a",
+          "b"
+        ],
+        "slice": "issue-202"
+      },
+      "expected_violation_fragment": "exactly one writer"
+    },
+    {
+      "id": "tpg.gate.01",
+      "note": "A skipped dependency must fail the exact-success gate.",
+      "target": "gate",
+      "record": {
+        "jobs": {
+          "setup": "success",
+          "tests": "skipped"
+        },
+        "tested_sha": "h1",
+        "head_sha": "h1",
+        "summary": true
+      },
+      "expected_violation_fragment": "exact-success only"
+    },
+    {
+      "id": "tpg.gate.02",
+      "note": "A stale tested SHA must fail with the mismatch named.",
+      "target": "gate",
+      "record": {
+        "jobs": {
+          "setup": "success"
+        },
+        "tested_sha": "old",
+        "head_sha": "new",
+        "summary": true
+      },
+      "expected_violation_fragment": "stale tested SHA"
+    },
+    {
+      "id": "tpg.render.01",
+      "note": "An edition-off stub is forbidden; delete, never stub.",
+      "target": "render",
+      "record": {
+        "needs": [
+          "setup",
+          "policy"
+        ],
+        "expected_jobs": [
+          "setup",
+          "policy"
+        ],
+        "stubs": [
+          "llm_review"
+        ]
+      },
+      "expected_violation_fragment": "stub forbidden"
+    },
+    {
+      "id": "tpg.render.02",
+      "note": "needs/EXPECTED_JOBS drift must fail.",
+      "target": "render",
+      "record": {
+        "needs": [
+          "setup",
+          "policy",
+          "tests"
+        ],
+        "expected_jobs": [
+          "setup"
+        ]
+      },
+      "expected_violation_fragment": "EXPECTED_JOBS"
+    },
+    {
+      "id": "tpg.review.01",
+      "note": "Called review with an empty model fails closed.",
+      "target": "review",
+      "record": {
+        "called": true,
+        "builder_provider_family": "anthropic",
+        "reviewer_provider_family": "openai",
+        "reviewer_model": "",
+        "reviewer_credential": "present",
+        "paths_filter": null
+      },
+      "expected_violation_fragment": "fail closed"
+    },
+    {
+      "id": "tpg.review.02",
+      "note": "Reviewer equal to builder violates separation.",
+      "target": "review",
+      "record": {
+        "called": true,
+        "builder_provider_family": "anthropic",
+        "reviewer_provider_family": "anthropic",
+        "reviewer_model": "m",
+        "reviewer_credential": "c",
+        "paths_filter": null
+      },
+      "expected_violation_fragment": "must differ"
+    },
+    {
+      "id": "tpg.review.03",
+      "note": "A paths filter on review never reports.",
+      "target": "review",
+      "record": {
+        "called": true,
+        "builder_provider_family": "anthropic",
+        "reviewer_provider_family": "openai",
+        "reviewer_model": "m",
+        "reviewer_credential": "c",
+        "paths_filter": "src/**"
+      },
+      "expected_violation_fragment": "paths filter forbidden"
+    },
+    {
+      "id": "tpg.policy.01",
+      "note": "A shell step in merge policy breaks metadata-only.",
+      "target": "policy",
+      "record": {
+        "steps": [
+          "reconcile",
+          "shell"
+        ],
+        "mirror_equivalent": true,
+        "required": false
+      },
+      "expected_violation_fragment": "metadata-only"
+    },
+    {
+      "id": "tpg.policy.02",
+      "note": "A diverged owner-label mirror breaks queueing.",
+      "target": "policy",
+      "record": {
+        "steps": [
+          "reconcile"
+        ],
+        "mirror_equivalent": false,
+        "required": false
+      },
+      "expected_violation_fragment": "mirror diverged"
+    },
+    {
+      "id": "tpg.azure.01",
+      "note": "A live Azure rendering is a second authority.",
+      "target": "azure",
+      "record": {
+        "harness": "azure",
+        "kind": "live",
+        "live_yaml": true
+      },
+      "expected_violation_fragment": "docs-only"
+    },
+    {
+      "id": "tpg.clean.01",
+      "note": "Clean tracker claim passes.",
+      "target": "tracker",
+      "record": {
+        "writers": [
+          "builder"
+        ],
+        "slice": "issue-202"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "tpg.clean.02",
+      "note": "Uncalled review stays skip-by-not-calling.",
+      "target": "review",
+      "record": {
+        "called": false
+      },
+      "expected_violation_fragment": ""
+    }
+  ]
+}
