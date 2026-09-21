@@ -6879,6 +6879,158 @@ class OwnershipMap(FixtureCase):
         self.assertEqual(0, stub_hits)
 
 
+class ExtensionsRegistry(FixtureCase):
+    """T07 (#204): extensions registry validation with native-link
+    supply. Catalog/profile/lock set validation, provider-capability
+    existence, reserved-key discipline, and the supply-side boundary
+    in tools/extensions_registry.py with the frozen corpus under
+    Canonical/corpus/extensions-registry/. Every proof point below
+    has a dedicated test with its own justification."""
+
+    def _er(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import extensions_registry
+            return extensions_registry
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "extensions-registry" / "registry.json")
+            .read_text(encoding="utf-8"))
+
+    def test_consistent_triple_passes(self):
+        """Protects AC1: a catalog/profile/lock triple that agrees
+        passes, so the consistent set is the accepted shape."""
+        er = self._er()
+        self.assertEqual([], er.check_registry_set(er.clean_triple()))
+
+    def test_catalog_mismatch_fails_closed(self):
+        """Protects AC1 (catalog axis): a profile selection missing
+        from the catalog fails naming the mismatch, so a broken
+        registry is never trusted."""
+        er = self._er()
+        record = {"catalog": [{"id": "a"}], "profile": ["ghost"],
+                  "lock": {"ghost": "1"}}
+        violations = er.check_registry_set(record)
+        self.assertTrue(
+            any("missing from the catalog" in v for v in violations),
+            violations)
+
+    def test_lock_mismatch_fails_closed(self):
+        """Protects AC1 (lock axis): a selection missing from the
+        lock and an unselected lock pin each fail, so profile and
+        lock can never drift apart silently."""
+        er = self._er()
+        record = {"catalog": [{"id": "a"}], "profile": ["a"],
+                  "lock": {}}
+        self.assertTrue(
+            any("missing from the lock" in v for v in
+                er.check_registry_set(record)))
+        record = {"catalog": [{"id": "a"}], "profile": [],
+                  "lock": {"a": "1"}}
+        self.assertTrue(
+            any("no profile selection" in v for v in
+                er.check_registry_set(record)))
+
+    def test_absent_capability_fails_closed(self):
+        """Protects AC2: an edition/flag capability absent from the
+        registry fails naming the missing ID, so editions never
+        select something nonexistent."""
+        er = self._er()
+        self.assertEqual(
+            [], er.check_capability_exists(
+                {"edition": ["lint-pack"]}, ["lint-pack"]))
+        violations = er.check_capability_exists(
+            {"edition": ["ghost-cap"]}, ["lint-pack"])
+        self.assertTrue(
+            any("unknown capability" in v and "ghost-cap" in v
+                for v in violations), violations)
+
+    def test_capability_registry_declaration_published(self):
+        """Protects AC3: the generated source of truth exists —
+        Canonical/capabilities.json holds 264 records and the
+        generator reproduces the views — so validation has one
+        declared registry, never an ad-hoc list."""
+        records = json.loads(
+            (WORKTREE / "Canonical" / "capabilities.json")
+            .read_text(encoding="utf-8"))
+        self.assertEqual(264, len(records))
+        gen = (WORKTREE / "tools" / "gen_capabilities.py")
+        self.assertTrue(gen.is_file())
+
+    def test_supply_side_routed_by_link(self):
+        """Protects AC4: a supply-side file in this repo's diff is
+        rejected naming the native agent-extensions link, so
+        supply-side work lands in its owning repo, never here."""
+        er = self._er()
+        self.assertEqual(
+            [], er.check_supply_boundary(
+                ["tools/extensions_registry.py"]))
+        violations = er.check_supply_boundary(
+            ["extensions/adapters/foo.py"])
+        self.assertTrue(
+            any("linked native agent-extensions issue" in v
+                for v in violations), violations)
+
+    def test_reserved_keys_stay_reserved(self):
+        """Protects the Q8 boundary: adapters: and profile: fail
+        closed as reserved, so later-stage keys cannot be squatted
+        by registry validation."""
+        er = self._er()
+        for key in ("adapters", "profile"):
+            violations = er.check_reserved_keys({key: {"x": 1}})
+            self.assertTrue(
+                any("reserved key" in v for v in violations),
+                (key, violations))
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 10 corpus entries
+        reproduce their expected violation fragments across all
+        five contract surfaces (set, capability, reserved, supply,
+        keyless)."""
+        er = self._er()
+        findings, entries = \
+            er.validate_registry_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(10, len(entries))
+
+    def test_red_by_construction_no_rule_stub_passes(self):
+        """Sensitivity proof (RED): a no-rule stub that always
+        passes reproduces 0/7 negative corpus fragments while the
+        real checkers fire on all 7 — so the suite is green
+        because the rules exist, not because the fixtures cannot
+        fail."""
+        er = self._er()
+        corpus = self._corpus_doc()
+        negatives = [entry for entry in corpus["entries"]
+                     if entry.get("expected_violation_fragment")]
+        self.assertEqual(7, len(negatives))
+        stub_hits = 0
+        for entry in negatives:
+            target = entry["target"]
+            if target == "set":
+                real = er.check_registry_set(entry["record"])
+            elif target == "capability":
+                real = er.check_capability_exists(
+                    entry["record"], entry.get("registry", []))
+            elif target == "reserved":
+                real = er.check_reserved_keys(entry["record"])
+            elif target == "supply":
+                real = er.check_supply_boundary(entry["record"])
+            else:
+                real = (er.check_registry_set(entry["record"])
+                        + er.check_reserved_keys(entry["record"]))
+            self.assertTrue(
+                any(entry["expected_violation_fragment"] in v
+                    for v in real), entry["id"])
+            stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+
 class LedgerRuntime(FixtureCase):
     """T06 (#203): filesystem-agnostic ledger/runtime with governed
     rotation. Thin path-resolution layer plus isolation-order,

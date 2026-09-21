@@ -1,0 +1,145 @@
+{
+  "_frozen": true,
+  "_provenance": "T07 #204 (extensions-registry). Hand-authored, adjudicated oracle.",
+  "entries": [
+    {
+      "id": "ext.set.01",
+      "note": "Consistent triple passes.",
+      "target": "set",
+      "record": {
+        "catalog": [
+          {
+            "id": "lint-pack"
+          },
+          {
+            "id": "review-pack"
+          }
+        ],
+        "profile": [
+          "lint-pack"
+        ],
+        "lock": {
+          "lint-pack": "1.0.0"
+        }
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ext.set.02",
+      "note": "Profile selecting a missing catalog entry fails.",
+      "target": "set",
+      "record": {
+        "catalog": [
+          {
+            "id": "a"
+          }
+        ],
+        "profile": [
+          "ghost"
+        ],
+        "lock": {
+          "ghost": "1"
+        }
+      },
+      "expected_violation_fragment": "missing from the catalog"
+    },
+    {
+      "id": "ext.set.03",
+      "note": "Selection missing from the lock fails.",
+      "target": "set",
+      "record": {
+        "catalog": [
+          {
+            "id": "a"
+          }
+        ],
+        "profile": [
+          "a"
+        ],
+        "lock": {}
+      },
+      "expected_violation_fragment": "missing from the lock"
+    },
+    {
+      "id": "ext.set.04",
+      "note": "Unselected lock pin fails.",
+      "target": "set",
+      "record": {
+        "catalog": [
+          {
+            "id": "a"
+          }
+        ],
+        "profile": [],
+        "lock": {
+          "a": "1"
+        }
+      },
+      "expected_violation_fragment": "no profile selection"
+    },
+    {
+      "id": "ext.cap.01",
+      "note": "Declared capability passes.",
+      "target": "capability",
+      "record": {
+        "edition": [
+          "lint-pack"
+        ]
+      },
+      "registry": [
+        "lint-pack"
+      ],
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ext.cap.02",
+      "note": "Absent capability fails closed.",
+      "target": "capability",
+      "record": {
+        "edition": [
+          "ghost-cap"
+        ]
+      },
+      "registry": [
+        "lint-pack"
+      ],
+      "expected_violation_fragment": "unknown capability"
+    },
+    {
+      "id": "ext.reserved.01",
+      "note": "adapters stays reserved.",
+      "target": "reserved",
+      "record": {
+        "adapters": {
+          "x": 1
+        }
+      },
+      "expected_violation_fragment": "reserved key"
+    },
+    {
+      "id": "ext.supply.01",
+      "note": "Supply-side file routed by link.",
+      "target": "supply",
+      "record": [
+        "extensions/adapters/foo.py"
+      ],
+      "expected_violation_fragment": "linked native agent-extensions issue"
+    },
+    {
+      "id": "ext.supply.02",
+      "note": "Non-supply diff is clean.",
+      "target": "supply",
+      "record": [
+        "tools/extensions_registry.py"
+      ],
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ext.keyless.01",
+      "note": "Empty registry record fails as non-list (keyless usage carries no triple).",
+      "target": "keyless",
+      "record": {},
+      "expected_violation_fragment": "catalog must be a list"
+    }
+  ]
+}
