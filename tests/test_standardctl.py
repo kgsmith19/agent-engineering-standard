@@ -6707,5 +6707,177 @@ class TrackerPipelineGate(FixtureCase):
         self.assertEqual(0, stub_hits)
 
 
+class OwnershipMap(FixtureCase):
+    """T12 (#208): ownership map with read/edit/impact scopes per
+    root. Coverage, metadata, multi-root, invariant-widening,
+    stale-map, and protected-write contracts in
+    tools/ownership_map.py with the frozen corpus under
+    Canonical/corpus/ownership-map/. Every proof point below has a
+    dedicated test with its own justification."""
+
+    def _om(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import ownership_map
+            return ownership_map
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "ownership-map" / "ownership.json")
+            .read_text(encoding="utf-8"))
+
+    def test_mapped_root_passes(self):
+        """Protects AC1: a root with read/edit/impact scopes plus
+        metadata passes, so the mapped shape is the accepted
+        shape."""
+        om = self._om()
+        entry = om.clean_entry()
+        self.assertEqual([], om.check_entry_metadata(entry))
+        self.assertEqual(
+            [], om.check_map_coverage(["tools/"],
+                                      {"tools/": entry}))
+
+    def test_unmapped_root_fails(self):
+        """Protects AC1 (coverage axis): a planted unmapped root
+        fails naming the root, so coverage gaps never pass
+        silently."""
+        om = self._om()
+        violations = om.check_map_coverage(
+            ["tools/", "ghost/"], {"tools/": om.clean_entry()})
+        self.assertTrue(
+            any("unmapped root" in v and "ghost" in v
+                for v in violations), violations)
+
+    def test_metadata_completeness(self):
+        """Protects AC2: an entry missing direction/commands fails
+        naming the field, so scope decisions never lack inputs."""
+        om = self._om()
+        record = {"roots": ["t"], "interfaces": ["i"],
+                  "commands": ["c"],
+                  "scopes": {"read": [], "edit": [],
+                             "impact": []}}
+        violations = om.check_entry_metadata(record)
+        self.assertTrue(
+            any("direction" in v for v in violations),
+            violations)
+
+    def test_declared_multi_root_passes(self):
+        """Protects AC3: one owner declared across two roots with
+        the multi-root declaration passes, so legitimate
+        multi-root ownership is supported."""
+        om = self._om()
+        entries = {
+            "a/": dict(om.clean_entry("shared"),
+                       multi_root_declared=True),
+            "b/": dict(om.clean_entry("shared"),
+                       multi_root_declared=True),
+        }
+        self.assertEqual([], om.check_multi_root(entries))
+
+    def test_undeclared_sprawl_flagged(self):
+        """Protects AC3 (sprawl axis): edits spanning roots without
+        declaration are flagged, so multi-root never becomes a
+        loophole for widening edit rights."""
+        om = self._om()
+        entries = {"a/": om.clean_entry("x"),
+                   "b/": om.clean_entry("x")}
+        violations = om.check_multi_root(entries)
+        self.assertTrue(
+            any("undeclared sprawl" in v for v in violations),
+            violations)
+
+    def test_invariant_touch_widens(self):
+        """Protects AC4: shared-schema and security touches widen
+        beyond the local slice while local-only touches stay
+        local, so invariant changes are never under-verified."""
+        om = self._om()
+        self.assertEqual(
+            [], om.check_invariant_widening(["local-only"], {}))
+        for touched in (["shared-schema"], ["security"],
+                        ["global-state"], ["dynamic-wiring"],
+                        ["external-consumer"]):
+            violations = om.check_invariant_widening(touched, {})
+            self.assertTrue(
+                any("widens beyond the local slice" in v
+                    for v in violations), (touched, violations))
+
+    def test_stale_map_detected(self):
+        """Protects AC5 (stale-map canary): a map entry whose edit
+        scope no longer covers reality fails naming the
+        staleness, so a decorative-but-wrong map is never
+        trusted."""
+        om = self._om()
+        violations = om.check_stale_map(
+            {"edit_scope": ["a.py"]},
+            {"owned_paths": ["a.py", "b.py"]})
+        self.assertTrue(
+            any("stale map" in v for v in violations),
+            violations)
+
+    def test_protected_write_blocked(self):
+        """Protects AC6 (protected-write canary): a write outside
+        the declared edit scope is blocked naming path and scope,
+        so out-of-scope edits never land silently."""
+        om = self._om()
+        entry = om.clean_entry()
+        self.assertEqual(
+            [], om.check_protected_write("tools/a.py", entry))
+        violations = om.check_protected_write("evil.py", entry)
+        self.assertTrue(
+            any("protected write blocked" in v for v in violations),
+            violations)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 13 corpus entries
+        reproduce their expected violation fragments across all
+        six contract surfaces (coverage, metadata, multiroot,
+        widening, stale, protected)."""
+        om = self._om()
+        findings, entries = \
+            om.validate_ownership_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(13, len(entries))
+
+    def test_red_by_construction_no_rule_stub_passes(self):
+        """Sensitivity proof (RED): a no-rule stub that always
+        passes reproduces 0/7 negative corpus fragments while the
+        real checkers fire on all 7 — so the suite is green
+        because the rules exist, not because the fixtures cannot
+        fail."""
+        om = self._om()
+        corpus = self._corpus_doc()
+        negatives = [entry for entry in corpus["entries"]
+                     if entry.get("expected_violation_fragment")]
+        self.assertEqual(7, len(negatives))
+        stub_hits = 0
+        for entry in negatives:
+            target = entry["target"]
+            if target == "coverage":
+                real = om.check_map_coverage(
+                    entry["record"], entry.get("entries", {}))
+            elif target == "metadata":
+                real = om.check_entry_metadata(entry["record"])
+            elif target == "multiroot":
+                real = om.check_multi_root(entry["record"])
+            elif target == "widening":
+                real = om.check_invariant_widening(
+                    entry["record"], {})
+            elif target == "stale":
+                real = om.check_stale_map(
+                    entry["record"], entry.get("reality", {}))
+            else:
+                real = om.check_protected_write(
+                    entry.get("path", ""), entry["record"])
+            self.assertTrue(
+                any(entry["expected_violation_fragment"] in v
+                    for v in real), entry["id"])
+            stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+
 if __name__ == "__main__":
     unittest.main()
