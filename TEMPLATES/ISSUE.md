@@ -8,6 +8,14 @@ assignees: ""
 
 ## Outcome
 
+<!-- Outcome-first (T11 #207): state verb + observable behavior + scope.
+  Stage IDs map to metadata as a title suffix only, never as the outcome.
+  Fixed terms: lease = temporary exclusive write authority; fencing
+  generation = increasing identifier rejecting stale writers; idempotent =
+  retries do not repeat effect; Mold = frozen verification contract;
+  capability = named behavior OR granted permission (state which);
+  MERGED vs CLEANED = merge may precede cleanup, MERGED is not CLEANED. -->
+
 State one observable result.
 
 ## Release

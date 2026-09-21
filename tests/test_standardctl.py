@@ -5448,5 +5448,136 @@ class VerificationPortfolio(unittest.TestCase):
         self.assertEqual(2, proc.returncode)
 
 
+class OutcomeTerms(unittest.TestCase):
+    """T11 (#207): outcome-first titles and fixed defined terms.
+    Pure contract in tools/outcome_terms.py plus the
+    `outcome-terms-field-loss` verify check guarding
+    TEMPLATES/ISSUE.md. Every proof point below has a dedicated
+    test with its own justification."""
+
+    def _ot(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import outcome_terms
+            return outcome_terms
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _full_body(self):
+        return (WORKTREE / "TEMPLATES" / "ISSUE.md").read_text(
+            encoding="utf-8")
+
+    def test_good_title_with_suffix_passes(self):
+        """Protects AC1/AC4 acceptance: an outcome-first title with a
+        `Stage X` suffix passes, so valid amendment titles are never
+        rejected by the convention."""
+        ot = self._ot()
+        self.assertEqual(
+            [],
+            ot.validate_issue(
+                "Issue titles state observable outcome and defined "
+                "terms are fixed [T11]", self._full_body()))
+
+    def test_ambiguous_outcome_rejected(self):
+        """Protects AC1: a vague title with no observable behavior
+        fails, so ambiguity cannot slip through as a stated outcome."""
+        ot = self._ot()
+        violations = ot.validate_issue(
+            "Improve the workflow", self._full_body())
+        self.assertTrue(
+            any("ambiguous outcome" in v for v in violations),
+            violations)
+
+    def test_empty_outcome_rejected(self):
+        """Protects AC1: a blank title fails, so an empty outcome
+        section can never pass the validation path."""
+        ot = self._ot()
+        violations = ot.validate_issue("", self._full_body())
+        self.assertTrue(
+            any("empty outcome" in v for v in violations),
+            violations)
+
+    def test_contradictory_term_use_rejected(self):
+        """Protects AC2: treating MERGED as CLEANED fails, so the
+        fixed completion-state vocabulary cannot be silently
+        redefined in an issue body."""
+        ot = self._ot()
+        violations = ot.validate_issue(
+            "Extensions and capability registries validated [T07]",
+            self._full_body() + "\nDone means MERGED = CLEANED.\n")
+        self.assertTrue(
+            any("contradictory term use" in v for v in violations),
+            violations)
+
+    def test_dropped_template_field_rejected(self):
+        """Protects AC3/AC5: a body missing a required template
+        field fails, so silent field loss is caught at validation
+        time rather than in review."""
+        ot = self._ot()
+        body = self._full_body().replace("## Risk\n", "")
+        violations = ot.validate_issue(
+            "Ownership map declares scope for every root [T12]",
+            body)
+        self.assertIn(
+            "template field dropped: ## Risk is missing", violations)
+
+    def test_inline_stage_id_rejected(self):
+        """Protects AC4: a title led by a stage ID fails, so stage
+        IDs stay suffix/metadata mappings and never replace the
+        outcome statement."""
+        ot = self._ot()
+        violations = ot.validate_issue(
+            "Stage 37 Install gates", self._full_body())
+        self.assertTrue(
+            any("stage ID placement" in v for v in violations),
+            violations)
+
+    def test_all_template_fields_present_in_canonical(self):
+        """Protects AC3: the canonical TEMPLATES/ISSUE.md carries
+        every required field, so the field-loss check never
+        false-positives on the real template."""
+        ot = self._ot()
+        self.assertEqual([],
+                         ot.check_template_fields(self._full_body()))
+
+    def test_verify_check_passes_on_this_repository(self):
+        """Protects the `outcome-terms-field-loss` wiring: the new
+        policy check passes on the real tree, so it guards without
+        blocking every PR."""
+        findings = standardctl.check_outcome_terms(
+            standardctl.RepoModel(WORKTREE))
+        self.assertEqual(
+            [], [f for f in findings if f.severity == "error"])
+
+    def test_field_lists_stay_in_sync(self):
+        """Protects the check/module contract: the verify check's
+        field list mirrors tools/outcome_terms exactly, so a field
+        added in one place cannot silently drift from the other."""
+        ot = self._ot()
+        self.assertEqual(tuple(standardctl.OUTCOME_TERMS_REQUIRED_FIELDS),
+                         tuple(ot.REQUIRED_TEMPLATE_FIELDS))
+
+
+class OutcomeTermsRejections(FixtureCase):
+    """Verify-level rejection: one mutation of the canonical template
+    fires exactly `outcome-terms-field-loss`."""
+
+    def test_verify_rejects_dropped_issue_template_field(self):
+        """Protects AC3/AC5 end to end: a dropped ## Risk field in
+        TEMPLATES/ISSUE.md fails verify, catching template weakening
+        that unit fixtures alone could miss."""
+        root = self.std_fixture()
+        template = root / "TEMPLATES" / "ISSUE.md"
+        template.write_text(
+            template.read_text(encoding="utf-8").replace(
+                "## Risk\n", ""),
+            encoding="utf-8",
+        )
+        findings = standardctl.check_outcome_terms(self.model(root))
+        self.assertIn("outcome-terms-field-loss",
+                      check_ids(findings))
+
+
 if __name__ == "__main__":
     unittest.main()
