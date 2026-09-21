@@ -1844,6 +1844,134 @@ def check_gate_aggregator(model: RepoModel) -> List[Finding]:
     return gate_aggregator_findings(workflow["rel"], workflow["structure"])
 
 
+def check_merge_policy_metadata_only(model: RepoModel) -> List[Finding]:
+    """T05 merge-policy metadata-only firewall: merge-policy.yml
+    carries no checkout/download-artifact/shell step and its
+    ownerLabelAuthorized mirror matches
+    tools/standardctl.py owner_label_authorized exactly. The
+    privileged-pr-checkout check owns the checkout/download half;
+    this check owns the shell half plus the mirror half, so a
+    metadata-only violation or a diverged queueing mirror fails
+    verify with a T05 check id. Consuming repositories (no
+    .github/workflows dir) are exempt."""
+    if not (model.root / ".github" / "workflows").is_dir():
+        return []
+    findings: List[Finding] = []
+    for rel in (".github/workflows/merge-policy.yml",
+                "TEMPLATES/merge-policy.yml"):
+        text = model.read_text(rel)
+        if text is None:
+            continue
+        for raw in text.split("\n"):
+            stripped = raw.strip().lstrip("\r")
+            if stripped.startswith("#"):
+                continue
+            if stripped.startswith("run:") or stripped.startswith(
+                    "- run:"):
+                findings.append(
+                    Finding(
+                        "merge-policy-not-metadata-only",
+                        "error",
+                        rel,
+                        "merge policy is metadata-only: shell run: "
+                        "step forbidden (no checkout/download/shell)",
+                    )
+                )
+                break
+    mirror_ok = _merge_policy_mirror_matches(model)
+    if mirror_ok is False:
+        findings.append(
+            Finding(
+                "merge-policy-mirror-diverged",
+                "error",
+                ".github/workflows/merge-policy.yml",
+                "ownerLabelAuthorized mirror diverged from "
+                "tools/standardctl.py owner_label_authorized: "
+                "metadata-only decisions need the exact mirror",
+            )
+        )
+    return findings
+
+
+def _merge_policy_mirror_matches(model: RepoModel) -> Optional[bool]:
+    """True when the merge-policy ownerLabelAuthorized body matches
+    owner_label_authorized semantics; None when either side is absent.
+
+    The mirror is semantic, not textual: the workflow must walk
+    timeline events in order, set authorization to (actor == owner)
+    on labeled, and clear it on unlabeled — exactly what
+    owner_label_authorized does."""
+    text = model.read_text(".github/workflows/merge-policy.yml")
+    if text is None:
+        return None
+    compact = " ".join(text.split())
+    has_walk = ("for (const event of events)" in compact
+                or "for(const event of events)" in compact
+                or "for (const event of" in compact)
+    has_labeled_set = ("authorized = login === ownerLoginValue" in compact
+                       or "authorized = login === ownerLogin" in compact)
+    has_unlabeled_clear = ("authorized = false" in compact)
+    if has_walk and has_labeled_set and has_unlabeled_clear:
+        return True
+    return False
+
+
+def check_llm_review_harness_ownership(model: RepoModel) -> List[Finding]:
+    """T05 review harness-ownership firewall: llm-review.yml carries
+    no paths filter (a path-filtered required dependency never
+    reports) and keeps every required input enforced (once called,
+    empty inputs fail closed). The gate-side skip-by-not-calling
+    shape is owned by check_review_always_comments; this check owns
+    the called-side fail-closed half. Consuming repositories (no
+    .github/workflows dir) are exempt."""
+    if not (model.root / ".github" / "workflows").is_dir():
+        return []
+    findings: List[Finding] = []
+    for rel in (".github/workflows/llm-review.yml",
+                "TEMPLATES/llm-review.yml"):
+        text = model.read_text(rel)
+        if text is None:
+            continue
+        struct = extract_workflow_structure(text)
+        if struct.get("has_path_filter"):
+            findings.append(
+                Finding(
+                    "review-paths-filter",
+                    "error",
+                    rel,
+                    "the review workflow must not use paths/"
+                    "paths-ignore filters: an unreported required "
+                    "check blocks the merge forever",
+                )
+            )
+        for required, markers in (
+                ("builder_provider_family",
+                 ("builder_provider_family:",)),
+                ("reviewer_provider_family",
+                 ("reviewer_provider_family:",)),
+                ("reviewer_model",
+                 ("reviewer_model:",
+                  'inputs.reviewer_model',
+                  'inputs["reviewer_model"]',
+                  "inputs['reviewer_model']")),
+                ("reviewer_credential",
+                 ("secrets.reviewer_credential",
+                  'secrets["reviewer_credential"]',
+                  "secrets['reviewer_credential']")),
+        ):
+            if not any(marker in text for marker in markers):
+                findings.append(
+                    Finding(
+                        "review-input-not-required",
+                        "error",
+                        rel,
+                        "review input %r is not enforced: once "
+                        "called, empty inputs must fail closed" % required,
+                    )
+                )
+    return findings
+
+
 def gate_noop_findings(rel: str, struct: Dict) -> List[Finding]:
     """Directly-testable core of check_gate_noop_stages."""
     findings: List[Finding] = []
@@ -2692,6 +2820,8 @@ CHECKS: List[Tuple[str, Any]] = [
     ("policy", check_capability_registry),
     ("policy", check_artifact_schemas),
     ("policy", check_test_justifications),
+    ("security", check_merge_policy_metadata_only),
+    ("security", check_llm_review_harness_ownership),
     ("lean", check_forbidden_artifacts),
     ("lean", check_agents_line_budget),
     ("security", check_unknown_tokens),

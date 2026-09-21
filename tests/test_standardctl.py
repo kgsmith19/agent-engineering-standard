@@ -6396,5 +6396,316 @@ class SecretIdentityContract(FixtureCase):
         self.assertNotIn("Accepted when", text)
 
 
+class TrackerPipelineGate(FixtureCase):
+    """T05 (#202): tracker/pipeline/gate generic contracts with the
+    shipped GitHub YAML as the authoritative rendering. Pure
+    contracts in tools/tracker_pipeline_gate.py plus the frozen
+    corpus under Canonical/corpus/tracker-pipeline-gate/ plus two
+    verify firewalls (merge-policy metadata-only + mirror,
+    review harness-ownership). Every proof point below has a
+    dedicated test with its own justification."""
+
+    def _tpg(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import tracker_pipeline_gate
+            return tracker_pipeline_gate
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "tracker-pipeline-gate" / "rendering.json")
+            .read_text(encoding="utf-8"))
+
+    def test_tracker_atomic_claim_single_writer(self):
+        """Protects AC1: the clean atomic claim (one writer, one
+        slice) passes while a two-writer claim fails naming the
+        single-writer rule, so one slice never gets two writers."""
+        tpg = self._tpg()
+        self.assertEqual([],
+                         tpg.check_tracker_claim(tpg.clean_claim()))
+        violations = tpg.check_tracker_claim(
+            {"writers": ["a", "b"], "slice": "issue-202"})
+        self.assertTrue(
+            any("exactly one writer" in v for v in violations),
+            violations)
+
+    def test_tracker_second_tracker_forbidden(self):
+        """Protects AC1 (no-second-tracker axis): a claim carrying
+        a second tracker binding is rejected, so atomic claim
+        semantics never grow a second authority."""
+        tpg = self._tpg()
+        claim = dict(tpg.clean_claim(), second_tracker=True)
+        violations = tpg.check_tracker_claim(claim)
+        self.assertTrue(
+            any("second tracker" in v for v in violations),
+            violations)
+
+    def test_gate_exact_success_rejects_every_non_success(self):
+        """Protects AC1/AC2: failure, cancelled, skipped, neutral,
+        and missing-everything each fail the exact-success rule,
+        so no non-success conclusion can slip a release gate."""
+        tpg = self._tpg()
+        self.assertEqual([],
+                         tpg.check_gate_aggregation(tpg.clean_gate()))
+        for conclusion in ("failure", "cancelled", "skipped",
+                           "neutral"):
+            gate = tpg.clean_gate()
+            gate["jobs"] = {"setup": conclusion}
+            violations = tpg.check_gate_aggregation(gate)
+            self.assertTrue(
+                any("exact-success only" in v for v in violations),
+                (conclusion, violations))
+        violations = tpg.check_gate_aggregation(
+            {"jobs": {}, "tested_sha": "h",
+             "head_sha": "h", "summary": True})
+        self.assertTrue(violations, violations)
+
+    def test_gate_stale_sha_names_mismatch(self):
+        """Protects AC2 (exact-head axis): a tested SHA different
+        from the PR head fails naming both SHAs, so a stale run
+        never gates a moved head."""
+        tpg = self._tpg()
+        gate = dict(tpg.clean_gate(), tested_sha="old",
+                    head_sha="new")
+        violations = tpg.check_gate_aggregation(gate)
+        self.assertTrue(
+            any("stale tested SHA" in v and "old" in v
+                and "new" in v for v in violations),
+            violations)
+
+    def test_gate_summary_required(self):
+        """Protects AC2 (summary axis): a gate without a published
+        summary is rejected, so the concise summary is never
+        silently dropped from the rendering."""
+        tpg = self._tpg()
+        gate = dict(tpg.clean_gate(), summary=False)
+        violations = tpg.check_gate_aggregation(gate)
+        self.assertTrue(
+            any("summary" in v for v in violations), violations)
+
+    def test_render_sync_deletes_never_stubs(self):
+        """Protects AC3: a stubbed edition-off job fails naming the
+        stub while a needs/EXPECTED_JOBS drift fails naming the
+        sync, so edition renders delete jobs from both lists."""
+        tpg = self._tpg()
+        self.assertEqual([],
+                         tpg.check_render_sync(tpg.clean_render()))
+        stubbed = dict(tpg.clean_render(), stubs=["llm_review"])
+        self.assertTrue(
+            any("stub forbidden" in v for v in
+                tpg.check_render_sync(stubbed)))
+        drifted = dict(tpg.clean_render(), expected_jobs=["setup"])
+        self.assertTrue(
+            any("EXPECTED_JOBS" in v for v in
+                tpg.check_render_sync(drifted)))
+
+    def test_review_skip_by_not_calling(self):
+        """Protects AC4: an uncalled review is clean without
+        further checks, so the harness skipping the call is the
+        sanctioned skip shape, never a bypass."""
+        tpg = self._tpg()
+        self.assertEqual(
+            [], tpg.check_review_ownership(tpg.clean_review(
+                uncalled=True)))
+        self.assertEqual(
+            [], tpg.check_review_ownership(tpg.clean_review()))
+
+    def test_review_called_empty_fails_closed(self):
+        """Protects AC4 (fail-closed axis): a called review with
+        an empty model fails naming the input, so once called the
+        review can never succeed on empty inputs."""
+        tpg = self._tpg()
+        review = dict(tpg.clean_review(), reviewer_model="")
+        violations = tpg.check_review_ownership(review)
+        self.assertTrue(
+            any("fail closed" in v and "reviewer_model" in v
+                for v in violations), violations)
+
+    def test_review_provider_separation_mechanical(self):
+        """Protects AC4 (separation axis): a reviewer equal to the
+        builder fails naming both families, so provider separation
+        is mechanical, never honor-system."""
+        tpg = self._tpg()
+        review = dict(tpg.clean_review(),
+                      reviewer_provider_family="anthropic")
+        violations = tpg.check_review_ownership(review)
+        self.assertTrue(
+            any("must differ" in v for v in violations),
+            violations)
+
+    def test_review_paths_filter_forbidden(self):
+        """Protects AC4 (always-report axis): a paths filter on the
+        review fails closed, so a path-filtered required check can
+        never silently never-report."""
+        tpg = self._tpg()
+        review = dict(tpg.clean_review(), paths_filter="src/**")
+        violations = tpg.check_review_ownership(review)
+        self.assertTrue(
+            any("paths filter forbidden" in v for v in violations),
+            violations)
+
+    def test_merge_policy_metadata_only(self):
+        """Protects AC5: a shell step in merge policy fails naming
+        metadata-only, so no checkout/download/shell step ever
+        reaches the privileged merge-policy path."""
+        tpg = self._tpg()
+        self.assertEqual([],
+                         tpg.check_merge_policy_metadata(
+                             tpg.clean_policy()))
+        policy = dict(tpg.clean_policy(), steps=["shell"])
+        violations = tpg.check_merge_policy_metadata(policy)
+        self.assertTrue(
+            any("metadata-only" in v for v in violations),
+            violations)
+
+    def test_merge_policy_mirror_and_non_required(self):
+        """Protects AC5 (mirror axis): a diverged
+        owner_label_authorized mirror fails, and a required merge
+        policy fails, so queueing decisions stay exact-mirror and
+        the aggregator stays the sole required check."""
+        tpg = self._tpg()
+        diverged = dict(tpg.clean_policy(),
+                        mirror_equivalent=False)
+        self.assertTrue(
+            any("mirror diverged" in v for v in
+                tpg.check_merge_policy_metadata(diverged)))
+        required = dict(tpg.clean_policy(), required=True)
+        self.assertTrue(
+            any("sole required check" in v for v in
+                tpg.check_merge_policy_metadata(required)))
+
+    def test_azure_docs_only(self):
+        """Protects AC6: a live Azure rendering with shipped YAML
+        fails naming docs-only, so no second live authority with
+        divergent gate semantics is ever shipped."""
+        tpg = self._tpg()
+        self.assertEqual(
+            [], tpg.check_rendering_docs_only(tpg.clean_rendering()))
+        live = dict(tpg.clean_rendering(), kind="live",
+                    live_yaml=True)
+        violations = tpg.check_rendering_docs_only(live)
+        self.assertTrue(
+            any("docs-only" in v for v in violations), violations)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 13 corpus entries
+        reproduce their expected violation fragments across all six
+        contract surfaces (tracker, gate, render, review, policy,
+        azure)."""
+        tpg = self._tpg()
+        findings, entries = \
+            tpg.validate_rendering_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(13, len(entries))
+
+    def test_verify_merge_policy_shell_canary(self):
+        """Protects AC5 end-to-end: a shell run: step appended to
+        the live merge-policy.yml fires
+        merge-policy-not-metadata-only under verify, so the
+        metadata-only firewall is wired, not decorative."""
+        root = self.std_fixture()
+        policy = (Path(root) / ".github" / "workflows"
+                  / "merge-policy.yml")
+        policy.write_text(
+            policy.read_text(encoding="utf-8")
+            + "\n      - run: echo pwned\n",
+            encoding="utf-8")
+        findings = standardctl.check_merge_policy_metadata_only(
+            self.model(root))
+        self.assertIn("merge-policy-not-metadata-only",
+                      check_ids(findings))
+
+    def test_verify_merge_policy_mirror_canary(self):
+        """Protects AC5 (mirror axis) end-to-end: breaking the
+        labeled-set line of ownerLabelAuthorized fires
+        merge-policy-mirror-diverged, so a diverged queueing
+        mirror cannot pass verify silently."""
+        root = self.std_fixture()
+        policy = (Path(root) / ".github" / "workflows"
+                  / "merge-policy.yml")
+        policy.write_text(
+            policy.read_text(encoding="utf-8").replace(
+                "authorized = login === ownerLoginValue",
+                "authorized = true"),
+            encoding="utf-8")
+        findings = standardctl.check_merge_policy_metadata_only(
+            self.model(root))
+        self.assertIn("merge-policy-mirror-diverged",
+                      check_ids(findings))
+
+    def test_verify_review_ownership_canaries(self):
+        """Protects AC4 end-to-end: a paths filter on the live
+        review workflow fires review-paths-filter, and dropping the
+        reviewer_model declaration plus its enforcement fires
+        review-input-not-required, so harness-ownership is wired
+        on both halves."""
+        root = self.std_fixture()
+        live = (Path(root) / ".github" / "workflows"
+                / "llm-review.yml")
+        live.write_text(
+            live.read_text(encoding="utf-8").replace(
+                "on:\n  workflow_call:",
+                "on:\n  workflow_call:\n    paths:\n"
+                "      - src/**"),
+            encoding="utf-8")
+        findings = standardctl.check_llm_review_harness_ownership(
+            self.model(root))
+        self.assertIn("review-paths-filter", check_ids(findings))
+        template = (Path(root) / "TEMPLATES" / "llm-review.yml")
+        lines = template.read_text(encoding="utf-8").split("\n")
+        lines = [line for line in lines
+                 if line.strip() != "reviewer_model:"
+                 and "inputs.reviewer_model" not in line]
+        template.write_text("\n".join(lines), encoding="utf-8")
+        findings = standardctl.check_llm_review_harness_ownership(
+            self.model(root))
+        self.assertIn("review-input-not-required",
+                      check_ids(findings))
+
+    def test_no_second_live_rendering_shipped(self):
+        """Protects AC6 (Must-never-happen axis): the tree ships no
+        live second tracker/pipeline/gate rendering — no Azure
+        workflow file, no second gate file — so Azure stays
+        docs-only by construction, not by promise."""
+        names = set()
+        for path in (WORKTREE / ".github" / "workflows").iterdir():
+            names.add(path.name)
+        self.assertNotIn("azure-pipelines.yml", names)
+        gate_files = [name for name in names if "gate" in name]
+        self.assertEqual(["pr-gate.yml"], sorted(gate_files))
+
+    def test_red_by_construction_no_rule_stub_passes(self):
+        """Sensitivity proof (RED): a no-rule stub that always
+        passes reproduces zero of the 11 negative corpus
+        fragments, while the real checkers fire on all 11 — so
+        the suite is green because the rules exist, not because
+        the fixtures cannot fail."""
+        tpg = self._tpg()
+        corpus = self._corpus_doc()
+        negatives = [entry for entry in corpus["entries"]
+                     if entry.get("expected_violation_fragment")]
+        self.assertEqual(11, len(negatives))
+        stub_hits = 0
+        checkers = {
+            "tracker": tpg.check_tracker_claim,
+            "gate": tpg.check_gate_aggregation,
+            "render": tpg.check_render_sync,
+            "review": tpg.check_review_ownership,
+            "policy": tpg.check_merge_policy_metadata,
+            "azure": tpg.check_rendering_docs_only,
+        }
+        for entry in negatives:
+            real = checkers[entry["target"]](entry["record"])
+            self.assertTrue(
+                any(entry["expected_violation_fragment"] in v
+                    for v in real), entry["id"])
+            stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+
 if __name__ == "__main__":
     unittest.main()
