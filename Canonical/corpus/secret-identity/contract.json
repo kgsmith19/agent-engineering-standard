@@ -1,0 +1,180 @@
+{
+  "_frozen": true,
+  "_provenance": "Stage T04 #201 (secret-identity). Hand-authored, adjudicated oracle: every entry's expected violation fragment reproduces the contract checkers exactly. Do not edit without a structured reopen.",
+  "entries": [
+    {
+      "expected_violation_fragment": "owner-fallback",
+      "id": "secret-ident.store.01",
+      "note": "An owner-fallback credential path is forbidden: break-glass is the owner admin path, never a contract capability.",
+      "record": {
+        "binding": "infisical",
+        "capabilities": [
+          "acquire",
+          "expire",
+          "rotate"
+        ],
+        "max_ttl_seconds": 3600,
+        "owner_fallback": true
+      },
+      "target": "store"
+    },
+    {
+      "expected_violation_fragment": "values-only rule",
+      "id": "secret-ident.store.02",
+      "note": "A literal token under a contract key violates the values-only rule: refs and metadata only.",
+      "record": {
+        "binding": "infisical",
+        "capabilities": [
+          "acquire",
+          "expire",
+          "rotate",
+          "verify"
+        ],
+        "max_ttl_seconds": 3600,
+        "token": "ghp_ThisIsDefinitelyARealLookingToken123"
+      },
+      "target": "store"
+    },
+    {
+      "expected_violation_fragment": "short-lived tokens only",
+      "id": "secret-ident.store.03",
+      "note": "A contract without a max TTL cap is a long-lived-credential risk and is rejected.",
+      "record": {
+        "binding": "infisical",
+        "capabilities": [
+          "acquire",
+          "expire",
+          "rotate",
+          "verify"
+        ]
+      },
+      "target": "store"
+    },
+    {
+      "expected_violation_fragment": "unknown store capability",
+      "id": "secret-ident.store.04",
+      "note": "The location-agnostic capability set is frozen: unknown capabilities fail closed.",
+      "record": {
+        "binding": "infisical",
+        "capabilities": [
+          "acquire",
+          "teleport"
+        ],
+        "max_ttl_seconds": 3600
+      },
+      "target": "store"
+    },
+    {
+      "expected_violation_fragment": "secret-store binding",
+      "id": "secret-ident.store.05",
+      "note": "A secret-shaped binding (literal token) is rejected: the binding is a ref, never a value.",
+      "record": {
+        "binding": "ghp_ThisIsDefinitelyARealLookingToken123",
+        "capabilities": [
+          "acquire",
+          "expire",
+          "rotate",
+          "verify"
+        ],
+        "max_ttl_seconds": 3600
+      },
+      "target": "store"
+    },
+    {
+      "expected_violation_fragment": "missing",
+      "id": "secret-ident.identity.06",
+      "note": "All six dimensions are required: a missing env dimension never satisfies separation.",
+      "record": {
+        "harness": "pi",
+        "model": "anthropic/claude",
+        "role": "builder",
+        "service_principal": "dev-agent",
+        "task": "stage-34"
+      },
+      "target": "identity"
+    },
+    {
+      "expected_violation_fragment": "model-label spoofing",
+      "id": "secret-ident.identity.07",
+      "note": "A model label spoofing a role is rejected: role 'claude' is a provider alias, never an identity value.",
+      "record": {
+        "env": "prod",
+        "harness": "pi",
+        "model": "anthropic/claude",
+        "role": "claude",
+        "service_principal": "dev-agent",
+        "task": "stage-34"
+      },
+      "target": "identity"
+    },
+    {
+      "expected_violation_fragment": "not independently attributable",
+      "id": "secret-ident.identity.08",
+      "note": "Two dimensions sharing one value are not independently attributable.",
+      "record": {
+        "env": "prod",
+        "harness": "pi",
+        "model": "pi",
+        "role": "builder",
+        "service_principal": "dev-agent",
+        "task": "stage-34"
+      },
+      "target": "identity"
+    },
+    {
+      "expected_violation_fragment": "harness/model conflation",
+      "id": "secret-ident.alias.09",
+      "note": "A harness binding equal to the model label is conflation: the dimensions stay distinct.",
+      "harness": "anthropic",
+      "model": "anthropic",
+      "target": "alias"
+    },
+    {
+      "expected_violation_fragment": "",
+      "id": "secret-ident.alias.10",
+      "note": "Alias normalization without conflation: 'openai-compatible' normalizes for the model while the harness dimension stays 'pi'.",
+      "harness": "pi",
+      "model": "openai-compatible",
+      "target": "alias"
+    },
+    {
+      "expected_violation_fragment": "short-lived tokens only",
+      "id": "secret-ident.provenance.11",
+      "note": "A provenance record without an explicit TTL is a long-lived credential and is rejected.",
+      "record": {
+        "expiry": "ttl_seconds",
+        "provider": "infisical",
+        "role": "builder",
+        "scope": "hyperbolic-core/dev"
+      },
+      "target": "provenance"
+    },
+    {
+      "expected_violation_fragment": "values-only rule",
+      "id": "secret-ident.provenance.12",
+      "note": "A secret-shaped value in provenance metadata violates the values-only rule.",
+      "record": {
+        "expiry": "ttl_seconds",
+        "provider": "infisical",
+        "role": "builder",
+        "scope": "prod",
+        "token": "ghp_ThisIsDefinitelyARealLookingToken123",
+        "ttl_seconds": 600
+      },
+      "target": "provenance"
+    },
+    {
+      "expected_violation_fragment": "",
+      "id": "secret-ident.provenance.13",
+      "note": "A clean acquisition records provider, role, scope, and short-lived expiry as metadata only.",
+      "record": {
+        "expiry": "ttl_seconds",
+        "provider": "infisical",
+        "role": "builder",
+        "scope": "prod",
+        "ttl_seconds": 600
+      },
+      "target": "provenance"
+    }
+  ]
+}

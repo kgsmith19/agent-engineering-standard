@@ -6195,5 +6195,206 @@ class CoreGeneralization(FixtureCase):
                         [f.message for f in report.findings])
 
 
+class SecretIdentityContract(FixtureCase):
+    """T04 (#201): secret-store and identity contracts bound with
+    the values-only rule. Location-agnostic store capabilities with
+    Infisical as the shipped default, six-dimension identity
+    separation, provider-alias normalization without harness/model
+    conflation, metadata-only provenance with short-lived tokens.
+    Pure contract in tools/secret_identity.py plus the frozen
+    corpus under Canonical/corpus/secret-identity/. Every proof
+    point below has a dedicated test with its own justification."""
+
+    def _si(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import secret_identity
+            return secret_identity
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "secret-identity" / "contract.json")
+            .read_text(encoding="utf-8"))
+
+    def _clean_store(self):
+        return {
+            "binding": "infisical",
+            "capabilities": ["acquire", "expire", "rotate",
+                             "verify"],
+            "max_ttl_seconds": 3600,
+        }
+
+    def _clean_identity(self):
+        return {
+            "role": "builder",
+            "task": "stage-34",
+            "harness": "pi",
+            "model": "anthropic/claude",
+            "env": "prod",
+            "service_principal": "dev-agent",
+        }
+
+    def test_store_contract_is_location_agnostic_with_default(self):
+        """Protects AC1: the capability set is store-agnostic
+        (acquire/expire/rotate/verify) while infisical stays the
+        shipped default binding, so no second vault is needed to
+        express the contract."""
+        si = self._si()
+        self.assertEqual(
+            [], si.check_store_contract(self._clean_store()))
+        self.assertEqual("infisical", si.DEFAULT_BINDING)
+        self.assertEqual(
+            ("acquire", "expire", "rotate", "verify"),
+            si.STORE_CAPABILITIES)
+
+    def test_unknown_store_capability_fails_closed(self):
+        """Protects AC1 (closed-set axis): an unknown capability
+        fails closed, so the location-agnostic set cannot silently
+        grow a second vault's semantics."""
+        si = self._si()
+        store = self._clean_store()
+        store["capabilities"] = ["acquire", "teleport"]
+        violations = si.check_store_contract(store)
+        self.assertTrue(
+            any("unknown store capability" in v
+                for v in violations), violations)
+
+    def test_identity_six_dimensions_required_and_distinct(self):
+        """Protects AC2: all six identity dimensions (role, task,
+        harness, model, env, service_principal) are required and
+        mutually distinct, so identity is independently
+        attributable."""
+        si = self._si()
+        self.assertEqual(
+            [], si.check_identity_separation(
+                self._clean_identity()))
+        incomplete = self._clean_identity()
+        del incomplete["env"]
+        violations = si.check_identity_separation(incomplete)
+        self.assertTrue(
+            any("env" in v and "missing" in v
+                for v in violations), violations)
+        collided = self._clean_identity()
+        collided["model"] = "pi"
+        violations = si.check_identity_separation(collided)
+        self.assertTrue(
+            any("not independently attributable" in v
+                for v in violations), violations)
+
+    def test_model_label_spoofing_never_satisfies_separation(self):
+        """Protects AC2 (spoofing axis): a model-provider label in
+        the role dimension is rejected as model-label spoofing, so
+        provider labels never satisfy identity separation."""
+        si = self._si()
+        spoofed = self._clean_identity()
+        spoofed["role"] = "claude"
+        violations = si.check_identity_separation(spoofed)
+        self.assertTrue(
+            any("model-label spoofing" in v for v in violations),
+            violations)
+
+    def test_alias_normalization_keeps_harness_distinct(self):
+        """Protects AC3: model-provider aliases normalize
+        (claude->anthropic, openai-compatible->openai) while the
+        harness dimension is never rewritten and a harness equal
+        to the model label is rejected as conflation."""
+        si = self._si()
+        self.assertEqual("anthropic",
+                         si.normalize_provider_alias("claude"))
+        self.assertEqual(
+            "openai",
+            si.normalize_provider_alias("openai-compatible"))
+        self.assertEqual(
+            [], si.check_alias_separation("pi",
+                                          "openai-compatible"))
+        violations = si.check_alias_separation("anthropic",
+                                               "anthropic")
+        self.assertTrue(
+            any("harness/model conflation" in v
+                for v in violations), violations)
+        violations = si.check_alias_separation("claude", "gpt")
+        self.assertTrue(
+            any("harness/model conflation" in v
+                for v in violations), violations)
+
+    def test_provenance_is_metadata_only_with_expiry(self):
+        """Protects AC4: provenance records name provider, role,
+        scope, and expiry as metadata, and a missing or oversized
+        TTL is rejected (short-lived tokens only)."""
+        si = self._si()
+        record = si.provenance("infisical", "builder", "prod",
+                               600)
+        self.assertEqual(
+            [], si.check_provenance(record))
+        self.assertEqual(
+            ("provider", "role", "scope", "expiry"),
+            si.PROVENANCE_FIELDS)
+        no_ttl = {k: v for k, v in record.items()
+                  if k != "ttl_seconds"}
+        self.assertTrue(
+            any("short-lived" in v for v in
+                si.check_provenance(no_ttl)))
+        long_lived = dict(record, ttl_seconds=86400)
+        self.assertTrue(
+            any("short-lived" in v for v in
+                si.check_provenance(long_lived)))
+
+    def test_values_only_rule_rejects_secret_shaped_values(self):
+        """Protects AC6: a literal token under any store-contract
+        or provenance key is rejected (refs and metadata only), so
+        no secret value enters repo, artifacts, logs, or capsules
+        through the contract."""
+        si = self._si()
+        store = self._clean_store()
+        store["token"] = "ghp_ThisIsDefinitelyARealLookingToken123"
+        self.assertTrue(
+            any("values-only rule" in v for v in
+                si.check_store_contract(store)))
+        provenance = si.provenance("infisical", "builder", "prod",
+                                   600)
+        provenance["token"] = \
+            "ghp_ThisIsDefinitelyARealLookingToken123"
+        self.assertTrue(
+            any("values-only rule" in v for v in
+                si.check_provenance(provenance)))
+
+    def test_owner_fallback_path_forbidden(self):
+        """Protects the Must-never-happen (owner fallback): an
+        owner-fallback credential path in the contract is
+        rejected; break-glass is solely the owner admin path."""
+        si = self._si()
+        store = self._clean_store()
+        store["owner_fallback"] = True
+        self.assertTrue(
+            any("owner-fallback" in v for v in
+                si.check_store_contract(store)))
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 13 corpus entries
+        reproduce their expected violation fragments across all
+        four contract surfaces (store, identity, alias,
+        provenance)."""
+        si = self._si()
+        findings, entries = \
+            si.validate_contract_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(13, len(entries))
+
+    def test_int_links_referenced_not_duplicated(self):
+        """Protects AC5: INT-07 stays a referenced proposal label;
+        INT-08/INT-09 are native links in their owning repos, so
+        no sibling criteria are duplicated into this contract."""
+        module = (WORKTREE / "tools" / "secret_identity.py")
+        text = module.read_text(encoding="utf-8")
+        self.assertIn("INT-07", text)
+        self.assertIn("INT-08", text)
+        self.assertIn("INT-09", text)
+        self.assertNotIn("Accepted when", text)
+
+
 if __name__ == "__main__":
     unittest.main()
