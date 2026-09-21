@@ -1,0 +1,1152 @@
+{
+  "_frozen": true,
+  "_provenance": "T15 #212 (task-baseline). Hand-authored, adjudicated oracle: every entry expected fragment reproduces the contract checkers exactly. Do not edit without a structured reopen.",
+  "entries": [
+    {
+      "id": "base.inventory.01",
+      "note": "Seven kinds captured.",
+      "target": "inventory",
+      "record": [
+        {
+          "id": "task-frozen",
+          "kind": "frozen",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours",
+          "frozen_mold": "mold-v1"
+        },
+        {
+          "id": "task-local",
+          "kind": "local",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-shared-schema",
+          "kind": "shared-schema",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-missing-access",
+          "kind": "missing-access",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-ambiguous",
+          "kind": "ambiguous",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-stale",
+          "kind": "stale",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-fragmented",
+          "kind": "fragmented",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-nochange",
+          "kind": "local",
+          "verdict": "NO_CHANGE",
+          "effort": {
+            "controller": 1,
+            "workers": 0,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-frag",
+          "kind": "over-fragmented",
+          "harm": "slices too small to review independently",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 1,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        }
+      ],
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "base.inventory.02",
+      "note": "Missing kind fails.",
+      "target": "inventory",
+      "record": [
+        {
+          "id": "task-frozen",
+          "kind": "frozen",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours",
+          "frozen_mold": "mold-v1"
+        },
+        {
+          "id": "task-local",
+          "kind": "local",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-shared-schema",
+          "kind": "shared-schema",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-missing-access",
+          "kind": "missing-access",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-ambiguous",
+          "kind": "ambiguous",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-fragmented",
+          "kind": "fragmented",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-nochange",
+          "kind": "local",
+          "verdict": "NO_CHANGE",
+          "effort": {
+            "controller": 1,
+            "workers": 0,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-frag",
+          "kind": "over-fragmented",
+          "harm": "slices too small to review independently",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 1,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        }
+      ],
+      "expected_violation_fragment": "missing kind"
+    },
+    {
+      "id": "base.nochange.01",
+      "note": "NO_CHANGE first-class.",
+      "target": "nochange",
+      "record": [
+        {
+          "id": "task-frozen",
+          "kind": "frozen",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours",
+          "frozen_mold": "mold-v1"
+        },
+        {
+          "id": "task-local",
+          "kind": "local",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-shared-schema",
+          "kind": "shared-schema",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-missing-access",
+          "kind": "missing-access",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-ambiguous",
+          "kind": "ambiguous",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-stale",
+          "kind": "stale",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-fragmented",
+          "kind": "fragmented",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-nochange",
+          "kind": "local",
+          "verdict": "NO_CHANGE",
+          "effort": {
+            "controller": 1,
+            "workers": 0,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-frag",
+          "kind": "over-fragmented",
+          "harm": "slices too small to review independently",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 1,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        }
+      ],
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "base.nochange.02",
+      "note": "No NO_CHANGE fails.",
+      "target": "nochange",
+      "record": [
+        {
+          "id": "task-frozen",
+          "kind": "frozen",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours",
+          "frozen_mold": "mold-v1"
+        },
+        {
+          "id": "task-local",
+          "kind": "local",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-shared-schema",
+          "kind": "shared-schema",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-missing-access",
+          "kind": "missing-access",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-ambiguous",
+          "kind": "ambiguous",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-stale",
+          "kind": "stale",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-fragmented",
+          "kind": "fragmented",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-frag",
+          "kind": "over-fragmented",
+          "harm": "slices too small to review independently",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 1,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        }
+      ],
+      "expected_violation_fragment": "no NO_CHANGE task"
+    },
+    {
+      "id": "base.frag.01",
+      "note": "Over-fragmentation with harm.",
+      "target": "fragmentation",
+      "record": [
+        {
+          "id": "task-frozen",
+          "kind": "frozen",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours",
+          "frozen_mold": "mold-v1"
+        },
+        {
+          "id": "task-local",
+          "kind": "local",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-shared-schema",
+          "kind": "shared-schema",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-missing-access",
+          "kind": "missing-access",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-ambiguous",
+          "kind": "ambiguous",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-stale",
+          "kind": "stale",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-fragmented",
+          "kind": "fragmented",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-nochange",
+          "kind": "local",
+          "verdict": "NO_CHANGE",
+          "effort": {
+            "controller": 1,
+            "workers": 0,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-frag",
+          "kind": "over-fragmented",
+          "harm": "slices too small to review independently",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 1,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        }
+      ],
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "base.frag.02",
+      "note": "No over-fragmented task fails.",
+      "target": "fragmentation",
+      "record": [
+        {
+          "id": "task-frozen",
+          "kind": "frozen",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours",
+          "frozen_mold": "mold-v1"
+        },
+        {
+          "id": "task-local",
+          "kind": "local",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-shared-schema",
+          "kind": "shared-schema",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-missing-access",
+          "kind": "missing-access",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-ambiguous",
+          "kind": "ambiguous",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-stale",
+          "kind": "stale",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-fragmented",
+          "kind": "fragmented",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-nochange",
+          "kind": "local",
+          "verdict": "NO_CHANGE",
+          "effort": {
+            "controller": 1,
+            "workers": 0,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        }
+      ],
+      "expected_violation_fragment": "no over-fragmented task"
+    },
+    {
+      "id": "base.frozen.01",
+      "note": "Frozen Molds recorded.",
+      "target": "frozen",
+      "record": [
+        {
+          "id": "task-frozen",
+          "kind": "frozen",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours",
+          "frozen_mold": "mold-v1"
+        },
+        {
+          "id": "task-local",
+          "kind": "local",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-shared-schema",
+          "kind": "shared-schema",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-missing-access",
+          "kind": "missing-access",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-ambiguous",
+          "kind": "ambiguous",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-stale",
+          "kind": "stale",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-fragmented",
+          "kind": "fragmented",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-nochange",
+          "kind": "local",
+          "verdict": "NO_CHANGE",
+          "effort": {
+            "controller": 1,
+            "workers": 0,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-frag",
+          "kind": "over-fragmented",
+          "harm": "slices too small to review independently",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 1,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        }
+      ],
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "base.frozen.02",
+      "note": "Frozen without Mold fails.",
+      "target": "frozen",
+      "record": [
+        {
+          "id": "task-frozen",
+          "kind": "frozen",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-local",
+          "kind": "local",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-shared-schema",
+          "kind": "shared-schema",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-missing-access",
+          "kind": "missing-access",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-ambiguous",
+          "kind": "ambiguous",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-stale",
+          "kind": "stale",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-fragmented",
+          "kind": "fragmented",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-nochange",
+          "kind": "local",
+          "verdict": "NO_CHANGE",
+          "effort": {
+            "controller": 1,
+            "workers": 0,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-frag",
+          "kind": "over-fragmented",
+          "harm": "slices too small to review independently",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 1,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        }
+      ],
+      "expected_violation_fragment": "no frozen Mold"
+    },
+    {
+      "id": "base.narrow.01",
+      "note": "Broken narrow patch rejected.",
+      "target": "narrowpatch",
+      "record": {
+        "fixes": "local",
+        "breaks_contract": "shared-schema"
+      },
+      "expected_violation_fragment": "broken narrow patch rejected"
+    },
+    {
+      "id": "base.effort.01",
+      "note": "Total effort recorded.",
+      "target": "effort",
+      "record": [
+        {
+          "id": "task-frozen",
+          "kind": "frozen",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours",
+          "frozen_mold": "mold-v1"
+        },
+        {
+          "id": "task-local",
+          "kind": "local",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-shared-schema",
+          "kind": "shared-schema",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-missing-access",
+          "kind": "missing-access",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-ambiguous",
+          "kind": "ambiguous",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-stale",
+          "kind": "stale",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-fragmented",
+          "kind": "fragmented",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-nochange",
+          "kind": "local",
+          "verdict": "NO_CHANGE",
+          "effort": {
+            "controller": 1,
+            "workers": 0,
+            "reviews": 1,
+            "retries": 0,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-frag",
+          "kind": "over-fragmented",
+          "harm": "slices too small to review independently",
+          "effort": {
+            "controller": 1,
+            "workers": 2,
+            "reviews": 1,
+            "retries": 1,
+            "rotations": 0
+          },
+          "effort_units": "hours"
+        }
+      ],
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "base.effort.02",
+      "note": "Missing effort fails.",
+      "target": "effort",
+      "record": [
+        {
+          "id": "task-frozen",
+          "kind": "frozen",
+          "effort": {
+            "controller": 1
+          },
+          "effort_units": "hours",
+          "frozen_mold": "mold-v1"
+        },
+        {
+          "id": "task-local",
+          "kind": "local",
+          "effort": {
+            "controller": 1
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-shared-schema",
+          "kind": "shared-schema",
+          "effort": {
+            "controller": 1
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-missing-access",
+          "kind": "missing-access",
+          "effort": {
+            "controller": 1
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-ambiguous",
+          "kind": "ambiguous",
+          "effort": {
+            "controller": 1
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-stale",
+          "kind": "stale",
+          "effort": {
+            "controller": 1
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-fragmented",
+          "kind": "fragmented",
+          "effort": {
+            "controller": 1
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-nochange",
+          "kind": "local",
+          "verdict": "NO_CHANGE",
+          "effort": {
+            "controller": 1
+          },
+          "effort_units": "hours"
+        },
+        {
+          "id": "task-frag",
+          "kind": "over-fragmented",
+          "harm": "slices too small to review independently",
+          "effort": {
+            "controller": 1
+          },
+          "effort_units": "hours"
+        }
+      ],
+      "expected_violation_fragment": "effort"
+    },
+    {
+      "id": "base.reusable.01",
+      "note": "Matched+repeats+held-out present.",
+      "target": "reusable",
+      "record": {
+        "matched": [],
+        "repeats": 3,
+        "held_out": []
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "base.reusable.02",
+      "note": "Missing held-out fails.",
+      "target": "reusable",
+      "record": {
+        "matched": [],
+        "repeats": 3
+      },
+      "expected_violation_fragment": "held_out"
+    }
+  ]
+}
