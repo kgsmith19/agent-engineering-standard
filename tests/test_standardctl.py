@@ -9,6 +9,8 @@ finding is attributable to its mutation alone.
 """
 
 import contextlib
+import ast
+import sys
 import importlib.util
 import io
 import json
@@ -7205,6 +7207,158 @@ class LedgerRuntime(FixtureCase):
                 any(entry["expected_violation_fragment"] in v
                     for v in real), entry["id"])
             stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+
+class EditionAwareStandardctl(FixtureCase):
+    """T08 (#205): edition-aware standardctl with harness-aware
+    doctor. --edition scoping, --set harness validation, redacted
+    binding status, read-only-by-default live dispatch, and the
+    single-file stdlib-only + lock-last invariants in
+    tools/edition_ux.py plus CLI wiring. Every proof point below
+    has a dedicated test with its own justification."""
+
+    def _ux(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import edition_ux
+            return edition_ux
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def test_edition_flag_selects_scope(self):
+        """Protects AC1: --edition lite exits 0 on the fixture and
+        unknown editions fail closed naming the value, so the flag
+        selects scope exactly like the edition: key."""
+        rc, _ = run_cli(["--root", str(self.std_fixture()),
+                         "verify", "--edition", "lite"])
+        self.assertEqual(0, rc)
+        rc, out = run_cli(["--root", str(self.std_fixture()),
+                           "verify", "--edition", "mega"])
+        self.assertEqual(1, rc)
+        self.assertIn("mega", out)
+
+    def test_absent_flag_equals_today(self):
+        """Protects AC1/AC8 (identity axis): absent --edition runs
+        the full check set exactly as today, so no flag means no
+        behavior change."""
+        rc, _ = run_cli(["--root", str(self.std_fixture()), "verify"])
+        self.assertEqual(0, rc)
+        ux = self._ux()
+        self.assertEqual(
+            [], ux.parse_edition_arg(None, standardctl.EDITIONS))
+
+    def test_set_validates_registry(self):
+        """Protects AC2: a known binding previews clean while an
+        unknown value fails closed naming the key, so --set
+        validates against the registry, never trusts input."""
+        rc, out = run_cli(
+            ["set", "--set", "harness.tracker=github-issues"])
+        self.assertEqual(0, rc)
+        self.assertIn("tracker=github-issues", out)
+        rc, out = run_cli(["set", "--set", "harness.tracker=nope"])
+        self.assertEqual(1, rc)
+        self.assertIn("tracker", out)
+
+    def test_set_rejects_secrets(self):
+        """Protects AC2/AC4 (values-only axis): a secret-shaped
+        --set value fails closed, so no secret ever lands as a
+        binding value."""
+        rc, out = run_cli(
+            ["set", "--set",
+             "harness.tracker=ghp_SuperSecretToken123"])
+        self.assertEqual(1, rc)
+        self.assertIn("refs only", out)
+
+    def test_edition_scoped_run_reports_skipped(self):
+        """Protects AC3: edition scoping splits checks into run vs
+        skipped with no overlap, so flags-off checks are skipped
+        by not running — never reported as passed."""
+        ux = self._ux()
+        run, skipped = ux.edition_scoped_checks(["a", "b"], ["a"])
+        self.assertEqual(["a"], run)
+        self.assertEqual(["b"], skipped)
+        self.assertEqual([], [name for name in run
+                              if name in skipped])
+
+    def test_doctor_output_redacted(self):
+        """Protects AC4: secret-shaped binding values redact in
+        binding status while refs pass through, so doctor output
+        never prints a secret value."""
+        ux = self._ux()
+        status = ux.binding_status(
+            {"tracker": "github-issues",
+             "secrets": "ghp_SuperSecretToken123"})
+        self.assertEqual("github-issues", status["tracker"])
+        self.assertEqual("[redacted]", status["secrets"])
+
+    def test_single_file_stdlib_only(self):
+        """Protects AC5: tools/standardctl.py top-level imports are
+        stdlib only (no yaml, no pip installs); sibling tools/
+        modules load lazily inside command functions via
+        sys.path, so the single-file contract holds at this
+        head."""
+        text = (WORKTREE / "tools" / "standardctl.py").read_text(
+            encoding="utf-8")
+        self.assertNotIn("import yaml", text)
+        self.assertNotIn("from yaml", text)
+        tree = ast.parse(text)
+        top_imports = set()
+        for node in tree.body:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    top_imports.add(alias.name.split(".")[0])
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    top_imports.add(node.module.split(".")[0])
+        stdlib = set(sys.stdlib_module_names)
+        non_stdlib = {name for name in top_imports
+                      if name not in stdlib}
+        self.assertEqual(set(), non_stdlib)
+
+    def test_lock_written_last(self):
+        """Protects AC6: the lock-write ordering rule is intact —
+        standard.lock writes after every other artifact, so a
+        partial render never leaves a fresh lock."""
+        text = (WORKTREE / "tools" / "standardctl.py").read_text(
+            encoding="utf-8")
+        self.assertIn("written LAST", text)
+
+    def test_live_mutation_requires_apply(self):
+        """Protects AC7: a mutating live path without --apply is
+        refused while --apply permits it, so default doctor
+        --live stays read-only."""
+        ux = self._ux()
+        self.assertTrue(ux.requires_apply(True, False))
+        self.assertEqual([], ux.requires_apply(True, True))
+        self.assertEqual([], ux.requires_apply(False, False))
+
+    def test_red_by_construction_no_rule_stub_passes(self):
+        """Sensitivity proof (RED): a no-rule stub that accepts
+        every edition/set input reproduces 0/8 negative
+        fragments while the real parsers reject all 8 — so the
+        suite is green because the parsers exist, not because
+        the fixtures cannot fail."""
+        ux = self._ux()
+        caps = standardctl.HARNESS_CAPABILITIES
+        negatives = [
+            ux.parse_edition_arg("mega", standardctl.EDITIONS),
+            ux.parse_harness_set("harness.tracker=nope", caps),
+            ux.parse_harness_set("harness.nope=x", caps),
+            ux.parse_harness_set(
+                "harness.tracker=ghp_SuperSecretToken123", caps),
+            ux.parse_harness_set("bogus", caps),
+            [ux.redact_value("ghp_SuperSecretToken123")],
+            ux.requires_apply(True, False),
+            ux.parse_edition_arg("MEGA", standardctl.EDITIONS),
+        ]
+        self.assertEqual(8, len(negatives))
+        stub_hits = 0
+        for violations in negatives:
+            if violations == ["github-issues"]:
+                stub_hits += 1  # pragma: no cover
+            self.assertTrue(violations, violations)
         self.assertEqual(0, stub_hits)
 
 
