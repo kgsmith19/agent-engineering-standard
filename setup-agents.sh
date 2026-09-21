@@ -114,3 +114,27 @@ echo "To verify, run: kilo agent list"
 echo ""
 echo "Note: The harness (kilo) will use these agent definitions across all projects."
 echo "The actual GitHub credentials are sourced from Infisical at runtime."
+
+# Owner-stack harness values (T09, #206): the hyperbolic-core bindings
+# below are the shipped DEFAULTS, overridable per adopter. Every value
+# is a binding REF, never a secret value (values-only rule): to adopt
+# this standard with different bindings, export the matching
+# OWNER_HARNESS_<SURFACE> variable (e.g. OWNER_HARNESS_SECRETS=vault)
+# before running this script. No core file (tools/standardctl.py,
+# schemas, project.yaml template) reads these values — the owner stack
+# is an example binding, never a requirement.
+: "${OWNER_HARNESS_TRACKER:=github-issues}"
+: "${OWNER_HARNESS_PIPELINE:=github-actions}"
+: "${OWNER_HARNESS_GATE:=standard-pr-gate}"
+: "${OWNER_HARNESS_SECRETS:=infisical}"
+: "${OWNER_HARNESS_IDENTITY:=github-apps}"
+: "${OWNER_HARNESS_FILESYSTEM:=local-worktrees}"
+: "${OWNER_HARNESS_RUNTIME:=local-agent-runtime}"
+: "${OWNER_HARNESS_EXTENSIONS:=sibling-contract}"
+: "${OWNER_HARNESS_COMMANDS:=standardctl}"
+echo ""
+echo "Owner-stack harness bindings (refs only, overridable):"
+echo "  tracker=${OWNER_HARNESS_TRACKER} pipeline=${OWNER_HARNESS_PIPELINE} gate=${OWNER_HARNESS_GATE}"
+echo "  secrets=${OWNER_HARNESS_SECRETS} identity=${OWNER_HARNESS_IDENTITY}"
+echo "  filesystem=${OWNER_HARNESS_FILESYSTEM} runtime=${OWNER_HARNESS_RUNTIME}"
+echo "  extensions=${OWNER_HARNESS_EXTENSIONS} commands=${OWNER_HARNESS_COMMANDS}"
