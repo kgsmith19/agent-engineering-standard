@@ -1,0 +1,91 @@
+{
+  "_frozen": true,
+  "_provenance": "T09 #206 (owner-stack). Hand-authored, adjudicated oracle: every entry expected fragment reproduces the contract checkers exactly. Do not edit without a structured reopen.",
+  "entries": [
+    {
+      "id": "own.refs.01",
+      "note": "Full owner stack passes.",
+      "target": "refs",
+      "record": {
+        "tracker": "github-issues",
+        "pipeline": "github-actions",
+        "gate": "standard-pr-gate",
+        "secrets": "infisical",
+        "identity": "github-apps",
+        "filesystem": "local-worktrees",
+        "runtime": "local-agent-runtime",
+        "extensions": "sibling-contract",
+        "commands": "standardctl"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "own.refs.02",
+      "note": "Missing surface fails.",
+      "target": "refs",
+      "record": {},
+      "expected_violation_fragment": "missing surface"
+    },
+    {
+      "id": "own.hardcoding.01",
+      "note": "Core file in diff fails.",
+      "target": "hardcoding",
+      "record": [
+        "tools/standardctl.py"
+      ],
+      "expected_violation_fragment": "hardcoded into core file"
+    },
+    {
+      "id": "own.hardcoding.02",
+      "note": "Docs diff is clean.",
+      "target": "hardcoding",
+      "record": [
+        "docs/owner-stack.md"
+      ],
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "own.secrets.01",
+      "note": "Secret value fails.",
+      "target": "secrets",
+      "record": {
+        "secrets": "ghp_SuperSecretToken123"
+      },
+      "expected_violation_fragment": "secret-shaped"
+    },
+    {
+      "id": "own.secrets.02",
+      "note": "Refs are clean.",
+      "target": "secrets",
+      "record": {
+        "tracker": "github-issues",
+        "pipeline": "github-actions",
+        "gate": "standard-pr-gate",
+        "secrets": "infisical",
+        "identity": "github-apps",
+        "filesystem": "local-worktrees",
+        "runtime": "local-agent-runtime",
+        "extensions": "sibling-contract",
+        "commands": "standardctl"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "own.alternate.01",
+      "note": "Alternate binding verifies equally.",
+      "target": "alternate",
+      "record": {
+        "tracker": "github-issues",
+        "pipeline": "github-actions",
+        "gate": "standard-pr-gate",
+        "secrets": "none",
+        "identity": "none",
+        "filesystem": "local-worktrees",
+        "runtime": "local-agent-runtime",
+        "extensions": "none",
+        "commands": "standardctl"
+      },
+      "expected_violation_fragment": ""
+    }
+  ]
+}

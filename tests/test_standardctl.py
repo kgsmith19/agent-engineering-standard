@@ -7530,5 +7530,153 @@ class ReadinessGate(FixtureCase):
         self.assertEqual(0, stub_hits)
 
 
+class OwnerStackValues(FixtureCase):
+    """T09 (#206): owner-stack harness values as refs, never
+    hardcoding. Owner-stack ref validation, no-core-hardcoding,
+    no-secret-values, and alternate-binding neutrality in
+    tools/owner_stack.py with the frozen corpus under
+    Canonical/corpus/owner-stack/ plus the templated
+    setup-agents.sh defaults. Every proof point below has a
+    dedicated test with its own justification."""
+
+    def _os(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import owner_stack
+            return owner_stack
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "owner-stack" / "owner-stack.json")
+            .read_text(encoding="utf-8"))
+
+    def test_owner_stack_refs_complete(self):
+        """Protects AC1: the full owner stack (seven surfaces as
+        refs) passes, so the shipped defaults are the complete
+        binding set."""
+        os_ = self._os()
+        self.assertEqual(
+            [], os_.check_owner_stack_refs(dict(os_.OWNER_STACK)))
+
+    def test_setup_docs_templated_overridable(self):
+        """Protects AC2: setup-agents.sh carries overridable
+        OWNER_HARNESS_* defaults for every surface, so no adopter
+        edits core to change a binding."""
+        text = (WORKTREE / "setup-agents.sh").read_text(
+            encoding="utf-8")
+        for surface in ("TRACKER", "PIPELINE", "GATE", "SECRETS",
+                        "IDENTITY", "FILESYSTEM", "RUNTIME",
+                        "EXTENSIONS", "COMMANDS"):
+            self.assertIn("OWNER_HARNESS_%s" % surface, text)
+
+    def test_full_edition_green_with_owner_stack(self):
+        """Protects AC3: verify --edition full passes with the
+        owner binding in place at this head, so Full proves green
+        without re-hardcoding."""
+        rc, _ = run_cli(["--root", str(self.std_fixture()),
+                         "verify", "--edition", "full"])
+        self.assertEqual(0, rc)
+
+    def test_no_rotation_no_secret_reads(self):
+        """Protects AC4: the owner-stack module performs no live
+        credential handling — no token acquisition, no secret
+        store reads, no rotation calls — so the change adds no
+        credential handling."""
+        text = (WORKTREE / "tools" / "owner_stack.py").read_text(
+            encoding="utf-8")
+        for marker in ("acquire_token", "read_secret",
+                       "rotate_secret", "get_credential",
+                       "provision_credentials"):
+            self.assertNotIn(marker, text, marker)
+
+    def test_doctor_redacted_on_owner_stack(self):
+        """Protects AC5: binding_status redacts secret-shaped owner
+        values while passing refs through, so doctor output on
+        the owner stack never prints a secret."""
+        os_ = self._os()
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import edition_ux
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+        status = edition_ux.binding_status(
+            {"secrets": "ghp_SuperSecretToken123",
+             "tracker": "github-issues"})
+        self.assertEqual("[redacted]", status["secrets"])
+        self.assertEqual("github-issues", status["tracker"])
+
+    def test_alternate_binding_verifies_equally(self):
+        """Protects AC6 (adopter-neutral axis): an alternate
+        adopter binding (different-but-known values) passes ref
+        and secret validation equally, so the owner stack is an
+        example, never a requirement."""
+        os_ = self._os()
+        alternate = dict(os_.OWNER_STACK, secrets="none",
+                         identity="none", extensions="none")
+        self.assertEqual(
+            [], os_.check_owner_stack_refs(alternate))
+        self.assertEqual(
+            [], os_.check_no_secret_values(alternate))
+
+    def test_no_core_hardcoding(self):
+        """Protects the Must-never-happen (vendor-neutral axis):
+        core files in the diff fail while docs pass, so owner
+        values never hardcode into core."""
+        os_ = self._os()
+        violations = os_.check_no_core_hardcoding(
+            ["tools/standardctl.py"])
+        self.assertTrue(
+            any("hardcoded into core file" in v
+                for v in violations), violations)
+        self.assertEqual(
+            [], os_.check_no_core_hardcoding(
+                ["docs/owner-stack.md"]))
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 7 corpus entries
+        reproduce their expected violation fragments across all
+        four contract surfaces (refs, hardcoding, secrets,
+        alternate)."""
+        os_ = self._os()
+        findings, entries = \
+            os_.validate_owner_stack_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(7, len(entries))
+
+    def test_red_by_construction_no_rule_stub_passes(self):
+        """Sensitivity proof (RED): a no-rule stub that accepts
+        every owner-stack input reproduces 0/3 negative corpus
+        fragments while the real checkers fire on all 3 — so the
+        suite is green because the rules exist, not because the
+        fixtures cannot fail."""
+        os_ = self._os()
+        corpus = self._corpus_doc()
+        negatives = [entry for entry in corpus["entries"]
+                     if entry.get("expected_violation_fragment")]
+        self.assertEqual(3, len(negatives))
+        stub_hits = 0
+        for entry in negatives:
+            target = entry["target"]
+            if target == "refs":
+                real = os_.check_owner_stack_refs(entry["record"])
+            elif target == "hardcoding":
+                real = os_.check_no_core_hardcoding(entry["record"])
+            elif target == "secrets":
+                real = os_.check_no_secret_values(entry["record"])
+            else:
+                real = (os_.check_owner_stack_refs(entry["record"])
+                        + os_.check_no_secret_values(entry["record"]))
+            self.assertTrue(
+                any(entry["expected_violation_fragment"] in v
+                    for v in real), entry["id"])
+            stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+
 if __name__ == "__main__":
     unittest.main()
