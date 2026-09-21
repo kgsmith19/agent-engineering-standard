@@ -1,0 +1,392 @@
+{
+  "_frozen": true,
+  "_provenance": "T12 #208 (ownership-map). Hand-authored, adjudicated oracle: every entry expected fragment reproduces the contract checkers exactly. Do not edit without a structured reopen.",
+  "entries": [
+    {
+      "id": "own.coverage.01",
+      "note": "Mapped root passes.",
+      "target": "coverage",
+      "record": [
+        "tools/"
+      ],
+      "entries": {
+        "tools/": {
+          "owner": "tools-owner",
+          "roots": [
+            "tools/"
+          ],
+          "interfaces": [
+            "standardctl verify"
+          ],
+          "direction": "tools writes tools/",
+          "commands": [
+            "python tools/standardctl.py verify"
+          ],
+          "scopes": {
+            "read": [
+              "tools/"
+            ],
+            "edit": [
+              "tools/a.py"
+            ],
+            "impact": [
+              "tools/"
+            ]
+          },
+          "edit_scope": [
+            "tools/a.py"
+          ]
+        }
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "own.coverage.02",
+      "note": "Planted unmapped root fails.",
+      "target": "coverage",
+      "record": [
+        "tools/",
+        "ghost/"
+      ],
+      "entries": {
+        "tools/": {
+          "owner": "tools-owner",
+          "roots": [
+            "tools/"
+          ],
+          "interfaces": [
+            "standardctl verify"
+          ],
+          "direction": "tools writes tools/",
+          "commands": [
+            "python tools/standardctl.py verify"
+          ],
+          "scopes": {
+            "read": [
+              "tools/"
+            ],
+            "edit": [
+              "tools/a.py"
+            ],
+            "impact": [
+              "tools/"
+            ]
+          },
+          "edit_scope": [
+            "tools/a.py"
+          ]
+        }
+      },
+      "expected_violation_fragment": "unmapped root"
+    },
+    {
+      "id": "own.metadata.01",
+      "note": "Complete entry passes.",
+      "target": "metadata",
+      "record": {
+        "owner": "tools-owner",
+        "roots": [
+          "tools/"
+        ],
+        "interfaces": [
+          "standardctl verify"
+        ],
+        "direction": "tools writes tools/",
+        "commands": [
+          "python tools/standardctl.py verify"
+        ],
+        "scopes": {
+          "read": [
+            "tools/"
+          ],
+          "edit": [
+            "tools/a.py"
+          ],
+          "impact": [
+            "tools/"
+          ]
+        },
+        "edit_scope": [
+          "tools/a.py"
+        ]
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "own.metadata.02",
+      "note": "Entry missing direction fails.",
+      "target": "metadata",
+      "record": {
+        "roots": [
+          "t"
+        ],
+        "interfaces": [
+          "i"
+        ],
+        "commands": [
+          "c"
+        ],
+        "scopes": {
+          "read": [],
+          "edit": [],
+          "impact": []
+        }
+      },
+      "expected_violation_fragment": "direction"
+    },
+    {
+      "id": "own.multiroot.01",
+      "note": "Declared multi-root passes.",
+      "target": "multiroot",
+      "record": {
+        "a/": {
+          "owner": "shared",
+          "roots": [
+            "tools/"
+          ],
+          "interfaces": [
+            "standardctl verify"
+          ],
+          "direction": "tools writes tools/",
+          "commands": [
+            "python tools/standardctl.py verify"
+          ],
+          "scopes": {
+            "read": [
+              "tools/"
+            ],
+            "edit": [
+              "tools/a.py"
+            ],
+            "impact": [
+              "tools/"
+            ]
+          },
+          "edit_scope": [
+            "tools/a.py"
+          ],
+          "multi_root_declared": true
+        },
+        "b/": {
+          "owner": "shared",
+          "roots": [
+            "tools/"
+          ],
+          "interfaces": [
+            "standardctl verify"
+          ],
+          "direction": "tools writes tools/",
+          "commands": [
+            "python tools/standardctl.py verify"
+          ],
+          "scopes": {
+            "read": [
+              "tools/"
+            ],
+            "edit": [
+              "tools/a.py"
+            ],
+            "impact": [
+              "tools/"
+            ]
+          },
+          "edit_scope": [
+            "tools/a.py"
+          ],
+          "multi_root_declared": true
+        }
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "own.multiroot.02",
+      "note": "Undeclared sprawl flagged.",
+      "target": "multiroot",
+      "record": {
+        "a/": {
+          "owner": "x",
+          "roots": [
+            "tools/"
+          ],
+          "interfaces": [
+            "standardctl verify"
+          ],
+          "direction": "tools writes tools/",
+          "commands": [
+            "python tools/standardctl.py verify"
+          ],
+          "scopes": {
+            "read": [
+              "tools/"
+            ],
+            "edit": [
+              "tools/a.py"
+            ],
+            "impact": [
+              "tools/"
+            ]
+          },
+          "edit_scope": [
+            "tools/a.py"
+          ]
+        },
+        "b/": {
+          "owner": "x",
+          "roots": [
+            "tools/"
+          ],
+          "interfaces": [
+            "standardctl verify"
+          ],
+          "direction": "tools writes tools/",
+          "commands": [
+            "python tools/standardctl.py verify"
+          ],
+          "scopes": {
+            "read": [
+              "tools/"
+            ],
+            "edit": [
+              "tools/a.py"
+            ],
+            "impact": [
+              "tools/"
+            ]
+          },
+          "edit_scope": [
+            "tools/a.py"
+          ]
+        }
+      },
+      "expected_violation_fragment": "undeclared sprawl"
+    },
+    {
+      "id": "own.widening.01",
+      "note": "Local touch stays local.",
+      "target": "widening",
+      "record": [
+        "local-only"
+      ],
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "own.widening.02",
+      "note": "Shared-schema touch widens.",
+      "target": "widening",
+      "record": [
+        "shared-schema"
+      ],
+      "expected_violation_fragment": "widens beyond the local slice"
+    },
+    {
+      "id": "own.widening.03",
+      "note": "Security touch widens.",
+      "target": "widening",
+      "record": [
+        "security"
+      ],
+      "expected_violation_fragment": "widens beyond the local slice"
+    },
+    {
+      "id": "own.stale.01",
+      "note": "Fresh map passes.",
+      "target": "stale",
+      "record": {
+        "edit_scope": [
+          "a.py"
+        ]
+      },
+      "reality": {
+        "owned_paths": [
+          "a.py"
+        ]
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "own.stale.02",
+      "note": "Deliberately stale entry detected.",
+      "target": "stale",
+      "record": {
+        "edit_scope": [
+          "a.py"
+        ]
+      },
+      "reality": {
+        "owned_paths": [
+          "a.py",
+          "b.py"
+        ]
+      },
+      "expected_violation_fragment": "stale map"
+    },
+    {
+      "id": "own.protected.01",
+      "note": "In-scope write proceeds.",
+      "target": "protected",
+      "path": "tools/a.py",
+      "record": {
+        "owner": "tools-owner",
+        "roots": [
+          "tools/"
+        ],
+        "interfaces": [
+          "standardctl verify"
+        ],
+        "direction": "tools writes tools/",
+        "commands": [
+          "python tools/standardctl.py verify"
+        ],
+        "scopes": {
+          "read": [
+            "tools/"
+          ],
+          "edit": [
+            "tools/a.py"
+          ],
+          "impact": [
+            "tools/"
+          ]
+        },
+        "edit_scope": [
+          "tools/a.py"
+        ]
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "own.protected.02",
+      "note": "Out-of-scope write blocked.",
+      "target": "protected",
+      "path": "evil.py",
+      "record": {
+        "owner": "tools-owner",
+        "roots": [
+          "tools/"
+        ],
+        "interfaces": [
+          "standardctl verify"
+        ],
+        "direction": "tools writes tools/",
+        "commands": [
+          "python tools/standardctl.py verify"
+        ],
+        "scopes": {
+          "read": [
+            "tools/"
+          ],
+          "edit": [
+            "tools/a.py"
+          ],
+          "impact": [
+            "tools/"
+          ]
+        },
+        "edit_scope": [
+          "tools/a.py"
+        ]
+      },
+      "expected_violation_fragment": "protected write blocked"
+    }
+  ]
+}
