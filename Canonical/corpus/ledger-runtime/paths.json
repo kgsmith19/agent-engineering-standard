@@ -1,0 +1,130 @@
+{
+  "_frozen": true,
+  "_provenance": "T06 #203 (ledger-runtime). Hand-authored, adjudicated oracle: every entry expected fragment reproduces the contract checkers exactly. Do not edit without a structured reopen.",
+  "entries": [
+    {
+      "id": "ledger.path.01",
+      "note": "Windows-shaped path resolves through the layer.",
+      "target": "path",
+      "record": "C:\\ledgers\\issue-42",
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ledger.path.02",
+      "note": "Empty path fails closed.",
+      "target": "path",
+      "record": "",
+      "expected_violation_fragment": "non-empty string"
+    },
+    {
+      "id": "ledger.isolation.01",
+      "note": "Lease-worktree-writer order passes.",
+      "target": "isolation",
+      "record": [
+        "lease",
+        "worktree",
+        "writer"
+      ],
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ledger.isolation.02",
+      "note": "Reordered steps fail.",
+      "target": "isolation",
+      "record": [
+        "worktree",
+        "lease",
+        "writer"
+      ],
+      "expected_violation_fragment": "isolation order violated"
+    },
+    {
+      "id": "ledger.isolation.03",
+      "note": "Second writer refused.",
+      "target": "isolation",
+      "record": [
+        "lease",
+        "worktree",
+        "writer",
+        "writer:second"
+      ],
+      "expected_violation_fragment": "second writer"
+    },
+    {
+      "id": "ledger.values.01",
+      "note": "Tailnet/Hetzner values pass with no code change.",
+      "target": "values",
+      "record": {
+        "network": "tailnet",
+        "compute": "hetzner"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ledger.values.02",
+      "note": "Unknown network value fails closed.",
+      "target": "values",
+      "record": {
+        "network": "mars"
+      },
+      "expected_violation_fragment": "unknown harness value"
+    },
+    {
+      "id": "ledger.values.03",
+      "note": "New keys beyond network/compute rejected (Q8).",
+      "target": "values",
+      "record": {
+        "scheduler": "x"
+      },
+      "expected_violation_fragment": "no new keys"
+    },
+    {
+      "id": "ledger.rotation.01",
+      "note": "Governed path records and bounds.",
+      "target": "rotation",
+      "record": {
+        "authorized_by": "kgsmith19",
+        "bound": "slice-203",
+        "record": "ledger/203"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ledger.rotation.02",
+      "note": "Automatic rotation refused.",
+      "target": "rotation",
+      "record": {
+        "automatic": true
+      },
+      "expected_violation_fragment": "ungoverned rotation refused"
+    },
+    {
+      "id": "ledger.rotation.03",
+      "note": "Compaction rotation refused (Q4).",
+      "target": "rotation",
+      "record": {
+        "authorized_by": "kgsmith19",
+        "bound": "b",
+        "record": "r",
+        "compaction": true
+      },
+      "expected_violation_fragment": "zero-auto-compaction"
+    },
+    {
+      "id": "ledger.rotation.04",
+      "note": "Missing bound fails.",
+      "target": "rotation",
+      "record": {
+        "authorized_by": "kgsmith19"
+      },
+      "expected_violation_fragment": "missing"
+    },
+    {
+      "id": "ledger.keyless.01",
+      "note": "Keyless config equals today.",
+      "target": "keyless",
+      "record": {},
+      "expected_violation_fragment": ""
+    }
+  ]
+}

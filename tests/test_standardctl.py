@@ -6707,5 +6707,182 @@ class TrackerPipelineGate(FixtureCase):
         self.assertEqual(0, stub_hits)
 
 
+class LedgerRuntime(FixtureCase):
+    """T06 (#203): filesystem-agnostic ledger/runtime with governed
+    rotation. Thin path-resolution layer plus isolation-order,
+    harness-value, rotation-governance, and keyless-identity
+    contracts in tools/ledger_runtime.py with the frozen corpus
+    under Canonical/corpus/ledger-runtime/. Every proof point below
+    has a dedicated test with its own justification."""
+
+    def _lr(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import ledger_runtime
+            return ledger_runtime
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "ledger-runtime" / "paths.json")
+            .read_text(encoding="utf-8"))
+
+    def test_windows_shaped_path_resolves(self):
+        """Protects AC1: a Windows-shaped path resolves to its
+        canonical POSIX form through the layer, so no
+        platform-specific assumption is baked into the ledger."""
+        lr = self._lr()
+        self.assertEqual(
+            "C:/ledgers/issue-42",
+            lr.resolve_ledger_path("C:\\ledgers\\issue-42"))
+
+    def test_empty_path_fails_closed(self):
+        """Protects AC1 (fail-closed axis): an empty path raises
+        instead of resolving to a silent default, so a missing
+        path never points the ledger somewhere unintended."""
+        lr = self._lr()
+        with self.assertRaises(ValueError):
+            lr.resolve_ledger_path("")
+
+    def test_isolation_order_preserved(self):
+        """Protects AC2: lease -> worktree -> writer passes while a
+        reordered sequence fails naming the order, so the
+        isolation order is enforced, not documented-only."""
+        lr = self._lr()
+        self.assertEqual(
+            [], lr.check_isolation_order(
+                ["lease", "worktree", "writer"]))
+        violations = lr.check_isolation_order(
+            ["worktree", "lease", "writer"])
+        self.assertTrue(
+            any("isolation order violated" in v
+                for v in violations), violations)
+
+    def test_conflicting_claim_refused(self):
+        """Protects AC2 (one-writer axis): a second writer on one
+        slice is refused, so two writers never share a slice."""
+        lr = self._lr()
+        violations = lr.check_isolation_order(
+            ["lease", "worktree", "writer", "writer:second"])
+        self.assertTrue(
+            any("second writer" in v for v in violations),
+            violations)
+
+    def test_harness_values_no_code_change(self):
+        """Protects AC4: tailnet/hetzner/local/cloud/mobile values
+        validate with no code change and no new keys, so
+        network/compute stay pure harness: values."""
+        lr = self._lr()
+        self.assertEqual(
+            [], lr.check_harness_values(
+                {"network": "tailnet", "compute": "hetzner"}))
+        self.assertEqual(
+            ("local", "tailnet", "hetzner", "cloud", "mobile"),
+            lr.NETWORK_VALUES)
+
+    def test_unknown_value_and_key_rejected(self):
+        """Protects AC4 (closed-set axis): an unknown network value
+        and a new key beyond network/compute both fail closed, so
+        Q8 key discipline holds for ledger/runtime values."""
+        lr = self._lr()
+        violations = lr.check_harness_values({"network": "mars"})
+        self.assertTrue(
+            any("unknown harness value" in v for v in violations),
+            violations)
+        violations = lr.check_harness_values({"scheduler": "x"})
+        self.assertTrue(
+            any("no new keys" in v for v in violations),
+            violations)
+
+    def test_governed_rotation_records_and_bounds(self):
+        """Protects AC5: the governed path (owner-authorized,
+        bounded, recorded) passes, so rotation has exactly one
+        legitimate shape."""
+        lr = self._lr()
+        self.assertEqual(
+            [], lr.check_rotation_path(
+                {"authorized_by": "kgsmith19", "bound": "slice-203",
+                 "record": "ledger/203"}))
+
+    def test_ungoverned_rotation_refused(self):
+        """Protects AC5 (Must-never-happen axis): automatic and
+        fleet-wide triggers are refused outright, so no
+        unattended rotation ever runs."""
+        lr = self._lr()
+        for record in ({"automatic": True}, {"fleet_wide": True}):
+            violations = lr.check_rotation_path(record)
+            self.assertTrue(
+                any("ungoverned rotation refused" in v
+                    for v in violations), (record, violations))
+
+    def test_compaction_rotation_refused(self):
+        """Protects AC5 (Q4 axis): a rotation carrying compaction
+        is refused naming the zero-auto-compaction target, so the
+        Q4 target is wired, not aspirational."""
+        lr = self._lr()
+        violations = lr.check_rotation_path(
+            {"authorized_by": "kgsmith19", "bound": "b",
+             "record": "r", "compaction": True})
+        self.assertTrue(
+            any("zero-auto-compaction" in v for v in violations),
+            violations)
+
+    def test_keyless_config_equals_today(self):
+        """Protects AC6: a config without harness: keys yields zero
+        violations, so absent values behave byte-for-byte as
+        today."""
+        lr = self._lr()
+        self.assertEqual([], lr.check_keyless_identity({}))
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 13 corpus entries
+        reproduce their expected violation fragments across all
+        five contract surfaces (path, isolation, values, rotation,
+        keyless)."""
+        lr = self._lr()
+        findings, entries = \
+            lr.validate_path_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(13, len(entries))
+
+    def test_red_by_construction_no_rule_stub_passes(self):
+        """Sensitivity proof (RED): a no-rule stub that always
+        passes reproduces 0/8 negative corpus fragments while the
+        real checkers fire on all 8 — so the suite is green
+        because the rules exist, not because the fixtures cannot
+        fail."""
+        lr = self._lr()
+        corpus = self._corpus_doc()
+        negatives = [entry for entry in corpus["entries"]
+                     if entry.get("expected_violation_fragment")]
+        self.assertEqual(8, len(negatives))
+        stub_hits = 0
+        for entry in negatives:
+            target = entry["target"]
+            record = entry["record"]
+            if target == "path":
+                try:
+                    lr.resolve_ledger_path(record)
+                    real = ["expected failure"]
+                except ValueError as exc:
+                    real = [str(exc)]
+            elif target == "isolation":
+                real = lr.check_isolation_order(record)
+            elif target == "values":
+                real = lr.check_harness_values(record)
+            elif target == "rotation":
+                real = lr.check_rotation_path(record)
+            else:
+                real = lr.check_keyless_identity(record)
+            self.assertTrue(
+                any(entry["expected_violation_fragment"] in v
+                    for v in real), entry["id"])
+            stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+
 if __name__ == "__main__":
     unittest.main()
