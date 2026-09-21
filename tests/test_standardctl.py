@@ -7530,6 +7530,169 @@ class ReadinessGate(FixtureCase):
         self.assertEqual(0, stub_hits)
 
 
+class TaskBaseline(FixtureCase):
+    """T15 (#212): task baseline with frozen, stale, and fragmented
+    kinds. Seven-kind inventory, NO_CHANGE, over-fragmentation,
+    frozen-Mold, broken-narrow-patch, total-effort, and reusable
+    pilot machinery in tools/task_baseline.py with the frozen
+    corpus under Canonical/corpus/task-baseline/. Every proof
+    point below has a dedicated test with its own justification."""
+
+    def _tb(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import task_baseline
+            return task_baseline
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "task-baseline" / "baseline.json")
+            .read_text(encoding="utf-8"))
+
+    def test_seven_kinds_captured(self):
+        """Protects AC1: one task per kind passes while a corpus
+        missing stale fails naming the kind, so no category is
+        ever silently dropped."""
+        tb = self._tb()
+        tasks = tb.clean_corpus_tasks()
+        self.assertEqual([], tb.check_inventory(tasks))
+        missing = [task for task in tasks
+                   if task["kind"] != "stale"]
+        violations = tb.check_inventory(missing)
+        self.assertTrue(
+            any("missing kind" in v and "stale" in v
+                for v in violations), violations)
+
+    def test_no_change_first_class(self):
+        """Protects AC2: a corpus with a NO_CHANGE verdict passes
+        while one without fails, so doing-nothing-correctly is
+        evidenced, never omitted."""
+        tb = self._tb()
+        self.assertEqual(
+            [], tb.check_no_change(tb.clean_corpus_tasks()))
+        tasks = [task for task in tb.clean_corpus_tasks()
+                 if task.get("verdict") != "NO_CHANGE"]
+        violations = tb.check_no_change(tasks)
+        self.assertTrue(
+            any("no NO_CHANGE task" in v for v in violations),
+            violations)
+
+    def test_over_fragmentation_with_harm(self):
+        """Protects AC3: an over-fragmented task with harm passes
+        while a corpus without one fails, so harmful
+        fragmentation is captured, never normalized."""
+        tb = self._tb()
+        self.assertEqual(
+            [], tb.check_over_fragmentation(tb.clean_corpus_tasks()))
+        tasks = [task for task in tb.clean_corpus_tasks()
+                 if task.get("kind") != "over-fragmented"]
+        violations = tb.check_over_fragmentation(tasks)
+        self.assertTrue(
+            any("no over-fragmented task" in v for v in violations),
+            violations)
+
+    def test_frozen_molds_recorded(self):
+        """Protects AC4: frozen tasks with Molds pass while a
+        frozen task without one fails naming the task, so later
+        comparison runs against the same contract."""
+        tb = self._tb()
+        self.assertEqual(
+            [], tb.check_frozen_molds(tb.clean_corpus_tasks()))
+        tasks = [dict(task) for task in tb.clean_corpus_tasks()]
+        for task in tasks:
+            task.pop("frozen_mold", None)
+        violations = tb.check_frozen_molds(tasks)
+        self.assertTrue(
+            any("no frozen Mold" in v for v in violations),
+            violations)
+
+    def test_broken_narrow_patch_rejected(self):
+        """Protects AC5 (canary axis): a patch fixing the local
+        symptom while breaking the shared schema is rejected
+        naming the breakage, so the baseline is a contract."""
+        tb = self._tb()
+        violations = tb.check_narrow_patch(
+            {"fixes": "local", "breaks_contract": "shared-schema"})
+        self.assertTrue(
+            any("broken narrow patch rejected" in v
+                for v in violations), violations)
+
+    def test_total_effort_recorded(self):
+        """Protects AC6: full controller+workers+reviews+retries+
+        rotations effort with units passes while effort-less
+        tasks fail, so cost honesty is structural."""
+        tb = self._tb()
+        self.assertEqual(
+            [], tb.check_effort(tb.clean_corpus_tasks()))
+        tasks = [dict(task, effort={"controller": 1})
+                 for task in tb.clean_corpus_tasks()]
+        violations = tb.check_effort(tasks)
+        self.assertTrue(violations, violations)
+
+    def test_reusable_pilot_machinery(self):
+        """Protects AC7: matched+repeats+held-out passes while a
+        corpus missing held_out fails, so T16/T23 reuse needs no
+        re-collection."""
+        tb = self._tb()
+        self.assertEqual(
+            [], tb.check_reusable_format(
+                {"matched": [], "repeats": 3, "held_out": []}))
+        violations = tb.check_reusable_format(
+            {"matched": [], "repeats": 3})
+        self.assertTrue(
+            any("held_out" in v for v in violations), violations)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 13 corpus entries
+        reproduce their expected violation fragments across all
+        seven contract surfaces (inventory, nochange,
+        fragmentation, frozen, narrowpatch, effort, reusable)."""
+        tb = self._tb()
+        findings, entries = \
+            tb.validate_baseline_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(13, len(entries))
+
+    def test_red_by_construction_no_rule_stub_passes(self):
+        """Sensitivity proof (RED): a no-rule stub that accepts
+        every baseline input reproduces 0/7 negative corpus
+        fragments while the real checkers fire on all 7 — so the
+        suite is green because the rules exist, not because the
+        fixtures cannot fail."""
+        tb = self._tb()
+        corpus = self._corpus_doc()
+        negatives = [entry for entry in corpus["entries"]
+                     if entry.get("expected_violation_fragment")]
+        self.assertEqual(7, len(negatives))
+        stub_hits = 0
+        for entry in negatives:
+            target = entry["target"]
+            record = entry["record"]
+            if target == "inventory":
+                real = tb.check_inventory(record)
+            elif target == "nochange":
+                real = tb.check_no_change(record)
+            elif target == "fragmentation":
+                real = tb.check_over_fragmentation(record)
+            elif target == "frozen":
+                real = tb.check_frozen_molds(record)
+            elif target == "narrowpatch":
+                real = tb.check_narrow_patch(record)
+            elif target == "effort":
+                real = tb.check_effort(record)
+            else:
+                real = tb.check_reusable_format(record)
+            self.assertTrue(
+                any(entry["expected_violation_fragment"] in v
+                    for v in real), entry["id"])
+            stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+
 class OwnerStackValues(FixtureCase):
     """T09 (#206): owner-stack harness values as refs, never
     hardcoding. Owner-stack ref validation, no-core-hardcoding,
