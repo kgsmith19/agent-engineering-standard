@@ -132,6 +132,44 @@ claim completion without fresh verification evidence, create automatic fleet-wid
 introduce a second work tracker. An agent may answer a direct question when explicitly tagged in
 an Issue or pull request.
 
+
+## Harness Capability Contracts (Generic) and Exception Adapters
+
+The core is **generalized by addition** (T03, #200): for each of the
+seven audited harness surfaces, a generic capability contract is
+declared next to its GitHub rendering. GitHub sentences above stay
+**authoritative for the GitHub rendering**; the generic contracts
+never delete, rewrite, or demote them, and behavior with no
+`harness:`/`edition:`/`flags:` keys is byte-for-byte today's
+(T02, #199).
+
+| Surface | Generic capability contract (binding `harness:` ref) | GitHub shipped rendering (authoritative) |
+| --- | --- | --- |
+| tracker | thin work items with acceptance criteria, state labels, branch/worktree/PR linkage, close-by-merge receipts | GitHub Issues + claim protocol (`AGENTS/work.md`) |
+| pipeline | required-check aggregation, metadata-only merge policy, review-result delivery, artifact upload | `.github/workflows/pr-gate.yml` + `merge-policy.yml` + `llm-review*.yml` |
+| gate | exact-head verification, fail-closed aggregation, no-bypass except owner override | `Agent Engineering Standard PR Gate` + `tools/standardctl.py verify` |
+| secrets + identity | named refs (never values), short-lived identity tokens, builder/reviewer role separation | Infisical refs + dev/reviewer GitHub Apps (`AGENTS/governance.md`) |
+| filesystem + runtime | isolated per-task worktrees, restart-safe ledger, governed rotation | `.worktrees/` pattern + `AGENTS/work.md` + `standardctl worktrees` |
+| extensions | versioned catalog, capability refs, additive-only compatibility gate, offline bootstrap | `Canonical/sibling-contract.json` + `Canonical/schemas/extension-*.schema.json` |
+| commands | deterministic verify, live-settings doctor, worktree reconcile, evidence validate/index | `tools/standardctl.py` + `project.yaml` commands |
+
+Gate renders keep the fail-closed rule: an edition-off/flags-off gate
+job is **deleted** from the render's `needs` list and `EXPECTED_JOBS`
+value — never rendered as an empty-success stub. `check_gate_noop_stages`
+and the `pr-gate.yml` header instruction enforce this on every shipped
+render, and `check_template_pairs` byte-identity holds.
+
+## Exception Adapters
+
+`CLAUDE.md` and `GEMINI.md` are **import-only exception adapters**:
+each contains only a heading plus the `@AGENTS.md` import pointer —
+no policy text, no code execution. They are preserved as-is. A new
+harness-specific exception is declared the same additive way: a
+documented adapter that points into the core, never a generalization
+of the exception into the core, never a weakening of the sole PR
+Gate, and never a duplicate of core policy. Exception adapters are
+never silently generalized, weakened, or deleted.
+
 Adoption by other repositories is explicit, Issue-backed, pinned to an exact standard commit via
 `standard.lock`, independently verified, and owner-controlled — **never automatic.** A
 repository's reference to this standard is informational; repository-specific instructions take

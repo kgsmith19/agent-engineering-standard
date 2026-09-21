@@ -13,6 +13,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -6084,6 +6085,114 @@ class HarnessEdition(FixtureCase):
         model = self.model(self.std_fixture())
         findings = standardctl.check_template_pairs(model)
         self.assertEqual([], findings)
+
+
+
+
+class CoreGeneralization(FixtureCase):
+    """T03 (#200): core generalized by addition with Exception
+    adapters preserved. The generic capability contracts sit next
+    to the GitHub-authoritative sentences; GitHub-bound behavior is
+    unchanged; gate renders delete edition-off jobs instead of
+    stubbing them. Mutation-style fixtures make each test RED by
+    construction (the mutated state must fail)."""
+
+    SURFACES = ("tracker", "pipeline", "gate", "secrets",
+                "identity", "filesystem", "runtime", "extensions",
+                "commands")
+
+    def _boundaries(self):
+        return (WORKTREE / "AGENTS" / "boundaries.md").read_text(
+            encoding="utf-8")
+
+    def test_seven_surfaces_declare_generic_contracts(self):
+        """Protects AC1: every audited surface carries a generic
+        capability contract row in the generalization section, so
+        the core is generalized for all seven surfaces and not a
+        hand-picked subset."""
+        text = self._boundaries()
+        self.assertIn("Harness Capability Contracts", text)
+        for surface in self.SURFACES:
+            self.assertIn(surface, text, surface)
+
+    def test_github_authoritative_sentences_preserved(self):
+        """Protects AC1 (authoritative axis): the frozen
+        GitHub-authoritative sentences survive the generalization
+        byte-for-byte, so no core rewrite demoted them."""
+        text = self._boundaries()
+        for fragment in (
+                "The **sole required status check** is the final",
+                "ready PRs",
+                "never drafts",
+                "no agent review may ever block",
+                "generalized by addition"):
+            self.assertIn(fragment, text, fragment)
+
+    def test_exception_adapters_section_preserves_import_only(self):
+        """Protects AC3: the Exception adapters section documents
+        CLAUDE.md/GEMINI.md as import-only and the adapters stay
+        import-only on disk (heading + @AGENTS.md pointer, no code
+        execution)."""
+        text = self._boundaries()
+        self.assertIn("## Exception Adapters", text)
+        self.assertIn("import-only exception adapters", text)
+        for name in ("CLAUDE.md", "GEMINI.md"):
+            content = (WORKTREE / name).read_text(
+                encoding="utf-8")
+            self.assertIn("@AGENTS.md", content, name)
+            # Import-only: no YAML frontmatter, no fenced code, no
+            # shell lines (an adapter never executes anything).
+            self.assertNotIn("```", content, name)
+            self.assertNotRegex(
+                content, re.compile(r"^---\s*$", re.M), name)
+
+    def test_new_exception_requires_documented_adapter(self):
+        """Protects AC3 (additive-declaration axis): the section
+        defines the declaration rule (point into the core, never
+        generalize into it, never weaken the gate), so a harness
+        exception cannot be smuggled into core policy."""
+        text = self._boundaries()
+        self.assertIn("never a generalization", text)
+        self.assertIn("never a weakening of the sole PR", text)
+
+    def test_gate_render_deletes_edition_off_jobs_not_stubs(self):
+        """Protects AC4: a render that stubs an edition-off job as
+        an empty success is rejected by check_gate_noop_stages,
+        while every shipped render passes (no stubs, needs and
+        EXPECTED_JOBS in sync)."""
+        model = self.model(self.std_fixture())
+        self.assertEqual(
+            [], standardctl.check_gate_noop_stages(model))
+        stubbed = (
+            "name: Stubbed Gate\n"
+            "on: [push]\n"
+            "jobs:\n"
+            "  llm_review:\n"
+            "    if: always()\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - uses: actions/checkout@v4\n"
+        )
+        root = self.std_fixture()
+        wf = (Path(root) / ".github" / "workflows"
+              / "pr-gate.yml")
+        wf.write_text(stubbed, encoding="utf-8")
+        stub_model = self.model(root)
+        findings = standardctl.check_gate_noop_stages(stub_model)
+        self.assertTrue(
+            any(f.check_id == "noop-stage" for f in findings))
+
+    def test_keyless_identity_and_template_pairs_hold(self):
+        """Protects AC2/AC5: keyless configs run the full check set
+        with today's behavior and template-pair byte-identity holds
+        at the exact head, so the generalization changed nothing
+        under the GitHub binding."""
+        model = self.model(self.std_fixture())
+        self.assertEqual(
+            [], standardctl.check_template_pairs(model))
+        report = standardctl.run_checks(model)
+        self.assertTrue(report.ok(),
+                        [f.message for f in report.findings])
 
 
 if __name__ == "__main__":
