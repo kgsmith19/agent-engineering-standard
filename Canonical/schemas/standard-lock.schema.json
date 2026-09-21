@@ -16,6 +16,29 @@
     },
     "commit": {
       "type": "string"
+    },
+    "harness": {
+      "type": "object",
+      "description": "T02 harness capability refs (binding names, never secret values)",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "edition": {
+      "type": "string",
+      "enum": [
+        "full",
+        "lite",
+        "custom"
+      ],
+      "description": "T02 edition selection; absent means full"
+    },
+    "flags": {
+      "type": "object",
+      "description": "T02 edition flags: known flag names with boolean values",
+      "additionalProperties": {
+        "type": "boolean"
+      }
     }
   },
   "additionalProperties": true

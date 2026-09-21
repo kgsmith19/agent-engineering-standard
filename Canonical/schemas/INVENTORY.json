@@ -171,6 +171,11 @@
     "artifact": "Standard Lock",
     "durable_authority": "Consuming repo",
     "schema": "Canonical/schemas/standard-lock.schema.json",
-    "version": "5.0.0"
+    "version": "5.0.0",
+    "keys": [
+      "harness",
+      "edition",
+      "flags"
+    ]
   }
 ]
