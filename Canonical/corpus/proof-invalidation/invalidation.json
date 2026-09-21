@@ -1,0 +1,371 @@
+{
+  "_frozen": true,
+  "_provenance": "Stage 33 #124 (proof-invalidation). Hand-authored, adjudicated oracle: every entry's expected rules, invalidated flag, and change class reproduce check_invalidation exactly. Do not edit without a structured reopen of the Mold freeze.",
+  "entries": [
+    {
+      "expected_change": "semantic",
+      "expected_invalidated": true,
+      "expected_rules": [
+        "mold-payload-changed",
+        "stale-proof-reuse"
+      ],
+      "id": "proof-inv.payload-drift.01",
+      "note": "Mold payload hash moved under a live freeze while prior proof is reused: payload rule plus stale-proof refusal.",
+      "run": {
+        "commands": [],
+        "frozen_commands": [],
+        "frozen_digest": "aaaa",
+        "frozen_head": "head-freeze",
+        "frozen_intent_digest": "intent-1",
+        "head": "head-now",
+        "intent_digest": "intent-1",
+        "mold": "demo-mold",
+        "mold_digest": "bbbb",
+        "proof": {
+          "run_digest": "run-1",
+          "verdict": "qualified"
+        },
+        "protected_paths": [],
+        "provider": "anthropic/claude",
+        "touched_paths": []
+      }
+    },
+    {
+      "expected_change": "semantic",
+      "expected_invalidated": true,
+      "expected_rules": [
+        "intent-changed",
+        "stale-proof-reuse"
+      ],
+      "id": "proof-inv.intent-drift.02",
+      "note": "Linked intent text changed under a live freeze: the proof evidences the old intent, so intent rule plus stale-proof refusal.",
+      "run": {
+        "commands": [],
+        "frozen_commands": [],
+        "frozen_digest": "aaaa",
+        "frozen_head": "head-freeze",
+        "frozen_intent_digest": "intent-1",
+        "head": "head-now",
+        "intent_digest": "intent-2",
+        "mold": "demo-mold",
+        "mold_digest": "aaaa",
+        "proof": {
+          "run_digest": "run-1",
+          "verdict": "qualified"
+        },
+        "protected_paths": [],
+        "provider": "anthropic/claude",
+        "touched_paths": []
+      }
+    },
+    {
+      "expected_change": "semantic",
+      "expected_invalidated": true,
+      "expected_rules": [
+        "command-changed",
+        "stale-proof-reuse"
+      ],
+      "id": "proof-inv.command-changed.03",
+      "note": "A frozen verification command digest changed: the proof ran under commands that no longer exist.",
+      "run": {
+        "commands": [
+          {
+            "command": "python -m unittest discover -s tests",
+            "digest": "new-c"
+          }
+        ],
+        "frozen_commands": [
+          {
+            "command": "python -m unittest discover -s tests",
+            "digest": "old-c"
+          }
+        ],
+        "frozen_digest": "aaaa",
+        "frozen_head": "head-freeze",
+        "frozen_intent_digest": "intent-1",
+        "head": "head-now",
+        "intent_digest": "intent-1",
+        "mold": "demo-mold",
+        "mold_digest": "aaaa",
+        "proof": {
+          "run_digest": "run-1",
+          "verdict": "qualified"
+        },
+        "protected_paths": [],
+        "provider": "anthropic/claude",
+        "touched_paths": []
+      }
+    },
+    {
+      "expected_change": "semantic",
+      "expected_invalidated": true,
+      "expected_rules": [
+        "command-changed",
+        "stale-proof-reuse"
+      ],
+      "id": "proof-inv.command-removed.04",
+      "note": "A frozen command was removed from the run: missing commands are drift, not editorial cleanup.",
+      "run": {
+        "commands": [],
+        "frozen_commands": [
+          {
+            "command": "python tools/standardctl.py verify",
+            "digest": "v"
+          }
+        ],
+        "frozen_digest": "aaaa",
+        "frozen_head": "head-freeze",
+        "frozen_intent_digest": "intent-1",
+        "head": "head-now",
+        "intent_digest": "intent-1",
+        "mold": "demo-mold",
+        "mold_digest": "aaaa",
+        "proof": {
+          "run_digest": "run-1",
+          "verdict": "qualified"
+        },
+        "protected_paths": [],
+        "provider": "anthropic/claude",
+        "touched_paths": []
+      }
+    },
+    {
+      "expected_change": "semantic",
+      "expected_invalidated": true,
+      "expected_rules": [
+        "protected-path-touched",
+        "stale-proof-reuse"
+      ],
+      "id": "proof-inv.protected-touch.05",
+      "note": "A protected path was touched while prior proof is reused: no cached authorization survives protected ground moving.",
+      "run": {
+        "commands": [],
+        "frozen_commands": [],
+        "frozen_digest": "aaaa",
+        "frozen_head": "head-freeze",
+        "frozen_intent_digest": "intent-1",
+        "head": "head-now",
+        "intent_digest": "intent-1",
+        "mold": "demo-mold",
+        "mold_digest": "aaaa",
+        "proof": {
+          "run_digest": "run-1",
+          "verdict": "qualified"
+        },
+        "protected_paths": [
+          ".github/workflows/"
+        ],
+        "provider": "anthropic/claude",
+        "touched_paths": [
+          ".github/workflows/pr-gate.yml"
+        ]
+      }
+    },
+    {
+      "expected_change": "semantic",
+      "expected_invalidated": true,
+      "expected_rules": [
+        "mold-payload-changed",
+        "stale-proof-reuse",
+        "stale-review-reuse"
+      ],
+      "id": "proof-inv.stale-review.06",
+      "note": "A prior release approval is presented after payload drift: approvals bind to exact frozen content, not the Mold name.",
+      "run": {
+        "commands": [],
+        "frozen_commands": [],
+        "frozen_digest": "aaaa",
+        "frozen_head": "head-freeze",
+        "frozen_intent_digest": "intent-1",
+        "head": "head-now",
+        "intent_digest": "intent-1",
+        "mold": "demo-mold",
+        "mold_digest": "bbbb",
+        "prior_approval": {
+          "head": "head-freeze",
+          "kind": "release"
+        },
+        "proof": {
+          "run_digest": "run-1",
+          "verdict": "qualified"
+        },
+        "protected_paths": [],
+        "provider": "anthropic/claude",
+        "touched_paths": []
+      }
+    },
+    {
+      "expected_change": "semantic",
+      "expected_invalidated": true,
+      "expected_rules": [
+        "mold-payload-changed",
+        "stale-proof-reuse",
+        "stale-review-reuse"
+      ],
+      "id": "proof-inv.stale-release.07",
+      "note": "A prior review approval is presented after payload drift: stale reviews never re-authorize changed content.",
+      "run": {
+        "commands": [],
+        "frozen_commands": [],
+        "frozen_digest": "aaaa",
+        "frozen_head": "head-freeze",
+        "frozen_intent_digest": "intent-1",
+        "head": "head-now",
+        "intent_digest": "intent-1",
+        "mold": "demo-mold",
+        "mold_digest": "bbbb",
+        "prior_approval": {
+          "head": "head-freeze",
+          "kind": "review"
+        },
+        "provider": "anthropic/claude",
+        "touched_paths": [],
+        "proof": {
+          "run_digest": "run-1",
+          "verdict": "qualified"
+        }
+      }
+    },
+    {
+      "expected_change": "reopen",
+      "expected_invalidated": true,
+      "expected_rules": [
+        "reopen-without-requalification"
+      ],
+      "id": "proof-inv.reopen-unqualified.08",
+      "note": "A structured reopen suspends drift findings but the stale proof is still refused until requalification completes.",
+      "run": {
+        "commands": [],
+        "frozen_commands": [],
+        "frozen_digest": "aaaa",
+        "frozen_head": "head-freeze",
+        "frozen_intent_digest": "intent-1",
+        "head": "head-now",
+        "intent_digest": "intent-1",
+        "mold": "demo-mold",
+        "mold_digest": "bbbb",
+        "proof": {
+          "run_digest": "run-1",
+          "verdict": "qualified"
+        },
+        "protected_paths": [],
+        "provider": "anthropic/claude",
+        "reopen": {
+          "reason": "intent clarified after owner review",
+          "requalified": false
+        },
+        "touched_paths": []
+      }
+    },
+    {
+      "expected_change": "reopen",
+      "expected_invalidated": false,
+      "expected_rules": [],
+      "id": "proof-inv.reopen-requalified.09",
+      "note": "A structured reopen with completed requalification restores trust: drift is owned, proof is fresh, no finding fires.",
+      "run": {
+        "commands": [],
+        "frozen_commands": [],
+        "frozen_digest": "bbbb",
+        "frozen_head": "head-now",
+        "frozen_intent_digest": "intent-1",
+        "head": "head-now",
+        "intent_digest": "intent-1",
+        "mold": "demo-mold",
+        "mold_digest": "bbbb",
+        "protected_paths": [],
+        "provider": "anthropic/claude",
+        "reopen": {
+          "reason": "intent clarified after owner review",
+          "requalified": true
+        },
+        "touched_paths": []
+      }
+    },
+    {
+      "expected_change": "editorial",
+      "expected_invalidated": false,
+      "expected_rules": [],
+      "id": "proof-inv.editorial-clean.10",
+      "note": "No digest drift and no protected touch: a purely editorial pass reuses cached proof without false invalidation.",
+      "run": {
+        "commands": [],
+        "frozen_commands": [],
+        "frozen_digest": "aaaa",
+        "frozen_head": "head-freeze",
+        "frozen_intent_digest": "intent-1",
+        "head": "head-now",
+        "intent_digest": "intent-1",
+        "mold": "demo-mold",
+        "mold_digest": "aaaa",
+        "proof": {
+          "run_digest": "run-1",
+          "verdict": "qualified"
+        },
+        "protected_paths": [],
+        "provider": "anthropic/claude",
+        "touched_paths": []
+      }
+    },
+    {
+      "expected_change": "semantic",
+      "expected_invalidated": true,
+      "expected_rules": [
+        "mold-payload-changed"
+      ],
+      "id": "proof-inv.drift-no-proof.11",
+      "note": "Payload drift with no prior proof presented still fires the payload rule: the freeze moved, even before anyone reuses proof.",
+      "run": {
+        "commands": [],
+        "frozen_commands": [],
+        "frozen_digest": "aaaa",
+        "frozen_head": "head-freeze",
+        "frozen_intent_digest": "intent-1",
+        "head": "head-now",
+        "intent_digest": "intent-1",
+        "mold": "demo-mold",
+        "mold_digest": "bbbb",
+        "protected_paths": [],
+        "provider": "anthropic/claude",
+        "touched_paths": []
+      }
+    },
+    {
+      "expected_change": "semantic",
+      "expected_invalidated": true,
+      "expected_rules": [
+        "command-changed"
+      ],
+      "id": "proof-inv.command-added.12",
+      "note": "An unfrozen command appears in the run: added execution surface is drift, never editorial.",
+      "run": {
+        "commands": [
+          {
+            "command": "python -m unittest discover -s tests",
+            "digest": "c1"
+          },
+          {
+            "command": "curl https://example.invalid/run",
+            "digest": "c2"
+          }
+        ],
+        "frozen_commands": [
+          {
+            "command": "python -m unittest discover -s tests",
+            "digest": "c1"
+          }
+        ],
+        "frozen_digest": "aaaa",
+        "frozen_head": "head-freeze",
+        "frozen_intent_digest": "intent-1",
+        "head": "head-now",
+        "intent_digest": "intent-1",
+        "mold": "demo-mold",
+        "mold_digest": "aaaa",
+        "protected_paths": [],
+        "provider": "anthropic/claude",
+        "touched_paths": []
+      }
+    }
+  ]
+}
