@@ -2869,12 +2869,75 @@ def run_checks(
 # ---------------------------------------------------------------------------
 
 
+def cmd_harness_set(args: argparse.Namespace) -> int:
+    """T08 read-only preview for --set harness pairs (AC2/AC8).
+
+    Validates every --set harness.<surface>=<value> pair against
+    HARNESS_CAPABILITIES without writing anything; unknown
+    surfaces/values and secret-shaped values fail closed with the
+    key named. Prints the redacted binding preview."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import edition_ux
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    violations: List[str] = []
+    bindings: Dict[str, str] = {}
+    for pair in args.pairs or []:
+        violations.extend(
+            edition_ux.parse_harness_set(pair, HARNESS_CAPABILITIES))
+        key, _, value = pair.partition("=")
+        if key.startswith("harness.") and "=" in pair:
+            bindings[key[len("harness."):]] = value
+    if violations:
+        for violation in violations:
+            print("set: %s" % violation)
+        return 1
+    preview = edition_ux.binding_status(bindings)
+    if args.json:
+        print(json.dumps({"bindings": preview}, indent=2,
+                         sort_keys=True))
+    else:
+        print("set: bindings (redacted preview)")
+        for surface in sorted(preview):
+            print("  %s=%s" % (surface, preview[surface]))
+    return 0
+
+
 def cmd_verify(args: argparse.Namespace) -> int:
+    # T08: --edition selects the run scope exactly as the
+    # edition: key would; absent flag = today's behavior.
+    edition_arg = getattr(args, "edition", None)
+    if edition_arg:
+        import sys as _sys
+        from pathlib import Path as _Path
+        _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+        try:
+            import edition_ux
+        finally:
+            _sys.path.remove(str(_Path(__file__).resolve().parent))
+        arg_violations = edition_ux.parse_edition_arg(
+            edition_arg, EDITIONS)
+        if arg_violations:
+            for violation in arg_violations:
+                print("verify: %s" % violation)
+            return 1
+        project = dict(model_project(args) or {})
+        project["edition"] = edition_arg
+    else:
+        project = model_project(args)
     model = RepoModel(Path(args.root))
-    flags, _violations = edition_flags(model.project or {})
+    flags, _violations = edition_flags(project or {})
     report = run_checks(model, args.select, flags)
     print(report.to_json() if args.json else report.to_text())
     return 0 if report.ok() else 1
+
+
+def model_project(args: argparse.Namespace) -> Optional[Dict]:
+    """Read the parsed project mapping for the verify root."""
+    return RepoModel(Path(args.root)).project
 
 
 class GitHubApi:
@@ -4359,7 +4422,33 @@ def build_parser() -> argparse.ArgumentParser:
         "--select", choices=["policy", "lean", "security"], default=None
     )
     p_verify.add_argument("--json", action="store_true")
+    p_verify.add_argument(
+        "--edition", default=None,
+        help="select the run scope exactly as the edition: key in "
+             "project.yaml would (full|lite|custom); absent flag = "
+             "no behavior change (T08)",
+    )
     p_verify.set_defaults(func=cmd_verify)
+
+    p_set = sub.add_parser(
+        "set",
+        help="validate and preview harness binding values "
+             "(refs only, never secrets; read-only preview)",
+        description=(
+            "Validate --set harness.<surface>=<value> pairs against "
+            "the capability registry without writing anything. "
+            "Unknown surfaces/values and secret-shaped values fail "
+            "closed."
+        ),
+    )
+    p_set.add_argument(
+        "--set", dest="pairs", action="append", default=[],
+        metavar="harness.<surface>=<value>",
+        help="one harness binding value to validate "
+             "(repeatable)",
+    )
+    p_set.add_argument("--json", action="store_true")
+    p_set.set_defaults(func=cmd_harness_set)
 
     p_doctor = sub.add_parser(
         "doctor",
