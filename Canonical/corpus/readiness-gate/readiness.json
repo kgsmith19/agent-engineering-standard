@@ -1,0 +1,136 @@
+{
+  "_frozen": true,
+  "_provenance": "T13 #210 (readiness-gate). Hand-authored, adjudicated oracle: every entry expected fragment reproduces the contract checkers exactly. Do not edit without a structured reopen.",
+  "entries": [
+    {
+      "id": "ready.resource.01",
+      "note": "Denied access is distinct.",
+      "target": "resource",
+      "record": {
+        "name": "db",
+        "exists": true,
+        "accessible": false
+      },
+      "expected_violation_fragment": "denied-access"
+    },
+    {
+      "id": "ready.resource.02",
+      "note": "Missing is not denied.",
+      "target": "resource",
+      "record": {
+        "name": "ghost",
+        "exists": false
+      },
+      "expected_violation_fragment": "missing-fixture"
+    },
+    {
+      "id": "ready.resource.03",
+      "note": "Accessible resource is ready.",
+      "target": "resource",
+      "record": {
+        "name": "db",
+        "exists": true,
+        "accessible": true
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ready.directory.01",
+      "note": "Wrong directory names both.",
+      "target": "directory",
+      "record": {
+        "actual": "/wrong",
+        "expected": "/right"
+      },
+      "expected_violation_fragment": "wrong-directory"
+    },
+    {
+      "id": "ready.directory.02",
+      "note": "Right directory is ready.",
+      "target": "directory",
+      "record": {
+        "actual": "/right",
+        "expected": "/right"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ready.command.01",
+      "note": "Absent command is distinct.",
+      "target": "command",
+      "record": {
+        "command": "kilo",
+        "available": [
+          "git"
+        ]
+      },
+      "expected_violation_fragment": "unavailable-command"
+    },
+    {
+      "id": "ready.alternative.01",
+      "note": "Supported alternative satisfies.",
+      "target": "alternative",
+      "record": {
+        "tool": "kilo",
+        "alternatives": [
+          "pi"
+        ],
+        "present": [
+          "pi"
+        ]
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ready.alternative.02",
+      "note": "No tool and no alternative fails.",
+      "target": "alternative",
+      "record": {
+        "tool": "kilo",
+        "alternatives": [
+          "pi"
+        ],
+        "present": []
+      },
+      "expected_violation_fragment": "unavailable-command"
+    },
+    {
+      "id": "ready.proof.01",
+      "note": "Empty proof rejected.",
+      "target": "proof",
+      "record": {
+        "steps": []
+      },
+      "expected_violation_fragment": "no-op proof rejected"
+    },
+    {
+      "id": "ready.proof.02",
+      "note": "Performing proof passes.",
+      "target": "proof",
+      "record": {
+        "steps": [
+          "probe"
+        ]
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ready.secrets.01",
+      "note": "Secret handling forbidden.",
+      "target": "secrets",
+      "record": {
+        "secret_value": "x"
+      },
+      "expected_violation_fragment": "secret handling forbidden"
+    },
+    {
+      "id": "ready.secrets.02",
+      "note": "Clean probe carries no secrets.",
+      "target": "secrets",
+      "record": {
+        "name": "db"
+      },
+      "expected_violation_fragment": ""
+    }
+  ]
+}
