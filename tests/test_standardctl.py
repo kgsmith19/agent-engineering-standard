@@ -5579,5 +5579,304 @@ class OutcomeTermsRejections(FixtureCase):
                       check_ids(findings))
 
 
+class ProofInvalidation(unittest.TestCase):
+    """Stage 33 (#124): frozen molds with proof invalidation.
+
+    A qualified Mold freezes its payload/intent/command digests;
+    any drift invalidates cached proof until a structured reopen
+    is requalified, while purely editorial passes reuse proof.
+    Every proof point below has a dedicated test with its own
+    justification. Pure contract in tools/proof_invalidation.py
+    plus the frozen corpus under
+    Canonical/corpus/proof-invalidation/."""
+
+    PROVIDER = "anthropic/claude"
+
+    def _pi(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import proof_invalidation
+            return proof_invalidation
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "proof-invalidation" / "invalidation.json")
+            .read_text(encoding="utf-8"))
+
+    def _run(self, **overrides):
+        run = {
+            "mold": "demo-mold",
+            "mold_digest": "aaaa",
+            "frozen_digest": "aaaa",
+            "frozen_head": "head-freeze",
+            "head": "head-now",
+            "intent_digest": "intent-1",
+            "frozen_intent_digest": "intent-1",
+            "commands": [],
+            "frozen_commands": [],
+            "protected_paths": [],
+            "touched_paths": [],
+            "provider": self.PROVIDER,
+        }
+        run.update(overrides)
+        return run
+
+    def _rules(self, result):
+        return sorted({f["rule"] for f in result.findings})
+
+    def test_payload_drift_invalidates_and_refuses_stale_proof(self):
+        """Protects the Primary Outcome (payload dimension): a
+        Mold hash move under a live freeze fires
+        mold-payload-changed and refuses the bound prior proof,
+        so changed Mold content can never silently reuse stale
+        authorization."""
+        pi = self._pi()
+        result = pi.check_invalidation(self._run(
+            mold_digest="bbbb",
+            proof={"verdict": "qualified",
+                   "run_digest": "run-1"}))
+        self.assertTrue(result.invalidated)
+        self.assertEqual("semantic", result.change_class)
+        self.assertEqual(["mold-payload-changed",
+                          "stale-proof-reuse"],
+                         self._rules(result))
+
+    def test_intent_drift_invalidates(self):
+        """Protects the Primary Outcome (intent dimension): a
+        changed linked intent fires intent-changed plus
+        stale-proof-reuse, so proof evidencing the old intent
+        never authorizes the new intent."""
+        pi = self._pi()
+        result = pi.check_invalidation(self._run(
+            intent_digest="intent-2",
+            proof={"verdict": "qualified",
+                   "run_digest": "run-1"}))
+        self.assertTrue(result.invalidated)
+        self.assertIn("intent-changed", self._rules(result))
+        self.assertIn("stale-proof-reuse", self._rules(result))
+
+    def test_changed_command_invalidates(self):
+        """Protects the Primary Outcome (command dimension): a
+        changed verification-command digest fires
+        command-changed, so proof that ran under vanished
+        execution never re-authorizes work."""
+        pi = self._pi()
+        frozen = [{"command": "verify", "digest": "old-c"}]
+        run = self._run(
+            frozen_commands=frozen,
+            commands=[{"command": "verify",
+                       "digest": "new-c"}],
+            proof={"verdict": "qualified"})
+        result = pi.check_invalidation(run)
+        self.assertTrue(result.invalidated)
+        self.assertIn("command-changed", self._rules(result))
+
+    def test_removed_command_invalidates(self):
+        """Protects the command dimension against quiet
+        shrinkage: a removed frozen command is drift (not
+        editorial cleanup) and fires command-changed."""
+        pi = self._pi()
+        run = self._run(
+            frozen_commands=[{"command": "verify",
+                               "digest": "v"}],
+            commands=[])
+        result = pi.check_invalidation(run)
+        self.assertTrue(result.invalidated)
+        self.assertIn("command-changed", self._rules(result))
+
+    def test_added_command_invalidates(self):
+        """Protects the command dimension against quiet growth:
+        an unfrozen command in the run fires command-changed,
+        so added execution surface never slips through."""
+        pi = self._pi()
+        frozen = [{"command": "verify", "digest": "c1"}]
+        run = self._run(
+            frozen_commands=frozen,
+            commands=frozen + [{"command": "extra",
+                                "digest": "c2"}])
+        result = pi.check_invalidation(run)
+        self.assertTrue(result.invalidated)
+        self.assertIn("command-changed", self._rules(result))
+
+    def test_protected_path_touch_invalidates(self):
+        """Protects the Primary Outcome (protected-path
+        dimension): touching a protected path fires
+        protected-path-touched, so no cached authorization
+        survives protected ground moving."""
+        pi = self._pi()
+        run = self._run(
+            protected_paths=[".github/workflows/"],
+            touched_paths=[".github/workflows/pr-gate.yml"],
+            proof={"verdict": "qualified"})
+        result = pi.check_invalidation(run)
+        self.assertTrue(result.invalidated)
+        self.assertIn("protected-path-touched",
+                      self._rules(result))
+
+    def test_stale_review_and_release_refused(self):
+        """Protects the stale-review/stale-release proof
+        strategy: prior review and release approvals presented
+        after payload drift each fire stale-review-reuse, so
+        approvals bound to exact frozen content never
+        re-authorize changed content."""
+        pi = self._pi()
+        for kind in ("review", "release"):
+            run = self._run(
+                mold_digest="bbbb",
+                prior_approval={"kind": kind,
+                                "head": "head-freeze"})
+            result = pi.check_invalidation(run)
+            self.assertTrue(result.invalidated, kind)
+            self.assertIn("stale-review-reuse",
+                          self._rules(result), kind)
+
+    def test_reopen_suspends_but_requires_requalification(self):
+        """Protects the requalification flow: a structured
+        reopen collapses drift into the single
+        reopen-without-requalification blocker (no duplicate
+        stale-proof finding), so reopening suspends
+        invalidation without restoring trust."""
+        pi = self._pi()
+        run = self._run(
+            mold_digest="bbbb",
+            proof={"verdict": "qualified"},
+            reopen={"reason": "intent clarified",
+                    "requalified": False})
+        result = pi.check_invalidation(run)
+        self.assertTrue(result.invalidated)
+        self.assertEqual("reopen", result.change_class)
+        self.assertEqual(["reopen-without-requalification"],
+                         self._rules(result))
+
+    def test_requalified_reopen_restores_trust(self):
+        """Protects the requalification flow completion: a
+        reopened Mold whose freeze was re-recorded at the new
+        content (digests match, requalified true) yields zero
+        findings, so owned drift restores trust."""
+        pi = self._pi()
+        run = self._run(
+            mold_digest="bbbb", frozen_digest="bbbb",
+            frozen_head="head-now",
+            reopen={"reason": "intent clarified",
+                    "requalified": True})
+        result = pi.check_invalidation(run)
+        self.assertFalse(result.invalidated)
+        self.assertEqual([], result.findings)
+        self.assertTrue(result.ok)
+
+    def test_editorial_pass_reuses_proof(self):
+        """Protects the Non-Goal (no false invalidation): a run
+        with zero digest drift and zero protected touches is
+        editorial and reuses cached proof with no findings, so
+        purely editorial passes never force requalification."""
+        pi = self._pi()
+        run = self._run(
+            proof={"verdict": "qualified",
+                   "run_digest": "run-1"})
+        result = pi.check_invalidation(run)
+        self.assertFalse(result.invalidated)
+        self.assertEqual("editorial", result.change_class)
+        self.assertEqual([], result.findings)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 12 corpus
+        entries reproduce their expected rules, invalidated
+        flags, and change classes, covering all 7 invalidation
+        rules with unique well-formed IDs."""
+        pi = self._pi()
+        findings, entries = \
+            pi.validate_invalidation_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(12, len(entries))
+        covered = {r for e in entries
+                   for r in e["expected_rules"]}
+        self.assertEqual(set(pi.RULES), covered)
+
+    def test_freeze_mints_bound_record(self):
+        """Protects the freeze-record claim: freeze() binds
+        mold, digests, head, and commands in one record stamped
+        by this module, so downstream checks bind to exact
+        frozen content."""
+        pi = self._pi()
+        record = pi.freeze(
+            "demo-mold", "aaaa", "head-1",
+            intent_digest="intent-1",
+            commands=[{"command": "verify",
+                       "digest": "c1"}],
+            provider=self.PROVIDER)
+        self.assertEqual("aaaa", record["frozen_digest"])
+        self.assertEqual("head-1", record["frozen_head"])
+        self.assertEqual("intent-1",
+                         record["frozen_intent_digest"])
+        self.assertEqual(
+            [{"command": "verify", "digest": "c1"}],
+            record["frozen_commands"])
+        self.assertEqual(pi.FROZEN_BY, record["frozen_by"])
+
+    def test_standardctl_proof_invalidate_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: proof-invalidate
+        validates the real corpus (ok, 12 entries, 7 rules),
+        checks a --run file as JSON, exits 0 on invalidated
+        runs, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "proof-invalidate", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(12, payload["entries"])
+        self.assertEqual(7, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-run.json"
+            good_path.write_text(json.dumps(self._run(
+                proof={"verdict": "qualified"})),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "proof-invalidate", "--run", str(good_path),
+                 "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertFalse(payload["invalidated"])
+            self.assertEqual("editorial",
+                             payload["change_class"])
+            bad_path = Path(tmp) / "bad-run.json"
+            bad_path.write_text(json.dumps(self._run(
+                mold_digest="bbbb",
+                proof={"verdict": "qualified"})),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "proof-invalidate", "--run", str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "proof-invalidate", "--run", "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "proof-invalidate", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
 if __name__ == "__main__":
     unittest.main()

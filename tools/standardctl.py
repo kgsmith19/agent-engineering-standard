@@ -4362,6 +4362,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_qual.add_argument("--json", action="store_true")
     p_qual.set_defaults(func=cmd_mold_qualify)
 
+    p_inv = sub.add_parser(
+        "proof-invalidate",
+        help="mold freeze and proof-invalidation readout plus "
+             "frozen-corpus validation (advisory)",
+    )
+    p_inv.add_argument(
+        "--run", default="",
+        help="path to a JSON freeze-check run file; without it, "
+             "validates the frozen invalidation fixture set")
+    p_inv.add_argument(
+        "--corpus", default="Canonical/corpus/proof-invalidation",
+        help="frozen corpus dir holding invalidation.json for "
+             "validation mode")
+    p_inv.add_argument("--json", action="store_true")
+    p_inv.set_defaults(func=cmd_proof_invalidate)
+
     p_port = sub.add_parser(
         "verify-portfolio",
         help="verification portfolio selection readout and "
@@ -5279,6 +5295,89 @@ def cmd_mold_qualify(args: argparse.Namespace) -> int:
             print("  - %s" % line)
         print("  corpus: %d adversarial, %d meta, rules %s"
               % (len(adv_entries), meta_count, ", ".join(rules)))
+    return 0
+
+
+def cmd_proof_invalidate(args: argparse.Namespace) -> int:
+    """Advisory proof-invalidation readout. With --run, checks
+    that run file against its freeze; without it, validates the
+    frozen invalidation oracle (every entry's computed rules ==
+    expected_rules, invalidated flag and change class reproduce,
+    IDs unique, all 7 rules covered). Always exits 0 on
+    findings \u2014 advisory never gates; only an unreadable file
+    exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import proof_invalidation
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.run:
+        try:
+            run = json.loads(
+                _Path(args.run).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("proof-invalidate: cannot load run: %s" % exc)
+            return 2
+        if not isinstance(run, dict):
+            print("proof-invalidate: run must be a JSON object")
+            return 2
+        result = proof_invalidation.check_invalidation(run)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "check",
+                "run": args.run,
+                "change_class": result.change_class,
+                "invalidated": result.invalidated,
+                "ok": result.ok,
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("proof-invalidate: %s \u2014 %s%s" % (
+                args.run, result.change_class.upper(),
+                " (INVALIDATED)" if result.invalidated else ""))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "invalidation.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("proof-invalidate: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        proof_invalidation.validate_invalidation_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(r)
+                    for e in entries if isinstance(e, dict)
+                    for r in (e.get("expected_rules") or [])})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("proof-invalidate: %s%s" % (
+            args.corpus, " \u2014 OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d invalidation, rules %s"
+              % (len(entries), ", ".join(rules)))
     return 0
 
 
