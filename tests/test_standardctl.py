@@ -5878,5 +5878,213 @@ class ProofInvalidation(unittest.TestCase):
         self.assertEqual(2, proc.returncode)
 
 
+class HarnessEdition(FixtureCase):
+    """T02 (#199): additive harness/edition/flags schema enforced
+    with today defaults. Nine harness capability refs from the T01
+    audit, three editions, eight frozen flags, ref-only values,
+    fail-closed unknowns, keyless identity, --select compatibility.
+    Every proof point below has a dedicated test with its own
+    justification."""
+
+    FULL_BLOCK = (
+        "harness:\n"
+        "  tracker: github-issues\n"
+        "  pipeline: github-actions\n"
+        "  gate: standard-pr-gate\n"
+        "  secrets: infisical\n"
+        "  identity: github-apps\n"
+        "  filesystem: local-worktrees\n"
+        "  runtime: local-agent-runtime\n"
+        "  extensions: sibling-contract\n"
+        "  commands: standardctl\n"
+        "edition: full\n"
+    )
+
+    def _findings(self, yaml_text):
+        root = self.std_fixture()
+        (Path(root) / "project.yaml").write_text(
+            yaml_text, encoding="utf-8")
+        return standardctl.check_harness_edition(self.model(root))
+
+    def test_valid_minimal_config_verifies(self):
+        """Protects AC1 acceptance: a valid minimal config with all
+        nine harness refs and edition full produces zero findings,
+        so no adopter is blocked by a correct config."""
+        findings = self._findings(self.FULL_BLOCK)
+        self.assertEqual([], [f for f in findings
+                              if f.severity == "error"])
+
+    def test_unknown_capability_fails_closed(self):
+        """Protects AC3: an unknown harness capability value fails
+        closed with an error naming the offending key, so an
+        unknown store is never silently trusted."""
+        findings = self._findings(
+            self.FULL_BLOCK.replace(
+                "tracker: github-issues",
+                "tracker: nonexistent-store"))
+        messages = " | ".join(f.message for f in findings)
+        self.assertIn("nonexistent-store", messages)
+        self.assertIn("tracker", messages)
+
+    def test_unknown_capability_key_fails_closed(self):
+        """Protects AC3 (key axis): an unknown harness key fails
+        closed naming the key, so typo'd capabilities can never
+        silently no-op."""
+        findings = self._findings(
+            self.FULL_BLOCK.replace(
+                "edition: full",
+                "  nonexistent-capability: x\nedition: full"))
+        messages = " | ".join(f.message for f in findings)
+        self.assertIn("nonexistent-capability", messages)
+
+    def test_unknown_edition_fails_closed(self):
+        """Protects AC3: an unknown edition fails closed, so
+        edition names are never silently treated as full."""
+        findings = self._findings(
+            self.FULL_BLOCK.replace("edition: full",
+                                    "edition: mega"))
+        messages = " | ".join(f.message for f in findings)
+        self.assertIn("mega", messages)
+
+    def test_unknown_flag_fails_closed(self):
+        """Protects AC3 (flags axis): an unknown flag fails closed
+        naming the flag, so flag typos can never silently no-op."""
+        findings = self._findings(
+            self.FULL_BLOCK + "flags:\n  nonexistent_flag: true\n")
+        messages = " | ".join(f.message for f in findings)
+        self.assertIn("nonexistent_flag", messages)
+
+    def test_secret_shaped_value_rejected(self):
+        """Protects AC6: a secret-shaped harness value is rejected
+        (refs only, never values), so no secret can enter the repo
+        under any harness key."""
+        findings = self._findings(
+            self.FULL_BLOCK.replace(
+                "secrets: infisical",
+                'secrets: "ghp_SuperSecretToken123"'))
+        messages = " | ".join(f.message for f in findings)
+        self.assertIn("refs only", messages)
+
+    def test_reserved_keys_rejected(self):
+        """Protects the Q8 boundary: adapters: and profile: stay
+        reserved and are rejected, so later-stage keys cannot be
+        squatted now."""
+        for key in ("adapters", "profile"):
+            findings = self._findings(
+                self.FULL_BLOCK + "%s:\n  x: y\n" % key)
+            messages = " | ".join(f.message for f in findings)
+            self.assertIn("reserved", messages, key)
+
+    def test_absent_keys_identical_to_today(self):
+        """Protects AC4: a keyless project.yaml produces zero
+        findings and every flag resolves on, so absent keys are
+        byte-for-byte today's behavior."""
+        keyless = self._findings("work:\n  tracker: github-issues\n")
+        self.assertEqual([], [f for f in keyless
+                              if f.severity == "error"])
+        model = self.model(self.std_fixture())
+        (Path(model.root) / "project.yaml").write_text(
+            "work:\n  tracker: github-issues\n", encoding="utf-8")
+        flags, violations = standardctl.edition_flags(
+            model.project or {})
+        self.assertEqual([], violations)
+        self.assertEqual(
+            {flag: True for flag in standardctl.KNOWN_FLAGS},
+            flags)
+
+    def test_lite_scopes_bound_checks_within_select(self):
+        """Protects AC2: edition lite skips exactly the
+        strict-review and extensions-catalog bound checks while
+        --select stays the group axis, so edition selects within
+        the run."""
+        model = self.model(self.std_fixture())
+        flags, _ = standardctl.edition_flags({"edition": "lite"})
+        bound = set()
+        for flag, value in flags.items():
+            if not value:
+                bound.update(
+                    standardctl.FLAG_BOUND_CHECKS.get(flag, ()))
+        self.assertEqual(
+            {"check_review_always_comments",
+             "check_no_native_review_gating",
+             "check_capability_registry"}, bound)
+        off = standardctl.run_checks(model, flags=flags)
+        on = standardctl.run_checks(model)
+        self.assertLess(len(off.findings), len(on.findings) + 1)
+        self.assertEqual(
+            0, len([f for f in off.findings
+                    if f.check_id == "review-always-comments"]))
+
+    def test_custom_edition_explicit_flags(self):
+        """Protects AC2 (custom): edition custom defaults every
+        flag off and honors explicit true values, so custom
+        selection is deterministic rather than inherited."""
+        flags, violations = standardctl.edition_flags(
+            {"edition": "custom",
+             "flags": {"verification_stages": True}})
+        self.assertEqual([], violations)
+        self.assertFalse(flags["evidence_depth"])
+        self.assertTrue(flags["verification_stages"])
+
+    def test_full_rejects_false_flag(self):
+        """Protects the full-edition invariant: a false flag under
+        edition full fails closed, so full always means full."""
+        findings = self._findings(
+            self.FULL_BLOCK +
+            "flags:\n  llm_review_strict: false\n")
+        messages = " | ".join(f.message for f in findings)
+        self.assertIn("cannot be false under edition full", messages)
+
+    def test_select_compatibility_with_and_without_keys(self):
+        """Protects AC5: --select invocations behave identically
+        with and without the new keys; policy-group findings are
+        unchanged either way."""
+        root = self.std_fixture()
+        project = Path(root) / "project.yaml"
+        project.write_text("work:\n  tracker: github-issues\n",
+                           encoding="utf-8")
+        m1 = self.model(root)
+        r1 = standardctl.run_checks(m1, select="policy")
+        project.write_text(
+            "work:\n  tracker: github-issues\n" + self.FULL_BLOCK,
+            encoding="utf-8")
+        m2 = self.model(root)
+        r2 = standardctl.run_checks(m2, select="policy")
+        self.assertEqual(
+            sorted((f.check_id, f.message) for f in r1.findings),
+            sorted((f.check_id, f.message) for f in r2.findings))
+
+    def test_lock_schema_and_inventory_carry_keys(self):
+        """Protects AC1 (lock/inventory axis): standard-lock.schema
+        carries harness/edition/flags in its properties and the
+        INVENTORY standard-lock row lists the same keys, so the
+        schema keys are mirrored outside project.yaml and the
+        29-schema firewall stays intact."""
+        schema = json.loads(
+            (WORKTREE / "Canonical" / "schemas"
+             / "standard-lock.schema.json").read_text(
+                 encoding="utf-8"))
+        for key in ("harness", "edition", "flags"):
+            self.assertIn(key, schema["properties"], key)
+        inventory = json.loads(
+            (WORKTREE / "Canonical" / "schemas" / "INVENTORY.json")
+            .read_text(encoding="utf-8"))
+        row = next(r for r in inventory if isinstance(r, dict)
+                   and r.get("schema", "").endswith(
+                       "standard-lock.schema.json"))
+        self.assertEqual(["harness", "edition", "flags"],
+                         row["keys"])
+        self.assertEqual(29, len(inventory))
+
+    def test_template_pair_identity_preserved(self):
+        """Protects the Must-remain-true (template identity): the
+        byte-identity template pairs still pass with the new keys
+        present, so the rendered template grammar never violates
+        verify."""
+        model = self.model(self.std_fixture())
+        findings = standardctl.check_template_pairs(model)
+        self.assertEqual([], findings)
+
+
 if __name__ == "__main__":
     unittest.main()

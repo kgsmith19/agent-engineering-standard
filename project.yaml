@@ -8,6 +8,18 @@ project:
   default_branch: main
   type: engineering-standard
 
+harness:
+  tracker: github-issues
+  pipeline: github-actions
+  gate: standard-pr-gate
+  secrets: infisical
+  identity: github-apps
+  filesystem: local-worktrees
+  runtime: local-agent-runtime
+  extensions: sibling-contract
+  commands: standardctl
+edition: full
+
 work:
   tracker: github-issues
   releases: github-milestones

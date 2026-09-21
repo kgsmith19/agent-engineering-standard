@@ -242,6 +242,169 @@ OUTCOME_TERMS_REQUIRED_FIELDS = (
     "Handoff",
 )
 
+# T02 harness/edition/flags (#199): additive capability schema.
+# The nine harness keys mirror the seven audited surfaces
+# (Canonical/harness-contract-audit.md): tracker, pipeline, gate,
+# secrets + identity, filesystem + runtime, extensions, commands.
+# Values are binding REFERENCE NAMES, never secret values.
+HARNESS_CAPABILITIES = {
+    "tracker": ("github-issues",),
+    "pipeline": ("github-actions",),
+    "gate": ("standard-pr-gate",),
+    "secrets": ("infisical", "none"),
+    "identity": ("github-apps", "none"),
+    "filesystem": ("local-worktrees",),
+    "runtime": ("local-agent-runtime",),
+    "extensions": ("sibling-contract", "none"),
+    "commands": ("standardctl",),
+}
+
+EDITIONS = ("full", "lite", "custom")
+
+# Flags that default OFF under the lite edition ("R2/R3 extras and
+# strict review separation off"); every other known flag defaults ON.
+EDITION_LITE_OFF = ("llm_review_strict", "extensions_catalog")
+
+# Frozen full flags matrix (issue Context): risk tiers, verification
+# stages, gate jobs, LLM-review strictness, extensions catalog,
+# continuity/autonomy, evidence depth.
+KNOWN_FLAGS = (
+    "risk_tiers",
+    "verification_stages",
+    "gate_jobs",
+    "llm_review_strict",
+    "extensions_catalog",
+    "continuity",
+    "autonomy",
+    "evidence_depth",
+)
+
+# Q8: reserved top-level project.yaml keys; never schema keys.
+RESERVED_PROJECT_KEYS = ("adapters", "profile")
+
+# Harness values are refs, never values: lowercase kebab refs only.
+_HARNESS_REF_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+
+# Verify checks each flag scopes. A flag set false skips its bound
+# checks (edition selects within the run; --select stays the group
+# axis). Flags without bound checks are consumed by the gate render
+# (T05), not by verify.
+FLAG_BOUND_CHECKS = {
+    "llm_review_strict": (
+        "check_review_always_comments",
+        "check_no_native_review_gating",
+    ),
+    "extensions_catalog": ("check_capability_registry",),
+    "verification_stages": ("check_test_justifications",),
+    "evidence_depth": (
+        "check_manifest_integrity",
+        "check_artifact_schemas",
+    ),
+}
+
+
+def edition_flags(project: Any) -> Tuple[Dict[str, bool], List[str]]:
+    """Resolve edition/flags from a parsed project mapping (pure).
+
+    Returns (flags, violations). Absent keys behave exactly as
+    today: edition full, every known flag on. Unknown keys, values,
+    or shapes fail closed with a violation naming the offending
+    key. Secret-shaped harness values are always rejected: refs
+    only, never values.
+    """
+    project = project if isinstance(project, dict) else {}
+    violations: List[str] = []
+    for key in RESERVED_PROJECT_KEYS:
+        if key in project:
+            violations.append(
+                "reserved key %r is not a schema key; it is held for "
+                "a later stage (Q8)" % key)
+    edition = project.get("edition")
+    if edition is None:
+        edition = "full"
+    edition = str(edition)
+    if edition not in EDITIONS:
+        violations.append(
+            "unknown edition %r: must be one of %s"
+            % (edition, ", ".join(EDITIONS)))
+        edition = "full"
+    flags: Dict[str, bool] = {}
+    if edition == "full":
+        for flag in KNOWN_FLAGS:
+            flags[flag] = True
+    elif edition == "lite":
+        for flag in KNOWN_FLAGS:
+            flags[flag] = flag not in EDITION_LITE_OFF
+    else:  # custom: exactly the flags explicitly set true
+        for flag in KNOWN_FLAGS:
+            flags[flag] = False
+    raw_flags = project.get("flags")
+    if raw_flags is not None:
+        if not isinstance(raw_flags, dict):
+            violations.append(
+                "flags must be a mapping of flag: true|false, not %s"
+                % type(raw_flags).__name__)
+        else:
+            for name, value in raw_flags.items():
+                name = str(name)
+                if name not in KNOWN_FLAGS:
+                    violations.append(
+                        "unknown flag %r: known flags are %s"
+                        % (name, ", ".join(KNOWN_FLAGS)))
+                    continue
+                if isinstance(value, str) and value.lower() in (
+                        "true", "false"):
+                    # The restricted YAML grammar yields scalars as
+                    # strings; accept spelled true/false as boolean.
+                    value = value.lower() == "true"
+                if not isinstance(value, bool):
+                    violations.append(
+                        "flag %r must be true or false, not %r"
+                        % (name, value))
+                    continue
+                if edition == "full" and value is False:
+                    violations.append(
+                        "flag %r cannot be false under edition full; "
+                        "use edition lite or custom to scope checks"
+                        % name)
+                    continue
+                flags[name] = value
+    raw_harness = project.get("harness")
+    if raw_flags is None and "flags" in project:
+        pass  # handled above; kept for symmetry
+    if raw_flags is not None and not isinstance(raw_flags, dict):
+        pass
+    if raw_harness is not None:
+        if not isinstance(raw_harness, dict):
+            violations.append(
+                "harness must be a mapping of capability: <ref>, "
+                "not %s" % type(raw_harness).__name__)
+        else:
+            for name, value in raw_harness.items():
+                name = str(name)
+                if name not in HARNESS_CAPABILITIES:
+                    violations.append(
+                        "unknown harness capability %r: known "
+                        "capabilities are %s"
+                        % (name,
+                           ", ".join(sorted(HARNESS_CAPABILITIES))))
+                    continue
+                value = str(value)
+                if not _HARNESS_REF_RE.match(value):
+                    violations.append(
+                        "harness.%s value %r is not a reference: "
+                        "values are refs only, never secret values"
+                        % (name, value[:12]))
+                    continue
+                if value not in HARNESS_CAPABILITIES[name]:
+                    violations.append(
+                        "unknown harness capability value %r for "
+                        "%s: known bindings are %s"
+                        % (value, name,
+                           ", ".join(HARNESS_CAPABILITIES[name])))
+    return flags, violations
+
+
 GATE_WORKFLOW_NAME = "Agent Engineering Standard PR Gate"
 GATE_JOB_NAME = "Agent Engineering Standard PR Gate"
 MERGE_POLICY_NAME = "Agent Engineering Standard Merge Policy"
@@ -1104,6 +1267,52 @@ def check_outcome_terms(model: RepoModel) -> List[Finding]:
                 "fixed defined-terms module is missing",
             )
         )
+    return findings
+
+
+def check_harness_edition(model: RepoModel) -> List[Finding]:
+    """T02 harness/edition/flags firewall: the additive capability
+    schema fails closed. Unknown capabilities, unknown editions,
+    unknown flags, secret-shaped values, and reserved top-level
+    keys are all errors naming the offending key. Absent keys are
+    a no-op (behavior exactly as today). Consuming repositories
+    without project.yaml are exempt."""
+    project = model.project
+    if not project:
+        return []
+    if not any(k in project for k in
+               ("harness", "edition", "flags",
+                *RESERVED_PROJECT_KEYS)):
+        return []
+    flags, violations = edition_flags(project)
+    findings = [
+        Finding("harness-edition", "error", "project.yaml", v)
+        for v in violations
+    ]
+    # TEMPLATES/project.yaml must carry the same additive keys when
+    # the live project.yaml does (single rendered grammar).
+    template = None
+    if model.exists("TEMPLATES/project.yaml"):
+        try:
+            template = parse_restricted_yaml(
+                model.read_text("TEMPLATES/project.yaml") or "",
+                "TEMPLATES/project.yaml")
+        except RestrictedYamlError as exc:
+            findings.append(
+                Finding("harness-edition", "error",
+                        "TEMPLATES/project.yaml", str(exc)))
+    if template is not None:
+        t_flags, t_violations = edition_flags(template)
+        findings.extend(
+            Finding("harness-edition", "error",
+                    "TEMPLATES/project.yaml", v)
+            for v in t_violations)
+        if bool(project.get("harness")) and                 not template.get("harness"):
+            findings.append(
+                Finding("harness-edition", "error",
+                        "TEMPLATES/project.yaml",
+                        "rendered template is missing the harness: "
+                        "block that project.yaml carries"))
     return findings
 
 
@@ -2475,6 +2684,7 @@ CHECKS: List[Tuple[str, Any]] = [
     ("policy", check_template_pairs),
     ("policy", check_issue_config),
     ("policy", check_outcome_terms),
+    ("policy", check_harness_edition),
     ("policy", check_adapters),
     ("policy", check_root_self_lock),
     ("policy", check_agents_authority),
@@ -2499,11 +2709,26 @@ CHECKS: List[Tuple[str, Any]] = [
 ]
 
 
-def run_checks(model: RepoModel, select: Optional[str] = None) -> Report:
-    """Run all checks (or one --select group) and return the Report."""
+def run_checks(
+    model: RepoModel,
+    select: Optional[str] = None,
+    flags: Optional[Dict[str, bool]] = None,
+) -> Report:
+    """Run all checks (or one --select group) and return the Report.
+
+    flags scopes the run by edition (T02): a known flag set false
+    skips its bound checks. --select stays the group axis; edition
+    selects within the run. flags None or absent-keyed projects
+    behave exactly as today (every flag on)."""
+    off = {name for name, on in (flags or {}).items() if not on}
+    skipped = set()
+    for flag in off:
+        skipped.update(FLAG_BOUND_CHECKS.get(flag, ()))
     report = Report()
     for group, check in CHECKS:
         if select and group != select:
+            continue
+        if check.__name__ in skipped:
             continue
         report.extend(check(model))
     return report
@@ -2516,7 +2741,8 @@ def run_checks(model: RepoModel, select: Optional[str] = None) -> Report:
 
 def cmd_verify(args: argparse.Namespace) -> int:
     model = RepoModel(Path(args.root))
-    report = run_checks(model, args.select)
+    flags, _violations = edition_flags(model.project or {})
+    report = run_checks(model, args.select, flags)
     print(report.to_json() if args.json else report.to_text())
     return 0 if report.ok() else 1
 
