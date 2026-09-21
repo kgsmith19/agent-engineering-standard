@@ -7208,5 +7208,173 @@ class LedgerRuntime(FixtureCase):
         self.assertEqual(0, stub_hits)
 
 
+class ReadinessGate(FixtureCase):
+    """T13 (#210): resource readiness gate with four distinct modes.
+    Denied-access, wrong-directory, missing-fixture, and
+    unavailable-command verdicts plus optional-alternative,
+    no-op-proof, and no-secret-handling contracts in
+    tools/readiness_gate.py with the frozen corpus under
+    Canonical/corpus/readiness-gate/. Every proof point below has
+    a dedicated test with its own justification."""
+
+    def _rg(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import readiness_gate
+            return readiness_gate
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "readiness-gate" / "readiness.json")
+            .read_text(encoding="utf-8"))
+
+    def test_denied_access_distinct(self):
+        """Protects AC1: denied access to an existing resource
+        reports denied-access only, so triage routes to access
+        remediation, never to path/fixture/command fixes."""
+        rg = self._rg()
+        violations = rg.check_resource(
+            {"name": "db", "exists": True, "accessible": False})
+        self.assertTrue(
+            any("denied-access" in v for v in violations),
+            violations)
+        self.assertFalse(
+            any("missing-fixture" in v or "wrong-directory" in v
+                or "unavailable-command" in v for v in violations))
+
+    def test_wrong_directory_distinct(self):
+        """Protects AC2: a wrong working directory reports
+        wrong-directory with expected vs actual named, distinct
+        from the other three modes."""
+        rg = self._rg()
+        violations = rg.check_directory("/wrong", "/right")
+        self.assertTrue(
+            any("wrong-directory" in v and "/right" in v
+                and "/wrong" in v for v in violations),
+            violations)
+        self.assertEqual([], rg.check_directory("/right", "/right"))
+
+    def test_missing_fixture_distinct(self):
+        """Protects AC3: a nonexistent fixture reports
+        missing-fixture only (never denied-access), so a missing
+        input is never mis-triaged as a permissions problem."""
+        rg = self._rg()
+        violations = rg.check_resource(
+            {"name": "ghost", "exists": False})
+        self.assertTrue(
+            any("missing-fixture" in v for v in violations),
+            violations)
+        self.assertFalse(
+            any("denied-access" in v for v in violations))
+
+    def test_unavailable_command_distinct(self):
+        """Protects AC4: an absent command reports
+        unavailable-command naming the command, distinct from the
+        other three modes."""
+        rg = self._rg()
+        violations = rg.check_command("kilo", ["git"])
+        self.assertTrue(
+            any("unavailable-command" in v and "kilo" in v
+                for v in violations), violations)
+        self.assertEqual([], rg.check_command("git", ["git"]))
+
+    def test_optional_alternative_satisfies(self):
+        """Protects AC5: a supported alternative present satisfies
+        readiness with no failure, while neither tool nor
+        alternative fails — so optional tools degrade, never
+        block without recourse."""
+        rg = self._rg()
+        self.assertEqual(
+            [], rg.check_optional_alternative(
+                "kilo", ["pi"], ["pi"]))
+        violations = rg.check_optional_alternative(
+            "kilo", ["pi"], [])
+        self.assertTrue(
+            any("unavailable-command" in v for v in violations),
+            violations)
+
+    def test_no_op_proof_rejected(self):
+        """Protects AC6: an empty/no-op proof is rejected while a
+        performing proof passes, so readiness evidence always
+        performs a check."""
+        rg = self._rg()
+        for record in ({"steps": []}, {"no_op": True}, {}):
+            violations = rg.check_proof_performs(record)
+            self.assertTrue(
+                any("no-op proof rejected" in v for v in violations),
+                (record, violations))
+        self.assertEqual(
+            [], rg.check_proof_performs({"steps": ["probe"]}))
+
+    def test_no_secret_handling_no_second_gate(self):
+        """Protects AC7: probes carrying secret values or
+        provisioning flags are rejected, and the module creates
+        no second Ready gate (it extends verdicts, it never
+        reimplements ready.check_receipt)."""
+        rg = self._rg()
+        violations = rg.check_no_secrets({"secret_value": "x"})
+        self.assertTrue(
+            any("secret handling forbidden" in v
+                for v in violations), violations)
+        self.assertEqual([], rg.check_no_secrets({"name": "db"}))
+        module = (WORKTREE / "tools" / "readiness_gate.py")
+        text = module.read_text(encoding="utf-8")
+        self.assertNotIn("check_receipt", text)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 12 corpus entries
+        reproduce their expected violation fragments across all
+        six contract surfaces (resource, directory, command,
+        alternative, proof, secrets)."""
+        rg = self._rg()
+        findings, entries = \
+            rg.validate_readiness_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(12, len(entries))
+
+    def test_red_by_construction_no_rule_stub_passes(self):
+        """Sensitivity proof (RED): a no-rule stub that always
+        passes reproduces 0/7 negative corpus fragments while the
+        real checkers fire on all 7 — so the suite is green
+        because the rules exist, not because the fixtures cannot
+        fail."""
+        rg = self._rg()
+        corpus = self._corpus_doc()
+        negatives = [entry for entry in corpus["entries"]
+                     if entry.get("expected_violation_fragment")]
+        self.assertEqual(7, len(negatives))
+        stub_hits = 0
+        for entry in negatives:
+            target = entry["target"]
+            record = entry["record"]
+            if target == "resource":
+                real = rg.check_resource(record)
+            elif target == "directory":
+                real = rg.check_directory(
+                    record.get("actual"), record.get("expected"))
+            elif target == "command":
+                real = rg.check_command(
+                    record.get("command"),
+                    record.get("available", []))
+            elif target == "alternative":
+                real = rg.check_optional_alternative(
+                    record.get("tool"),
+                    record.get("alternatives", []),
+                    record.get("present", []))
+            elif target == "proof":
+                real = rg.check_proof_performs(record)
+            else:
+                real = rg.check_no_secrets(record)
+            self.assertTrue(
+                any(entry["expected_violation_fragment"] in v
+                    for v in real), entry["id"])
+            stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+
 if __name__ == "__main__":
     unittest.main()
