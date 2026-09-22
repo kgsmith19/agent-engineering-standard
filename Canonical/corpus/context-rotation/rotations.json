@@ -1,0 +1,330 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 48 #139 Context rotation frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "context-rotation.clean.01",
+   "note": "Planned checkpointed rotation: ROTATE, so clean plans actually rotate.",
+   "signal": {
+    "transition": "mold-to-builder",
+    "footprint_status": "HEALTHY",
+    "boundary": false,
+    "compaction_imminent": false,
+    "compaction_done": false,
+    "polluted": false,
+    "tool_overflow": false,
+    "checkpointed": true,
+    "provider_switch": false,
+    "canaries_passed": true,
+    "automatic": false,
+    "steps_done": [
+     "checkpointed",
+     "lease-handed",
+     "capsule-written",
+     "session-fresh",
+     "accepted",
+     "resumed"
+    ]
+   },
+   "expected_rule": "clean-rotate",
+   "expected_verdict": "ROTATE"
+  },
+  {
+   "id": "context-rotation.boundary.01",
+   "note": "Spec-to-Mold boundary: ROTATE at the boundary with full sequence.",
+   "signal": {
+    "transition": "spec-to-mold",
+    "footprint_status": "HEALTHY",
+    "boundary": true,
+    "compaction_imminent": false,
+    "compaction_done": false,
+    "polluted": false,
+    "tool_overflow": false,
+    "checkpointed": true,
+    "provider_switch": false,
+    "canaries_passed": true,
+    "automatic": false,
+    "steps_done": [
+     "checkpointed",
+     "lease-handed",
+     "capsule-written",
+     "session-fresh",
+     "accepted",
+     "resumed"
+    ]
+   },
+   "expected_rule": "boundary-due",
+   "expected_verdict": "ROTATE"
+  },
+  {
+   "id": "context-rotation.boundary.02",
+   "note": "GREEN-to-Verifier boundary: ROTATE, so handoffs rotate.",
+   "signal": {
+    "transition": "green-to-verifier",
+    "footprint_status": "HEALTHY",
+    "boundary": true,
+    "compaction_imminent": false,
+    "compaction_done": false,
+    "polluted": false,
+    "tool_overflow": false,
+    "checkpointed": true,
+    "provider_switch": false,
+    "canaries_passed": true,
+    "automatic": false,
+    "steps_done": [
+     "checkpointed",
+     "lease-handed",
+     "capsule-written",
+     "session-fresh",
+     "accepted",
+     "resumed"
+    ]
+   },
+   "expected_rule": "boundary-due",
+   "expected_verdict": "ROTATE"
+  },
+  {
+   "id": "context-rotation.imminent.01",
+   "note": "Imminent compaction: ROTATE now before the tripwire.",
+   "signal": {
+    "transition": "mold-to-builder",
+    "footprint_status": "HEALTHY",
+    "boundary": false,
+    "compaction_imminent": true,
+    "compaction_done": false,
+    "polluted": false,
+    "tool_overflow": false,
+    "checkpointed": true,
+    "provider_switch": false,
+    "canaries_passed": true,
+    "automatic": false,
+    "steps_done": [
+     "checkpointed",
+     "lease-handed",
+     "capsule-written",
+     "session-fresh",
+     "accepted",
+     "resumed"
+    ]
+   },
+   "expected_rule": "imminent-compact",
+   "expected_verdict": "ROTATE"
+  },
+  {
+   "id": "context-rotation.unexpected.01",
+   "note": "Read-only footprint bound: ROTATE now, read-only until rotated.",
+   "signal": {
+    "transition": "mold-to-builder",
+    "footprint_status": "ROTATE_NOW_READ_ONLY",
+    "boundary": false,
+    "compaction_imminent": false,
+    "compaction_done": false,
+    "polluted": false,
+    "tool_overflow": false,
+    "checkpointed": true,
+    "provider_switch": false,
+    "canaries_passed": true,
+    "automatic": false,
+    "steps_done": [
+     "checkpointed",
+     "lease-handed",
+     "capsule-written",
+     "session-fresh",
+     "accepted",
+     "resumed"
+    ]
+   },
+   "expected_rule": "read-only-bound",
+   "expected_verdict": "ROTATE"
+  },
+  {
+   "id": "context-rotation.overflow.01",
+   "note": "Tool-output overflow: ROTATE with a bounded capsule.",
+   "signal": {
+    "transition": "mold-to-builder",
+    "footprint_status": "HEALTHY",
+    "boundary": false,
+    "compaction_imminent": false,
+    "compaction_done": false,
+    "polluted": false,
+    "tool_overflow": true,
+    "checkpointed": true,
+    "provider_switch": false,
+    "canaries_passed": true,
+    "automatic": false,
+    "steps_done": [
+     "checkpointed",
+     "lease-handed",
+     "capsule-written",
+     "session-fresh",
+     "accepted",
+     "resumed"
+    ]
+   },
+   "expected_rule": "overflow-output",
+   "expected_verdict": "ROTATE"
+  },
+  {
+   "id": "context-rotation.missing.01",
+   "note": "Rotation without checkpoint: HOLD and checkpoint first.",
+   "signal": {
+    "transition": "mold-to-builder",
+    "footprint_status": "HEALTHY",
+    "boundary": false,
+    "compaction_imminent": false,
+    "compaction_done": false,
+    "polluted": false,
+    "tool_overflow": false,
+    "checkpointed": false,
+    "provider_switch": false,
+    "canaries_passed": true,
+    "automatic": false,
+    "steps_done": [
+     "checkpointed",
+     "lease-handed",
+     "capsule-written",
+     "session-fresh",
+     "accepted",
+     "resumed"
+    ]
+   },
+   "expected_rule": "missing-checkpoint",
+   "expected_verdict": "HOLD"
+  },
+  {
+   "id": "context-rotation.switch.01",
+   "note": "Provider switch: ROTATE with cross-provider acceptance.",
+   "signal": {
+    "transition": "mold-to-builder",
+    "footprint_status": "HEALTHY",
+    "boundary": false,
+    "compaction_imminent": false,
+    "compaction_done": false,
+    "polluted": false,
+    "tool_overflow": false,
+    "checkpointed": true,
+    "provider_switch": true,
+    "canaries_passed": true,
+    "automatic": false,
+    "steps_done": [
+     "checkpointed",
+     "lease-handed",
+     "capsule-written",
+     "session-fresh",
+     "accepted",
+     "resumed"
+    ]
+   },
+   "expected_rule": "provider-switch",
+   "expected_verdict": "ROTATE"
+  },
+  {
+   "id": "context-rotation.compacted.01",
+   "note": "Compaction already occurred: FREEZE until wake proves state.",
+   "signal": {
+    "transition": "mold-to-builder",
+    "footprint_status": "HEALTHY",
+    "boundary": false,
+    "compaction_imminent": false,
+    "compaction_done": true,
+    "polluted": false,
+    "tool_overflow": false,
+    "checkpointed": true,
+    "provider_switch": false,
+    "canaries_passed": true,
+    "automatic": false,
+    "steps_done": [
+     "checkpointed",
+     "lease-handed",
+     "capsule-written",
+     "session-fresh",
+     "accepted",
+     "resumed"
+    ]
+   },
+   "expected_rule": "compacted",
+   "expected_verdict": "FREEZE"
+  },
+  {
+   "id": "context-rotation.polluted.01",
+   "note": "Polluted history: RECOVER from capsule, never summarize.",
+   "signal": {
+    "transition": "mold-to-builder",
+    "footprint_status": "HEALTHY",
+    "boundary": false,
+    "compaction_imminent": false,
+    "compaction_done": false,
+    "polluted": true,
+    "tool_overflow": false,
+    "checkpointed": true,
+    "provider_switch": false,
+    "canaries_passed": true,
+    "automatic": false,
+    "steps_done": [
+     "checkpointed",
+     "lease-handed",
+     "capsule-written",
+     "session-fresh",
+     "accepted",
+     "resumed"
+    ]
+   },
+   "expected_rule": "polluted",
+   "expected_verdict": "RECOVER"
+  },
+  {
+   "id": "context-rotation.canary.01",
+   "note": "Automatic mode without canaries: HOLD advisory until canaries pass.",
+   "signal": {
+    "transition": "mold-to-builder",
+    "footprint_status": "HEALTHY",
+    "boundary": false,
+    "compaction_imminent": false,
+    "compaction_done": false,
+    "polluted": false,
+    "tool_overflow": false,
+    "checkpointed": true,
+    "provider_switch": false,
+    "canaries_passed": false,
+    "automatic": true,
+    "steps_done": [
+     "checkpointed",
+     "lease-handed",
+     "capsule-written",
+     "session-fresh",
+     "accepted",
+     "resumed"
+    ]
+   },
+   "expected_rule": "canary-missing",
+   "expected_verdict": "HOLD"
+  },
+  {
+   "id": "context-rotation.merge.01",
+   "note": "Merge-to-next-Issue boundary: ROTATE, so issues hand off cleanly.",
+   "signal": {
+    "transition": "merge-to-next",
+    "footprint_status": "HEALTHY",
+    "boundary": true,
+    "compaction_imminent": false,
+    "compaction_done": false,
+    "polluted": false,
+    "tool_overflow": false,
+    "checkpointed": true,
+    "provider_switch": false,
+    "canaries_passed": true,
+    "automatic": false,
+    "steps_done": [
+     "checkpointed",
+     "lease-handed",
+     "capsule-written",
+     "session-fresh",
+     "accepted",
+     "resumed"
+    ]
+   },
+   "expected_rule": "boundary-due",
+   "expected_verdict": "ROTATE"
+  }
+ ]
+}

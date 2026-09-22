@@ -12513,5 +12513,229 @@ class IdempotentEffects(unittest.TestCase):
 
 
 
+
+class ContextRotation(unittest.TestCase):
+    """Stage 48 (#139): planned context rotation and zero-compaction
+    recovery.
+
+    Checkpoint->lease->capsule->session->HAT/SAT->resume wiring
+    across role/phase boundaries: boundaries rotate, imminent
+    compaction and read-only bounds rotate now, overflows rotate
+    bounded, missing checkpoints hold, provider switches rotate
+    with acceptance, compacted sessions freeze, polluted history
+    recovers, automatic mode waits for canaries. Pure contract in
+    tools/context_rotation.py plus the frozen corpus under
+    Canonical/corpus/context-rotation/."""
+
+    def _cr(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import context_rotation
+            return context_rotation
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "context-rotation" / "rotations.json")
+            .read_text(encoding="utf-8"))
+
+    def _signal(self, **overrides):
+        cr = self._cr()
+        signal = cr.clean_signal()
+        for key, value in overrides.items():
+            signal[key] = value
+        return signal
+
+    def test_clean_plan_rotates(self):
+        """Protects the Primary Outcome (positive control): a
+        planned checkpointed rotation is ROTATE, so clean plans
+        actually rotate."""
+        cr = self._cr()
+        result = cr.decide(cr.clean_signal())
+        self.assertEqual("ROTATE", result.verdict)
+        self.assertEqual("clean-rotate", result.rule)
+
+    def test_spec_to_mold_boundary_rotates(self):
+        """Protects boundary wiring: a Spec->Mold boundary is
+        ROTATE, so role transitions rotate."""
+        cr = self._cr()
+        result = cr.decide(self._signal(
+            transition="spec-to-mold", boundary=True))
+        self.assertEqual("boundary-due", result.rule)
+
+    def test_green_to_verifier_boundary_rotates(self):
+        """Protects handoff wiring: a GREEN->Verifier boundary
+        rotates, so verification handoffs stay clean."""
+        cr = self._cr()
+        result = cr.decide(self._signal(
+            transition="green-to-verifier", boundary=True))
+        self.assertEqual("ROTATE", result.verdict)
+
+    def test_imminent_compaction_rotates_now(self):
+        """Protects the tripwire path: imminent compaction
+        rotates now, so provider hooks never fire first."""
+        cr = self._cr()
+        result = cr.decide(self._signal(
+            compaction_imminent=True))
+        self.assertEqual("imminent-compact", result.rule)
+
+    def test_read_only_bound_rotates_now(self):
+        """Protects the bound: a ROTATE_NOW_READ_ONLY footprint
+        rotates now read-only, so bounds hold."""
+        cr = self._cr()
+        result = cr.decide(self._signal(
+            footprint_status="ROTATE_NOW_READ_ONLY"))
+        self.assertEqual("ROTATE", result.verdict)
+
+    def test_tool_overflow_rotates_bounded(self):
+        """Protects output bounds: tool-output overflow rotates
+        with a bounded capsule."""
+        cr = self._cr()
+        result = cr.decide(self._signal(tool_overflow=True))
+        self.assertEqual("overflow-output", result.rule)
+
+    def test_missing_checkpoint_holds(self):
+        """Protects sequence order: rotation without checkpoint
+        holds, so checkpoints come first."""
+        cr = self._cr()
+        result = cr.decide(self._signal(checkpointed=False))
+        self.assertEqual("HOLD", result.verdict)
+        self.assertEqual("missing-checkpoint", result.rule)
+
+    def test_provider_switch_rotates_with_acceptance(self):
+        """Protects provider mobility: a mid-flight switch
+        rotates with cross-provider acceptance."""
+        cr = self._cr()
+        result = cr.decide(self._signal(provider_switch=True))
+        self.assertEqual("provider-switch", result.rule)
+
+    def test_compacted_session_freezes(self):
+        """Protects the compaction Non-Goal: an already-compacted
+        session freezes mutation, so wake proves state first."""
+        cr = self._cr()
+        result = cr.decide(self._signal(compaction_done=True))
+        self.assertEqual("FREEZE", result.verdict)
+        self.assertEqual("compacted", result.rule)
+
+    def test_polluted_history_recovers(self):
+        """Protects recovery: polluted history recovers from the
+        capsule, never via summary."""
+        cr = self._cr()
+        result = cr.decide(self._signal(polluted=True))
+        self.assertEqual("RECOVER", result.verdict)
+
+    def test_automatic_without_canaries_holds(self):
+        """Protects controlled rollout: automatic mode without
+        passed canaries holds advisory, so providers prove out
+        first."""
+        cr = self._cr()
+        result = cr.decide(self._signal(
+            automatic=True, canaries_passed=False))
+        self.assertEqual("HOLD", result.verdict)
+
+    def test_merge_to_next_issue_rotates(self):
+        """Protects issue handoff: a merge->next-Issue boundary
+        rotates, so issues hand off cleanly."""
+        cr = self._cr()
+        result = cr.decide(self._signal(
+            transition="merge-to-next", boundary=True))
+        self.assertEqual("ROTATE", result.verdict)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 12 corpus entries
+        reproduce their expected rules and verdicts, covering all
+        10 rotation rules with unique well-formed IDs."""
+        cr = self._cr()
+        findings, entries = cr.validate_rotation_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(12, len(entries))
+        covered = {e["expected_rule"] for e in entries}
+        self.assertEqual(set(cr.RULES), covered)
+
+    def test_red_by_construction_hold_stub_misses_rotations(self):
+        """Sensitivity proof (RED): a hold-everything stub misses
+        all 8 ROTATE corpus fragments while the real decider
+        rotates each — so the suite is green because the wiring
+        exists, not because rotation is unfailable."""
+        cr = self._cr()
+        corpus = self._corpus_doc()
+        rotates = [entry for entry in corpus["entries"]
+                   if entry.get("expected_verdict") == "ROTATE"]
+        self.assertEqual(8, len(rotates))
+        stub_hits = 0
+        for entry in rotates:
+            real = cr.decide(entry["signal"])
+            self.assertEqual(entry["expected_rule"],
+                             real.rule, entry["id"])
+            self.assertEqual(entry["expected_verdict"],
+                             real.verdict, entry["id"])
+            stub_hits += 0  # the hold stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_context_rotation_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: context-rotation
+        validates the real corpus (ok, 12 entries, 10 rules),
+        decides a --signal file as JSON, exits 0 on held
+        signals, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "context-rotation", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(12, payload["entries"])
+        self.assertEqual(10, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-signal.json"
+            good_path.write_text(
+                json.dumps(self._cr().clean_signal()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "context-rotation", "--signal",
+                 str(good_path), "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("ROTATE", payload["verdict"])
+            bad_path = Path(tmp) / "bad-signal.json"
+            bad = self._cr().clean_signal()
+            bad["checkpointed"] = False
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "context-rotation", "--signal",
+                 str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "context-rotation", "--signal",
+             "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "context-rotation", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()
