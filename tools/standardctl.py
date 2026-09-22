@@ -4986,6 +4986,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_lease.add_argument("--json", action="store_true")
     p_lease.set_defaults(func=cmd_writer_lease)
 
+    p_effect = sub.add_parser(
+        "idempotent-effects",
+        help="Idempotent effects readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_effect.add_argument(
+        "--attempt", default="",
+        help="path to a JSON attempt file to decide; without "
+             "it, validates the frozen effect fixture set")
+    p_effect.add_argument(
+        "--corpus", default="Canonical/corpus/idempotent-effects",
+        help="frozen corpus dir holding effects.json for "
+             "validation mode")
+    p_effect.add_argument("--json", action="store_true")
+    p_effect.set_defaults(func=cmd_idempotent_effects)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -7207,6 +7223,92 @@ def cmd_writer_lease(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("writer-lease: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_idempotent_effects(args: argparse.Namespace) -> int:
+    """Advisory idempotent-effects readout. With --attempt,
+    decides that attempt file; without it, validates the frozen
+    effect oracle (every entry's computed rule == expected_rule
+    and verdict == expected_verdict, IDs unique, all 9 effect
+    rules covered) and prints findings. Always exits 0 on
+    findings: advisory never gates; only an unreadable file
+    exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import idempotent_effects
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.attempt:
+        try:
+            attempt = json.loads(
+                _Path(args.attempt).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("idempotent-effects: cannot load attempt: %s" % exc)
+            return 2
+        if not isinstance(attempt, dict):
+            print("idempotent-effects: attempt must be a JSON object")
+            return 2
+        result = idempotent_effects.decide(attempt)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "decide",
+                "attempt": args.attempt,
+                "verdict": result.verdict,
+                "rule": result.rule,
+                "fingerprint": idempotent_effects.fingerprint(
+                    attempt.get("tool", ""),
+                    attempt.get("args", {}),
+                    attempt.get("head", ""),
+                    attempt.get("generation", 0)),
+                "ok": result.verdict in ("EXECUTE", "REPLAY"),
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("idempotent-effects: %s -- %s (%s)" % (
+                args.attempt, result.verdict, result.rule))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "effects.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("idempotent-effects: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        idempotent_effects.validate_effect_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(e.get("expected_rule", ""))
+                    for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("idempotent-effects: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)

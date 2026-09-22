@@ -1,0 +1,382 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 47 #138 Idempotent effects frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "idempotent-effect.clean.01",
+   "note": "First guarded execution: EXECUTE, so clean work actually runs.",
+   "attempt": {
+    "tool": "github",
+    "operation": "comment-upsert",
+    "args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "guard_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "generation": 3,
+    "fingerprint": "",
+    "recorded_fingerprint": "",
+    "recorded_result": null,
+    "has_recorded_result": false,
+    "recorded_payload": null,
+    "payload": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "guard_args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "result_mutated": false,
+    "confirmed": false,
+    "duplicate_delivery": false,
+    "crashed_after_remote": false,
+    "dedupe_key": "comment-138-receipt"
+   },
+   "expected_rule": "recorded-result",
+   "expected_verdict": "EXECUTE"
+  },
+  {
+   "id": "idempotent-effect.recorded.01",
+   "note": "Recorded authoritative result: REPLAY, so crash/retry never duplicates.",
+   "attempt": {
+    "tool": "github",
+    "operation": "comment-upsert",
+    "args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "guard_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "generation": 3,
+    "fingerprint": "",
+    "recorded_fingerprint": "",
+    "recorded_result": {
+     "run": "r1"
+    },
+    "has_recorded_result": true,
+    "recorded_payload": null,
+    "payload": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "guard_args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "result_mutated": false,
+    "confirmed": false,
+    "duplicate_delivery": false,
+    "crashed_after_remote": false,
+    "dedupe_key": "comment-138-receipt"
+   },
+   "expected_rule": "recorded-result",
+   "expected_verdict": "REPLAY"
+  },
+  {
+   "id": "idempotent-effect.webhook.01",
+   "note": "Duplicate webhook delivery: REPLAY the recorded outcome, never a second effect.",
+   "attempt": {
+    "tool": "github",
+    "operation": "comment-upsert",
+    "args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "guard_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "generation": 3,
+    "fingerprint": "",
+    "recorded_fingerprint": "",
+    "recorded_result": null,
+    "has_recorded_result": false,
+    "recorded_payload": null,
+    "payload": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "guard_args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "result_mutated": false,
+    "confirmed": false,
+    "duplicate_delivery": true,
+    "crashed_after_remote": false,
+    "dedupe_key": "comment-138-receipt"
+   },
+   "expected_rule": "duplicate-webhook",
+   "expected_verdict": "REPLAY"
+  },
+  {
+   "id": "idempotent-effect.crash.01",
+   "note": "Crash after remote success: reconcile-then-REPLAY, so remotes never double.",
+   "attempt": {
+    "tool": "github",
+    "operation": "comment-upsert",
+    "args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "guard_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "generation": 3,
+    "fingerprint": "",
+    "recorded_fingerprint": "",
+    "recorded_result": null,
+    "has_recorded_result": false,
+    "recorded_payload": null,
+    "payload": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "guard_args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "result_mutated": false,
+    "confirmed": false,
+    "duplicate_delivery": false,
+    "crashed_after_remote": true,
+    "dedupe_key": "comment-138-receipt"
+   },
+   "expected_rule": "crash-after-remote",
+   "expected_verdict": "REPLAY"
+  },
+  {
+   "id": "idempotent-effect.conflict.01",
+   "note": "Same fingerprint different payload: REFUSE, so identity never shifts.",
+   "attempt": {
+    "tool": "github",
+    "operation": "comment-upsert",
+    "args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "guard_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "generation": 3,
+    "fingerprint": "fp1",
+    "recorded_fingerprint": "fp1",
+    "recorded_result": null,
+    "has_recorded_result": false,
+    "recorded_payload": {
+     "a": 1
+    },
+    "payload": {
+     "a": 2
+    },
+    "guard_args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "result_mutated": false,
+    "confirmed": false,
+    "duplicate_delivery": false,
+    "crashed_after_remote": false,
+    "dedupe_key": "comment-138-receipt"
+   },
+   "expected_rule": "conflicting-reuse",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "idempotent-effect.changed.01",
+   "note": "Changed argument after guard: REFUSE and re-guard.",
+   "attempt": {
+    "tool": "github",
+    "operation": "comment-upsert",
+    "args": {
+     "issue": 138,
+     "body": "other"
+    },
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "guard_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "generation": 3,
+    "fingerprint": "",
+    "recorded_fingerprint": "",
+    "recorded_result": null,
+    "has_recorded_result": false,
+    "recorded_payload": null,
+    "payload": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "guard_args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "result_mutated": false,
+    "confirmed": false,
+    "duplicate_delivery": false,
+    "crashed_after_remote": false,
+    "dedupe_key": "comment-138-receipt"
+   },
+   "expected_rule": "changed-argument",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "idempotent-effect.mutated.01",
+   "note": "Mutated authoritative result: REFUSE, so results stay immutable.",
+   "attempt": {
+    "tool": "github",
+    "operation": "comment-upsert",
+    "args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "guard_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "generation": 3,
+    "fingerprint": "",
+    "recorded_fingerprint": "",
+    "recorded_result": null,
+    "has_recorded_result": false,
+    "recorded_payload": null,
+    "payload": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "guard_args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "result_mutated": true,
+    "confirmed": false,
+    "duplicate_delivery": false,
+    "crashed_after_remote": false,
+    "dedupe_key": "comment-138-receipt"
+   },
+   "expected_rule": "mutated-result",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "idempotent-effect.stale.01",
+   "note": "Stale-head operation: REFUSE and re-guard at the live head.",
+   "attempt": {
+    "tool": "github",
+    "operation": "comment-upsert",
+    "args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "guard_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "generation": 3,
+    "fingerprint": "",
+    "recorded_fingerprint": "",
+    "recorded_result": null,
+    "has_recorded_result": false,
+    "recorded_payload": null,
+    "payload": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "guard_args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "result_mutated": false,
+    "confirmed": false,
+    "duplicate_delivery": false,
+    "crashed_after_remote": false,
+    "dedupe_key": "comment-138-receipt"
+   },
+   "expected_rule": "stale-head",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "idempotent-effect.destructive.01",
+   "note": "Unconfirmed deploy: REFUSE, so destructive actions need confirmation.",
+   "attempt": {
+    "tool": "deployer",
+    "operation": "deploy",
+    "args": {},
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "guard_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "generation": 3,
+    "fingerprint": "",
+    "recorded_fingerprint": "",
+    "recorded_result": null,
+    "has_recorded_result": false,
+    "recorded_payload": null,
+    "payload": {},
+    "guard_args": {},
+    "result_mutated": false,
+    "confirmed": false,
+    "duplicate_delivery": false,
+    "crashed_after_remote": false,
+    "dedupe_key": "k"
+   },
+   "expected_rule": "destructive-action",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "idempotent-effect.comment.01",
+   "note": "Comment upsert with dedupe key executes once: EXECUTE, so receipts land.",
+   "attempt": {
+    "tool": "github",
+    "operation": "comment-upsert",
+    "args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "guard_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "generation": 3,
+    "fingerprint": "",
+    "recorded_fingerprint": "",
+    "recorded_result": null,
+    "has_recorded_result": false,
+    "recorded_payload": null,
+    "payload": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "guard_args": {
+     "issue": 138,
+     "body": "receipt"
+    },
+    "result_mutated": false,
+    "confirmed": false,
+    "duplicate_delivery": false,
+    "crashed_after_remote": false,
+    "dedupe_key": "comment-138-receipt"
+   },
+   "expected_rule": "recorded-result",
+   "expected_verdict": "EXECUTE"
+  },
+  {
+   "id": "idempotent-effect.dispatch.01",
+   "note": "Dispatch without dedupe key: REFUSE until the key attaches.",
+   "attempt": {
+    "tool": "ci",
+    "operation": "dispatch",
+    "args": {
+     "w": "x"
+    },
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "guard_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "generation": 3,
+    "fingerprint": "",
+    "recorded_fingerprint": "",
+    "recorded_result": null,
+    "has_recorded_result": false,
+    "recorded_payload": null,
+    "payload": {
+     "w": "x"
+    },
+    "guard_args": {
+     "w": "x"
+    },
+    "result_mutated": false,
+    "confirmed": false,
+    "duplicate_delivery": false,
+    "crashed_after_remote": false,
+    "dedupe_key": ""
+   },
+   "expected_rule": "missing-dedupe",
+   "expected_verdict": "REFUSE"
+  }
+ ]
+}
