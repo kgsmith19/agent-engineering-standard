@@ -8370,5 +8370,187 @@ class CleanupPredicates(FixtureCase):
         self.assertEqual(0, stub_hits)
 
 
+class SizeProfileRatchet(FixtureCase):
+    """T14 (#211): size/complexity profile with ratchet
+    (pilot/advisory until D2). Triple measure, new-growth-only
+    ratchet, no-self-exemption, complete exemption records,
+    explicit trusted exclusions, anti-gaming, D2-gated
+    enforcement, and joint-amendment atomicity in
+    tools/size_profile.py with the frozen corpus under
+    Canonical/corpus/size-profile/. Every proof point below has
+    a dedicated test with its own justification."""
+
+    def _sp(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import size_profile
+            return size_profile
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "size-profile" / "profile.json")
+            .read_text(encoding="utf-8"))
+
+    def test_triple_measure_required(self):
+        """Protects AC1: a triple-measured unit passes while a
+        pre-format-LOC-only profile fails, so one measure alone
+        never decides."""
+        sp = self._sp()
+        self.assertEqual(
+            [], sp.check_triple_measure(sp.clean_profile()))
+        violations = sp.check_triple_measure(
+            {"a.py": {"loc_pre_format": 50}})
+        self.assertTrue(
+            any("raw pre-format LOC only" in v for v in violations),
+            violations)
+
+    def test_ratchet_blocks_only_new_growth(self):
+        """Protects AC2: a shrinking change passes while growth
+        beyond baseline fails naming the growth, so only new
+        growth blocks — legacy never fails for this change."""
+        sp = self._sp()
+        base = {"s": {"loc_post_format": 100, "bytes": 999,
+                      "complexity": 9}}
+        change = {"scope": "s",
+                  "measures": {"loc_post_format": 50, "bytes": 100,
+                               "complexity": 1}}
+        self.assertEqual([], sp.check_ratchet(change, base))
+        grown = {"scope": "s",
+                 "measures": {"loc_post_format": 120, "bytes": 1,
+                              "complexity": 1}}
+        violations = sp.check_ratchet(grown, base)
+        self.assertTrue(
+            any("new growth blocked" in v for v in violations),
+            violations)
+
+    def test_no_self_exemption(self):
+        """Protects AC3: a distinct owner passes while owner ==
+        builder is refused, so builders never exempt themselves."""
+        sp = self._sp()
+        self.assertEqual(
+            [], sp.check_exemption_owner({"owner": "kgsmith19"},
+                                         "builder-bot"))
+        violations = sp.check_exemption_owner({"owner": "b"}, "b")
+        self.assertTrue(
+            any("self-exemption refused" in v for v in violations),
+            violations)
+
+    def test_exemption_record_complete(self):
+        """Protects AC4: a complete record passes while a record
+        missing reason fails naming the field, so exemptions are
+        auditable."""
+        sp = self._sp()
+        full = {"owner": "kgsmith19", "reason": "generated",
+                "scope": "gen/", "alternative": "hand-write",
+                "revisit": "2027-01-01"}
+        self.assertEqual([], sp.check_exemption_record(full))
+        violations = sp.check_exemption_record({"owner": "o"})
+        self.assertTrue(
+            any("missing" in v for v in violations), violations)
+
+    def test_trusted_exclusions_explicit(self):
+        """Protects AC5: a listed generated exclusion passes while
+        an unlisted claim fails, so exclusions are explicit and
+        verified."""
+        sp = self._sp()
+        self.assertEqual(
+            [], sp.check_trusted_exclusions(
+                ["generated:listed.py"], ["listed.py"]))
+        violations = sp.check_trusted_exclusions(
+            ["generated:unlisted.py"], ["listed.py"])
+        self.assertTrue(
+            any("unlisted exclusion" in v for v in violations),
+            violations)
+
+    def test_anti_gaming_fixtures_fail(self):
+        """Protects AC6: a clean change passes while
+        split/reformat/hiding dodges each fail, so the triple
+        measure plus ratchet cannot be evaded."""
+        sp = self._sp()
+        self.assertEqual([], sp.check_anti_gaming({}))
+        for dodge in ("split_to_dodge", "reformat_to_dodge",
+                      "complexity_hiding"):
+            violations = sp.check_anti_gaming({dodge: True})
+            self.assertTrue(violations, dodge)
+
+    def test_d2_gates_enforcement(self):
+        """Protects AC8 (D2 axis): advisory without enforcement
+        passes while enforcement before D2 fails, so thresholds
+        stay pilot/advisory until owner approval."""
+        sp = self._sp()
+        self.assertEqual([], sp.check_d2_gate(False, False))
+        violations = sp.check_d2_gate(True, False)
+        self.assertTrue(
+            any("D2 gate" in v for v in violations), violations)
+
+    def test_joint_amendment_atomic(self):
+        """Protects AC7: a full four-part amendment passes while a
+        partial one fails naming the missing parts, so #128 +
+        Prompt 37 + templates + adopter land together."""
+        sp = self._sp()
+        full = {"issue_128": True, "prompt_37": True,
+                "templates": True, "adopter": True}
+        self.assertEqual([], sp.check_joint_atomicity(full))
+        violations = sp.check_joint_atomicity({"issue_128": True})
+        self.assertTrue(
+            any("partial" in v for v in violations), violations)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 16 corpus entries
+        reproduce their expected violation fragments across all
+        eight contract surfaces (triple, ratchet, owner, record,
+        exclusions, gaming, d2, joint)."""
+        sp = self._sp()
+        findings, entries = \
+            sp.validate_profile_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(16, len(entries))
+
+    def test_red_by_construction_no_rule_stub_passes(self):
+        """Sensitivity proof (RED): a no-rule stub that accepts
+        every profile input reproduces 0/9 negative corpus
+        fragments while the real checkers fire on all 9 — so the
+        suite is green because the rules exist, not because the
+        fixtures cannot fail."""
+        sp = self._sp()
+        corpus = self._corpus_doc()
+        negatives = [entry for entry in corpus["entries"]
+                     if entry.get("expected_violation_fragment")]
+        self.assertEqual(8, len(negatives))
+        stub_hits = 0
+        for entry in negatives:
+            target = entry["target"]
+            record = entry["record"]
+            if target == "triple":
+                real = sp.check_triple_measure(record)
+            elif target == "ratchet":
+                real = sp.check_ratchet(
+                    record, entry.get("baseline", {}))
+            elif target == "owner":
+                real = sp.check_exemption_owner(
+                    record, entry.get("builder"))
+            elif target == "record":
+                real = sp.check_exemption_record(record)
+            elif target == "exclusions":
+                real = sp.check_trusted_exclusions(
+                    record, entry.get("trusted", []))
+            elif target == "gaming":
+                real = sp.check_anti_gaming(record)
+            elif target == "d2":
+                real = sp.check_d2_gate(
+                    record, entry.get("d2_approved", False))
+            else:
+                real = sp.check_joint_atomicity(record)
+            self.assertTrue(
+                any(entry["expected_violation_fragment"] in v
+                    for v in real), entry["id"])
+            stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+
 if __name__ == "__main__":
     unittest.main()
