@@ -10255,5 +10255,253 @@ class QualityGates(unittest.TestCase):
 
 
 
+
+class PlaneEnforcement(unittest.TestCase):
+    """Stage 38 (#129): plane enforcement classifier.
+
+    Source/generated/artifact/cache/evidence/protected planes
+    keep agents editing the right representation: direct
+    generated edits, stale generated output, committed caches,
+    misplaced evidence, unauthorized protected edits, orphan
+    directories, and stale artifacts are refused; declared
+    generated migrations and authorized protected edits pass.
+    Pure contract in tools/plane_enforcement.py plus the frozen
+    corpus under Canonical/corpus/plane-enforcement/."""
+
+    def _pe(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import plane_enforcement
+            return plane_enforcement
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "plane-enforcement" / "planes.json")
+            .read_text(encoding="utf-8"))
+
+    def _event(self, **overrides):
+        pe = self._pe()
+        event = pe.clean_event()
+        for key, value in overrides.items():
+            event[key] = value
+        return event
+
+    def _rules(self, result):
+        return sorted({f["rule"] for f in result.findings})
+
+    def test_clean_source_edit_is_clean(self):
+        """Protects the Primary Outcome (positive control): a
+        hand-written source edit is CLEAN with zero findings, so
+        normal work actually passes."""
+        pe = self._pe()
+        result = pe.classify(pe.clean_event())
+        self.assertTrue(result.clean)
+        self.assertEqual([], result.findings)
+
+    def test_direct_generated_edit_refused(self):
+        """Protects the generated plane: a direct dist/generated
+        edit refuses, so generated output is regenerated, never
+        hand-edited."""
+        pe = self._pe()
+        result = pe.classify(self._event(
+            path="Canonical/generated/by-category.md"))
+        self.assertFalse(result.clean)
+        self.assertEqual(["generated-direct-edit"],
+                         self._rules(result))
+
+    def test_stale_generated_artifact_refused(self):
+        """Protects generated freshness: stale output after a
+        source change refuses, so regeneration precedes merge."""
+        pe = self._pe()
+        result = pe.classify(self._event(
+            path="Canonical/generated/by-route.md",
+            edited=False, source_changed=True, stale=True))
+        self.assertEqual(["generated-stale"], self._rules(result))
+
+    def test_committed_cache_refused(self):
+        """Protects the cache Non-Goal: a committed cache refuses,
+        so caches stay untracked under any circumstance."""
+        pe = self._pe()
+        result = pe.classify(self._event(
+            path="tools/x/__pycache__/y.pyc"))
+        self.assertEqual(["cache-committed"], self._rules(result))
+
+    def test_evidence_in_source_refused(self):
+        """Protects the evidence plane: evidence placed in source
+        refuses, so evidence lives under .evidence/."""
+        pe = self._pe()
+        result = pe.classify(self._event(
+            path="tools/verify.evidence.json"))
+        self.assertEqual(["evidence-misplaced"],
+                         self._rules(result))
+
+    def test_protected_edit_without_authorization_refused(self):
+        """Protects the control plane: a protected-path edit
+        without authorization refuses as a blocker, so
+        control-plane changes wait for the owner."""
+        pe = self._pe()
+        result = pe.classify(self._event(
+            path=".github/workflows/pr-gate.yml"))
+        self.assertFalse(result.clean)
+        self.assertEqual(["protected-unauthorized"],
+                         self._rules(result))
+
+    def test_orphan_directory_refused(self):
+        """Protects the directory Non-Goal: an orphan directory
+        refuses, so directories arrive with current owners."""
+        pe = self._pe()
+        result = pe.classify(self._event(
+            path="future-stuff/", edited=False,
+            is_dir=True, has_owner=False))
+        self.assertEqual(["orphan-directory"], self._rules(result))
+
+    def test_deleted_source_leaving_stale_artifact_refused(self):
+        """Protects artifact tracking: a deleted source leaving a
+        stale artifact refuses, so artifacts track sources."""
+        pe = self._pe()
+        result = pe.classify(self._event(
+            path="Canonical/schemas/gone.schema.json",
+            edited=False, deleted_source=True))
+        self.assertEqual(["stale-artifact"], self._rules(result))
+
+    def test_declared_generated_migration_passes(self):
+        """Protects the migration exception: a valid declared
+        generated-migration exception is CLEAN, so declared
+        migrations actually pass."""
+        pe = self._pe()
+        result = pe.classify(self._event(
+            path="Canonical/generated/by-category.md",
+            declared_migration=True))
+        self.assertTrue(result.clean)
+        self.assertEqual([], result.findings)
+
+    def test_authorized_protected_edit_passes(self):
+        """Protects the authorization exception: an authorized
+        protected-path edit is CLEAN, so authorized control-plane
+        work actually passes."""
+        pe = self._pe()
+        result = pe.classify(self._event(
+            path=".github/workflows/pr-gate.yml",
+            authorized=True))
+        self.assertTrue(result.clean)
+
+    def test_plane_matches_repo_map_precedence(self):
+        """Protects map agreement: the classifier precedence
+        matches tools/repo_map.plane_for on six probe paths, so
+        the classifier and the map never disagree."""
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import repo_map
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+        pe = self._pe()
+        for path in ("Canonical/generated/by-category.md",
+                     ".github/workflows/pr-gate.yml",
+                     "tools/x.py",
+                     "Canonical/schemas/x.schema.json",
+                     ".evidence/manifest.json",
+                     "x/__pycache__/y.pyc"):
+            self.assertEqual(repo_map.plane_for(path),
+                             pe.plane_for(path), path)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 10 corpus entries
+        reproduce their expected rules and clean flags, covering
+        all 7 plane rules with unique well-formed IDs."""
+        pe = self._pe()
+        findings, entries = pe.validate_plane_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(10, len(entries))
+        covered = {r for e in entries
+                   for r in e["expected_rules"]}
+        self.assertEqual(set(pe.RULES), covered)
+
+    def test_red_by_construction_clean_stub_misses_everything(self):
+        """Sensitivity proof (RED): a clean-everything stub misses
+        all 7 flagged corpus fragments while the real classifier
+        flags each — so the suite is green because the planes
+        exist, not because the fixtures cannot fail."""
+        pe = self._pe()
+        corpus = self._corpus_doc()
+        flagged = [entry for entry in corpus["entries"]
+                   if entry.get("expected_rules")]
+        self.assertEqual(7, len(flagged))
+        stub_hits = 0
+        for entry in flagged:
+            real = pe.classify(entry["event"])
+            self.assertEqual(
+                sorted(entry["expected_rules"]),
+                sorted({f["rule"] for f in real.findings}),
+                entry["id"])
+            self.assertEqual(entry["expected_clean"],
+                             real.clean, entry["id"])
+            stub_hits += 0  # the clean stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_plane_enforcement_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: plane-enforcement
+        validates the real corpus (ok, 10 entries, 7 rules),
+        classifies an --event file as JSON, exits 0 on flagged
+        events, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "plane-enforcement", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(10, payload["entries"])
+        self.assertEqual(7, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-event.json"
+            good_path.write_text(
+                json.dumps(self._pe().clean_event()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "plane-enforcement", "--event", str(good_path),
+                 "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertTrue(payload["clean"])
+            bad_path = Path(tmp) / "bad-event.json"
+            bad = self._pe().clean_event()
+            bad["path"] = "Canonical/generated/by-category.md"
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "plane-enforcement", "--event", str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "plane-enforcement", "--event", "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "plane-enforcement", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()

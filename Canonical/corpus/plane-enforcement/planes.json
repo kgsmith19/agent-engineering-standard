@@ -1,0 +1,124 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 38 #129 Plane enforcement frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "plane-enforcement.clean.01",
+   "note": "Hand-written source edit: CLEAN with zero findings, so normal work actually passes.",
+   "event": {
+    "path": "tools/plane_enforcement.py",
+    "edited": true
+   },
+   "expected_rules": [],
+   "expected_clean": true
+  },
+  {
+   "id": "plane-enforcement.generated.01",
+   "note": "Direct dist/generated edit: refused, so generated output is regenerated, never hand-edited.",
+   "event": {
+    "path": "Canonical/generated/by-category.md",
+    "edited": true
+   },
+   "expected_rules": [
+    "generated-direct-edit"
+   ],
+   "expected_clean": false
+  },
+  {
+   "id": "plane-enforcement.generated.02",
+   "note": "Stale generated artifact after its source changed: refused, so regeneration precedes merge.",
+   "event": {
+    "path": "Canonical/generated/by-route.md",
+    "source_changed": true,
+    "stale": true
+   },
+   "expected_rules": [
+    "generated-stale"
+   ],
+   "expected_clean": false
+  },
+  {
+   "id": "plane-enforcement.cache.01",
+   "note": "Committed cache: refused, so caches stay untracked under any circumstance.",
+   "event": {
+    "path": "tools/x/__pycache__/y.pyc",
+    "edited": true
+   },
+   "expected_rules": [
+    "cache-committed"
+   ],
+   "expected_clean": false
+  },
+  {
+   "id": "plane-enforcement.evidence.01",
+   "note": "Evidence placed in source: refused, so evidence lives under .evidence/.",
+   "event": {
+    "path": "tools/verify.evidence.json",
+    "edited": true
+   },
+   "expected_rules": [
+    "evidence-misplaced"
+   ],
+   "expected_clean": false
+  },
+  {
+   "id": "plane-enforcement.protected.01",
+   "note": "Protected-path edit without authorization: refused, so control-plane changes wait for the owner.",
+   "event": {
+    "path": ".github/workflows/pr-gate.yml",
+    "edited": true
+   },
+   "expected_rules": [
+    "protected-unauthorized"
+   ],
+   "expected_clean": false
+  },
+  {
+   "id": "plane-enforcement.orphan.01",
+   "note": "Orphan directory for future organization: refused, so directories arrive with owners.",
+   "event": {
+    "path": "future-stuff/",
+    "is_dir": true,
+    "has_owner": false
+   },
+   "expected_rules": [
+    "orphan-directory"
+   ],
+   "expected_clean": false
+  },
+  {
+   "id": "plane-enforcement.artifact.01",
+   "note": "Deleted source leaving a stale artifact: refused, so artifacts track their sources.",
+   "event": {
+    "path": "Canonical/schemas/gone.schema.json",
+    "deleted_source": true
+   },
+   "expected_rules": [
+    "stale-artifact"
+   ],
+   "expected_clean": false
+  },
+  {
+   "id": "plane-enforcement.migration.01",
+   "note": "Valid declared generated-migration exception: CLEAN with zero findings, so declared migrations actually pass.",
+   "event": {
+    "path": "Canonical/generated/by-category.md",
+    "edited": true,
+    "declared_migration": true
+   },
+   "expected_rules": [],
+   "expected_clean": true
+  },
+  {
+   "id": "plane-enforcement.authorized.01",
+   "note": "Authorized protected-path edit: CLEAN with zero findings, so authorized control-plane work actually passes.",
+   "event": {
+    "path": ".github/workflows/pr-gate.yml",
+    "edited": true,
+    "authorized": true
+   },
+   "expected_rules": [],
+   "expected_clean": true
+  }
+ ]
+}
