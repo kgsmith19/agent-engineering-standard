@@ -4938,6 +4938,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_ckpt.add_argument("--json", action="store_true")
     p_ckpt.set_defaults(func=cmd_atomic_checkpoints)
 
+    p_wake = sub.add_parser(
+        "replay-wake",
+        help="Replay/wake readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_wake.add_argument(
+        "--observation", default="",
+        help="path to a JSON observation file to wake; without "
+             "it, validates the frozen wake fixture set")
+    p_wake.add_argument(
+        "--corpus", default="Canonical/corpus/replay-wake",
+        help="frozen corpus dir holding wake.json for "
+             "validation mode")
+    p_wake.add_argument("--json", action="store_true")
+    p_wake.set_defaults(func=cmd_replay_wake)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -6914,6 +6930,87 @@ def cmd_atomic_checkpoints(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("atomic-checkpoints: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_replay_wake(args: argparse.Namespace) -> int:
+    """Advisory replay-wake readout. With --observation, wakes
+    that observation file; without it, validates the frozen wake
+    oracle (every entry's computed rule == expected_rule and
+    verdict == expected_verdict, IDs unique, all 11 wake rules
+    covered) and prints findings. Always exits 0 on findings:
+    advisory never gates; only an unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import replay_wake
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.observation:
+        try:
+            observation = json.loads(
+                _Path(args.observation).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("replay-wake: cannot load observation: %s" % exc)
+            return 2
+        if not isinstance(observation, dict):
+            print("replay-wake: observation must be a JSON object")
+            return 2
+        result = replay_wake.wake(observation)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "wake",
+                "observation": args.observation,
+                "verdict": result.verdict,
+                "rule": result.rule,
+                "next_action": result.next_action,
+                "ok": result.verdict == "CLEAN_RESUME",
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("replay-wake: %s -- %s (%s)" % (
+                args.observation, result.verdict,
+                result.next_action))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "wake.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("replay-wake: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = replay_wake.validate_wake_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(e.get("expected_rule", ""))
+                    for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("replay-wake: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)

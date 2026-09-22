@@ -1,0 +1,325 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 44 #135 Replay/wake frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "replay-wake.clean.01",
+   "note": "Clean replay with matching head and receipts: CLEAN_RESUME, so healthy wake actually resumes.",
+   "observation": {
+    "issue": "135",
+    "branch": "issue/135-replay-wake",
+    "journal": [
+     {
+      "seq": 1,
+      "type": "claim-started"
+     }
+    ],
+    "recorded_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "commit_present": true,
+    "phase_complete": true,
+    "checkpoint_state": "FINALIZE",
+    "capsule_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "journal_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "snapshot_ok": true,
+    "builder_family": "anthropic",
+    "recorded_family": "anthropic",
+    "github_reachable": true,
+    "pr_merged": false,
+    "duplicate_conflict": false
+   },
+   "expected_rule": "clean",
+   "expected_verdict": "CLEAN_RESUME"
+  },
+  {
+   "id": "replay-wake.interrupted.01",
+   "note": "Journal ends mid-phase: RECHECKPOINT, so interrupted Spec work re-checkpoints.",
+   "observation": {
+    "issue": "135",
+    "branch": "issue/135-replay-wake",
+    "journal": [
+     {
+      "seq": 1,
+      "type": "claim-started"
+     }
+    ],
+    "recorded_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "commit_present": true,
+    "phase_complete": false,
+    "checkpoint_state": "FINALIZE",
+    "capsule_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "journal_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "snapshot_ok": true,
+    "builder_family": "anthropic",
+    "recorded_family": "anthropic",
+    "github_reachable": true,
+    "pr_merged": false,
+    "duplicate_conflict": false
+   },
+   "expected_rule": "interrupted-phase",
+   "expected_verdict": "RECHECKPOINT"
+  },
+  {
+   "id": "replay-wake.incomplete.01",
+   "note": "Checkpoint below FINALIZE: RECHECKPOINT, so incomplete checks re-checkpoint.",
+   "observation": {
+    "issue": "135",
+    "branch": "issue/135-replay-wake",
+    "journal": [
+     {
+      "seq": 1,
+      "type": "claim-started"
+     }
+    ],
+    "recorded_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "commit_present": true,
+    "phase_complete": true,
+    "checkpoint_state": "SAVE",
+    "capsule_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "journal_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "snapshot_ok": true,
+    "builder_family": "anthropic",
+    "recorded_family": "anthropic",
+    "github_reachable": true,
+    "pr_merged": false,
+    "duplicate_conflict": false
+   },
+   "expected_rule": "incomplete-check",
+   "expected_verdict": "RECHECKPOINT"
+  },
+  {
+   "id": "replay-wake.moved.01",
+   "note": "Live head moved: RECONCILE_HEAD, so head drift reconciles first.",
+   "observation": {
+    "issue": "135",
+    "branch": "issue/135-replay-wake",
+    "journal": [
+     {
+      "seq": 1,
+      "type": "claim-started"
+     }
+    ],
+    "recorded_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "commit_present": true,
+    "phase_complete": true,
+    "checkpoint_state": "FINALIZE",
+    "capsule_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "journal_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "snapshot_ok": true,
+    "builder_family": "anthropic",
+    "recorded_family": "anthropic",
+    "github_reachable": true,
+    "pr_merged": false,
+    "duplicate_conflict": false
+   },
+   "expected_rule": "moved-head",
+   "expected_verdict": "RECONCILE_HEAD"
+  },
+  {
+   "id": "replay-wake.missing.01",
+   "note": "Recorded commit absent: RECONCILE_HEAD, so missing commits reconcile.",
+   "observation": {
+    "issue": "135",
+    "branch": "issue/135-replay-wake",
+    "journal": [
+     {
+      "seq": 1,
+      "type": "claim-started"
+     }
+    ],
+    "recorded_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "commit_present": false,
+    "phase_complete": true,
+    "checkpoint_state": "FINALIZE",
+    "capsule_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "journal_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "snapshot_ok": true,
+    "builder_family": "anthropic",
+    "recorded_family": "anthropic",
+    "github_reachable": true,
+    "pr_merged": false,
+    "duplicate_conflict": false
+   },
+   "expected_rule": "missing-commit",
+   "expected_verdict": "RECONCILE_HEAD"
+  },
+  {
+   "id": "replay-wake.stale.01",
+   "note": "Stale capsule vs journal: RECONCILE_STATE, so capsules refresh.",
+   "observation": {
+    "issue": "135",
+    "branch": "issue/135-replay-wake",
+    "journal": [
+     {
+      "seq": 1,
+      "type": "claim-started"
+     }
+    ],
+    "recorded_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "commit_present": true,
+    "phase_complete": true,
+    "checkpoint_state": "FINALIZE",
+    "capsule_head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "journal_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "snapshot_ok": true,
+    "builder_family": "anthropic",
+    "recorded_family": "anthropic",
+    "github_reachable": true,
+    "pr_merged": false,
+    "duplicate_conflict": false
+   },
+   "expected_rule": "stale-capsule",
+   "expected_verdict": "RECONCILE_STATE"
+  },
+  {
+   "id": "replay-wake.corrupt.01",
+   "note": "Corrupt snapshot bytes: RECONCILE_STATE, so snapshots re-derive.",
+   "observation": {
+    "issue": "135",
+    "branch": "issue/135-replay-wake",
+    "journal": [
+     {
+      "seq": 1,
+      "type": "claim-started"
+     }
+    ],
+    "recorded_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "commit_present": true,
+    "phase_complete": true,
+    "checkpoint_state": "FINALIZE",
+    "capsule_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "journal_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "snapshot_ok": false,
+    "builder_family": "anthropic",
+    "recorded_family": "anthropic",
+    "github_reachable": true,
+    "pr_merged": false,
+    "duplicate_conflict": false
+   },
+   "expected_rule": "corrupt-snapshot",
+   "expected_verdict": "RECONCILE_STATE"
+  },
+  {
+   "id": "replay-wake.provider.01",
+   "note": "Builder provider family changed: RECONCILE_STATE, so provider drift reconciles.",
+   "observation": {
+    "issue": "135",
+    "branch": "issue/135-replay-wake",
+    "journal": [
+     {
+      "seq": 1,
+      "type": "claim-started"
+     }
+    ],
+    "recorded_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "commit_present": true,
+    "phase_complete": true,
+    "checkpoint_state": "FINALIZE",
+    "capsule_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "journal_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "snapshot_ok": true,
+    "builder_family": "openai",
+    "recorded_family": "anthropic",
+    "github_reachable": true,
+    "pr_merged": false,
+    "duplicate_conflict": false
+   },
+   "expected_rule": "provider-change",
+   "expected_verdict": "RECONCILE_STATE"
+  },
+  {
+   "id": "replay-wake.github.01",
+   "note": "GitHub unavailable: GITHUB_DOWN with read-only action, so outages stay safe.",
+   "observation": {
+    "issue": "135",
+    "branch": "issue/135-replay-wake",
+    "journal": [
+     {
+      "seq": 1,
+      "type": "claim-started"
+     }
+    ],
+    "recorded_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "commit_present": true,
+    "phase_complete": true,
+    "checkpoint_state": "FINALIZE",
+    "capsule_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "journal_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "snapshot_ok": true,
+    "builder_family": "anthropic",
+    "recorded_family": "anthropic",
+    "github_reachable": false,
+    "pr_merged": false,
+    "duplicate_conflict": false
+   },
+   "expected_rule": "github-down",
+   "expected_verdict": "GITHUB_DOWN"
+  },
+  {
+   "id": "replay-wake.duplicate.01",
+   "note": "Conflicting duplicate event: RECONCILE_STATE, so journal conflicts reconcile.",
+   "observation": {
+    "issue": "135",
+    "branch": "issue/135-replay-wake",
+    "journal": [
+     {
+      "seq": 1,
+      "type": "claim-started"
+     }
+    ],
+    "recorded_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "commit_present": true,
+    "phase_complete": true,
+    "checkpoint_state": "FINALIZE",
+    "capsule_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "journal_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "snapshot_ok": true,
+    "builder_family": "anthropic",
+    "recorded_family": "anthropic",
+    "github_reachable": true,
+    "pr_merged": false,
+    "duplicate_conflict": true
+   },
+   "expected_rule": "duplicate-event",
+   "expected_verdict": "RECONCILE_STATE"
+  },
+  {
+   "id": "replay-wake.merged.01",
+   "note": "Completed merge: MERGED_DONE close-out, never a resume.",
+   "observation": {
+    "issue": "135",
+    "branch": "issue/135-replay-wake",
+    "journal": [
+     {
+      "seq": 1,
+      "type": "claim-started"
+     }
+    ],
+    "recorded_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "commit_present": true,
+    "phase_complete": true,
+    "checkpoint_state": "FINALIZE",
+    "capsule_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "journal_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "snapshot_ok": true,
+    "builder_family": "anthropic",
+    "recorded_family": "anthropic",
+    "github_reachable": true,
+    "pr_merged": true,
+    "duplicate_conflict": false
+   },
+   "expected_rule": "merged-done",
+   "expected_verdict": "MERGED_DONE"
+  }
+ ]
+}
