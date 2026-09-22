@@ -6,6 +6,49 @@ Micro-constitution: binding core rules and routing to 4 governance modules for c
 
 Deliver small, verified, independently mergeable changes with honest evidence — under absolute owner authority — using **GitHub Issues**, **Milestones**, **pull requests**, and a single fail-closed **PR Gate** as the machinery of record.
 
+## Capability Layer (agent-extensions)
+
+The capability bundle — **agent-extensions** — is the provider-neutral layer this
+standard assumes: skills, plugins, MCP wiring, and the continuity capsule. It is
+**machine-global and never committed into a repository.**
+
+- **Provision or repair (idempotent, one command):**
+  `curl -fsSL https://raw.githubusercontent.com/kgsmith19/agent-extensions/main/bootstrap.sh | bash`
+- **Check at session bootstrap:** if `~/.agents/skills` is missing or empty, or
+  the continuity adapter is absent, provision before starting work.
+- **Extension plane:** a capability is a **CLI first** — it works in every
+  harness, including those without MCP. MCP is an optional adapter: bridge with
+  `mcporter` (MCP→CLI) or `any-cli-mcp-server` (CLI→MCP).
+- **Continuity:** keep the project capsule current
+  (`capsule capture --task ... --next ...`); it is injected at session start and
+  refreshed before compaction, so a fresh session resumes without re-deriving
+  context.
+- **Provenance:** skills are vendored at exact commits and the lockfile is the
+  provenance ground truth. A live provider marketplace is never the authority
+  for cross-provider content.
+
+## High-Value Practices (Aggressive by Default)
+
+Defaults, not suggestions. Deviating requires an owner instruction or a recorded
+reason on the Issue.
+
+- **Feature branch from the start.** Never work directly on the default branch:
+  claim the Issue and construct `issue/<n>-<slug>` before the first edit.
+- **Git worktrees for isolation.** One worktree per active Issue
+  (`.worktrees/issue-<n>-<slug>`); one writer per worktree.
+- **Subagents for independent work.** One focused writer per worktree;
+  read-only scouts and critics run concurrently; never trust a subagent success
+  claim without re-running verification at the exact head.
+- **TDD through Superpowers.** Brainstorm before creative work; write the
+  failing test first (RED), implement to GREEN, then REFACTOR;
+  `verification-before-completion` before any success claim.
+- **Superpowers skills route by default.** brainstorming, writing-plans,
+  executing-plans, systematic-debugging, test-driven-development,
+  requesting-code-review, receiving-code-review, using-git-worktrees,
+  subagent-driven-development — prefer the process skill over ad-hoc procedure.
+- **Baseline before specifics.** This file is the baseline; the repository's own
+  AGENTS.md is project-specific and takes precedence where they differ.
+
 ## Core Rules
 
 ### Owner Authority (Binding)
