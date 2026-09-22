@@ -1,0 +1,390 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 54a #145 Capability compiler frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "capability-compiler.focused.01",
+   "note": "Focused builder edit inside roots: ALLOW, so routine work flows.",
+   "action": {
+    "kind": "write",
+    "target": "tools/demo.py",
+    "command": "",
+    "endpoint": "",
+    "phase": "implement",
+    "direct_main": false,
+    "raw_secret": false,
+    "handle": "",
+    "sandbox": true,
+    "wrapper": false,
+    "owner_approved": false,
+    "test_command": false,
+    "mcp_write": false,
+    "read_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "write_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "exec_allow": [
+     "python tools/standardctl.py verify"
+    ],
+    "net_allow": [
+     "api.github.com"
+    ]
+   },
+   "expected_rule": "focused-edit",
+   "expected_verdict": "ALLOW"
+  },
+  {
+   "id": "capability-compiler.foreign-read.01",
+   "note": "Foreign path read outside roots: DENY, so home/SSH/cloud stay unseen.",
+   "action": {
+    "kind": "read",
+    "target": "/home/user/.ssh/id_rsa",
+    "command": "",
+    "endpoint": "",
+    "phase": "implement",
+    "direct_main": false,
+    "raw_secret": false,
+    "handle": "",
+    "sandbox": true,
+    "wrapper": false,
+    "owner_approved": false,
+    "test_command": false,
+    "mcp_write": false,
+    "read_roots": [
+     "tools/"
+    ],
+    "write_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "exec_allow": [
+     "python tools/standardctl.py verify"
+    ],
+    "net_allow": [
+     "api.github.com"
+    ]
+   },
+   "expected_rule": "foreign-read",
+   "expected_verdict": "DENY"
+  },
+  {
+   "id": "capability-compiler.foreign-write.01",
+   "note": "Foreign path write outside roots: DENY.",
+   "action": {
+    "kind": "write",
+    "target": "/etc/passwd",
+    "command": "",
+    "endpoint": "",
+    "phase": "implement",
+    "direct_main": false,
+    "raw_secret": false,
+    "handle": "",
+    "sandbox": true,
+    "wrapper": false,
+    "owner_approved": false,
+    "test_command": false,
+    "mcp_write": false,
+    "read_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "write_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "exec_allow": [
+     "python tools/standardctl.py verify"
+    ],
+    "net_allow": [
+     "api.github.com"
+    ]
+   },
+   "expected_rule": "foreign-write",
+   "expected_verdict": "DENY"
+  },
+  {
+   "id": "capability-compiler.frozen.01",
+   "note": "Frozen Mold write: DENY, regenerate via the owning tool.",
+   "action": {
+    "kind": "write",
+    "target": "Canonical/corpus/arc-a/arc.json",
+    "command": "",
+    "endpoint": "",
+    "phase": "implement",
+    "direct_main": false,
+    "raw_secret": false,
+    "handle": "",
+    "sandbox": true,
+    "wrapper": false,
+    "owner_approved": false,
+    "test_command": false,
+    "mcp_write": false,
+    "read_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "write_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "exec_allow": [
+     "python tools/standardctl.py verify"
+    ],
+    "net_allow": [
+     "api.github.com"
+    ]
+   },
+   "expected_rule": "frozen-mold",
+   "expected_verdict": "DENY"
+  },
+  {
+   "id": "capability-compiler.main.01",
+   "note": "Direct-to-main mutation: DENY, land via PR only.",
+   "action": {
+    "kind": "write",
+    "target": "tools/demo.py",
+    "command": "",
+    "endpoint": "",
+    "phase": "implement",
+    "direct_main": true,
+    "raw_secret": false,
+    "handle": "",
+    "sandbox": true,
+    "wrapper": false,
+    "owner_approved": false,
+    "test_command": false,
+    "mcp_write": false,
+    "read_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "write_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "exec_allow": [
+     "python tools/standardctl.py verify"
+    ],
+    "net_allow": [
+     "api.github.com"
+    ]
+   },
+   "expected_rule": "direct-main",
+   "expected_verdict": "DENY"
+  },
+  {
+   "id": "capability-compiler.secret.01",
+   "note": "Raw secret where a handle belongs: DENY.",
+   "action": {
+    "kind": "secret",
+    "target": "api-key",
+    "command": "",
+    "endpoint": "",
+    "phase": "implement",
+    "direct_main": false,
+    "raw_secret": true,
+    "handle": "",
+    "sandbox": true,
+    "wrapper": false,
+    "owner_approved": false,
+    "test_command": false,
+    "mcp_write": false,
+    "read_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "write_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "exec_allow": [
+     "python tools/standardctl.py verify"
+    ],
+    "net_allow": [
+     "api.github.com"
+    ]
+   },
+   "expected_rule": "secret-mount",
+   "expected_verdict": "DENY"
+  },
+  {
+   "id": "capability-compiler.egress.01",
+   "note": "Arbitrary egress outside allowlist: DENY.",
+   "action": {
+    "kind": "egress",
+    "target": "",
+    "command": "",
+    "endpoint": "https://evil.example.com",
+    "phase": "implement",
+    "direct_main": false,
+    "raw_secret": false,
+    "handle": "",
+    "sandbox": true,
+    "wrapper": false,
+    "owner_approved": false,
+    "test_command": false,
+    "mcp_write": false,
+    "read_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "write_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "exec_allow": [
+     "python tools/standardctl.py verify"
+    ],
+    "net_allow": [
+     "api.github.com"
+    ]
+   },
+   "expected_rule": "arbitrary-egress",
+   "expected_verdict": "DENY"
+  },
+  {
+   "id": "capability-compiler.test.01",
+   "note": "Allowlisted test command: ALLOW, so verification runs.",
+   "action": {
+    "kind": "execute",
+    "target": "tools/demo.py",
+    "command": "python tools/standardctl.py verify",
+    "endpoint": "",
+    "phase": "implement",
+    "direct_main": false,
+    "raw_secret": false,
+    "handle": "",
+    "sandbox": true,
+    "wrapper": false,
+    "owner_approved": false,
+    "test_command": true,
+    "mcp_write": false,
+    "read_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "write_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "exec_allow": [
+     "python tools/standardctl.py verify"
+    ],
+    "net_allow": [
+     "api.github.com"
+    ]
+   },
+   "expected_rule": "test-command",
+   "expected_verdict": "ALLOW"
+  },
+  {
+   "id": "capability-compiler.mcp.01",
+   "note": "MCP write during research: DENY, research stays read-only.",
+   "action": {
+    "kind": "write",
+    "target": "tools/demo.py",
+    "command": "",
+    "endpoint": "",
+    "phase": "research",
+    "direct_main": false,
+    "raw_secret": false,
+    "handle": "",
+    "sandbox": true,
+    "wrapper": false,
+    "owner_approved": false,
+    "test_command": false,
+    "mcp_write": true,
+    "read_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "write_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "exec_allow": [
+     "python tools/standardctl.py verify"
+    ],
+    "net_allow": [
+     "api.github.com"
+    ]
+   },
+   "expected_rule": "mcp-research-write",
+   "expected_verdict": "DENY"
+  },
+  {
+   "id": "capability-compiler.sandbox.01",
+   "note": "Provider without sandbox: ESCALATE dry-run/report.",
+   "action": {
+    "kind": "execute",
+    "target": "tools/demo.py",
+    "command": "custom-tool",
+    "endpoint": "",
+    "phase": "implement",
+    "direct_main": false,
+    "raw_secret": false,
+    "handle": "",
+    "sandbox": false,
+    "wrapper": false,
+    "owner_approved": false,
+    "test_command": false,
+    "mcp_write": false,
+    "read_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "write_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "exec_allow": [
+     "custom-tool"
+    ],
+    "net_allow": [
+     "api.github.com"
+    ]
+   },
+   "expected_rule": "no-sandbox",
+   "expected_verdict": "ESCALATE"
+  },
+  {
+   "id": "capability-compiler.owner.01",
+   "note": "Owner-approved escalation: ALLOW with approval recorded.",
+   "action": {
+    "kind": "execute",
+    "target": "tools/demo.py",
+    "command": "custom-tool",
+    "endpoint": "",
+    "phase": "implement",
+    "direct_main": false,
+    "raw_secret": false,
+    "handle": "",
+    "sandbox": false,
+    "wrapper": false,
+    "owner_approved": true,
+    "test_command": false,
+    "mcp_write": false,
+    "read_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "write_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "exec_allow": [
+     "custom-tool"
+    ],
+    "net_allow": [
+     "api.github.com"
+    ]
+   },
+   "expected_rule": "owner-escalation",
+   "expected_verdict": "ALLOW"
+  }
+ ]
+}
