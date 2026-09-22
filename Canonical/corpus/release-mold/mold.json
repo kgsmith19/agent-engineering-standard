@@ -1,0 +1,621 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 61a #152 Release mold frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "release-mold.clean.01",
+   "note": "All proofs present and fresh: PROMOTE, so complete releases actually promote.",
+   "package": {
+    "release": "v5.0",
+    "open_blockers": 0,
+    "artifact_fresh": true,
+    "integration_green": true,
+    "rollback_ok": true,
+    "backup_restorable": true,
+    "attested": true,
+    "invariants_held": true,
+    "telemetry_present": true,
+    "partial_green": false,
+    "evidence_fresh": true,
+    "restore_rpo_ok": true,
+    "restore_rto_ok": true,
+    "mold_built": true,
+    "mold_attacked": true,
+    "mold_qualified": true,
+    "canary_declared": true,
+    "canary_exposure": "1% for 24h",
+    "canary_window": "24h",
+    "canary_invariants": [
+     "error-rate",
+     "latency-p99",
+     "rollback-time"
+    ],
+    "claims": [
+     "integrated-behavior",
+     "deployment-proof",
+     "rollback-proof",
+     "restore-proof",
+     "provenance-proof",
+     "runtime-proof",
+     "canary-proof"
+    ]
+   },
+   "expected_rule": "restore-rpo",
+   "expected_verdict": "PROMOTE"
+  },
+  {
+   "id": "release-mold.open.01",
+   "note": "Open release-blocking Issues: REFUSE.",
+   "package": {
+    "release": "v5.0",
+    "open_blockers": 2,
+    "artifact_fresh": true,
+    "integration_green": true,
+    "rollback_ok": true,
+    "backup_restorable": true,
+    "attested": true,
+    "invariants_held": true,
+    "telemetry_present": true,
+    "partial_green": false,
+    "evidence_fresh": true,
+    "restore_rpo_ok": true,
+    "restore_rto_ok": true,
+    "mold_built": true,
+    "mold_attacked": true,
+    "mold_qualified": true,
+    "canary_declared": true,
+    "canary_exposure": "1% for 24h",
+    "canary_window": "24h",
+    "canary_invariants": [
+     "error-rate",
+     "latency-p99",
+     "rollback-time"
+    ],
+    "claims": [
+     "integrated-behavior",
+     "deployment-proof",
+     "rollback-proof",
+     "restore-proof",
+     "provenance-proof",
+     "runtime-proof",
+     "canary-proof"
+    ]
+   },
+   "expected_rule": "open-issues",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "release-mold.stale.01",
+   "note": "Stale build artifact: REFUSE and rebuild.",
+   "package": {
+    "release": "v5.0",
+    "open_blockers": 0,
+    "artifact_fresh": false,
+    "integration_green": true,
+    "rollback_ok": true,
+    "backup_restorable": true,
+    "attested": true,
+    "invariants_held": true,
+    "telemetry_present": true,
+    "partial_green": false,
+    "evidence_fresh": true,
+    "restore_rpo_ok": true,
+    "restore_rto_ok": true,
+    "mold_built": true,
+    "mold_attacked": true,
+    "mold_qualified": true,
+    "canary_declared": true,
+    "canary_exposure": "1% for 24h",
+    "canary_window": "24h",
+    "canary_invariants": [
+     "error-rate",
+     "latency-p99",
+     "rollback-time"
+    ],
+    "claims": [
+     "integrated-behavior",
+     "deployment-proof",
+     "rollback-proof",
+     "restore-proof",
+     "provenance-proof",
+     "runtime-proof",
+     "canary-proof"
+    ]
+   },
+   "expected_rule": "stale-artifact",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "release-mold.integration.01",
+   "note": "Broken integrated behavior: REFUSE.",
+   "package": {
+    "release": "v5.0",
+    "open_blockers": 0,
+    "artifact_fresh": true,
+    "integration_green": false,
+    "rollback_ok": true,
+    "backup_restorable": true,
+    "attested": true,
+    "invariants_held": true,
+    "telemetry_present": true,
+    "partial_green": false,
+    "evidence_fresh": true,
+    "restore_rpo_ok": true,
+    "restore_rto_ok": true,
+    "mold_built": true,
+    "mold_attacked": true,
+    "mold_qualified": true,
+    "canary_declared": true,
+    "canary_exposure": "1% for 24h",
+    "canary_window": "24h",
+    "canary_invariants": [
+     "error-rate",
+     "latency-p99",
+     "rollback-time"
+    ],
+    "claims": [
+     "integrated-behavior",
+     "deployment-proof",
+     "rollback-proof",
+     "restore-proof",
+     "provenance-proof",
+     "runtime-proof",
+     "canary-proof"
+    ]
+   },
+   "expected_rule": "broken-integration",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "release-mold.rollback.01",
+   "note": "Failed rollback drill: REFUSE.",
+   "package": {
+    "release": "v5.0",
+    "open_blockers": 0,
+    "artifact_fresh": true,
+    "integration_green": true,
+    "rollback_ok": false,
+    "backup_restorable": true,
+    "attested": true,
+    "invariants_held": true,
+    "telemetry_present": true,
+    "partial_green": false,
+    "evidence_fresh": true,
+    "restore_rpo_ok": true,
+    "restore_rto_ok": true,
+    "mold_built": true,
+    "mold_attacked": true,
+    "mold_qualified": true,
+    "canary_declared": true,
+    "canary_exposure": "1% for 24h",
+    "canary_window": "24h",
+    "canary_invariants": [
+     "error-rate",
+     "latency-p99",
+     "rollback-time"
+    ],
+    "claims": [
+     "integrated-behavior",
+     "deployment-proof",
+     "rollback-proof",
+     "restore-proof",
+     "provenance-proof",
+     "runtime-proof",
+     "canary-proof"
+    ]
+   },
+   "expected_rule": "failed-rollback",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "release-mold.backup.01",
+   "note": "Unrestorable backup: REFUSE.",
+   "package": {
+    "release": "v5.0",
+    "open_blockers": 0,
+    "artifact_fresh": true,
+    "integration_green": true,
+    "rollback_ok": true,
+    "backup_restorable": false,
+    "attested": true,
+    "invariants_held": true,
+    "telemetry_present": true,
+    "partial_green": false,
+    "evidence_fresh": true,
+    "restore_rpo_ok": true,
+    "restore_rto_ok": true,
+    "mold_built": true,
+    "mold_attacked": true,
+    "mold_qualified": true,
+    "canary_declared": true,
+    "canary_exposure": "1% for 24h",
+    "canary_window": "24h",
+    "canary_invariants": [
+     "error-rate",
+     "latency-p99",
+     "rollback-time"
+    ],
+    "claims": [
+     "integrated-behavior",
+     "deployment-proof",
+     "rollback-proof",
+     "restore-proof",
+     "provenance-proof",
+     "runtime-proof",
+     "canary-proof"
+    ]
+   },
+   "expected_rule": "unusable-backup",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "release-mold.attestation.01",
+   "note": "Missing SBOM/attestation: REFUSE.",
+   "package": {
+    "release": "v5.0",
+    "open_blockers": 0,
+    "artifact_fresh": true,
+    "integration_green": true,
+    "rollback_ok": true,
+    "backup_restorable": true,
+    "attested": false,
+    "invariants_held": true,
+    "telemetry_present": true,
+    "partial_green": false,
+    "evidence_fresh": true,
+    "restore_rpo_ok": true,
+    "restore_rto_ok": true,
+    "mold_built": true,
+    "mold_attacked": true,
+    "mold_qualified": true,
+    "canary_declared": true,
+    "canary_exposure": "1% for 24h",
+    "canary_window": "24h",
+    "canary_invariants": [
+     "error-rate",
+     "latency-p99",
+     "rollback-time"
+    ],
+    "claims": [
+     "integrated-behavior",
+     "deployment-proof",
+     "rollback-proof",
+     "restore-proof",
+     "provenance-proof",
+     "runtime-proof",
+     "canary-proof"
+    ]
+   },
+   "expected_rule": "missing-attestation",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "release-mold.invariant.01",
+   "note": "Breached canary invariant: REFUSE and halt.",
+   "package": {
+    "release": "v5.0",
+    "open_blockers": 0,
+    "artifact_fresh": true,
+    "integration_green": true,
+    "rollback_ok": true,
+    "backup_restorable": true,
+    "attested": true,
+    "invariants_held": false,
+    "telemetry_present": true,
+    "partial_green": false,
+    "evidence_fresh": true,
+    "restore_rpo_ok": true,
+    "restore_rto_ok": true,
+    "mold_built": true,
+    "mold_attacked": true,
+    "mold_qualified": true,
+    "canary_declared": true,
+    "canary_exposure": "1% for 24h",
+    "canary_window": "24h",
+    "canary_invariants": [
+     "error-rate",
+     "latency-p99",
+     "rollback-time"
+    ],
+    "claims": [
+     "integrated-behavior",
+     "deployment-proof",
+     "rollback-proof",
+     "restore-proof",
+     "provenance-proof",
+     "runtime-proof",
+     "canary-proof"
+    ]
+   },
+   "expected_rule": "invariant-breach",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "release-mold.telemetry.01",
+   "note": "Missing canary telemetry: REFUSE.",
+   "package": {
+    "release": "v5.0",
+    "open_blockers": 0,
+    "artifact_fresh": true,
+    "integration_green": true,
+    "rollback_ok": true,
+    "backup_restorable": true,
+    "attested": true,
+    "invariants_held": true,
+    "telemetry_present": false,
+    "partial_green": false,
+    "evidence_fresh": true,
+    "restore_rpo_ok": true,
+    "restore_rto_ok": true,
+    "mold_built": true,
+    "mold_attacked": true,
+    "mold_qualified": true,
+    "canary_declared": true,
+    "canary_exposure": "1% for 24h",
+    "canary_window": "24h",
+    "canary_invariants": [
+     "error-rate",
+     "latency-p99",
+     "rollback-time"
+    ],
+    "claims": [
+     "integrated-behavior",
+     "deployment-proof",
+     "rollback-proof",
+     "restore-proof",
+     "provenance-proof",
+     "runtime-proof",
+     "canary-proof"
+    ]
+   },
+   "expected_rule": "missing-telemetry",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "release-mold.partial.01",
+   "note": "Partial green treated as ready: REFUSE.",
+   "package": {
+    "release": "v5.0",
+    "open_blockers": 0,
+    "artifact_fresh": true,
+    "integration_green": true,
+    "rollback_ok": true,
+    "backup_restorable": true,
+    "attested": true,
+    "invariants_held": true,
+    "telemetry_present": true,
+    "partial_green": true,
+    "evidence_fresh": true,
+    "restore_rpo_ok": true,
+    "restore_rto_ok": true,
+    "mold_built": true,
+    "mold_attacked": true,
+    "mold_qualified": true,
+    "canary_declared": true,
+    "canary_exposure": "1% for 24h",
+    "canary_window": "24h",
+    "canary_invariants": [
+     "error-rate",
+     "latency-p99",
+     "rollback-time"
+    ],
+    "claims": [
+     "integrated-behavior",
+     "deployment-proof",
+     "rollback-proof",
+     "restore-proof",
+     "provenance-proof",
+     "runtime-proof",
+     "canary-proof"
+    ]
+   },
+   "expected_rule": "partial-green",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "release-mold.expired.01",
+   "note": "Expired evidence window: REFUSE and re-prove.",
+   "package": {
+    "release": "v5.0",
+    "open_blockers": 0,
+    "artifact_fresh": true,
+    "integration_green": true,
+    "rollback_ok": true,
+    "backup_restorable": true,
+    "attested": true,
+    "invariants_held": true,
+    "telemetry_present": true,
+    "partial_green": false,
+    "evidence_fresh": false,
+    "restore_rpo_ok": true,
+    "restore_rto_ok": true,
+    "mold_built": true,
+    "mold_attacked": true,
+    "mold_qualified": true,
+    "canary_declared": true,
+    "canary_exposure": "1% for 24h",
+    "canary_window": "24h",
+    "canary_invariants": [
+     "error-rate",
+     "latency-p99",
+     "rollback-time"
+    ],
+    "claims": [
+     "integrated-behavior",
+     "deployment-proof",
+     "rollback-proof",
+     "restore-proof",
+     "provenance-proof",
+     "runtime-proof",
+     "canary-proof"
+    ]
+   },
+   "expected_rule": "expired-evidence",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "release-mold.restore.01",
+   "note": "Successful restore within RPO/RTO: PROMOTE path.",
+   "package": {
+    "release": "v5.0",
+    "open_blockers": 0,
+    "artifact_fresh": true,
+    "integration_green": true,
+    "rollback_ok": true,
+    "backup_restorable": true,
+    "attested": true,
+    "invariants_held": true,
+    "telemetry_present": true,
+    "partial_green": false,
+    "evidence_fresh": true,
+    "restore_rpo_ok": true,
+    "restore_rto_ok": true,
+    "mold_built": true,
+    "mold_attacked": true,
+    "mold_qualified": true,
+    "canary_declared": true,
+    "canary_exposure": "1% for 24h",
+    "canary_window": "24h",
+    "canary_invariants": [
+     "error-rate",
+     "latency-p99",
+     "rollback-time"
+    ],
+    "claims": [
+     "integrated-behavior",
+     "deployment-proof",
+     "rollback-proof",
+     "restore-proof",
+     "provenance-proof",
+     "runtime-proof",
+     "canary-proof"
+    ]
+   },
+   "expected_rule": "restore-rpo",
+   "expected_verdict": "PROMOTE"
+  },
+  {
+   "id": "release-mold.mold.01",
+   "note": "Unbuilt Release Mold: HOLD until built/attacked/qualified.",
+   "package": {
+    "release": "v5.0",
+    "open_blockers": 0,
+    "artifact_fresh": true,
+    "integration_green": true,
+    "rollback_ok": true,
+    "backup_restorable": true,
+    "attested": true,
+    "invariants_held": true,
+    "telemetry_present": true,
+    "partial_green": false,
+    "evidence_fresh": true,
+    "restore_rpo_ok": false,
+    "restore_rto_ok": false,
+    "mold_built": false,
+    "mold_attacked": true,
+    "mold_qualified": true,
+    "canary_declared": true,
+    "canary_exposure": "1% for 24h",
+    "canary_window": "24h",
+    "canary_invariants": [
+     "error-rate",
+     "latency-p99",
+     "rollback-time"
+    ],
+    "claims": [
+     "integrated-behavior",
+     "deployment-proof",
+     "rollback-proof",
+     "restore-proof",
+     "provenance-proof",
+     "runtime-proof",
+     "canary-proof"
+    ]
+   },
+   "expected_rule": "mold-unqualified",
+   "expected_verdict": "HOLD"
+  },
+  {
+   "id": "release-mold.canary.01",
+   "note": "Undeclared canary: HOLD with exposure/baseline/window/invariants.",
+   "package": {
+    "release": "v5.0",
+    "open_blockers": 0,
+    "artifact_fresh": true,
+    "integration_green": true,
+    "rollback_ok": true,
+    "backup_restorable": true,
+    "attested": true,
+    "invariants_held": true,
+    "telemetry_present": true,
+    "partial_green": false,
+    "evidence_fresh": true,
+    "restore_rpo_ok": false,
+    "restore_rto_ok": false,
+    "mold_built": true,
+    "mold_attacked": true,
+    "mold_qualified": true,
+    "canary_declared": false,
+    "canary_exposure": "1% for 24h",
+    "canary_window": "24h",
+    "canary_invariants": [
+     "error-rate",
+     "latency-p99",
+     "rollback-time"
+    ],
+    "claims": [
+     "integrated-behavior",
+     "deployment-proof",
+     "rollback-proof",
+     "restore-proof",
+     "provenance-proof",
+     "runtime-proof",
+     "canary-proof"
+    ]
+   },
+   "expected_rule": "canary-missing",
+   "expected_verdict": "HOLD"
+  },
+  {
+   "id": "release-mold.promote.01",
+   "note": "Complete fresh package without restore drill: PROMOTE via clean-promote.",
+   "package": {
+    "release": "v5.0",
+    "open_blockers": 0,
+    "artifact_fresh": true,
+    "integration_green": true,
+    "rollback_ok": true,
+    "backup_restorable": true,
+    "attested": true,
+    "invariants_held": true,
+    "telemetry_present": true,
+    "partial_green": false,
+    "evidence_fresh": true,
+    "restore_rpo_ok": false,
+    "restore_rto_ok": false,
+    "mold_built": true,
+    "mold_attacked": true,
+    "mold_qualified": true,
+    "canary_declared": true,
+    "canary_exposure": "1% for 24h",
+    "canary_window": "24h",
+    "canary_invariants": [
+     "error-rate",
+     "latency-p99",
+     "rollback-time"
+    ],
+    "claims": [
+     "integrated-behavior",
+     "deployment-proof",
+     "rollback-proof",
+     "restore-proof",
+     "provenance-proof",
+     "runtime-proof",
+     "canary-proof"
+    ]
+   },
+   "expected_rule": "clean-promote",
+   "expected_verdict": "PROMOTE"
+  }
+ ]
+}

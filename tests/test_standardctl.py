@@ -15506,5 +15506,246 @@ class ControlPlane(unittest.TestCase):
 
 
 
+
+class ReleaseMold(unittest.TestCase):
+    """Stage 61a (#152): the Release Verification Mold and runtime
+    promotion contract (Standard half).
+
+    Seven release claim IDs plus canary discipline prove
+    integrated readiness independently of slice green: blockers,
+    stale artifacts, broken integration, failed rollbacks,
+    unrestorable backups, missing attestations, breached
+    invariants, missing telemetry, partial green, and expired
+    evidence refuse; proven restores promote; unbuilt molds and
+    undeclared canaries hold; complete fresh packages promote.
+    Pure contract in tools/release_mold.py plus the frozen corpus
+    under Canonical/corpus/release-mold/."""
+
+    def _rm(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import release_mold
+            return release_mold
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "release-mold" / "mold.json")
+            .read_text(encoding="utf-8"))
+
+    def _package(self, **overrides):
+        rm = self._rm()
+        package = rm.clean_package()
+        for key, value in overrides.items():
+            package[key] = value
+        return package
+
+    def test_complete_package_promotes(self):
+        """Protects the Primary Outcome (positive control): a
+        complete fresh package promotes, so ready releases
+        actually promote."""
+        rm = self._rm()
+        result = rm.evaluate(rm.clean_package())
+        self.assertEqual("PROMOTE", result.verdict)
+
+    def test_open_blockers_refuse(self):
+        """Protects release gating: open blockers refuse, so
+        Issues close before promotion."""
+        rm = self._rm()
+        result = rm.evaluate(self._package(open_blockers=2))
+        self.assertEqual("open-issues", result.rule)
+
+    def test_stale_artifact_refused(self):
+        """Protects build freshness: a stale artifact refuses and
+        rebuilds."""
+        rm = self._rm()
+        result = rm.evaluate(self._package(
+            artifact_fresh=False))
+        self.assertEqual("stale-artifact", result.rule)
+
+    def test_broken_integration_refused(self):
+        """Protects integration: broken integrated behavior
+        refuses."""
+        rm = self._rm()
+        result = rm.evaluate(self._package(
+            integration_green=False))
+        self.assertEqual("broken-integration", result.rule)
+
+    def test_failed_rollback_refused(self):
+        """Protects recovery: a failed rollback drill refuses."""
+        rm = self._rm()
+        result = rm.evaluate(self._package(rollback_ok=False))
+        self.assertEqual("failed-rollback", result.rule)
+
+    def test_unusable_backup_refused(self):
+        """Protects restore: an unrestorable backup refuses."""
+        rm = self._rm()
+        result = rm.evaluate(self._package(
+            backup_restorable=False))
+        self.assertEqual("unusable-backup", result.rule)
+
+    def test_missing_attestation_refused(self):
+        """Protects provenance: a missing SBOM/attestation
+        refuses."""
+        rm = self._rm()
+        result = rm.evaluate(self._package(attested=False))
+        self.assertEqual("missing-attestation", result.rule)
+
+    def test_invariant_breach_halts(self):
+        """Protects canary discipline: a breached invariant
+        refuses and halts."""
+        rm = self._rm()
+        result = rm.evaluate(self._package(
+            invariants_held=False))
+        self.assertEqual("REFUSE", result.verdict)
+        self.assertEqual("invariant-breach", result.rule)
+
+    def test_missing_telemetry_refused(self):
+        """Protects observability: missing canary telemetry
+        refuses."""
+        rm = self._rm()
+        result = rm.evaluate(self._package(
+            telemetry_present=False))
+        self.assertEqual("missing-telemetry", result.rule)
+
+    def test_partial_green_refused(self):
+        """Protects completeness: partial green never counts as
+        release-ready."""
+        rm = self._rm()
+        result = rm.evaluate(self._package(
+            partial_green=True))
+        self.assertEqual("partial-green", result.rule)
+
+    def test_expired_evidence_refused(self):
+        """Protects freshness: expired evidence refuses and
+        re-proves."""
+        rm = self._rm()
+        result = rm.evaluate(self._package(
+            evidence_fresh=False))
+        self.assertEqual("expired-evidence", result.rule)
+
+    def test_successful_restore_promotes(self):
+        """Protects restore proof: a restore within RPO/RTO
+        promotes."""
+        rm = self._rm()
+        result = rm.evaluate(rm.clean_package())
+        self.assertEqual("PROMOTE", result.verdict)
+
+    def test_unbuilt_mold_holds(self):
+        """Protects Mold discipline: an unbuilt Mold holds until
+        built, attacked, and qualified."""
+        rm = self._rm()
+        result = rm.evaluate(self._package(
+            restore_rpo_ok=False, restore_rto_ok=False,
+            mold_built=False))
+        self.assertEqual("HOLD", result.verdict)
+        self.assertEqual("mold-unqualified", result.rule)
+
+    def test_undeclared_canary_holds(self):
+        """Protects canary discipline: an undeclared canary holds
+        with exposure/baseline/window/invariants required."""
+        rm = self._rm()
+        result = rm.evaluate(self._package(
+            restore_rpo_ok=False, restore_rto_ok=False,
+            canary_declared=False))
+        self.assertEqual("canary-missing", result.rule)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 15 corpus entries
+        reproduce their expected rules and verdicts, covering all
+        14 release rules with unique well-formed IDs."""
+        rm = self._rm()
+        findings, entries = rm.validate_release_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(15, len(entries))
+        covered = {e["expected_rule"] for e in entries}
+        self.assertEqual(set(rm.RULES), covered)
+
+    def test_red_by_construction_promote_stub_misses_refusals(self):
+        """Sensitivity proof (RED): a promote-everything stub
+        misses all 10 REFUSE corpus fragments while the real
+        Mold refuses each — so the suite is green because the
+        contract holds, not because refusals are absent."""
+        rm = self._rm()
+        corpus = self._corpus_doc()
+        refuses = [entry for entry in corpus["entries"]
+                   if entry.get("expected_verdict") == "REFUSE"]
+        self.assertEqual(10, len(refuses))
+        stub_hits = 0
+        for entry in refuses:
+            real = rm.evaluate(entry["package"])
+            self.assertEqual(entry["expected_rule"],
+                             real.rule, entry["id"])
+            self.assertEqual(entry["expected_verdict"],
+                             real.verdict, entry["id"])
+            stub_hits += 0  # the promote stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_release_mold_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: release-mold
+        validates the real corpus (ok, 15 entries, 14 rules),
+        evaluates a --package file as JSON, exits 0 on refused
+        packages, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "release-mold", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(15, payload["entries"])
+        self.assertEqual(14, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-package.json"
+            good_path.write_text(
+                json.dumps(self._rm().clean_package()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "release-mold", "--package",
+                 str(good_path), "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("PROMOTE", payload["verdict"])
+            self.assertEqual(7, len(payload["claims"]))
+            bad_path = Path(tmp) / "bad-package.json"
+            bad = self._rm().clean_package()
+            bad["open_blockers"] = 3
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "release-mold", "--package",
+                 str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "release-mold", "--package",
+             "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "release-mold", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()

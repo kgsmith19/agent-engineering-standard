@@ -5213,6 +5213,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_control.add_argument("--json", action="store_true")
     p_control.set_defaults(func=cmd_control_plane)
 
+    p_release = sub.add_parser(
+        "release-mold",
+        help="Release mold readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_release.add_argument(
+        "--package", default="",
+        help="path to a JSON package file to evaluate; without "
+             "it, validates the frozen release fixture set")
+    p_release.add_argument(
+        "--corpus", default="Canonical/corpus/release-mold",
+        help="frozen corpus dir holding mold.json for "
+             "validation mode")
+    p_release.add_argument("--json", action="store_true")
+    p_release.set_defaults(func=cmd_release_mold)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -8626,6 +8642,88 @@ def cmd_control_plane(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("control-plane: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_release_mold(args: argparse.Namespace) -> int:
+    """Advisory release-mold readout. With --package, evaluates
+    that package file; without it, validates the frozen release
+    oracle (every entry's computed rule == expected_rule and
+    verdict == expected_verdict, IDs unique, all 14 release
+    rules covered) and prints findings. Always exits 0 on
+    findings: advisory never gates; only an unreadable file
+    exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import release_mold
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.package:
+        try:
+            package = json.loads(
+                _Path(args.package).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("release-mold: cannot load package: %s" % exc)
+            return 2
+        if not isinstance(package, dict):
+            print("release-mold: package must be a JSON object")
+            return 2
+        result = release_mold.evaluate(package)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "evaluate",
+                "package": args.package,
+                "verdict": result.verdict,
+                "rule": result.rule,
+                "claims": list(release_mold.CLAIMS),
+                "ok": result.verdict == "PROMOTE",
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("release-mold: %s -- %s (%s)" % (
+                args.package, result.verdict, result.rule))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "mold.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("release-mold: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        release_mold.validate_release_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(e.get("expected_rule", ""))
+                    for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("release-mold: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)
