@@ -5018,6 +5018,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_rot.add_argument("--json", action="store_true")
     p_rot.set_defaults(func=cmd_context_rotation)
 
+    p_par = sub.add_parser(
+        "safe-parallelism",
+        help="SAFE parallelism readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_par.add_argument(
+        "--proposal", default="",
+        help="path to a JSON proposal file to decide; without "
+             "it, validates the frozen parallelism fixture set")
+    p_par.add_argument(
+        "--corpus", default="Canonical/corpus/safe-parallelism",
+        help="frozen corpus dir holding parallel.json for "
+             "validation mode")
+    p_par.add_argument("--json", action="store_true")
+    p_par.set_defaults(func=cmd_safe_parallelism)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -7406,6 +7422,87 @@ def cmd_context_rotation(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("context-rotation: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_safe_parallelism(args: argparse.Namespace) -> int:
+    """Advisory safe-parallelism readout. With --proposal,
+    decides that proposal file; without it, validates the
+    frozen parallelism oracle (every entry's computed rule ==
+    expected_rule and verdict == expected_verdict, IDs unique,
+    all 11 parallelism rules covered) and prints findings.
+    Always exits 0 on findings: advisory never gates; only an
+    unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import safe_parallelism
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.proposal:
+        try:
+            proposal = json.loads(
+                _Path(args.proposal).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("safe-parallelism: cannot load proposal: %s" % exc)
+            return 2
+        if not isinstance(proposal, dict):
+            print("safe-parallelism: proposal must be a JSON object")
+            return 2
+        result = safe_parallelism.decide(proposal)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "decide",
+                "proposal": args.proposal,
+                "verdict": result.verdict,
+                "rule": result.rule,
+                "ok": result.verdict == "SAFE",
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("safe-parallelism: %s -- %s (%s)" % (
+                args.proposal, result.verdict, result.rule))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "parallel.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("safe-parallelism: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        safe_parallelism.validate_parallel_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(e.get("expected_rule", ""))
+                    for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("safe-parallelism: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)
