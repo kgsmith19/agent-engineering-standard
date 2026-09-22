@@ -1,0 +1,308 @@
+{
+  "_frozen": true,
+  "_provenance": "T23 #217 (lifecycle-benchmark). Unit fixtures for the full parallel lifecycle: the live benchmark runs under #153 with the ext#36 harness lane. Do not edit without a structured reopen.",
+  "entries": [
+    {
+      "id": "lc.parallel.01",
+      "note": "Two clean slices exactly once.",
+      "target": "parallel",
+      "record": [
+        {
+          "name": "a",
+          "effects": [
+            "a:merge",
+            "a:receipt",
+            "a:cleanup"
+          ],
+          "authorized_issue": true,
+          "readiness": true,
+          "bounded_task": true,
+          "leased_worker": true,
+          "exact_head_verification": true,
+          "pr_gate": true,
+          "merge": true,
+          "child_update": true,
+          "parent_proof": true,
+          "cleanup": true
+        },
+        {
+          "name": "b",
+          "effects": [
+            "b:merge",
+            "b:receipt",
+            "b:cleanup"
+          ],
+          "authorized_issue": true,
+          "readiness": true,
+          "bounded_task": true,
+          "leased_worker": true,
+          "exact_head_verification": true,
+          "pr_gate": true,
+          "merge": true,
+          "child_update": true,
+          "parent_proof": true,
+          "cleanup": true
+        }
+      ],
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "lc.parallel.02",
+      "note": "Gate bypass fails.",
+      "target": "parallel",
+      "record": [
+        {
+          "name": "a",
+          "effects": [
+            "a:merge",
+            "a:receipt",
+            "a:cleanup"
+          ],
+          "authorized_issue": true,
+          "readiness": true,
+          "bounded_task": true,
+          "leased_worker": true,
+          "exact_head_verification": true,
+          "pr_gate": true,
+          "merge": true,
+          "child_update": true,
+          "parent_proof": true,
+          "cleanup": true,
+          "bypassed_gate": true
+        },
+        {
+          "name": "b",
+          "effects": [
+            "b:merge",
+            "b:receipt",
+            "b:cleanup"
+          ],
+          "authorized_issue": true,
+          "readiness": true,
+          "bounded_task": true,
+          "leased_worker": true,
+          "exact_head_verification": true,
+          "pr_gate": true,
+          "merge": true,
+          "child_update": true,
+          "parent_proof": true,
+          "cleanup": true
+        }
+      ],
+      "expected_violation_fragment": "bypassed the PR Gate"
+    },
+    {
+      "id": "lc.parallel.03",
+      "note": "Duplicated effect fails.",
+      "target": "parallel",
+      "record": [
+        {
+          "name": "a",
+          "effects": [
+            "dup"
+          ],
+          "authorized_issue": true,
+          "readiness": true,
+          "bounded_task": true,
+          "leased_worker": true,
+          "exact_head_verification": true,
+          "pr_gate": true,
+          "merge": true,
+          "child_update": true,
+          "parent_proof": true,
+          "cleanup": true
+        },
+        {
+          "name": "b",
+          "effects": [
+            "dup"
+          ],
+          "authorized_issue": true,
+          "readiness": true,
+          "bounded_task": true,
+          "leased_worker": true,
+          "exact_head_verification": true,
+          "pr_gate": true,
+          "merge": true,
+          "child_update": true,
+          "parent_proof": true,
+          "cleanup": true
+        }
+      ],
+      "expected_violation_fragment": "exactly once"
+    },
+    {
+      "id": "lc.conflict.01",
+      "note": "Clean refusal passes.",
+      "target": "conflict",
+      "before": {
+        "x": 1
+      },
+      "record": {
+        "refused": true,
+        "reason": "overlap"
+      },
+      "after": {
+        "x": 1
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "lc.conflict.02",
+      "note": "Partial effects fail.",
+      "target": "conflict",
+      "before": {
+        "x": 1
+      },
+      "record": {
+        "refused": true,
+        "reason": "r",
+        "partial_effects": [
+          "p"
+        ]
+      },
+      "after": {
+        "x": 1
+      },
+      "expected_violation_fragment": "partial effects"
+    },
+    {
+      "id": "lc.handoff.01",
+      "note": "Fresh handoff completes.",
+      "target": "handoff",
+      "before": {
+        "ledger": "l",
+        "git_state": "g"
+      },
+      "record": {
+        "completed": true
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "lc.handoff.02",
+      "note": "Orphaned work fails.",
+      "target": "handoff",
+      "before": {
+        "ledger": "l",
+        "git_state": "g"
+      },
+      "record": {
+        "completed": true,
+        "orphaned": [
+          "w"
+        ]
+      },
+      "expected_violation_fragment": "orphaned"
+    },
+    {
+      "id": "lc.proof.01",
+      "note": "Integration proof passes.",
+      "target": "proof",
+      "record": {
+        "children": [
+          {
+            "id": "c",
+            "state": "MERGED"
+          }
+        ],
+        "integration_proof": "p"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "lc.proof.02",
+      "note": "Counts alone refuse.",
+      "target": "proof",
+      "record": {
+        "children": [
+          {
+            "id": "c",
+            "state": "MERGED"
+          }
+        ]
+      },
+      "expected_violation_fragment": "integration proof required"
+    },
+    {
+      "id": "lc.restart.01",
+      "note": "Idempotent replay passes.",
+      "target": "restart",
+      "record": {
+        "predicates_hold": true,
+        "cleanup_receipts": [
+          "r"
+        ],
+        "replay": {}
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "lc.restart.02",
+      "note": "Double effect fails.",
+      "target": "restart",
+      "record": {
+        "predicates_hold": true,
+        "cleanup_receipts": [
+          "r"
+        ],
+        "replay": {
+          "double_count": true
+        }
+      },
+      "expected_violation_fragment": "re-executes"
+    },
+    {
+      "id": "lc.accounting.01",
+      "note": "Full accounting passes.",
+      "target": "accounting",
+      "record": {
+        "cost": 1,
+        "latency": 2,
+        "cleanup": 3,
+        "false_blocks": 0
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "lc.accounting.02",
+      "note": "Missing metric fails.",
+      "target": "accounting",
+      "record": {
+        "cost": 1
+      },
+      "expected_violation_fragment": "accounting missing"
+    },
+    {
+      "id": "lc.accounting.03",
+      "note": "Enablement without evidence fails.",
+      "target": "accounting",
+      "record": {
+        "cost": 1,
+        "latency": 2,
+        "cleanup": 3,
+        "false_blocks": 0,
+        "production_enablement": true
+      },
+      "expected_violation_fragment": "never enables"
+    },
+    {
+      "id": "lc.production.01",
+      "note": "Tool-only diff passes.",
+      "target": "production",
+      "record": [
+        "tools/x.py"
+      ],
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "lc.production.02",
+      "note": "Production change forbidden.",
+      "target": "production",
+      "record": [
+        "prod/enable.yaml"
+      ],
+      "expected_violation_fragment": "no production enablement"
+    }
+  ]
+}

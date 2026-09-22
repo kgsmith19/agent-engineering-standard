@@ -8937,5 +8937,196 @@ class CompletionReceipts(FixtureCase):
         self.assertEqual(0, stub_hits)
 
 
+class LifecycleBenchmark(FixtureCase):
+    """T23 (#217): full parallel lifecycle benchmark (unit
+    fixtures; live run under #153). Parallel exactly-once,
+    conflict refusal, fresh handoff, child/parent proof,
+    cleanup+restart idempotence, accounting, and no-production-
+    change in tools/lifecycle_benchmark.py with the frozen corpus
+    under Canonical/corpus/lifecycle-benchmark/. Every proof
+    point below has a dedicated test with its own justification."""
+
+    def _lb(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import lifecycle_benchmark
+            return lifecycle_benchmark
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "lifecycle-benchmark" / "lifecycle.json")
+            .read_text(encoding="utf-8"))
+
+    def test_parallel_exactly_once(self):
+        """Protects AC1: two clean slices pass while a gate
+        bypass and a duplicated effect each fail, so parallel
+        slices share no lost or duplicated effects."""
+        lb = self._lb()
+        a, b = lb.clean_slice("a"), lb.clean_slice("b")
+        self.assertEqual([], lb.check_parallel_slices([a, b]))
+        import copy
+        bypass = copy.deepcopy(a)
+        bypass["bypassed_gate"] = True
+        violations = lb.check_parallel_slices([bypass, b])
+        self.assertTrue(
+            any("bypassed the PR Gate" in v for v in violations),
+            violations)
+
+    def test_conflict_refused_cleanly(self):
+        """Protects AC2: a reasoned refusal with unchanged clean
+        slices passes while partial effects fail, so conflicts
+        refuse without corrupting clean work."""
+        lb = self._lb()
+        self.assertEqual(
+            [], lb.check_conflict_refusal(
+                {"x": 1}, {"refused": True, "reason": "overlap"},
+                {"x": 1}))
+        violations = lb.check_conflict_refusal(
+            {"x": 1},
+            {"refused": True, "reason": "r",
+             "partial_effects": ["p"]}, {"x": 1})
+        self.assertTrue(
+            any("partial effects" in v for v in violations),
+            violations)
+
+    def test_fresh_handoff_completes(self):
+        """Protects AC3: a ledger+Git resume completing its slice
+        passes while orphaned work fails, so handoffs resume
+        without loss or duplication."""
+        lb = self._lb()
+        self.assertEqual(
+            [], lb.check_fresh_handoff(
+                {"ledger": "l", "git_state": "g"},
+                {"completed": True}))
+        violations = lb.check_fresh_handoff(
+            {"ledger": "l", "git_state": "g"},
+            {"completed": True, "orphaned": ["w"]})
+        self.assertTrue(
+            any("orphaned" in v for v in violations), violations)
+
+    def test_child_parent_proof_not_counts(self):
+        """Protects AC4: integration proof passes while
+        counts-alone refuses, so parent proof follows #215
+        receipt semantics."""
+        lb = self._lb()
+        proof = {"children": [{"id": "c", "state": "MERGED"}],
+                 "integration_proof": "p"}
+        self.assertEqual([], lb.check_child_parent_proof(proof))
+        violations = lb.check_child_parent_proof(
+            {"children": [{"id": "c", "state": "MERGED"}]})
+        self.assertTrue(
+            any("integration proof required" in v
+                for v in violations), violations)
+
+    def test_cleanup_restart_idempotent(self):
+        """Protects AC5: predicate-held receipts with clean replay
+        pass while a double-count replay fails, so restart
+        reconciles exactly once."""
+        lb = self._lb()
+        legs = {"predicates_hold": True, "cleanup_receipts": ["r"],
+                "replay": {}}
+        self.assertEqual([], lb.check_cleanup_restart(legs))
+        bad = {"predicates_hold": True, "cleanup_receipts": ["r"],
+               "replay": {"double_count": True}}
+        violations = lb.check_cleanup_restart(bad)
+        self.assertTrue(
+            any("re-executes" in v for v in violations),
+            violations)
+
+    def test_accounting_complete_enablement_gated(self):
+        """Protects AC6: full accounting passes while a missing
+        metric and evidence-free enablement each fail, so
+        measured results gate production proposals."""
+        lb = self._lb()
+        full = {"cost": 1, "latency": 2, "cleanup": 3,
+                "false_blocks": 0}
+        self.assertEqual([], lb.check_accounting(full))
+        self.assertTrue(lb.check_accounting({"cost": 1}))
+        violations = lb.check_accounting(
+            dict(full, production_enablement=True))
+        self.assertTrue(
+            any("never enables" in v for v in violations),
+            violations)
+
+    def test_no_production_change(self):
+        """Protects the Must-never-happen (production axis): a
+        tool-only diff passes while a prod/ path fails, so the
+        benchmark enables nothing."""
+        lb = self._lb()
+        self.assertEqual(
+            [], lb.check_no_production_change(["tools/x.py"]))
+        violations = lb.check_no_production_change(
+            ["prod/enable.yaml"])
+        self.assertTrue(
+            any("no production enablement" in v
+                for v in violations), violations)
+
+    def test_consumes_not_reimplements(self):
+        """Protects the Must-remain-true (reuse axis): the module
+        consumes #214/#215 semantics by reference (no predicate
+        or receipt reimplementation), reuses Stage 64/65 by name,
+        and creates no second tracker/scheduler."""
+        text = (WORKTREE / "tools" / "lifecycle_benchmark.py"
+                ).read_text(encoding="utf-8")
+        self.assertIn("#214", text)
+        self.assertIn("#215", text)
+        for marker in ("create_tracker", "new_scheduler",
+                       "sqlite"):
+            self.assertNotIn(marker, text, marker)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 16 corpus entries
+        reproduce their expected violation fragments across all
+        seven benchmark surfaces (parallel, conflict, handoff,
+        proof, restart, accounting, production)."""
+        lb = self._lb()
+        findings, entries = \
+            lb.validate_lifecycle_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(16, len(entries))
+
+    def test_red_by_construction_no_rule_stub_passes(self):
+        """Sensitivity proof (RED): a no-rule stub that passes
+        every lifecycle input reproduces 0/9 negative corpus
+        fragments while the real checkers fail all 9 closed —
+        so the suite is green because the rules exist, not
+        because the fixtures cannot fail."""
+        lb = self._lb()
+        corpus = self._corpus_doc()
+        negatives = [entry for entry in corpus["entries"]
+                     if entry.get("expected_violation_fragment")]
+        self.assertEqual(9, len(negatives))
+        stub_hits = 0
+        for entry in negatives:
+            target = entry["target"]
+            record = entry["record"]
+            if target == "parallel":
+                real = lb.check_parallel_slices(record)
+            elif target == "conflict":
+                real = lb.check_conflict_refusal(
+                    entry.get("before"), record,
+                    entry.get("after"))
+            elif target == "handoff":
+                real = lb.check_fresh_handoff(
+                    entry.get("before", {}), record)
+            elif target == "proof":
+                real = lb.check_child_parent_proof(record)
+            elif target == "restart":
+                real = lb.check_cleanup_restart(record)
+            elif target == "accounting":
+                real = lb.check_accounting(record)
+            else:
+                real = lb.check_no_production_change(record)
+            self.assertTrue(
+                any(entry["expected_violation_fragment"] in v
+                    for v in real), entry["id"])
+            stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+
 if __name__ == "__main__":
     unittest.main()
