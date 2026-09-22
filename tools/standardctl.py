@@ -5050,6 +5050,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_orch.add_argument("--json", action="store_true")
     p_orch.set_defaults(func=cmd_orchestrator)
 
+    p_human = sub.add_parser(
+        "human-exception",
+        help="Human-by-exception readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_human.add_argument(
+        "--proposal", default="",
+        help="path to a JSON proposal file to decide; without "
+             "it, validates the frozen topology fixture set")
+    p_human.add_argument(
+        "--corpus", default="Canonical/corpus/human-exception",
+        help="frozen corpus dir holding topology.json for "
+             "validation mode")
+    p_human.add_argument("--json", action="store_true")
+    p_human.set_defaults(func=cmd_human_exception)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -7601,6 +7617,87 @@ def cmd_orchestrator(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("orchestrator: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_human_exception(args: argparse.Namespace) -> int:
+    """Advisory human-exception readout. With --proposal,
+    decides that proposal file; without it, validates the
+    frozen topology oracle (every entry's computed rule ==
+    expected_rule and verdict == expected_verdict, IDs unique,
+    all 9 topology rules covered) and prints findings. Always
+    exits 0 on findings: advisory never gates; only an
+    unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import human_exception
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.proposal:
+        try:
+            proposal = json.loads(
+                _Path(args.proposal).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("human-exception: cannot load proposal: %s" % exc)
+            return 2
+        if not isinstance(proposal, dict):
+            print("human-exception: proposal must be a JSON object")
+            return 2
+        result = human_exception.decide(proposal)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "decide",
+                "proposal": args.proposal,
+                "verdict": result.verdict,
+                "rule": result.rule,
+                "ok": result.verdict in ("PRODUCE", "CONSULT"),
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("human-exception: %s -- %s (%s)" % (
+                args.proposal, result.verdict, result.rule))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "topology.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("human-exception: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        human_exception.validate_topology_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(e.get("expected_rule", ""))
+                    for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("human-exception: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)
