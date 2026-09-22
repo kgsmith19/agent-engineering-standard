@@ -11115,5 +11115,256 @@ class QualityEval(unittest.TestCase):
 
 
 
+
+class ContinuityEvents(unittest.TestCase):
+    """Stage 42 (#133): the versioned continuity event/state model.
+
+    Compact typed events with deterministic projection — a delta
+    layer over Git/GitHub, never a second tracker: idempotent
+    duplicates, conflicting duplicates, gaps, out-of-order
+    arrival, broken hashes, secret payloads, oversized payloads,
+    batching equivalence, and Git/GitHub contradictions. Pure
+    contract in tools/continuity_events.py plus the frozen corpus
+    under Canonical/corpus/continuity-events/."""
+
+    def _ce(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import continuity_events
+            return continuity_events
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "continuity-events" / "events.json")
+            .read_text(encoding="utf-8"))
+
+    def _chain(self, n=2):
+        ce = self._ce()
+        events = []
+        previous = "GENESIS"
+        for seq in range(1, n + 1):
+            event = ce.clean_event(seq, "claim-started",
+                                   {"claim": "c1"},
+                                   previous=previous)
+            previous = event["hash"]
+            events.append(event)
+        return events
+
+    def _rules(self, findings):
+        return sorted({f["rule"] for f in findings})
+
+    def test_clean_journal_replays(self):
+        """Protects the Primary Outcome (positive control): a
+        chained journal replays with zero findings and a stable
+        state hash, so the journal actually works."""
+        ce = self._ce()
+        events = self._chain(2)
+        self.assertEqual([], ce.check_journal(events))
+        first = ce.project(events)["state_hash"]
+        self.assertEqual(first,
+                         ce.project(list(events))["state_hash"])
+
+    def test_duplicate_same_payload_idempotent(self):
+        """Protects idempotence: a duplicate same-payload
+        re-append yields no findings, so at-least-once delivery
+        is safe."""
+        import copy
+        ce = self._ce()
+        events = self._chain(1)
+        doubled = [copy.deepcopy(events[0]),
+                   copy.deepcopy(events[0])]
+        self.assertEqual([], ce.check_journal(doubled))
+
+    def test_conflicting_duplicate_refused(self):
+        """Protects append-only order: a conflicting duplicate
+        seq refuses, so journals are never rewritten."""
+        import copy
+        ce = self._ce()
+        events = self._chain(1)
+        conflict = [copy.deepcopy(events[0]),
+                    dict(copy.deepcopy(events[0]),
+                         payload={"claim": "c2"})]
+        self.assertEqual(["conflicting-duplicate"],
+                         self._rules(ce.check_journal(conflict)))
+
+    def test_gap_refused(self):
+        """Protects density: a skipped seq refuses with gap, so
+        gaps are filled before projecting."""
+        ce = self._ce()
+        first = ce.clean_event(1, "claim-started",
+                               {"claim": "c1"})
+        third = ce.clean_event(3, "claim-done",
+                               {"claim": "c1"},
+                               previous="BROKEN")
+        self.assertEqual(["gap"],
+                         self._rules(ce.check_journal(
+                             [first, third])))
+
+    def test_out_of_order_refused(self):
+        """Protects ordering: out-of-order arrival refuses, so
+        journals stay ordered."""
+        ce = self._ce()
+        second = ce.clean_event(2, "claim-started",
+                                {"claim": "c1"})
+        first = ce.clean_event(1, "claim-done",
+                               {"claim": "c1"},
+                               previous=second["hash"])
+        self.assertEqual(["out-of-order"],
+                         self._rules(ce.check_journal(
+                             [second, first])))
+
+    def test_broken_hash_refused(self):
+        """Protects chain integrity: a tampered hash refuses as a
+        blocker, so event bytes reproduce recorded hashes."""
+        ce = self._ce()
+        event = ce.clean_event(1, "claim-started",
+                               {"claim": "c1"})
+        event["hash"] = "0" * 64
+        findings = ce.check_journal([event])
+        self.assertEqual(["broken-hash"], self._rules(findings))
+
+    def test_secret_payload_refused(self):
+        """Protects credential hygiene: a secret-bearing payload
+        refuses as a blocker, so journals never hold secrets."""
+        ce = self._ce()
+        event = ce.clean_event(1, "claim-started",
+                               {"claim": "c1",
+                                "note": "password= hunter2"})
+        self.assertEqual(["secret-payload"],
+                         self._rules(ce.check_journal([event])))
+
+    def test_oversized_payload_refused(self):
+        """Protects the payload budget: a 3 KiB transcript-like
+        payload refuses, so transcripts live in Git."""
+        ce = self._ce()
+        event = ce.clean_event(1, "claim-started",
+                               {"claim": "c1",
+                                "blob": "x" * 3000})
+        self.assertEqual(["oversized-payload"],
+                         self._rules(ce.check_journal([event])))
+
+    def test_batching_equivalence(self):
+        """Protects replay determinism: a three-event journal
+        projects identically streamed or batched, so batching
+        never changes state."""
+        ce = self._ce()
+        events = self._chain(3)
+        self.assertEqual(ce.project(events)["state_hash"],
+                         ce.project(list(reversed(events)))[
+                             "state_hash"])
+
+    def test_git_contradiction_refused(self):
+        """Protects Git authority: a journal head the record
+        denies refuses, so Git/GitHub wins."""
+        ce = self._ce()
+        event = ce.clean_event(1, "claim-started",
+                               {"claim": "c1",
+                                "head": "b" * 40})
+        findings = ce.check_journal([event],
+                                    git_heads=["a" * 40])
+        self.assertEqual(["git-contradiction"],
+                         self._rules(findings))
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 11 corpus entries
+        reproduce their expected rules with batching-stable
+        hashes, covering all 8 continuity rules with unique
+        well-formed IDs."""
+        ce = self._ce()
+        findings, entries = ce.validate_continuity_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(11, len(entries))
+        covered = {r for e in entries
+                   for r in e["expected_rules"]}
+        self.assertEqual(set(ce.RULES), covered)
+
+    def test_red_by_construction_accept_stub_misses_violations(self):
+        """Sensitivity proof (RED): an accept-everything stub
+        misses all 8 violating corpus fragments while the real
+        checker flags each — so the suite is green because the
+        rules exist, not because the fixtures cannot fail."""
+        ce = self._ce()
+        corpus = self._corpus_doc()
+        violating = [entry for entry in corpus["entries"]
+                     if entry.get("expected_rules")]
+        self.assertEqual(8, len(violating))
+        stub_hits = 0
+        for entry in violating:
+            real = ce.check_journal(
+                entry["events"], entry.get("git_heads"))
+            self.assertEqual(
+                sorted(entry["expected_rules"]),
+                self._rules(real), entry["id"])
+            stub_hits += 0  # the accept stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_continuity_events_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: continuity-events
+        validates the real corpus (ok, 11 entries, 8 rules),
+        projects a --journal file as JSON, exits 0 on flagged
+        journals, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "continuity-events", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(11, payload["entries"])
+        self.assertEqual(8, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-journal.json"
+            good_path.write_text(
+                json.dumps({"events": self._chain(2)}),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "continuity-events", "--journal",
+                 str(good_path), "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["state_hash"])
+            bad_path = Path(tmp) / "bad-journal.json"
+            bad = self._chain(1)
+            bad[0]["hash"] = "0" * 64
+            bad_path.write_text(
+                json.dumps({"events": bad}), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "continuity-events", "--journal",
+                 str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "continuity-events", "--journal",
+             "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "continuity-events", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()

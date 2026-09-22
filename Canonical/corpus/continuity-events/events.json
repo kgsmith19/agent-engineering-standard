@@ -1,0 +1,300 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 42 #133 Continuity event frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "continuity-event.clean.01",
+   "note": "Two chained events replay cleanly with a stable hash, so the journal actually works.",
+   "events": [
+    {
+     "v": "5.0.0",
+     "seq": 1,
+     "type": "claim-started",
+     "payload": {
+      "claim": "c1"
+     },
+     "prev": "GENESIS",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "4e3581c746b2958201bc2dd0c11df65cf6f984d194807e4761ed672f7cb3356d"
+    },
+    {
+     "v": "5.0.0",
+     "seq": 2,
+     "type": "claim-done",
+     "payload": {
+      "claim": "c1"
+     },
+     "prev": "4e3581c746b2958201bc2dd0c11df65cf6f984d194807e4761ed672f7cb3356d",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "251168203f6247be3fda3d5527c40661067b0411e5a60a33da71a8ccbff4f849"
+    }
+   ],
+   "expected_rules": []
+  },
+  {
+   "id": "continuity-event.idempotent.01",
+   "note": "Duplicate same-payload re-append is idempotent with no state change, so at-least-once delivery is safe.",
+   "events": [
+    {
+     "v": "5.0.0",
+     "seq": 1,
+     "type": "claim-started",
+     "payload": {
+      "claim": "c1"
+     },
+     "prev": "GENESIS",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "4e3581c746b2958201bc2dd0c11df65cf6f984d194807e4761ed672f7cb3356d"
+    },
+    {
+     "v": "5.0.0",
+     "seq": 1,
+     "type": "claim-started",
+     "payload": {
+      "claim": "c1"
+     },
+     "prev": "GENESIS",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "4e3581c746b2958201bc2dd0c11df65cf6f984d194807e4761ed672f7cb3356d"
+    }
+   ],
+   "expected_rules": []
+  },
+  {
+   "id": "continuity-event.conflict.01",
+   "note": "Conflicting duplicate seq refused: journals are append-only, never rewritten.",
+   "events": [
+    {
+     "v": "5.0.0",
+     "seq": 1,
+     "type": "claim-started",
+     "payload": {
+      "claim": "c1"
+     },
+     "prev": "GENESIS",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "4e3581c746b2958201bc2dd0c11df65cf6f984d194807e4761ed672f7cb3356d"
+    },
+    {
+     "v": "5.0.0",
+     "seq": 1,
+     "type": "claim-started",
+     "payload": {
+      "claim": "c2"
+     },
+     "prev": "GENESIS",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "4e3581c746b2958201bc2dd0c11df65cf6f984d194807e4761ed672f7cb3356d"
+    }
+   ],
+   "expected_rules": [
+    "conflicting-duplicate"
+   ]
+  },
+  {
+   "id": "continuity-event.gap.01",
+   "note": "Skipped seq refused: fill the gap before projecting.",
+   "events": [
+    {
+     "v": "5.0.0",
+     "seq": 1,
+     "type": "claim-started",
+     "payload": {
+      "claim": "c1"
+     },
+     "prev": "GENESIS",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "4e3581c746b2958201bc2dd0c11df65cf6f984d194807e4761ed672f7cb3356d"
+    },
+    {
+     "v": "5.0.0",
+     "seq": 3,
+     "type": "claim-done",
+     "payload": {
+      "claim": "c1"
+     },
+     "prev": "BROKEN",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "7901714ea528b82d32bd693eea1392a64a2d2d16fc47141f622d0b1e05954ac9"
+    }
+   ],
+   "expected_rules": [
+    "gap"
+   ]
+  },
+  {
+   "id": "continuity-event.order.01",
+   "note": "Out-of-order arrival refused: journals are ordered.",
+   "events": [
+    {
+     "v": "5.0.0",
+     "seq": 2,
+     "type": "claim-started",
+     "payload": {
+      "claim": "c1"
+     },
+     "prev": "GENESIS",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "cbd84eed00066f9d257ac46e2c41909cdca3df9d8c83df35c66171baae7ffd38"
+    },
+    {
+     "v": "5.0.0",
+     "seq": 1,
+     "type": "claim-done",
+     "payload": {
+      "claim": "c1"
+     },
+     "prev": "cbd84eed00066f9d257ac46e2c41909cdca3df9d8c83df35c66171baae7ffd38",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "40a24c5c5222b3cafc5537f11c81ff696fdd00fa83ea5e9265399b543f75a356"
+    }
+   ],
+   "expected_rules": [
+    "out-of-order"
+   ]
+  },
+  {
+   "id": "continuity-event.hash.01",
+   "note": "Tampered hash refused as blocker: event bytes must reproduce the recorded hash.",
+   "events": [
+    {
+     "v": "5.0.0",
+     "seq": 1,
+     "type": "claim-started",
+     "payload": {
+      "claim": "c1"
+     },
+     "prev": "GENESIS",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+   ],
+   "expected_rules": [
+    "broken-hash"
+   ]
+  },
+  {
+   "id": "continuity-event.secret.01",
+   "note": "Secret-bearing payload refused as blocker: journals never hold credentials.",
+   "events": [
+    {
+     "v": "5.0.0",
+     "seq": 1,
+     "type": "claim-started",
+     "payload": {
+      "claim": "c1",
+      "note": "password= hunter2"
+     },
+     "prev": "GENESIS",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "773627070040b16daaa90630e40f366b0a1be64041589babd1c1fa20137e8ef8"
+    }
+   ],
+   "expected_rules": [
+    "secret-payload"
+   ]
+  },
+  {
+   "id": "continuity-event.oversize.01",
+   "note": "Transcript-like 3 KiB payload refused: transcripts live in Git, not the journal.",
+   "events": [
+    {
+     "v": "5.0.0",
+     "seq": 1,
+     "type": "claim-started",
+     "payload": {
+      "claim": "c1",
+      "blob": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+     },
+     "prev": "GENESIS",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "6520f7167c325823a1027301b77a03f8a4fe9554f2aae3474402ea5e4d8f0b64"
+    }
+   ],
+   "expected_rules": [
+    "oversized-payload"
+   ]
+  },
+  {
+   "id": "continuity-event.git.01",
+   "note": "Journal head the authoritative record denies refused: Git/GitHub wins.",
+   "events": [
+    {
+     "v": "5.0.0",
+     "seq": 1,
+     "type": "claim-started",
+     "payload": {
+      "claim": "c1",
+      "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+     },
+     "prev": "GENESIS",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "c8d4ab19c7acec8521420dbcbb1e9466bcb1abc0c610ac41ac45969af2773dbc"
+    }
+   ],
+   "expected_rules": [
+    "git-contradiction"
+   ],
+   "git_heads": [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   ]
+  },
+  {
+   "id": "continuity-event.type.01",
+   "note": "Unknown event type refused: taxonomy is frozen.",
+   "events": [
+    {
+     "v": "5.0.0",
+     "seq": 1,
+     "type": "bogus",
+     "payload": {},
+     "prev": "GENESIS",
+     "hash": "x"
+    }
+   ],
+   "expected_rules": [
+    "unknown-type"
+   ]
+  },
+  {
+   "id": "continuity-event.batch.01",
+   "note": "Three-event journal replays identically batched or streamed, so batching never changes state.",
+   "events": [
+    {
+     "v": "5.0.0",
+     "seq": 1,
+     "type": "claim-started",
+     "payload": {
+      "claim": "c1"
+     },
+     "prev": "GENESIS",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "4e3581c746b2958201bc2dd0c11df65cf6f984d194807e4761ed672f7cb3356d"
+    },
+    {
+     "v": "5.0.0",
+     "seq": 2,
+     "type": "claim-done",
+     "payload": {
+      "claim": "c1"
+     },
+     "prev": "4e3581c746b2958201bc2dd0c11df65cf6f984d194807e4761ed672f7cb3356d",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "251168203f6247be3fda3d5527c40661067b0411e5a60a33da71a8ccbff4f849"
+    },
+    {
+     "v": "5.0.0",
+     "seq": 3,
+     "type": "checkpoint-taken",
+     "payload": {
+      "claim": "c1"
+     },
+     "prev": "251168203f6247be3fda3d5527c40661067b0411e5a60a33da71a8ccbff4f849",
+     "at": "2026-09-22T00:00:00Z",
+     "hash": "02d29e0618ef88230a56446956169c505809fa50bd25aa77afda7cfd975c63e0"
+    }
+   ],
+   "expected_rules": []
+  }
+ ]
+}

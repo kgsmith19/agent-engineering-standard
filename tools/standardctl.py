@@ -4906,6 +4906,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_dep.add_argument("--json", action="store_true")
     p_dep.set_defaults(func=cmd_dependency_contract)
 
+    p_cont = sub.add_parser(
+        "continuity-events",
+        help="Continuity event readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_cont.add_argument(
+        "--journal", default="",
+        help="path to a JSON journal file to check; without "
+             "it, validates the frozen continuity fixture set")
+    p_cont.add_argument(
+        "--corpus", default="Canonical/corpus/continuity-events",
+        help="frozen corpus dir holding events.json for "
+             "validation mode")
+    p_cont.add_argument("--json", action="store_true")
+    p_cont.set_defaults(func=cmd_continuity_events)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -6719,6 +6735,92 @@ def cmd_quality_eval(args: argparse.Namespace) -> int:
         for line in findings:
             print("  - %s" % line)
         print("  corpus: %d entries" % len(entries))
+    return 0
+
+
+def cmd_continuity_events(args: argparse.Namespace) -> int:
+    """Advisory continuity-events readout. With --journal,
+    checks that journal file and projects its state; without
+    it, validates the frozen continuity oracle (every entry's
+    computed rules == expected_rules, clean entries replay to
+    a batching-stable hash, IDs unique, all 8 continuity rules
+    covered) and prints findings. Always exits 0 on findings:
+    advisory never gates; only an unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import continuity_events
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.journal:
+        try:
+            journal = json.loads(
+                _Path(args.journal).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("continuity-events: cannot load journal: %s" % exc)
+            return 2
+        events = journal.get("events", journal) \
+            if isinstance(journal, dict) else journal
+        if not isinstance(events, list):
+            print("continuity-events: journal must hold an event list")
+            return 2
+        projected = continuity_events.project(events)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in projected["findings"]]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "project",
+                "journal": args.journal,
+                "state_hash": projected["state_hash"],
+                "claims": projected["claims"],
+                "ok": not findings,
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("continuity-events: %s -- %s" % (
+                args.journal,
+                "CLEAN" if not findings else "FLAGGED"))
+            print("  state: %s" % projected["state_hash"])
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "events.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("continuity-events: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        continuity_events.validate_continuity_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(r)
+                    for e in entries if isinstance(e, dict)
+                    for r in (e.get("expected_rules") or [])})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("continuity-events: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
     return 0
 
 
