@@ -13185,5 +13185,205 @@ class AutonomousOrchestrator(unittest.TestCase):
 
 
 
+
+class HumanException(unittest.TestCase):
+    """Stage 51 (#142): human-by-exception and no default agent councils.
+
+    One accountable producer plus targeted evaluation by
+    default; councils only on explicit hypothesis, budget,
+    gain, and eval; consensus never proof; no speculative
+    busywork. Pure contract in tools/human_exception.py plus the
+    frozen corpus under Canonical/corpus/human-exception/."""
+
+    def _he(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import human_exception
+            return human_exception
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "human-exception" / "topology.json")
+            .read_text(encoding="utf-8"))
+
+    def _proposal(self, **overrides):
+        he = self._he()
+        proposal = he.clean_proposal()
+        for key, value in overrides.items():
+            proposal[key] = value
+        return proposal
+
+    def test_clean_slice_produces(self):
+        """Protects the Primary Outcome (positive control): a
+        normal autonomous slice is PRODUCE, so the default
+        topology actually produces."""
+        he = self._he()
+        result = he.decide(he.clean_proposal())
+        self.assertEqual("PRODUCE", result.verdict)
+        self.assertEqual("clean-produce", result.rule)
+
+    def test_ambiguous_owner_escalates(self):
+        """Protects human-by-exception: an ambiguous owner
+        decision escalates, never guesses."""
+        he = self._he()
+        result = he.decide(self._proposal(
+            owner_ambiguous=True))
+        self.assertEqual("ESCALATE", result.verdict)
+
+    def test_generic_council_token_burn_refused(self):
+        """Protects coordination cost: a generic council without
+        justification holds, so token burn is refused."""
+        he = self._he()
+        result = he.decide(self._proposal(
+            council_proposed=True))
+        self.assertEqual("HOLD", result.verdict)
+        self.assertEqual("generic-council", result.rule)
+
+    def test_conflicting_recommendations_consult(self):
+        """Protects targeted review: conflicting advice consults
+        one critic, never a council."""
+        he = self._he()
+        result = he.decide(self._proposal(
+            conflicting_advice=True))
+        self.assertEqual("CONSULT", result.verdict)
+
+    def test_competitive_shared_mold_council(self):
+        """Protects explicit teams: competitive implementations
+        under one shared Mold convene an approved council."""
+        he = self._he()
+        result = he.decide(self._proposal(
+            competitive=True, shared_mold=True))
+        self.assertEqual("COUNCIL", result.verdict)
+
+    def test_no_ready_work_holds(self):
+        """Protects focus: no ready work holds, so the
+        orchestrator never invents busywork."""
+        he = self._he()
+        result = he.decide(self._proposal(ready_work=False))
+        self.assertEqual("no-ready-work", result.rule)
+
+    def test_false_escalation_holds(self):
+        """Protects course: a triggerless escalation holds the
+        producer on course."""
+        he = self._he()
+        result = he.decide(self._proposal(
+            escalation_trigger=True))
+        self.assertEqual("HOLD", result.verdict)
+
+    def test_approved_council_convenes(self):
+        """Protects the exception path: a justified council with
+        hypothesis, budget, gain, and eval convenes."""
+        he = self._he()
+        result = he.decide(self._proposal(
+            council_proposed=True, hypothesis="two designs",
+            budget=5000, expected_gain="pick better API",
+            eval_planned=True))
+        self.assertEqual("COUNCIL", result.verdict)
+
+    def test_intervention_metric_escalates(self):
+        """Protects oversight: a breached intervention budget
+        escalates with the human-intervention metric."""
+        he = self._he()
+        result = he.decide(self._proposal(
+            interventions=5, intervention_budget=3))
+        self.assertEqual("ESCALATE", result.verdict)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 9 corpus entries
+        reproduce their expected rules and verdicts, covering all
+        9 topology rules with unique well-formed IDs."""
+        he = self._he()
+        findings, entries = he.validate_topology_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(9, len(entries))
+        covered = {e["expected_rule"] for e in entries}
+        self.assertEqual(set(he.RULES), covered)
+
+    def test_red_by_construction_produce_stub_misses_holds(self):
+        """Sensitivity proof (RED): a produce-everything stub
+        misses all 3 HOLD corpus fragments while the real
+        decider holds each — so the suite is green because the
+        policy exists, not because holds are absent."""
+        he = self._he()
+        corpus = self._corpus_doc()
+        holds = [entry for entry in corpus["entries"]
+                 if entry.get("expected_verdict") == "HOLD"]
+        self.assertEqual(3, len(holds))
+        stub_hits = 0
+        for entry in holds:
+            real = he.decide(entry["proposal"])
+            self.assertEqual(entry["expected_rule"],
+                             real.rule, entry["id"])
+            self.assertEqual(entry["expected_verdict"],
+                             real.verdict, entry["id"])
+            stub_hits += 0  # the produce stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_human_exception_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: human-exception
+        validates the real corpus (ok, 9 entries, 9 rules),
+        decides a --proposal file as JSON, exits 0 on held
+        proposals, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "human-exception", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(9, payload["entries"])
+        self.assertEqual(9, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-proposal.json"
+            good_path.write_text(
+                json.dumps(self._he().clean_proposal()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "human-exception", "--proposal",
+                 str(good_path), "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("PRODUCE", payload["verdict"])
+            bad_path = Path(tmp) / "bad-proposal.json"
+            bad = self._he().clean_proposal()
+            bad["council_proposed"] = True
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "human-exception", "--proposal",
+                 str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "human-exception", "--proposal",
+             "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "human-exception", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,213 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 51 #142 Human-by-exception frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "human-exception.clean.01",
+   "note": "Normal autonomous slice: PRODUCE with one producer plus targeted evaluation.",
+   "proposal": {
+    "task": "slice-1",
+    "ready_work": true,
+    "owner_ambiguous": false,
+    "escalation_trigger": false,
+    "council_proposed": false,
+    "hypothesis": "",
+    "budget": 0,
+    "expected_gain": "",
+    "eval_planned": false,
+    "conflicting_advice": false,
+    "shared_mold": false,
+    "competitive": false,
+    "owner_requested_team": false,
+    "interventions": 0,
+    "intervention_budget": 3
+   },
+   "expected_rule": "clean-produce",
+   "expected_verdict": "PRODUCE"
+  },
+  {
+   "id": "human-exception.ambiguous.01",
+   "note": "Ambiguous owner decision: ESCALATE, never guess.",
+   "proposal": {
+    "task": "slice-1",
+    "ready_work": true,
+    "owner_ambiguous": true,
+    "escalation_trigger": false,
+    "council_proposed": false,
+    "hypothesis": "",
+    "budget": 0,
+    "expected_gain": "",
+    "eval_planned": false,
+    "conflicting_advice": false,
+    "shared_mold": false,
+    "competitive": false,
+    "owner_requested_team": false,
+    "interventions": 0,
+    "intervention_budget": 3
+   },
+   "expected_rule": "ambiguous-owner",
+   "expected_verdict": "ESCALATE"
+  },
+  {
+   "id": "human-exception.council.01",
+   "note": "Generic council without justification: HOLD, so token burn is refused.",
+   "proposal": {
+    "task": "slice-1",
+    "ready_work": true,
+    "owner_ambiguous": false,
+    "escalation_trigger": false,
+    "council_proposed": true,
+    "hypothesis": "",
+    "budget": 0,
+    "expected_gain": "",
+    "eval_planned": false,
+    "conflicting_advice": false,
+    "shared_mold": false,
+    "competitive": false,
+    "owner_requested_team": false,
+    "interventions": 0,
+    "intervention_budget": 3
+   },
+   "expected_rule": "generic-council",
+   "expected_verdict": "HOLD"
+  },
+  {
+   "id": "human-exception.conflict.01",
+   "note": "Conflicting recommendations: CONSULT one targeted critic.",
+   "proposal": {
+    "task": "slice-1",
+    "ready_work": true,
+    "owner_ambiguous": false,
+    "escalation_trigger": false,
+    "council_proposed": false,
+    "hypothesis": "",
+    "budget": 0,
+    "expected_gain": "",
+    "eval_planned": false,
+    "conflicting_advice": true,
+    "shared_mold": false,
+    "competitive": false,
+    "owner_requested_team": false,
+    "interventions": 0,
+    "intervention_budget": 3
+   },
+   "expected_rule": "conflicting-advice",
+   "expected_verdict": "CONSULT"
+  },
+  {
+   "id": "human-exception.competitive.01",
+   "note": "Competitive implementations under one shared Mold: COUNCIL explicitly approved.",
+   "proposal": {
+    "task": "slice-1",
+    "ready_work": true,
+    "owner_ambiguous": false,
+    "escalation_trigger": false,
+    "council_proposed": false,
+    "hypothesis": "",
+    "budget": 0,
+    "expected_gain": "",
+    "eval_planned": false,
+    "conflicting_advice": false,
+    "shared_mold": true,
+    "competitive": true,
+    "owner_requested_team": false,
+    "interventions": 0,
+    "intervention_budget": 3
+   },
+   "expected_rule": "competitive-mold",
+   "expected_verdict": "COUNCIL"
+  },
+  {
+   "id": "human-exception.empty.01",
+   "note": "No ready work: HOLD, so the orchestrator never invents busywork.",
+   "proposal": {
+    "task": "slice-1",
+    "ready_work": false,
+    "owner_ambiguous": false,
+    "escalation_trigger": false,
+    "council_proposed": false,
+    "hypothesis": "",
+    "budget": 0,
+    "expected_gain": "",
+    "eval_planned": false,
+    "conflicting_advice": false,
+    "shared_mold": false,
+    "competitive": false,
+    "owner_requested_team": false,
+    "interventions": 0,
+    "intervention_budget": 3
+   },
+   "expected_rule": "no-ready-work",
+   "expected_verdict": "HOLD"
+  },
+  {
+   "id": "human-exception.false.01",
+   "note": "Triggerless escalation: HOLD the producer on course.",
+   "proposal": {
+    "task": "slice-1",
+    "ready_work": true,
+    "owner_ambiguous": false,
+    "escalation_trigger": true,
+    "council_proposed": false,
+    "hypothesis": "",
+    "budget": 0,
+    "expected_gain": "",
+    "eval_planned": false,
+    "conflicting_advice": false,
+    "shared_mold": false,
+    "competitive": false,
+    "owner_requested_team": false,
+    "interventions": 0,
+    "intervention_budget": 3
+   },
+   "expected_rule": "false-escalation",
+   "expected_verdict": "HOLD"
+  },
+  {
+   "id": "human-exception.approved.01",
+   "note": "Council with hypothesis, budget, gain, eval: COUNCIL approved.",
+   "proposal": {
+    "task": "slice-1",
+    "ready_work": true,
+    "owner_ambiguous": false,
+    "escalation_trigger": false,
+    "council_proposed": true,
+    "hypothesis": "two designs differ",
+    "budget": 5000,
+    "expected_gain": "pick better API",
+    "eval_planned": true,
+    "conflicting_advice": false,
+    "shared_mold": false,
+    "competitive": false,
+    "owner_requested_team": false,
+    "interventions": 0,
+    "intervention_budget": 3
+   },
+   "expected_rule": "approved-council",
+   "expected_verdict": "COUNCIL"
+  },
+  {
+   "id": "human-exception.intervention.01",
+   "note": "Intervention budget breached: ESCALATE with a human-intervention metric.",
+   "proposal": {
+    "task": "slice-1",
+    "ready_work": true,
+    "owner_ambiguous": false,
+    "escalation_trigger": false,
+    "council_proposed": false,
+    "hypothesis": "",
+    "budget": 0,
+    "expected_gain": "",
+    "eval_planned": false,
+    "conflicting_advice": false,
+    "shared_mold": false,
+    "competitive": false,
+    "owner_requested_team": false,
+    "interventions": 5,
+    "intervention_budget": 3
+   },
+   "expected_rule": "intervention-due",
+   "expected_verdict": "ESCALATE"
+  }
+ ]
+}
