@@ -6,6 +6,11 @@
 .kilo/agent/
 .kilo/plans/
 
+# Capability layer (agent-extensions) — machine-global, never committed
+.agent-extensions/
+.bootstrap-out/
+.agent-state/
+
 # Python bytecode caches
 __pycache__/
 

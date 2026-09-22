@@ -77,6 +77,9 @@ mappings:
   - source: AGENTS/boundaries.md
     dest: AGENTS/boundaries.md
     mode: adapt
+  - source: AGENTS/BOOTSTRAP.md
+    dest: AGENTS/BOOTSTRAP.md
+    mode: copy
   - source: Canonical/capabilities.json
     dest: Canonical/capabilities.json
     mode: copy
