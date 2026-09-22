@@ -1,0 +1,296 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 41 #132 Implementation-quality evaluation frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "quality-eval.duplicates.01",
+   "note": "Duplicate-path task: the reusing solution beats the duplicating one, so reuse wins.",
+   "expected_winner": "reuse",
+   "solutions": [
+    {
+     "id": "reuse",
+     "correct": true,
+     "charter_clean": true,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 100,
+     "reviewers_agree": true
+    },
+    {
+     "id": "dup",
+     "correct": true,
+     "charter_clean": false,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 100,
+     "reviewers_agree": true
+    }
+   ]
+  },
+  {
+   "id": "quality-eval.wrapper.01",
+   "note": "Wrapper-only abstraction task: the direct solution beats the wrapper, so directness wins.",
+   "expected_winner": "direct",
+   "solutions": [
+    {
+     "id": "direct",
+     "correct": true,
+     "charter_clean": true,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 80,
+     "reviewers_agree": true
+    },
+    {
+     "id": "wrap",
+     "correct": true,
+     "charter_clean": false,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 80,
+     "reviewers_agree": true
+    }
+   ]
+  },
+  {
+   "id": "quality-eval.dependency.01",
+   "note": "Excessive-dependency task: the stdlib solution beats the heavy import, so parsimony wins.",
+   "expected_winner": "stdlib",
+   "solutions": [
+    {
+     "id": "stdlib",
+     "correct": true,
+     "charter_clean": true,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 60,
+     "reviewers_agree": true
+    },
+    {
+     "id": "heavy",
+     "correct": true,
+     "charter_clean": true,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": false,
+     "simplifier_touched": false,
+     "owned_loc": 60,
+     "reviewers_agree": true
+    }
+   ]
+  },
+  {
+   "id": "quality-eval.plane.01",
+   "note": "Wrong-plane task: the regenerated solution beats the hand edit, so planes hold.",
+   "expected_winner": "regen",
+   "solutions": [
+    {
+     "id": "regen",
+     "correct": true,
+     "charter_clean": true,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 100,
+     "reviewers_agree": true
+    },
+    {
+     "id": "handedit",
+     "correct": true,
+     "charter_clean": true,
+     "quality_ok": true,
+     "plane_clean": false,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 100,
+     "reviewers_agree": true
+    }
+   ]
+  },
+  {
+   "id": "quality-eval.cleanup.01",
+   "note": "Missing-cleanup task: the tidy solution beats the dead-code one, so cleanup counts.",
+   "expected_winner": "tidy",
+   "solutions": [
+    {
+     "id": "tidy",
+     "correct": true,
+     "charter_clean": true,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 100,
+     "reviewers_agree": true
+    },
+    {
+     "id": "dead",
+     "correct": true,
+     "charter_clean": false,
+     "quality_ok": false,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 100,
+     "reviewers_agree": true
+    }
+   ]
+  },
+  {
+   "id": "quality-eval.safety.01",
+   "note": "Large necessary safety code: the 400-LOC correct guard beats the tiny incorrect shortcut, so correctness gates size.",
+   "expected_winner": "guard",
+   "solutions": [
+    {
+     "id": "guard",
+     "correct": true,
+     "charter_clean": true,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 400,
+     "reviewers_agree": true
+    },
+    {
+     "id": "shortcut",
+     "correct": false,
+     "charter_clean": true,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 20,
+     "reviewers_agree": true
+    }
+   ]
+  },
+  {
+   "id": "quality-eval.shortness.01",
+   "note": "Smallest-LOC incorrect solution loses to the larger correct one, so shortness is never rewarded.",
+   "expected_winner": "correct",
+   "solutions": [
+    {
+     "id": "correct",
+     "correct": true,
+     "charter_clean": true,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 200,
+     "reviewers_agree": true
+    },
+    {
+     "id": "tiny-wrong",
+     "correct": false,
+     "charter_clean": true,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 10,
+     "reviewers_agree": true
+    }
+   ]
+  },
+  {
+   "id": "quality-eval.valid-designs.01",
+   "note": "Several valid designs: the least-owned-complexity correct design wins, so valid variety converges.",
+   "expected_winner": "lean",
+   "solutions": [
+    {
+     "id": "lean",
+     "correct": true,
+     "charter_clean": true,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 80,
+     "reviewers_agree": true
+    },
+    {
+     "id": "roomy",
+     "correct": true,
+     "charter_clean": true,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 160,
+     "reviewers_agree": true
+    }
+   ]
+  },
+  {
+   "id": "quality-eval.simplifier.01",
+   "note": "Simplifier touched but non-conforming: the untouched conforming solution wins, so the scorer never favors the simplifier.",
+   "expected_winner": "plain",
+   "solutions": [
+    {
+     "id": "plain",
+     "correct": true,
+     "charter_clean": true,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 100,
+     "reviewers_agree": true
+    },
+    {
+     "id": "simp",
+     "correct": true,
+     "charter_clean": false,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": true,
+     "owned_loc": 60,
+     "reviewers_agree": true
+    }
+   ]
+  },
+  {
+   "id": "quality-eval.agreement.01",
+   "note": "Independent reviewers agree on rule-grounded results: agreement recorded, so adjudication is trusted.",
+   "expected_winner": "agreed",
+   "solutions": [
+    {
+     "id": "agreed",
+     "correct": true,
+     "charter_clean": true,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 100,
+     "reviewers_agree": true
+    },
+    {
+     "id": "other",
+     "correct": true,
+     "charter_clean": true,
+     "quality_ok": true,
+     "plane_clean": true,
+     "dependency_ok": true,
+     "simplifier_touched": false,
+     "owned_loc": 140,
+     "reviewers_agree": true
+    }
+   ]
+  }
+ ]
+}
