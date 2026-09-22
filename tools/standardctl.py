@@ -4871,6 +4871,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_builder.add_argument("--json", action="store_true")
     p_builder.set_defaults(func=cmd_builder_auth)
 
+    p_quality = sub.add_parser(
+        "quality-gates",
+        help="Stack-native quality gates readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_quality.add_argument(
+        "--fixture", default="",
+        help="path to a JSON fixture-outcome file; without "
+             "it, validates the frozen quality fixture set")
+    p_quality.add_argument(
+        "--declare", default="",
+        help="path to a JSON verification-profile file to validate")
+    p_quality.add_argument(
+        "--corpus", default="Canonical/corpus/quality-gates",
+        help="frozen corpus dir holding gates.json for "
+             "validation mode")
+    p_quality.add_argument("--json", action="store_true")
+    p_quality.set_defaults(func=cmd_quality_gates)
+
     p_clean = sub.add_parser(
         "clean-charter",
         help="Clean Implementation Charter readout and "
@@ -6203,6 +6222,118 @@ def cmd_clean_charter(args: argparse.Namespace) -> int:
             print("  - %s" % line)
         print("  corpus: %d entries, rules %s"
               % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_quality_gates(args: argparse.Namespace) -> int:
+    """Advisory quality-gates readout. With --fixture, classifies
+    that fixture file; with --declare, validates that profile
+    file; without either, validates the frozen quality oracle
+    (every entry classifies to its expected class and ok flag,
+    IDs unique, all 6 quality classes covered) and prints
+    findings. Always exits 0 on findings: advisory never gates;
+    only an unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import quality_gates
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.fixture:
+        try:
+            fixture = json.loads(
+                _Path(args.fixture).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("quality-gates: cannot load fixture: %s" % exc)
+            return 2
+        if not isinstance(fixture, dict):
+            print("quality-gates: fixture must be a JSON object")
+            return 2
+        result = quality_gates.classify(fixture)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "classify",
+                "fixture": args.fixture,
+                "ok": result.ok,
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("quality-gates: %s -- %s" % (
+                args.fixture,
+                "PASS" if result.ok else "FLAGGED"))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    if args.declare:
+        try:
+            profile = json.loads(
+                _Path(args.declare).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("quality-gates: cannot load profile: %s" % exc)
+            return 2
+        if not isinstance(profile, dict):
+            print("quality-gates: profile must be a JSON object")
+            return 2
+        result = quality_gates.declare(profile)
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "declare",
+                "profile": args.declare,
+                "ok": result.ok,
+                "findings": [
+                    {"id": f["id"], "rule": f["rule"],
+                     "finding": f["finding"],
+                     "severity": f["severity"],
+                     "excerpt": f["excerpt"]}
+                    for f in result.findings],
+            }, indent=2))
+        else:
+            print("quality-gates: %s -- %s" % (
+                args.declare,
+                "ACCEPTED" if result.ok else "REFUSED"))
+            for item in result.findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "gates.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("quality-gates: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = quality_gates.validate_quality_corpus(corpus)
+    ok = not findings
+    classes = sorted({str(e.get("expected_class", ""))
+                      for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "classes": classes,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("quality-gates: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, classes %s"
+              % (len(entries), ", ".join(classes)))
     return 0
 
 

@@ -1,0 +1,171 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 37 #128 Quality and architecture gates frozen oracle \u2014 hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "quality-gates.lint.01",
+   "note": "Biome alone on TS: mutual exclusion holds, gate runs a real command \u2014 OK, so one-tool selection actually passes.",
+   "fixture": {
+    "kind": "mutual-exclusion",
+    "stack": "ts",
+    "command": "biome"
+   },
+   "expected_class": "lint",
+   "expected_ok": true
+  },
+  {
+   "id": "quality-gates.lint.02",
+   "note": "Biome plus ESLint both selected: mutual exclusion refuses, so stacks pick exactly one linter.",
+   "fixture": {
+    "kind": "mutual-exclusion",
+    "stack": "ts",
+    "command": "biome,eslint"
+   },
+   "expected_class": "lint",
+   "expected_ok": false
+  },
+  {
+   "id": "quality-gates.lint.03",
+   "note": "No-op command refused: a true gate never counts as verification, so real tooling is required.",
+   "fixture": {
+    "kind": "no-op",
+    "stack": "python",
+    "command": "true"
+   },
+   "expected_class": "lint",
+   "expected_ok": false
+  },
+  {
+   "id": "quality-gates.lint.04",
+   "note": "Seeded bad import detected by Ruff: the gate catches what it claims, so lint selection is real.",
+   "fixture": {
+    "kind": "bad-import",
+    "stack": "python",
+    "command": "ruff check",
+    "detected": true
+   },
+   "expected_class": "lint",
+   "expected_ok": true
+  },
+  {
+   "id": "quality-gates.lint.05",
+   "note": "Ruff runs clean on the fixture: correctness proven both directions, so the gate is not always-red.",
+   "fixture": {
+    "kind": "ruff",
+    "stack": "python",
+    "command": "ruff check",
+    "detected": true
+   },
+   "expected_class": "lint",
+   "expected_ok": true
+  },
+  {
+   "id": "quality-gates.lint.06",
+   "note": "Scanner-synthetic issue recorded: synthetic findings flow through, so scanners are honest participants.",
+   "fixture": {
+    "kind": "synthetic",
+    "stack": "ts",
+    "command": "biome check",
+    "detected": true
+   },
+   "expected_class": "lint",
+   "expected_ok": true
+  },
+  {
+   "id": "quality-gates.lint.07",
+   "note": "Generated output excluded from scans: regeneration never fails the gate, so exclusion is real.",
+   "fixture": {
+    "kind": "generated-excluded",
+    "stack": "ts",
+    "command": "biome check",
+    "excluded": true
+   },
+   "expected_class": "lint",
+   "expected_ok": true
+  },
+  {
+   "id": "quality-gates.lint.08",
+   "note": "Roslyn builds the dotnet fixture: correctness proven on the third stack, so selection is portable.",
+   "fixture": {
+    "kind": "roslyn",
+    "stack": "dotnet",
+    "command": "dotnet build",
+    "detected": true
+   },
+   "expected_class": "lint",
+   "expected_ok": true
+  },
+  {
+   "id": "quality-gates.types.01",
+   "note": "Pyright types the Python fixture: type correctness proven, so the types class is real.",
+   "fixture": {
+    "kind": "pyright",
+    "stack": "python",
+    "command": "pyright",
+    "detected": true
+   },
+   "expected_class": "types",
+   "expected_ok": true
+  },
+  {
+   "id": "quality-gates.dead-code.01",
+   "note": "Dead export detected: dead code trips the gate, so removal is enforced.",
+   "fixture": {
+    "kind": "dead-export",
+    "stack": "ts",
+    "command": "biome check",
+    "detected": true
+   },
+   "expected_class": "dead-code",
+   "expected_ok": true
+  },
+  {
+   "id": "quality-gates.duplication.01",
+   "note": "Duplicated block detected: copy-paste trips the gate, so reuse is enforced.",
+   "fixture": {
+    "kind": "duplication",
+    "stack": "python",
+    "command": "ruff check",
+    "detected": true
+   },
+   "expected_class": "duplication",
+   "expected_ok": true
+  },
+  {
+   "id": "quality-gates.duplication.02",
+   "note": "Duplication missed by a weak scanner: the fixture refuses, so the corpus can actually fail.",
+   "fixture": {
+    "kind": "duplication",
+    "stack": "python",
+    "command": "echo ok",
+    "detected": false
+   },
+   "expected_class": "duplication",
+   "expected_ok": false
+  },
+  {
+   "id": "quality-gates.dependency.01",
+   "note": "Invalid dependency direction rejected: layering holds, so architecture direction is enforced.",
+   "fixture": {
+    "kind": "dependency-direction",
+    "stack": "dotnet",
+    "command": "dotnet test",
+    "detected": true
+   },
+   "expected_class": "dependency",
+   "expected_ok": true
+  },
+  {
+   "id": "quality-gates.architecture.01",
+   "note": "NetArchTest guards the dotnet boundary: architecture tests proven, so the class is real.",
+   "fixture": {
+    "kind": "netarchtest",
+    "stack": "dotnet",
+    "command": "dotnet test",
+    "detected": true
+   },
+   "expected_class": "architecture",
+   "expected_ok": true
+  }
+ ]
+}
