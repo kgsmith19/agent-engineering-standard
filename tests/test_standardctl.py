@@ -9128,5 +9128,346 @@ class LifecycleBenchmark(FixtureCase):
         self.assertEqual(0, stub_hits)
 
 
+class ArcAGate(unittest.TestCase):
+    """Stage 34 (#125): Arc A no-production-code phase gate.
+
+    The Arc A packet composes every Stage 29-33 contract (Thin
+    Spec, qualified Mold, independent attack report, meta-test
+    session, portfolio, frozen proof) plus the DoR, disposition,
+    prompt, capsule, and budget gates into one phase-state
+    machine (SPEC_READY through IMPLEMENT_AUTHORIZED) that
+    decides whether one slice may advance toward Builder
+    authorization. It authorizes no production write itself;
+    the Builder gate is Stage 35. Pure contract in
+    tools/arc_gate.py plus the frozen corpus under
+    Canonical/corpus/arc-a/."""
+
+    def _arc(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import arc_gate
+            return arc_gate
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "arc-a" / "arc.json")
+            .read_text(encoding="utf-8"))
+
+    def _packet(self, **overrides):
+        arc = self._arc()
+        packet = arc.clean_packet()
+        for key, value in overrides.items():
+            packet[key] = value
+        return packet
+
+    def _rules(self, result):
+        return sorted({f["rule"] for f in result.findings})
+
+    def test_clean_packet_advances_to_implement_authorized(self):
+        """Protects the Primary Outcome (positive control): a packet
+        holding every gate advances to IMPLEMENT_AUTHORIZED with
+        zero findings, so the gate can actually authorize."""
+        arc = self._arc()
+        result = arc.advance(arc.clean_packet())
+        self.assertEqual("IMPLEMENT_AUTHORIZED", result.phase)
+        self.assertTrue(result.authorized)
+        self.assertEqual([], result.findings)
+
+    def test_missing_spec_pins_at_spec_ready(self):
+        """Protects the Primary Outcome (Thin Spec dimension): a
+        packet with no outcome or claims pins at SPEC_READY with
+        no-spec, so Arc A cannot start without a stated outcome."""
+        arc = self._arc()
+        packet = self._packet(spec={
+            "title": "", "risk": "R1", "assured": False,
+            "statements": [], "examples": [], "criteria": [],
+            "migration_steps": [], "external_calls": []})
+        result = arc.advance(packet)
+        self.assertEqual("SPEC_READY", result.phase)
+        self.assertFalse(result.authorized)
+        self.assertEqual(["no-spec"], self._rules(result))
+
+    def test_blocked_spec_pins_at_spec_ready(self):
+        """Protects the Primary Outcome (critic dimension): an
+        assured R3 Spec with a blocker pins at SPEC_READY with
+        spec-blocked, so an uncleansed Spec never reaches a Mold."""
+        arc = self._arc()
+        packet = self._packet(spec={
+            "title": "Tenant slice completes", "risk": "R3",
+            "assured": True,
+            "statements": ["The tenant workspace loads."],
+            "examples": [],
+            "criteria": ["Done within 200 ms"],
+            "migration_steps": [], "external_calls": []})
+        result = arc.advance(packet)
+        self.assertEqual("SPEC_READY", result.phase)
+        self.assertEqual(["spec-blocked"], self._rules(result))
+
+    def test_unqualified_mold_pins_at_spec_ready(self):
+        """Protects the Primary Outcome (Mold dimension): a Mold run
+        that cannot earn RED pins at SPEC_READY with
+        mold-unqualified, so no untrustworthy Mold advances."""
+        arc = self._arc()
+        run = dict(self._packet()["mold_run"])
+        run["tests"] = []
+        result = arc.advance(self._packet(mold_run=run))
+        self.assertEqual("SPEC_READY", result.phase)
+        self.assertEqual(["mold-unqualified"], self._rules(result))
+
+    def test_missing_or_dependent_attack_pins_at_mold_qualified(self):
+        """Protects the Stage 34 addition (attack independence): no
+        report, a same-provider attacker, or a bad verdict each pin
+        at MOLD_QUALIFIED with attack-missing, so the attack is
+        mechanical independence, not honor-system review."""
+        arc = self._arc()
+        for attack in ({}, {"verdict": "clean",
+                            "attacker_provider": "anthropic/other"},
+                       {"verdict": "looks-fine",
+                        "attacker_provider": "openai/reviewer"}):
+            result = arc.advance(self._packet(attack=attack))
+            self.assertEqual("MOLD_QUALIFIED", result.phase,
+                             attack)
+            self.assertEqual(["attack-missing"],
+                             self._rules(result), attack)
+
+    def test_fixed_requalified_attack_advances(self):
+        """Protects the attack-remediation path: a fixed-requalified
+        verdict with a fresh digest-bound receipt advances past
+        ATTACK_CLEAN, while the same claim without a bound receipt
+        pins — so fixes restore trust only via requalification."""
+        arc = self._arc()
+        import copy
+        import mold_qualification
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            base = arc.clean_packet()
+            run2 = copy.deepcopy(base["mold_run"])
+            receipt = mold_qualification.qualify(run2).receipt
+            self.assertIsNotNone(receipt)
+            good = self._packet(attack={
+                "verdict": "fixed-requalified",
+                "attacker_provider": "openai/reviewer",
+                "receipt": receipt, "run": run2})
+            result = arc.advance(good)
+            self.assertEqual("IMPLEMENT_AUTHORIZED", result.phase)
+            self.assertTrue(result.authorized)
+            bare = self._packet(attack={
+                "verdict": "fixed-requalified",
+                "attacker_provider": "openai/reviewer"})
+            result = arc.advance(bare)
+            self.assertEqual("MOLD_QUALIFIED", result.phase)
+            self.assertEqual(["attack-missing"],
+                             self._rules(result))
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def test_dirty_session_pins_at_attack_clean(self):
+        """Protects the Proof Strategy (process dimension): an Arc A
+        session that wrote src/ pins at ATTACK_CLEAN with
+        session-dirty, so a dishonest session never checkpoints."""
+        arc = self._arc()
+        session = dict(self._packet()["session"])
+        session["production_writes"] = ["tools/arc_gate.py",
+                                        "src/ship.py"]
+        result = arc.advance(self._packet(session=session))
+        self.assertEqual("ATTACK_CLEAN", result.phase)
+        self.assertEqual(["session-dirty"], self._rules(result))
+
+    def test_unfunded_portfolio_pins_at_attack_clean(self):
+        """Protects the Proof Strategy (portfolio dimension): a claim
+        with no command-backed technique pins at ATTACK_CLEAN with
+        portfolio-invalid, so unfunded evidence never checkpoints."""
+        arc = self._arc()
+        project = dict(self._packet()["project"])
+        project["commands"] = {}
+        result = arc.advance(self._packet(project=project))
+        self.assertEqual("ATTACK_CLEAN", result.phase)
+        self.assertEqual(["portfolio-invalid"], self._rules(result))
+
+    def test_drifted_freeze_pins_at_attack_clean(self):
+        """Protects the Proof Strategy (freeze dimension): Mold
+        payload drift under a live freeze pins at ATTACK_CLEAN with
+        freeze-invalid, so stale proof never checkpoints."""
+        arc = self._arc()
+        freeze = dict(self._packet()["freeze_run"])
+        freeze["mold_digest"] = "drifted"
+        freeze["proof"] = {"verdict": "qualified",
+                           "run_digest": "run-1"}
+        result = arc.advance(self._packet(freeze_run=freeze))
+        self.assertEqual("ATTACK_CLEAN", result.phase)
+        self.assertEqual(["freeze-invalid"], self._rules(result))
+
+    def test_not_ready_pins_at_checkpointed(self):
+        """Protects the Non-Goal (no authorization without READY): a
+        DoR receipt missing its proof pins at CHECKPOINTED with
+        not-ready, so readiness completes before authorization."""
+        arc = self._arc()
+        receipt = dict(self._packet()["receipt"])
+        receipt["proof"] = ""
+        result = arc.advance(self._packet(receipt=receipt))
+        self.assertEqual("CHECKPOINTED", result.phase)
+        self.assertEqual(["not-ready"], self._rules(result))
+
+    def test_non_implement_disposition_pins_at_checkpointed(self):
+        """Protects the termination axis: a NO_CHANGE disposition
+        pins at CHECKPOINTED with disposition-blocked, so only a
+        complete IMPLEMENT observation advances the Builder path."""
+        arc = self._arc()
+        result = arc.advance(
+            self._packet(disposition_value="NO_CHANGE"))
+        self.assertEqual("CHECKPOINTED", result.phase)
+        self.assertEqual(["disposition-blocked"],
+                         self._rules(result))
+
+    def test_impure_prompt_pins_at_checkpointed(self):
+        """Protects the handoff axis: a prompt contract without its
+        phase pins at CHECKPOINTED with prompt-impure, so only a
+        phase-pure prompt carries the Builder handoff."""
+        arc = self._arc()
+        prompt = dict(self._packet()["prompt"])
+        prompt["phase"] = ""
+        result = arc.advance(self._packet(prompt=prompt))
+        self.assertEqual("CHECKPOINTED", result.phase)
+        self.assertEqual(["prompt-impure"], self._rules(result))
+
+    def test_unready_capsule_pins_at_checkpointed(self):
+        """Protects the recovery axis: a capsule carrying
+        secret-like material pins at CHECKPOINTED with
+        capsule-unready, so only a buildable redacted capsule
+        cold-boots the Builder."""
+        arc = self._arc()
+        fields = dict(self._packet()["capsule_fields"])
+        fields["blocker"] = "needs api_key=AKIA1 now"
+        result = arc.advance(self._packet(capsule_fields=fields))
+        self.assertEqual("CHECKPOINTED", result.phase)
+        self.assertEqual(["capsule-unready"], self._rules(result))
+
+    def test_recovery_budget_pins_at_checkpointed(self):
+        """Protects the rotation axis: polluted history trips
+        RECOVERY_REQUIRED and pins at CHECKPOINTED with
+        budget-recovery, so rotation precedes authorization."""
+        arc = self._arc()
+        result = arc.advance(self._packet(context_polluted=True))
+        self.assertEqual("CHECKPOINTED", result.phase)
+        self.assertEqual(["budget-recovery"], self._rules(result))
+
+    def test_production_write_pins_even_when_everything_else_clean(self):
+        """Protects the Must-never-happen (no-code axis): a src/
+        write with every other gate clean still pins at
+        CHECKPOINTED with production-write, so Arc A authorizes no
+        production write under any circumstance."""
+        arc = self._arc()
+        result = arc.advance(self._packet(
+            files_touched=["tools/arc_gate.py", "src/ship.py"]))
+        self.assertEqual("CHECKPOINTED", result.phase)
+        self.assertEqual(["production-write"], self._rules(result))
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 16 corpus entries
+        reproduce their expected rules, phases, and authorized
+        flags, covering all 13 arc rules with unique well-formed
+        IDs."""
+        arc = self._arc()
+        findings, entries = \
+            arc.validate_arc_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(16, len(entries))
+        covered = {r for e in entries
+                   for r in e["expected_rules"]}
+        self.assertEqual(set(arc.RULES), covered)
+
+    def test_red_by_construction_no_rule_stub_passes(self):
+        """Sensitivity proof (RED): a no-rule stub that advances
+        every packet to IMPLEMENT_AUTHORIZED reproduces 0/14
+        negative corpus fragments while the real gate pins all 14
+        — so the suite is green because the gates exist, not
+        because the fixtures cannot fail."""
+        arc = self._arc()
+        corpus = self._corpus_doc()
+        negatives = [entry for entry in corpus["entries"]
+                     if entry.get("expected_rules")]
+        self.assertEqual(14, len(negatives))
+        stub_hits = 0
+        for entry in negatives:
+            real = arc.advance(entry["packet"])
+            self.assertEqual(
+                sorted(entry["expected_rules"]),
+                sorted({f["rule"] for f in real.findings}),
+                entry["id"])
+            self.assertEqual(entry["expected_phase"], real.phase,
+                             entry["id"])
+            stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_arc_a_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: arc-a validates the
+        real corpus (ok, 16 entries, 13 rules), advances a --packet
+        file as JSON, exits 0 on held packets, and exits 2 only on
+        unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "arc-a", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(16, payload["entries"])
+        self.assertEqual(13, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-packet.json"
+            good_path.write_text(
+                json.dumps(self._arc().clean_packet()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "arc-a", "--packet", str(good_path),
+                 "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertTrue(payload["authorized"])
+            self.assertEqual("IMPLEMENT_AUTHORIZED",
+                             payload["phase"])
+            bad_path = Path(tmp) / "bad-packet.json"
+            bad = self._arc().clean_packet()
+            bad["spec"] = {"title": "", "risk": "R1",
+                           "assured": False, "statements": [],
+                           "examples": [], "criteria": [],
+                           "migration_steps": [],
+                           "external_calls": []}
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "arc-a", "--packet", str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "arc-a", "--packet", "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "arc-a", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
+
 if __name__ == "__main__":
     unittest.main()

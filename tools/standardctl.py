@@ -4839,6 +4839,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_port.add_argument("--json", action="store_true")
     p_port.set_defaults(func=cmd_verify_portfolio)
 
+    p_arc = sub.add_parser(
+        "arc-a",
+        help="Arc A no-production-code phase-gate readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_arc.add_argument(
+        "--packet", default="",
+        help="path to a JSON Arc A packet file; without it, "
+             "validates the frozen arc fixture set")
+    p_arc.add_argument(
+        "--corpus", default="Canonical/corpus/arc-a",
+        help="frozen corpus dir holding arc.json for "
+             "validation mode")
+    p_arc.add_argument("--json", action="store_true")
+    p_arc.set_defaults(func=cmd_arc_a)
+
     return parser
 
 
@@ -5906,6 +5922,90 @@ def cmd_verify_portfolio(args: argparse.Namespace) -> int:
             print("  - %s" % line)
         print("  corpus: %d entries, classes %s"
               % (len(entries), ", ".join(classes)))
+    return 0
+
+
+def cmd_arc_a(args: argparse.Namespace) -> int:
+    """Advisory Arc A phase-gate readout. With --packet, advances
+    that packet file; without it, validates the frozen arc oracle
+    (every entry's computed rules == expected_rules, phase ==
+    expected_phase, authorized == expected_authorized, IDs unique,
+    all 13 arc rules covered) and prints findings. Always exits 0
+    on findings — advisory never gates; only an unreadable file
+    exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import arc_gate
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.packet:
+        try:
+            packet = json.loads(
+                _Path(args.packet).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("arc-a: cannot load packet: %s" % exc)
+            return 2
+        if not isinstance(packet, dict):
+            print("arc-a: packet must be a JSON object")
+            return 2
+        result = arc_gate.advance(packet)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "advance",
+                "packet": args.packet,
+                "phase": result.phase,
+                "authorized": result.authorized,
+                "ok": result.authorized,
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("arc-a: %s — %s%s" % (
+                args.packet, result.phase,
+                " (AUTHORIZED)" if result.authorized
+                else " (HELD)"))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "arc.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("arc-a: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        arc_gate.validate_arc_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(r)
+                    for e in entries if isinstance(e, dict)
+                    for r in (e.get("expected_rules") or [])})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("arc-a: %s%s" % (
+            args.corpus, " — OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
     return 0
 
 

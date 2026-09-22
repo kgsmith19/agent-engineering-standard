@@ -1,0 +1,3199 @@
+{
+  "_frozen": true,
+  "_provenance": "Stage 34 #125 (arc-gate). Hand-authored, adjudicated oracle: every entry's expected rules, phase, and authorized flag reproduce tools/arc_gate.advance exactly. IDs (arc-a.<class>.<nn>) are stable; never renumber, never repurpose.",
+  "entries": [
+    {
+      "expected_authorized": true,
+      "expected_phase": "IMPLEMENT_AUTHORIZED",
+      "expected_rules": [],
+      "id": "arc-a.clean.01",
+      "note": "Clean packet holds every gate: SPEC_READY, MOLD_QUALIFIED, ATTACK_CLEAN, CHECKPOINTED all hold, so it advances to IMPLEMENT_AUTHORIZED.",
+      "packet": {
+        "ambiguity": "",
+        "attack": {
+          "attacker_provider": "openai/reviewer",
+          "note": "independent review found nothing material",
+          "verdict": "clean"
+        },
+        "capsule_fields": {
+          "allowed_paths": "tools/",
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "blocker": "none",
+          "branch": "issue/125-arc-a-complete",
+          "expires": "2026-10-01",
+          "extensions": "none",
+          "focus_envelope": "one slice",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issue": "125",
+          "last_verification": "verify OK",
+          "lease": "lease-1",
+          "next_action": "advance toward Builder authorization",
+          "outcome": "Demo slice",
+          "phase": "spec",
+          "pr": "0",
+          "producer": "arc-a tests",
+          "protected_paths": "src/protected-impl.py",
+          "redacted": "no secrets",
+          "remaining_claims": "none",
+          "risk": "R2",
+          "role": "builder",
+          "rule_ids": "arc-a",
+          "schema": "task-capsule",
+          "source_hashes": "mold aebc4e7beeca",
+          "stop_conditions": "stop on drift",
+          "version": "5.0.0"
+        },
+        "code_is_remedy": true,
+        "disposition_value": "IMPLEMENT",
+        "files_touched": [
+          "tools/arc_gate.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "freeze_run": {
+          "commands": [],
+          "frozen_commands": [],
+          "frozen_digest": "aaaa",
+          "frozen_head": "head-freeze",
+          "frozen_intent_digest": "intent-1",
+          "head": "head-now",
+          "intent_digest": "intent-1",
+          "mold": "demo-mold",
+          "mold_digest": "aaaa",
+          "protected_paths": [],
+          "provider": "anthropic/claude",
+          "touched_paths": []
+        },
+        "missing": "",
+        "mold_run": {
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mold": "demo-mold",
+          "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+          "provider": "anthropic/claude",
+          "risk": "R2",
+          "tests": [
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-red",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "expected total 42, observed 41 on the externally visible summary",
+              "status": "failed",
+              "swallows_errors": false
+            },
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-green",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "",
+              "status": "passed",
+              "swallows_errors": false
+            }
+          ]
+        },
+        "observation": {
+          "command": "standardctl arc-a check",
+          "environment": "test/1.0",
+          "evidence": "corpus entry arc-a.clean.01",
+          "expected": "advance to IMPLEMENT_AUTHORIZED",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed": "all Arc A gates hold"
+        },
+        "project": {
+          "claims": [
+            {
+              "failure_shape": "crud",
+              "id": "c-py-1",
+              "kind": "generic",
+              "risk": "R2"
+            }
+          ],
+          "commands": {
+            "example_based": "pytest -m example_based"
+          },
+          "runtime_budget_s": 60,
+          "stack": "python"
+        },
+        "prompt": {
+          "allowed_mutations": "tools-only writes",
+          "disposition": "IMPLEMENT",
+          "evidence": "RED log",
+          "first_action": "run the qualification gate",
+          "forbidden_mutations": "no production writes",
+          "issue": "125",
+          "phase": "spec",
+          "primary_outcome": "Demo Arc A slice completes",
+          "protected_paths": "src/protected-impl.py",
+          "repository": "fixture-owner/fixture-app",
+          "risk": "R2",
+          "role": "builder",
+          "stop_conditions": "stop on drift",
+          "write_paths": "tools/"
+        },
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "receipt": {
+          "outcome": "Demo Arc A slice completes one outcome",
+          "proof": "RED log plus qualification receipt",
+          "scope": "one slice, tools-only writes"
+        },
+        "receipt_compact": true,
+        "satisfied": false,
+        "session": {
+          "controls_expected": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "controls_run": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "hash_pairs": [],
+          "production_writes": [
+            "tools/arc_gate.py"
+          ],
+          "protected_paths": [
+            "src/protected-impl.py"
+          ]
+        },
+        "spec": {
+          "assured": false,
+          "criteria": [
+            "Done within 200 ms"
+          ],
+          "examples": [],
+          "external_calls": [],
+          "migration_steps": [],
+          "risk": "R1",
+          "statements": [
+            "The slice completes one outcome"
+          ],
+          "title": "Demo Arc A slice completes one outcome"
+        }
+      }
+    },
+    {
+      "expected_authorized": false,
+      "expected_phase": "SPEC_READY",
+      "expected_rules": [
+        "no-spec"
+      ],
+      "id": "arc-a.no-spec.01",
+      "note": "No Thin Spec outcome or claims: SPEC_READY cannot hold, so the packet pins at SPEC_READY with no-spec.",
+      "packet": {
+        "ambiguity": "",
+        "attack": {
+          "attacker_provider": "openai/reviewer",
+          "note": "independent review found nothing material",
+          "verdict": "clean"
+        },
+        "capsule_fields": {
+          "allowed_paths": "tools/",
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "blocker": "none",
+          "branch": "issue/125-arc-a-complete",
+          "expires": "2026-10-01",
+          "extensions": "none",
+          "focus_envelope": "one slice",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issue": "125",
+          "last_verification": "verify OK",
+          "lease": "lease-1",
+          "next_action": "advance toward Builder authorization",
+          "outcome": "Demo slice",
+          "phase": "spec",
+          "pr": "0",
+          "producer": "arc-a tests",
+          "protected_paths": "src/protected-impl.py",
+          "redacted": "no secrets",
+          "remaining_claims": "none",
+          "risk": "R2",
+          "role": "builder",
+          "rule_ids": "arc-a",
+          "schema": "task-capsule",
+          "source_hashes": "mold aebc4e7beeca",
+          "stop_conditions": "stop on drift",
+          "version": "5.0.0"
+        },
+        "code_is_remedy": true,
+        "disposition_value": "IMPLEMENT",
+        "files_touched": [
+          "tools/arc_gate.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "freeze_run": {
+          "commands": [],
+          "frozen_commands": [],
+          "frozen_digest": "aaaa",
+          "frozen_head": "head-freeze",
+          "frozen_intent_digest": "intent-1",
+          "head": "head-now",
+          "intent_digest": "intent-1",
+          "mold": "demo-mold",
+          "mold_digest": "aaaa",
+          "protected_paths": [],
+          "provider": "anthropic/claude",
+          "touched_paths": []
+        },
+        "missing": "",
+        "mold_run": {
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mold": "demo-mold",
+          "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+          "provider": "anthropic/claude",
+          "risk": "R2",
+          "tests": [
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-red",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "expected total 42, observed 41 on the externally visible summary",
+              "status": "failed",
+              "swallows_errors": false
+            },
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-green",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "",
+              "status": "passed",
+              "swallows_errors": false
+            }
+          ]
+        },
+        "observation": {
+          "command": "standardctl arc-a check",
+          "environment": "test/1.0",
+          "evidence": "corpus entry arc-a.clean.01",
+          "expected": "advance to IMPLEMENT_AUTHORIZED",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed": "all Arc A gates hold"
+        },
+        "project": {
+          "claims": [
+            {
+              "failure_shape": "crud",
+              "id": "c-py-1",
+              "kind": "generic",
+              "risk": "R2"
+            }
+          ],
+          "commands": {
+            "example_based": "pytest -m example_based"
+          },
+          "runtime_budget_s": 60,
+          "stack": "python"
+        },
+        "prompt": {
+          "allowed_mutations": "tools-only writes",
+          "disposition": "IMPLEMENT",
+          "evidence": "RED log",
+          "first_action": "run the qualification gate",
+          "forbidden_mutations": "no production writes",
+          "issue": "125",
+          "phase": "spec",
+          "primary_outcome": "Demo Arc A slice completes",
+          "protected_paths": "src/protected-impl.py",
+          "repository": "fixture-owner/fixture-app",
+          "risk": "R2",
+          "role": "builder",
+          "stop_conditions": "stop on drift",
+          "write_paths": "tools/"
+        },
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "receipt": {
+          "outcome": "Demo Arc A slice completes one outcome",
+          "proof": "RED log plus qualification receipt",
+          "scope": "one slice, tools-only writes"
+        },
+        "receipt_compact": true,
+        "satisfied": false,
+        "session": {
+          "controls_expected": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "controls_run": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "hash_pairs": [],
+          "production_writes": [
+            "tools/arc_gate.py"
+          ],
+          "protected_paths": [
+            "src/protected-impl.py"
+          ]
+        },
+        "spec": {
+          "assured": false,
+          "criteria": [],
+          "examples": [],
+          "external_calls": [],
+          "migration_steps": [],
+          "risk": "R1",
+          "statements": [],
+          "title": ""
+        }
+      }
+    },
+    {
+      "expected_authorized": false,
+      "expected_phase": "SPEC_READY",
+      "expected_rules": [
+        "spec-blocked"
+      ],
+      "id": "arc-a.spec-blocked.01",
+      "note": "Assured R3 Spec naming a tenant without an owner phrase trips ambiguous_owner: SPEC_READY pins with spec-blocked (compact scope would skip).",
+      "packet": {
+        "ambiguity": "",
+        "attack": {
+          "attacker_provider": "openai/reviewer",
+          "note": "independent review found nothing material",
+          "verdict": "clean"
+        },
+        "capsule_fields": {
+          "allowed_paths": "tools/",
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "blocker": "none",
+          "branch": "issue/125-arc-a-complete",
+          "expires": "2026-10-01",
+          "extensions": "none",
+          "focus_envelope": "one slice",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issue": "125",
+          "last_verification": "verify OK",
+          "lease": "lease-1",
+          "next_action": "advance toward Builder authorization",
+          "outcome": "Demo slice",
+          "phase": "spec",
+          "pr": "0",
+          "producer": "arc-a tests",
+          "protected_paths": "src/protected-impl.py",
+          "redacted": "no secrets",
+          "remaining_claims": "none",
+          "risk": "R2",
+          "role": "builder",
+          "rule_ids": "arc-a",
+          "schema": "task-capsule",
+          "source_hashes": "mold aebc4e7beeca",
+          "stop_conditions": "stop on drift",
+          "version": "5.0.0"
+        },
+        "code_is_remedy": true,
+        "disposition_value": "IMPLEMENT",
+        "files_touched": [
+          "tools/arc_gate.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "freeze_run": {
+          "commands": [],
+          "frozen_commands": [],
+          "frozen_digest": "aaaa",
+          "frozen_head": "head-freeze",
+          "frozen_intent_digest": "intent-1",
+          "head": "head-now",
+          "intent_digest": "intent-1",
+          "mold": "demo-mold",
+          "mold_digest": "aaaa",
+          "protected_paths": [],
+          "provider": "anthropic/claude",
+          "touched_paths": []
+        },
+        "missing": "",
+        "mold_run": {
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mold": "demo-mold",
+          "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+          "provider": "anthropic/claude",
+          "risk": "R2",
+          "tests": [
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-red",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "expected total 42, observed 41 on the externally visible summary",
+              "status": "failed",
+              "swallows_errors": false
+            },
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-green",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "",
+              "status": "passed",
+              "swallows_errors": false
+            }
+          ]
+        },
+        "observation": {
+          "command": "standardctl arc-a check",
+          "environment": "test/1.0",
+          "evidence": "corpus entry arc-a.clean.01",
+          "expected": "advance to IMPLEMENT_AUTHORIZED",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed": "all Arc A gates hold"
+        },
+        "project": {
+          "claims": [
+            {
+              "failure_shape": "crud",
+              "id": "c-py-1",
+              "kind": "generic",
+              "risk": "R2"
+            }
+          ],
+          "commands": {
+            "example_based": "pytest -m example_based"
+          },
+          "runtime_budget_s": 60,
+          "stack": "python"
+        },
+        "prompt": {
+          "allowed_mutations": "tools-only writes",
+          "disposition": "IMPLEMENT",
+          "evidence": "RED log",
+          "first_action": "run the qualification gate",
+          "forbidden_mutations": "no production writes",
+          "issue": "125",
+          "phase": "spec",
+          "primary_outcome": "Demo Arc A slice completes",
+          "protected_paths": "src/protected-impl.py",
+          "repository": "fixture-owner/fixture-app",
+          "risk": "R2",
+          "role": "builder",
+          "stop_conditions": "stop on drift",
+          "write_paths": "tools/"
+        },
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "receipt": {
+          "outcome": "Demo Arc A slice completes one outcome",
+          "proof": "RED log plus qualification receipt",
+          "scope": "one slice, tools-only writes"
+        },
+        "receipt_compact": true,
+        "satisfied": false,
+        "session": {
+          "controls_expected": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "controls_run": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "hash_pairs": [],
+          "production_writes": [
+            "tools/arc_gate.py"
+          ],
+          "protected_paths": [
+            "src/protected-impl.py"
+          ]
+        },
+        "spec": {
+          "assured": true,
+          "criteria": [
+            "Done within 200 ms"
+          ],
+          "examples": [],
+          "external_calls": [],
+          "migration_steps": [],
+          "risk": "R3",
+          "statements": [
+            "The tenant workspace loads."
+          ],
+          "title": "Tenant slice completes"
+        }
+      }
+    },
+    {
+      "expected_authorized": false,
+      "expected_phase": "SPEC_READY",
+      "expected_rules": [
+        "mold-unqualified"
+      ],
+      "id": "arc-a.mold-unqualified.01",
+      "note": "Mold run with no tests cannot earn RED: MOLD_QUALIFIED fails, so the packet pins at SPEC_READY with mold-unqualified.",
+      "packet": {
+        "ambiguity": "",
+        "attack": {
+          "attacker_provider": "openai/reviewer",
+          "note": "independent review found nothing material",
+          "verdict": "clean"
+        },
+        "capsule_fields": {
+          "allowed_paths": "tools/",
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "blocker": "none",
+          "branch": "issue/125-arc-a-complete",
+          "expires": "2026-10-01",
+          "extensions": "none",
+          "focus_envelope": "one slice",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issue": "125",
+          "last_verification": "verify OK",
+          "lease": "lease-1",
+          "next_action": "advance toward Builder authorization",
+          "outcome": "Demo slice",
+          "phase": "spec",
+          "pr": "0",
+          "producer": "arc-a tests",
+          "protected_paths": "src/protected-impl.py",
+          "redacted": "no secrets",
+          "remaining_claims": "none",
+          "risk": "R2",
+          "role": "builder",
+          "rule_ids": "arc-a",
+          "schema": "task-capsule",
+          "source_hashes": "mold aebc4e7beeca",
+          "stop_conditions": "stop on drift",
+          "version": "5.0.0"
+        },
+        "code_is_remedy": true,
+        "disposition_value": "IMPLEMENT",
+        "files_touched": [
+          "tools/arc_gate.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "freeze_run": {
+          "commands": [],
+          "frozen_commands": [],
+          "frozen_digest": "aaaa",
+          "frozen_head": "head-freeze",
+          "frozen_intent_digest": "intent-1",
+          "head": "head-now",
+          "intent_digest": "intent-1",
+          "mold": "demo-mold",
+          "mold_digest": "aaaa",
+          "protected_paths": [],
+          "provider": "anthropic/claude",
+          "touched_paths": []
+        },
+        "missing": "",
+        "mold_run": {
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mold": "demo-mold",
+          "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+          "provider": "anthropic/claude",
+          "risk": "R2",
+          "tests": []
+        },
+        "observation": {
+          "command": "standardctl arc-a check",
+          "environment": "test/1.0",
+          "evidence": "corpus entry arc-a.clean.01",
+          "expected": "advance to IMPLEMENT_AUTHORIZED",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed": "all Arc A gates hold"
+        },
+        "project": {
+          "claims": [
+            {
+              "failure_shape": "crud",
+              "id": "c-py-1",
+              "kind": "generic",
+              "risk": "R2"
+            }
+          ],
+          "commands": {
+            "example_based": "pytest -m example_based"
+          },
+          "runtime_budget_s": 60,
+          "stack": "python"
+        },
+        "prompt": {
+          "allowed_mutations": "tools-only writes",
+          "disposition": "IMPLEMENT",
+          "evidence": "RED log",
+          "first_action": "run the qualification gate",
+          "forbidden_mutations": "no production writes",
+          "issue": "125",
+          "phase": "spec",
+          "primary_outcome": "Demo Arc A slice completes",
+          "protected_paths": "src/protected-impl.py",
+          "repository": "fixture-owner/fixture-app",
+          "risk": "R2",
+          "role": "builder",
+          "stop_conditions": "stop on drift",
+          "write_paths": "tools/"
+        },
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "receipt": {
+          "outcome": "Demo Arc A slice completes one outcome",
+          "proof": "RED log plus qualification receipt",
+          "scope": "one slice, tools-only writes"
+        },
+        "receipt_compact": true,
+        "satisfied": false,
+        "session": {
+          "controls_expected": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "controls_run": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "hash_pairs": [],
+          "production_writes": [
+            "tools/arc_gate.py"
+          ],
+          "protected_paths": [
+            "src/protected-impl.py"
+          ]
+        },
+        "spec": {
+          "assured": false,
+          "criteria": [
+            "Done within 200 ms"
+          ],
+          "examples": [],
+          "external_calls": [],
+          "migration_steps": [],
+          "risk": "R1",
+          "statements": [
+            "The slice completes one outcome"
+          ],
+          "title": "Demo Arc A slice completes one outcome"
+        }
+      }
+    },
+    {
+      "expected_authorized": false,
+      "expected_phase": "MOLD_QUALIFIED",
+      "expected_rules": [
+        "attack-missing"
+      ],
+      "id": "arc-a.attack-missing.01",
+      "note": "No attack report at all: MOLD_QUALIFIED holds but ATTACK_CLEAN cannot, so the packet pins at MOLD_QUALIFIED with attack-missing.",
+      "packet": {
+        "ambiguity": "",
+        "attack": {},
+        "capsule_fields": {
+          "allowed_paths": "tools/",
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "blocker": "none",
+          "branch": "issue/125-arc-a-complete",
+          "expires": "2026-10-01",
+          "extensions": "none",
+          "focus_envelope": "one slice",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issue": "125",
+          "last_verification": "verify OK",
+          "lease": "lease-1",
+          "next_action": "advance toward Builder authorization",
+          "outcome": "Demo slice",
+          "phase": "spec",
+          "pr": "0",
+          "producer": "arc-a tests",
+          "protected_paths": "src/protected-impl.py",
+          "redacted": "no secrets",
+          "remaining_claims": "none",
+          "risk": "R2",
+          "role": "builder",
+          "rule_ids": "arc-a",
+          "schema": "task-capsule",
+          "source_hashes": "mold aebc4e7beeca",
+          "stop_conditions": "stop on drift",
+          "version": "5.0.0"
+        },
+        "code_is_remedy": true,
+        "disposition_value": "IMPLEMENT",
+        "files_touched": [
+          "tools/arc_gate.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "freeze_run": {
+          "commands": [],
+          "frozen_commands": [],
+          "frozen_digest": "aaaa",
+          "frozen_head": "head-freeze",
+          "frozen_intent_digest": "intent-1",
+          "head": "head-now",
+          "intent_digest": "intent-1",
+          "mold": "demo-mold",
+          "mold_digest": "aaaa",
+          "protected_paths": [],
+          "provider": "anthropic/claude",
+          "touched_paths": []
+        },
+        "missing": "",
+        "mold_run": {
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mold": "demo-mold",
+          "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+          "provider": "anthropic/claude",
+          "risk": "R2",
+          "tests": [
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-red",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "expected total 42, observed 41 on the externally visible summary",
+              "status": "failed",
+              "swallows_errors": false
+            },
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-green",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "",
+              "status": "passed",
+              "swallows_errors": false
+            }
+          ]
+        },
+        "observation": {
+          "command": "standardctl arc-a check",
+          "environment": "test/1.0",
+          "evidence": "corpus entry arc-a.clean.01",
+          "expected": "advance to IMPLEMENT_AUTHORIZED",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed": "all Arc A gates hold"
+        },
+        "project": {
+          "claims": [
+            {
+              "failure_shape": "crud",
+              "id": "c-py-1",
+              "kind": "generic",
+              "risk": "R2"
+            }
+          ],
+          "commands": {
+            "example_based": "pytest -m example_based"
+          },
+          "runtime_budget_s": 60,
+          "stack": "python"
+        },
+        "prompt": {
+          "allowed_mutations": "tools-only writes",
+          "disposition": "IMPLEMENT",
+          "evidence": "RED log",
+          "first_action": "run the qualification gate",
+          "forbidden_mutations": "no production writes",
+          "issue": "125",
+          "phase": "spec",
+          "primary_outcome": "Demo Arc A slice completes",
+          "protected_paths": "src/protected-impl.py",
+          "repository": "fixture-owner/fixture-app",
+          "risk": "R2",
+          "role": "builder",
+          "stop_conditions": "stop on drift",
+          "write_paths": "tools/"
+        },
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "receipt": {
+          "outcome": "Demo Arc A slice completes one outcome",
+          "proof": "RED log plus qualification receipt",
+          "scope": "one slice, tools-only writes"
+        },
+        "receipt_compact": true,
+        "satisfied": false,
+        "session": {
+          "controls_expected": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "controls_run": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "hash_pairs": [],
+          "production_writes": [
+            "tools/arc_gate.py"
+          ],
+          "protected_paths": [
+            "src/protected-impl.py"
+          ]
+        },
+        "spec": {
+          "assured": false,
+          "criteria": [
+            "Done within 200 ms"
+          ],
+          "examples": [],
+          "external_calls": [],
+          "migration_steps": [],
+          "risk": "R1",
+          "statements": [
+            "The slice completes one outcome"
+          ],
+          "title": "Demo Arc A slice completes one outcome"
+        }
+      }
+    },
+    {
+      "expected_authorized": false,
+      "expected_phase": "MOLD_QUALIFIED",
+      "expected_rules": [
+        "attack-missing"
+      ],
+      "id": "arc-a.attack-same-provider.01",
+      "note": "Attacker shares the Mold provider family: the attack is not independent, so the packet pins at MOLD_QUALIFIED with attack-missing.",
+      "packet": {
+        "ambiguity": "",
+        "attack": {
+          "attacker_provider": "anthropic/other",
+          "note": "same family",
+          "verdict": "clean"
+        },
+        "capsule_fields": {
+          "allowed_paths": "tools/",
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "blocker": "none",
+          "branch": "issue/125-arc-a-complete",
+          "expires": "2026-10-01",
+          "extensions": "none",
+          "focus_envelope": "one slice",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issue": "125",
+          "last_verification": "verify OK",
+          "lease": "lease-1",
+          "next_action": "advance toward Builder authorization",
+          "outcome": "Demo slice",
+          "phase": "spec",
+          "pr": "0",
+          "producer": "arc-a tests",
+          "protected_paths": "src/protected-impl.py",
+          "redacted": "no secrets",
+          "remaining_claims": "none",
+          "risk": "R2",
+          "role": "builder",
+          "rule_ids": "arc-a",
+          "schema": "task-capsule",
+          "source_hashes": "mold aebc4e7beeca",
+          "stop_conditions": "stop on drift",
+          "version": "5.0.0"
+        },
+        "code_is_remedy": true,
+        "disposition_value": "IMPLEMENT",
+        "files_touched": [
+          "tools/arc_gate.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "freeze_run": {
+          "commands": [],
+          "frozen_commands": [],
+          "frozen_digest": "aaaa",
+          "frozen_head": "head-freeze",
+          "frozen_intent_digest": "intent-1",
+          "head": "head-now",
+          "intent_digest": "intent-1",
+          "mold": "demo-mold",
+          "mold_digest": "aaaa",
+          "protected_paths": [],
+          "provider": "anthropic/claude",
+          "touched_paths": []
+        },
+        "missing": "",
+        "mold_run": {
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mold": "demo-mold",
+          "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+          "provider": "anthropic/claude",
+          "risk": "R2",
+          "tests": [
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-red",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "expected total 42, observed 41 on the externally visible summary",
+              "status": "failed",
+              "swallows_errors": false
+            },
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-green",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "",
+              "status": "passed",
+              "swallows_errors": false
+            }
+          ]
+        },
+        "observation": {
+          "command": "standardctl arc-a check",
+          "environment": "test/1.0",
+          "evidence": "corpus entry arc-a.clean.01",
+          "expected": "advance to IMPLEMENT_AUTHORIZED",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed": "all Arc A gates hold"
+        },
+        "project": {
+          "claims": [
+            {
+              "failure_shape": "crud",
+              "id": "c-py-1",
+              "kind": "generic",
+              "risk": "R2"
+            }
+          ],
+          "commands": {
+            "example_based": "pytest -m example_based"
+          },
+          "runtime_budget_s": 60,
+          "stack": "python"
+        },
+        "prompt": {
+          "allowed_mutations": "tools-only writes",
+          "disposition": "IMPLEMENT",
+          "evidence": "RED log",
+          "first_action": "run the qualification gate",
+          "forbidden_mutations": "no production writes",
+          "issue": "125",
+          "phase": "spec",
+          "primary_outcome": "Demo Arc A slice completes",
+          "protected_paths": "src/protected-impl.py",
+          "repository": "fixture-owner/fixture-app",
+          "risk": "R2",
+          "role": "builder",
+          "stop_conditions": "stop on drift",
+          "write_paths": "tools/"
+        },
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "receipt": {
+          "outcome": "Demo Arc A slice completes one outcome",
+          "proof": "RED log plus qualification receipt",
+          "scope": "one slice, tools-only writes"
+        },
+        "receipt_compact": true,
+        "satisfied": false,
+        "session": {
+          "controls_expected": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "controls_run": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "hash_pairs": [],
+          "production_writes": [
+            "tools/arc_gate.py"
+          ],
+          "protected_paths": [
+            "src/protected-impl.py"
+          ]
+        },
+        "spec": {
+          "assured": false,
+          "criteria": [
+            "Done within 200 ms"
+          ],
+          "examples": [],
+          "external_calls": [],
+          "migration_steps": [],
+          "risk": "R1",
+          "statements": [
+            "The slice completes one outcome"
+          ],
+          "title": "Demo Arc A slice completes one outcome"
+        }
+      }
+    },
+    {
+      "expected_authorized": true,
+      "expected_phase": "IMPLEMENT_AUTHORIZED",
+      "expected_rules": [],
+      "id": "arc-a.attack-fixed.01",
+      "note": "Attacker found an issue, the owner fixed and requalified (bound receipt verifies): ATTACK_CLEAN holds and the packet advances to IMPLEMENT_AUTHORIZED.",
+      "packet": {
+        "ambiguity": "",
+        "attack": {
+          "attacker_provider": "openai/reviewer",
+          "receipt": {
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mold": "demo-mold",
+            "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+            "provider": "anthropic/claude",
+            "qualified_by": "mold_qualification.qualify",
+            "run_digest": "8d85535761c6e9876923e974b7dc0107500c51fab7aed41cdd5354ed1e4079d9",
+            "verdict": "qualified"
+          },
+          "run": {
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mold": "demo-mold",
+            "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+            "provider": "anthropic/claude",
+            "risk": "R2",
+            "tests": [
+              {
+                "alternative_impl_ok": true,
+                "asserts_mock_only": false,
+                "asserts_observable": true,
+                "asserts_setup_state": false,
+                "claims": [
+                  "claim-total"
+                ],
+                "coverage_kind": "full",
+                "hard_codes_example": false,
+                "id": "t-red",
+                "is_equivalent_mutant": false,
+                "is_structural_failure": false,
+                "omits_relevant_state": false,
+                "red_reason": "expected total 42, observed 41 on the externally visible summary",
+                "status": "failed",
+                "swallows_errors": false
+              },
+              {
+                "alternative_impl_ok": true,
+                "asserts_mock_only": false,
+                "asserts_observable": true,
+                "asserts_setup_state": false,
+                "claims": [
+                  "claim-total"
+                ],
+                "coverage_kind": "full",
+                "hard_codes_example": false,
+                "id": "t-green",
+                "is_equivalent_mutant": false,
+                "is_structural_failure": false,
+                "omits_relevant_state": false,
+                "red_reason": "",
+                "status": "passed",
+                "swallows_errors": false
+              }
+            ]
+          },
+          "verdict": "fixed-requalified"
+        },
+        "capsule_fields": {
+          "allowed_paths": "tools/",
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "blocker": "none",
+          "branch": "issue/125-arc-a-complete",
+          "expires": "2026-10-01",
+          "extensions": "none",
+          "focus_envelope": "one slice",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issue": "125",
+          "last_verification": "verify OK",
+          "lease": "lease-1",
+          "next_action": "advance toward Builder authorization",
+          "outcome": "Demo slice",
+          "phase": "spec",
+          "pr": "0",
+          "producer": "arc-a tests",
+          "protected_paths": "src/protected-impl.py",
+          "redacted": "no secrets",
+          "remaining_claims": "none",
+          "risk": "R2",
+          "role": "builder",
+          "rule_ids": "arc-a",
+          "schema": "task-capsule",
+          "source_hashes": "mold aebc4e7beeca",
+          "stop_conditions": "stop on drift",
+          "version": "5.0.0"
+        },
+        "code_is_remedy": true,
+        "disposition_value": "IMPLEMENT",
+        "files_touched": [
+          "tools/arc_gate.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "freeze_run": {
+          "commands": [],
+          "frozen_commands": [],
+          "frozen_digest": "aaaa",
+          "frozen_head": "head-freeze",
+          "frozen_intent_digest": "intent-1",
+          "head": "head-now",
+          "intent_digest": "intent-1",
+          "mold": "demo-mold",
+          "mold_digest": "aaaa",
+          "protected_paths": [],
+          "provider": "anthropic/claude",
+          "touched_paths": []
+        },
+        "missing": "",
+        "mold_run": {
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mold": "demo-mold",
+          "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+          "provider": "anthropic/claude",
+          "risk": "R2",
+          "tests": [
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-red",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "expected total 42, observed 41 on the externally visible summary",
+              "status": "failed",
+              "swallows_errors": false
+            },
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-green",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "",
+              "status": "passed",
+              "swallows_errors": false
+            }
+          ]
+        },
+        "observation": {
+          "command": "standardctl arc-a check",
+          "environment": "test/1.0",
+          "evidence": "corpus entry arc-a.clean.01",
+          "expected": "advance to IMPLEMENT_AUTHORIZED",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed": "all Arc A gates hold"
+        },
+        "project": {
+          "claims": [
+            {
+              "failure_shape": "crud",
+              "id": "c-py-1",
+              "kind": "generic",
+              "risk": "R2"
+            }
+          ],
+          "commands": {
+            "example_based": "pytest -m example_based"
+          },
+          "runtime_budget_s": 60,
+          "stack": "python"
+        },
+        "prompt": {
+          "allowed_mutations": "tools-only writes",
+          "disposition": "IMPLEMENT",
+          "evidence": "RED log",
+          "first_action": "run the qualification gate",
+          "forbidden_mutations": "no production writes",
+          "issue": "125",
+          "phase": "spec",
+          "primary_outcome": "Demo Arc A slice completes",
+          "protected_paths": "src/protected-impl.py",
+          "repository": "fixture-owner/fixture-app",
+          "risk": "R2",
+          "role": "builder",
+          "stop_conditions": "stop on drift",
+          "write_paths": "tools/"
+        },
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "receipt": {
+          "outcome": "Demo Arc A slice completes one outcome",
+          "proof": "RED log plus qualification receipt",
+          "scope": "one slice, tools-only writes"
+        },
+        "receipt_compact": true,
+        "satisfied": false,
+        "session": {
+          "controls_expected": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "controls_run": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "hash_pairs": [],
+          "production_writes": [
+            "tools/arc_gate.py"
+          ],
+          "protected_paths": [
+            "src/protected-impl.py"
+          ]
+        },
+        "spec": {
+          "assured": false,
+          "criteria": [
+            "Done within 200 ms"
+          ],
+          "examples": [],
+          "external_calls": [],
+          "migration_steps": [],
+          "risk": "R1",
+          "statements": [
+            "The slice completes one outcome"
+          ],
+          "title": "Demo Arc A slice completes one outcome"
+        }
+      }
+    },
+    {
+      "expected_authorized": false,
+      "expected_phase": "ATTACK_CLEAN",
+      "expected_rules": [
+        "session-dirty"
+      ],
+      "id": "arc-a.session-dirty.01",
+      "note": "Arc A session wrote src/ship.py: meta_tests fires production-write, so the packet pins at ATTACK_CLEAN with session-dirty.",
+      "packet": {
+        "ambiguity": "",
+        "attack": {
+          "attacker_provider": "openai/reviewer",
+          "note": "independent review found nothing material",
+          "verdict": "clean"
+        },
+        "capsule_fields": {
+          "allowed_paths": "tools/",
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "blocker": "none",
+          "branch": "issue/125-arc-a-complete",
+          "expires": "2026-10-01",
+          "extensions": "none",
+          "focus_envelope": "one slice",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issue": "125",
+          "last_verification": "verify OK",
+          "lease": "lease-1",
+          "next_action": "advance toward Builder authorization",
+          "outcome": "Demo slice",
+          "phase": "spec",
+          "pr": "0",
+          "producer": "arc-a tests",
+          "protected_paths": "src/protected-impl.py",
+          "redacted": "no secrets",
+          "remaining_claims": "none",
+          "risk": "R2",
+          "role": "builder",
+          "rule_ids": "arc-a",
+          "schema": "task-capsule",
+          "source_hashes": "mold aebc4e7beeca",
+          "stop_conditions": "stop on drift",
+          "version": "5.0.0"
+        },
+        "code_is_remedy": true,
+        "disposition_value": "IMPLEMENT",
+        "files_touched": [
+          "tools/arc_gate.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "freeze_run": {
+          "commands": [],
+          "frozen_commands": [],
+          "frozen_digest": "aaaa",
+          "frozen_head": "head-freeze",
+          "frozen_intent_digest": "intent-1",
+          "head": "head-now",
+          "intent_digest": "intent-1",
+          "mold": "demo-mold",
+          "mold_digest": "aaaa",
+          "protected_paths": [],
+          "provider": "anthropic/claude",
+          "touched_paths": []
+        },
+        "missing": "",
+        "mold_run": {
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mold": "demo-mold",
+          "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+          "provider": "anthropic/claude",
+          "risk": "R2",
+          "tests": [
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-red",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "expected total 42, observed 41 on the externally visible summary",
+              "status": "failed",
+              "swallows_errors": false
+            },
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-green",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "",
+              "status": "passed",
+              "swallows_errors": false
+            }
+          ]
+        },
+        "observation": {
+          "command": "standardctl arc-a check",
+          "environment": "test/1.0",
+          "evidence": "corpus entry arc-a.clean.01",
+          "expected": "advance to IMPLEMENT_AUTHORIZED",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed": "all Arc A gates hold"
+        },
+        "project": {
+          "claims": [
+            {
+              "failure_shape": "crud",
+              "id": "c-py-1",
+              "kind": "generic",
+              "risk": "R2"
+            }
+          ],
+          "commands": {
+            "example_based": "pytest -m example_based"
+          },
+          "runtime_budget_s": 60,
+          "stack": "python"
+        },
+        "prompt": {
+          "allowed_mutations": "tools-only writes",
+          "disposition": "IMPLEMENT",
+          "evidence": "RED log",
+          "first_action": "run the qualification gate",
+          "forbidden_mutations": "no production writes",
+          "issue": "125",
+          "phase": "spec",
+          "primary_outcome": "Demo Arc A slice completes",
+          "protected_paths": "src/protected-impl.py",
+          "repository": "fixture-owner/fixture-app",
+          "risk": "R2",
+          "role": "builder",
+          "stop_conditions": "stop on drift",
+          "write_paths": "tools/"
+        },
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "receipt": {
+          "outcome": "Demo Arc A slice completes one outcome",
+          "proof": "RED log plus qualification receipt",
+          "scope": "one slice, tools-only writes"
+        },
+        "receipt_compact": true,
+        "satisfied": false,
+        "session": {
+          "controls_expected": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "controls_run": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "hash_pairs": [],
+          "production_writes": [
+            "tools/arc_gate.py",
+            "src/ship.py"
+          ],
+          "protected_paths": [
+            "src/protected-impl.py"
+          ]
+        },
+        "spec": {
+          "assured": false,
+          "criteria": [
+            "Done within 200 ms"
+          ],
+          "examples": [],
+          "external_calls": [],
+          "migration_steps": [],
+          "risk": "R1",
+          "statements": [
+            "The slice completes one outcome"
+          ],
+          "title": "Demo Arc A slice completes one outcome"
+        }
+      }
+    },
+    {
+      "expected_authorized": false,
+      "expected_phase": "ATTACK_CLEAN",
+      "expected_rules": [
+        "portfolio-invalid"
+      ],
+      "id": "arc-a.portfolio-invalid.01",
+      "note": "Portfolio claims a technique with no command: select_portfolio reports missing_command, so the packet pins at ATTACK_CLEAN with portfolio-invalid.",
+      "packet": {
+        "ambiguity": "",
+        "attack": {
+          "attacker_provider": "openai/reviewer",
+          "note": "independent review found nothing material",
+          "verdict": "clean"
+        },
+        "capsule_fields": {
+          "allowed_paths": "tools/",
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "blocker": "none",
+          "branch": "issue/125-arc-a-complete",
+          "expires": "2026-10-01",
+          "extensions": "none",
+          "focus_envelope": "one slice",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issue": "125",
+          "last_verification": "verify OK",
+          "lease": "lease-1",
+          "next_action": "advance toward Builder authorization",
+          "outcome": "Demo slice",
+          "phase": "spec",
+          "pr": "0",
+          "producer": "arc-a tests",
+          "protected_paths": "src/protected-impl.py",
+          "redacted": "no secrets",
+          "remaining_claims": "none",
+          "risk": "R2",
+          "role": "builder",
+          "rule_ids": "arc-a",
+          "schema": "task-capsule",
+          "source_hashes": "mold aebc4e7beeca",
+          "stop_conditions": "stop on drift",
+          "version": "5.0.0"
+        },
+        "code_is_remedy": true,
+        "disposition_value": "IMPLEMENT",
+        "files_touched": [
+          "tools/arc_gate.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "freeze_run": {
+          "commands": [],
+          "frozen_commands": [],
+          "frozen_digest": "aaaa",
+          "frozen_head": "head-freeze",
+          "frozen_intent_digest": "intent-1",
+          "head": "head-now",
+          "intent_digest": "intent-1",
+          "mold": "demo-mold",
+          "mold_digest": "aaaa",
+          "protected_paths": [],
+          "provider": "anthropic/claude",
+          "touched_paths": []
+        },
+        "missing": "",
+        "mold_run": {
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mold": "demo-mold",
+          "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+          "provider": "anthropic/claude",
+          "risk": "R2",
+          "tests": [
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-red",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "expected total 42, observed 41 on the externally visible summary",
+              "status": "failed",
+              "swallows_errors": false
+            },
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-green",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "",
+              "status": "passed",
+              "swallows_errors": false
+            }
+          ]
+        },
+        "observation": {
+          "command": "standardctl arc-a check",
+          "environment": "test/1.0",
+          "evidence": "corpus entry arc-a.clean.01",
+          "expected": "advance to IMPLEMENT_AUTHORIZED",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed": "all Arc A gates hold"
+        },
+        "project": {
+          "claims": [
+            {
+              "failure_shape": "crud",
+              "id": "c-py-1",
+              "kind": "generic",
+              "risk": "R2"
+            }
+          ],
+          "commands": {},
+          "runtime_budget_s": 60,
+          "stack": "python"
+        },
+        "prompt": {
+          "allowed_mutations": "tools-only writes",
+          "disposition": "IMPLEMENT",
+          "evidence": "RED log",
+          "first_action": "run the qualification gate",
+          "forbidden_mutations": "no production writes",
+          "issue": "125",
+          "phase": "spec",
+          "primary_outcome": "Demo Arc A slice completes",
+          "protected_paths": "src/protected-impl.py",
+          "repository": "fixture-owner/fixture-app",
+          "risk": "R2",
+          "role": "builder",
+          "stop_conditions": "stop on drift",
+          "write_paths": "tools/"
+        },
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "receipt": {
+          "outcome": "Demo Arc A slice completes one outcome",
+          "proof": "RED log plus qualification receipt",
+          "scope": "one slice, tools-only writes"
+        },
+        "receipt_compact": true,
+        "satisfied": false,
+        "session": {
+          "controls_expected": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "controls_run": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "hash_pairs": [],
+          "production_writes": [
+            "tools/arc_gate.py"
+          ],
+          "protected_paths": [
+            "src/protected-impl.py"
+          ]
+        },
+        "spec": {
+          "assured": false,
+          "criteria": [
+            "Done within 200 ms"
+          ],
+          "examples": [],
+          "external_calls": [],
+          "migration_steps": [],
+          "risk": "R1",
+          "statements": [
+            "The slice completes one outcome"
+          ],
+          "title": "Demo Arc A slice completes one outcome"
+        }
+      }
+    },
+    {
+      "expected_authorized": false,
+      "expected_phase": "ATTACK_CLEAN",
+      "expected_rules": [
+        "freeze-invalid"
+      ],
+      "id": "arc-a.freeze-invalid.01",
+      "note": "Mold payload drifted under a live freeze while prior proof is reused: the packet pins at ATTACK_CLEAN with freeze-invalid.",
+      "packet": {
+        "ambiguity": "",
+        "attack": {
+          "attacker_provider": "openai/reviewer",
+          "note": "independent review found nothing material",
+          "verdict": "clean"
+        },
+        "capsule_fields": {
+          "allowed_paths": "tools/",
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "blocker": "none",
+          "branch": "issue/125-arc-a-complete",
+          "expires": "2026-10-01",
+          "extensions": "none",
+          "focus_envelope": "one slice",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issue": "125",
+          "last_verification": "verify OK",
+          "lease": "lease-1",
+          "next_action": "advance toward Builder authorization",
+          "outcome": "Demo slice",
+          "phase": "spec",
+          "pr": "0",
+          "producer": "arc-a tests",
+          "protected_paths": "src/protected-impl.py",
+          "redacted": "no secrets",
+          "remaining_claims": "none",
+          "risk": "R2",
+          "role": "builder",
+          "rule_ids": "arc-a",
+          "schema": "task-capsule",
+          "source_hashes": "mold aebc4e7beeca",
+          "stop_conditions": "stop on drift",
+          "version": "5.0.0"
+        },
+        "code_is_remedy": true,
+        "disposition_value": "IMPLEMENT",
+        "files_touched": [
+          "tools/arc_gate.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "freeze_run": {
+          "commands": [],
+          "frozen_commands": [],
+          "frozen_digest": "aaaa",
+          "frozen_head": "head-freeze",
+          "frozen_intent_digest": "intent-1",
+          "head": "head-now",
+          "intent_digest": "intent-1",
+          "mold": "demo-mold",
+          "mold_digest": "drifted",
+          "proof": {
+            "run_digest": "run-1",
+            "verdict": "qualified"
+          },
+          "protected_paths": [],
+          "provider": "anthropic/claude",
+          "touched_paths": []
+        },
+        "missing": "",
+        "mold_run": {
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mold": "demo-mold",
+          "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+          "provider": "anthropic/claude",
+          "risk": "R2",
+          "tests": [
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-red",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "expected total 42, observed 41 on the externally visible summary",
+              "status": "failed",
+              "swallows_errors": false
+            },
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-green",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "",
+              "status": "passed",
+              "swallows_errors": false
+            }
+          ]
+        },
+        "observation": {
+          "command": "standardctl arc-a check",
+          "environment": "test/1.0",
+          "evidence": "corpus entry arc-a.clean.01",
+          "expected": "advance to IMPLEMENT_AUTHORIZED",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed": "all Arc A gates hold"
+        },
+        "project": {
+          "claims": [
+            {
+              "failure_shape": "crud",
+              "id": "c-py-1",
+              "kind": "generic",
+              "risk": "R2"
+            }
+          ],
+          "commands": {
+            "example_based": "pytest -m example_based"
+          },
+          "runtime_budget_s": 60,
+          "stack": "python"
+        },
+        "prompt": {
+          "allowed_mutations": "tools-only writes",
+          "disposition": "IMPLEMENT",
+          "evidence": "RED log",
+          "first_action": "run the qualification gate",
+          "forbidden_mutations": "no production writes",
+          "issue": "125",
+          "phase": "spec",
+          "primary_outcome": "Demo Arc A slice completes",
+          "protected_paths": "src/protected-impl.py",
+          "repository": "fixture-owner/fixture-app",
+          "risk": "R2",
+          "role": "builder",
+          "stop_conditions": "stop on drift",
+          "write_paths": "tools/"
+        },
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "receipt": {
+          "outcome": "Demo Arc A slice completes one outcome",
+          "proof": "RED log plus qualification receipt",
+          "scope": "one slice, tools-only writes"
+        },
+        "receipt_compact": true,
+        "satisfied": false,
+        "session": {
+          "controls_expected": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "controls_run": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "hash_pairs": [],
+          "production_writes": [
+            "tools/arc_gate.py"
+          ],
+          "protected_paths": [
+            "src/protected-impl.py"
+          ]
+        },
+        "spec": {
+          "assured": false,
+          "criteria": [
+            "Done within 200 ms"
+          ],
+          "examples": [],
+          "external_calls": [],
+          "migration_steps": [],
+          "risk": "R1",
+          "statements": [
+            "The slice completes one outcome"
+          ],
+          "title": "Demo Arc A slice completes one outcome"
+        }
+      }
+    },
+    {
+      "expected_authorized": false,
+      "expected_phase": "CHECKPOINTED",
+      "expected_rules": [
+        "not-ready"
+      ],
+      "id": "arc-a.not-ready.01",
+      "note": "DoR receipt lost its proof line: check_receipt repairs, so the packet pins at CHECKPOINTED with not-ready.",
+      "packet": {
+        "ambiguity": "",
+        "attack": {
+          "attacker_provider": "openai/reviewer",
+          "note": "independent review found nothing material",
+          "verdict": "clean"
+        },
+        "capsule_fields": {
+          "allowed_paths": "tools/",
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "blocker": "none",
+          "branch": "issue/125-arc-a-complete",
+          "expires": "2026-10-01",
+          "extensions": "none",
+          "focus_envelope": "one slice",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issue": "125",
+          "last_verification": "verify OK",
+          "lease": "lease-1",
+          "next_action": "advance toward Builder authorization",
+          "outcome": "Demo slice",
+          "phase": "spec",
+          "pr": "0",
+          "producer": "arc-a tests",
+          "protected_paths": "src/protected-impl.py",
+          "redacted": "no secrets",
+          "remaining_claims": "none",
+          "risk": "R2",
+          "role": "builder",
+          "rule_ids": "arc-a",
+          "schema": "task-capsule",
+          "source_hashes": "mold aebc4e7beeca",
+          "stop_conditions": "stop on drift",
+          "version": "5.0.0"
+        },
+        "code_is_remedy": true,
+        "disposition_value": "IMPLEMENT",
+        "files_touched": [
+          "tools/arc_gate.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "freeze_run": {
+          "commands": [],
+          "frozen_commands": [],
+          "frozen_digest": "aaaa",
+          "frozen_head": "head-freeze",
+          "frozen_intent_digest": "intent-1",
+          "head": "head-now",
+          "intent_digest": "intent-1",
+          "mold": "demo-mold",
+          "mold_digest": "aaaa",
+          "protected_paths": [],
+          "provider": "anthropic/claude",
+          "touched_paths": []
+        },
+        "missing": "",
+        "mold_run": {
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mold": "demo-mold",
+          "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+          "provider": "anthropic/claude",
+          "risk": "R2",
+          "tests": [
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-red",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "expected total 42, observed 41 on the externally visible summary",
+              "status": "failed",
+              "swallows_errors": false
+            },
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-green",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "",
+              "status": "passed",
+              "swallows_errors": false
+            }
+          ]
+        },
+        "observation": {
+          "command": "standardctl arc-a check",
+          "environment": "test/1.0",
+          "evidence": "corpus entry arc-a.clean.01",
+          "expected": "advance to IMPLEMENT_AUTHORIZED",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed": "all Arc A gates hold"
+        },
+        "project": {
+          "claims": [
+            {
+              "failure_shape": "crud",
+              "id": "c-py-1",
+              "kind": "generic",
+              "risk": "R2"
+            }
+          ],
+          "commands": {
+            "example_based": "pytest -m example_based"
+          },
+          "runtime_budget_s": 60,
+          "stack": "python"
+        },
+        "prompt": {
+          "allowed_mutations": "tools-only writes",
+          "disposition": "IMPLEMENT",
+          "evidence": "RED log",
+          "first_action": "run the qualification gate",
+          "forbidden_mutations": "no production writes",
+          "issue": "125",
+          "phase": "spec",
+          "primary_outcome": "Demo Arc A slice completes",
+          "protected_paths": "src/protected-impl.py",
+          "repository": "fixture-owner/fixture-app",
+          "risk": "R2",
+          "role": "builder",
+          "stop_conditions": "stop on drift",
+          "write_paths": "tools/"
+        },
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "receipt": {
+          "outcome": "Demo Arc A slice completes one outcome",
+          "proof": "",
+          "scope": "one slice, tools-only writes"
+        },
+        "receipt_compact": true,
+        "satisfied": false,
+        "session": {
+          "controls_expected": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "controls_run": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "hash_pairs": [],
+          "production_writes": [
+            "tools/arc_gate.py"
+          ],
+          "protected_paths": [
+            "src/protected-impl.py"
+          ]
+        },
+        "spec": {
+          "assured": false,
+          "criteria": [
+            "Done within 200 ms"
+          ],
+          "examples": [],
+          "external_calls": [],
+          "migration_steps": [],
+          "risk": "R1",
+          "statements": [
+            "The slice completes one outcome"
+          ],
+          "title": "Demo Arc A slice completes one outcome"
+        }
+      }
+    },
+    {
+      "expected_authorized": false,
+      "expected_phase": "CHECKPOINTED",
+      "expected_rules": [
+        "disposition-blocked"
+      ],
+      "id": "arc-a.disposition-blocked.01",
+      "note": "Disposition NO_CHANGE without satisfied-or-not-remedy proof raises: the packet pins at CHECKPOINTED with disposition-blocked.",
+      "packet": {
+        "ambiguity": "",
+        "attack": {
+          "attacker_provider": "openai/reviewer",
+          "note": "independent review found nothing material",
+          "verdict": "clean"
+        },
+        "capsule_fields": {
+          "allowed_paths": "tools/",
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "blocker": "none",
+          "branch": "issue/125-arc-a-complete",
+          "expires": "2026-10-01",
+          "extensions": "none",
+          "focus_envelope": "one slice",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issue": "125",
+          "last_verification": "verify OK",
+          "lease": "lease-1",
+          "next_action": "advance toward Builder authorization",
+          "outcome": "Demo slice",
+          "phase": "spec",
+          "pr": "0",
+          "producer": "arc-a tests",
+          "protected_paths": "src/protected-impl.py",
+          "redacted": "no secrets",
+          "remaining_claims": "none",
+          "risk": "R2",
+          "role": "builder",
+          "rule_ids": "arc-a",
+          "schema": "task-capsule",
+          "source_hashes": "mold aebc4e7beeca",
+          "stop_conditions": "stop on drift",
+          "version": "5.0.0"
+        },
+        "code_is_remedy": true,
+        "disposition_value": "NO_CHANGE",
+        "files_touched": [
+          "tools/arc_gate.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "freeze_run": {
+          "commands": [],
+          "frozen_commands": [],
+          "frozen_digest": "aaaa",
+          "frozen_head": "head-freeze",
+          "frozen_intent_digest": "intent-1",
+          "head": "head-now",
+          "intent_digest": "intent-1",
+          "mold": "demo-mold",
+          "mold_digest": "aaaa",
+          "protected_paths": [],
+          "provider": "anthropic/claude",
+          "touched_paths": []
+        },
+        "missing": "",
+        "mold_run": {
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mold": "demo-mold",
+          "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+          "provider": "anthropic/claude",
+          "risk": "R2",
+          "tests": [
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-red",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "expected total 42, observed 41 on the externally visible summary",
+              "status": "failed",
+              "swallows_errors": false
+            },
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-green",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "",
+              "status": "passed",
+              "swallows_errors": false
+            }
+          ]
+        },
+        "observation": {
+          "command": "standardctl arc-a check",
+          "environment": "test/1.0",
+          "evidence": "corpus entry arc-a.clean.01",
+          "expected": "advance to IMPLEMENT_AUTHORIZED",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed": "all Arc A gates hold"
+        },
+        "project": {
+          "claims": [
+            {
+              "failure_shape": "crud",
+              "id": "c-py-1",
+              "kind": "generic",
+              "risk": "R2"
+            }
+          ],
+          "commands": {
+            "example_based": "pytest -m example_based"
+          },
+          "runtime_budget_s": 60,
+          "stack": "python"
+        },
+        "prompt": {
+          "allowed_mutations": "tools-only writes",
+          "disposition": "IMPLEMENT",
+          "evidence": "RED log",
+          "first_action": "run the qualification gate",
+          "forbidden_mutations": "no production writes",
+          "issue": "125",
+          "phase": "spec",
+          "primary_outcome": "Demo Arc A slice completes",
+          "protected_paths": "src/protected-impl.py",
+          "repository": "fixture-owner/fixture-app",
+          "risk": "R2",
+          "role": "builder",
+          "stop_conditions": "stop on drift",
+          "write_paths": "tools/"
+        },
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "receipt": {
+          "outcome": "Demo Arc A slice completes one outcome",
+          "proof": "RED log plus qualification receipt",
+          "scope": "one slice, tools-only writes"
+        },
+        "receipt_compact": true,
+        "satisfied": false,
+        "session": {
+          "controls_expected": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "controls_run": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "hash_pairs": [],
+          "production_writes": [
+            "tools/arc_gate.py"
+          ],
+          "protected_paths": [
+            "src/protected-impl.py"
+          ]
+        },
+        "spec": {
+          "assured": false,
+          "criteria": [
+            "Done within 200 ms"
+          ],
+          "examples": [],
+          "external_calls": [],
+          "migration_steps": [],
+          "risk": "R1",
+          "statements": [
+            "The slice completes one outcome"
+          ],
+          "title": "Demo Arc A slice completes one outcome"
+        }
+      }
+    },
+    {
+      "expected_authorized": false,
+      "expected_phase": "CHECKPOINTED",
+      "expected_rules": [
+        "prompt-impure"
+      ],
+      "id": "arc-a.prompt-impure.01",
+      "note": "Prompt contract lost its phase: validate repairs, so the packet pins at CHECKPOINTED with prompt-impure.",
+      "packet": {
+        "ambiguity": "",
+        "attack": {
+          "attacker_provider": "openai/reviewer",
+          "note": "independent review found nothing material",
+          "verdict": "clean"
+        },
+        "capsule_fields": {
+          "allowed_paths": "tools/",
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "blocker": "none",
+          "branch": "issue/125-arc-a-complete",
+          "expires": "2026-10-01",
+          "extensions": "none",
+          "focus_envelope": "one slice",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issue": "125",
+          "last_verification": "verify OK",
+          "lease": "lease-1",
+          "next_action": "advance toward Builder authorization",
+          "outcome": "Demo slice",
+          "phase": "spec",
+          "pr": "0",
+          "producer": "arc-a tests",
+          "protected_paths": "src/protected-impl.py",
+          "redacted": "no secrets",
+          "remaining_claims": "none",
+          "risk": "R2",
+          "role": "builder",
+          "rule_ids": "arc-a",
+          "schema": "task-capsule",
+          "source_hashes": "mold aebc4e7beeca",
+          "stop_conditions": "stop on drift",
+          "version": "5.0.0"
+        },
+        "code_is_remedy": true,
+        "disposition_value": "IMPLEMENT",
+        "files_touched": [
+          "tools/arc_gate.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "freeze_run": {
+          "commands": [],
+          "frozen_commands": [],
+          "frozen_digest": "aaaa",
+          "frozen_head": "head-freeze",
+          "frozen_intent_digest": "intent-1",
+          "head": "head-now",
+          "intent_digest": "intent-1",
+          "mold": "demo-mold",
+          "mold_digest": "aaaa",
+          "protected_paths": [],
+          "provider": "anthropic/claude",
+          "touched_paths": []
+        },
+        "missing": "",
+        "mold_run": {
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mold": "demo-mold",
+          "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+          "provider": "anthropic/claude",
+          "risk": "R2",
+          "tests": [
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-red",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "expected total 42, observed 41 on the externally visible summary",
+              "status": "failed",
+              "swallows_errors": false
+            },
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-green",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "",
+              "status": "passed",
+              "swallows_errors": false
+            }
+          ]
+        },
+        "observation": {
+          "command": "standardctl arc-a check",
+          "environment": "test/1.0",
+          "evidence": "corpus entry arc-a.clean.01",
+          "expected": "advance to IMPLEMENT_AUTHORIZED",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed": "all Arc A gates hold"
+        },
+        "project": {
+          "claims": [
+            {
+              "failure_shape": "crud",
+              "id": "c-py-1",
+              "kind": "generic",
+              "risk": "R2"
+            }
+          ],
+          "commands": {
+            "example_based": "pytest -m example_based"
+          },
+          "runtime_budget_s": 60,
+          "stack": "python"
+        },
+        "prompt": {
+          "allowed_mutations": "tools-only writes",
+          "disposition": "IMPLEMENT",
+          "evidence": "RED log",
+          "first_action": "run the qualification gate",
+          "forbidden_mutations": "no production writes",
+          "issue": "125",
+          "phase": "",
+          "primary_outcome": "Demo Arc A slice completes",
+          "protected_paths": "src/protected-impl.py",
+          "repository": "fixture-owner/fixture-app",
+          "risk": "R2",
+          "role": "builder",
+          "stop_conditions": "stop on drift",
+          "write_paths": "tools/"
+        },
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "receipt": {
+          "outcome": "Demo Arc A slice completes one outcome",
+          "proof": "RED log plus qualification receipt",
+          "scope": "one slice, tools-only writes"
+        },
+        "receipt_compact": true,
+        "satisfied": false,
+        "session": {
+          "controls_expected": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "controls_run": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "hash_pairs": [],
+          "production_writes": [
+            "tools/arc_gate.py"
+          ],
+          "protected_paths": [
+            "src/protected-impl.py"
+          ]
+        },
+        "spec": {
+          "assured": false,
+          "criteria": [
+            "Done within 200 ms"
+          ],
+          "examples": [],
+          "external_calls": [],
+          "migration_steps": [],
+          "risk": "R1",
+          "statements": [
+            "The slice completes one outcome"
+          ],
+          "title": "Demo Arc A slice completes one outcome"
+        }
+      }
+    },
+    {
+      "expected_authorized": false,
+      "expected_phase": "CHECKPOINTED",
+      "expected_rules": [
+        "capsule-unready"
+      ],
+      "id": "arc-a.capsule-unready.01",
+      "note": "Capsule carries secret-like material: build refuses, so the packet pins at CHECKPOINTED with capsule-unready.",
+      "packet": {
+        "ambiguity": "",
+        "attack": {
+          "attacker_provider": "openai/reviewer",
+          "note": "independent review found nothing material",
+          "verdict": "clean"
+        },
+        "capsule_fields": {
+          "allowed_paths": "tools/",
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "blocker": "needs api_key=AKIA1 now",
+          "branch": "issue/125-arc-a-complete",
+          "expires": "2026-10-01",
+          "extensions": "none",
+          "focus_envelope": "one slice",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issue": "125",
+          "last_verification": "verify OK",
+          "lease": "lease-1",
+          "next_action": "advance toward Builder authorization",
+          "outcome": "Demo slice",
+          "phase": "spec",
+          "pr": "0",
+          "producer": "arc-a tests",
+          "protected_paths": "src/protected-impl.py",
+          "redacted": "no secrets",
+          "remaining_claims": "none",
+          "risk": "R2",
+          "role": "builder",
+          "rule_ids": "arc-a",
+          "schema": "task-capsule",
+          "source_hashes": "mold aebc4e7beeca",
+          "stop_conditions": "stop on drift",
+          "version": "5.0.0"
+        },
+        "code_is_remedy": true,
+        "disposition_value": "IMPLEMENT",
+        "files_touched": [
+          "tools/arc_gate.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "freeze_run": {
+          "commands": [],
+          "frozen_commands": [],
+          "frozen_digest": "aaaa",
+          "frozen_head": "head-freeze",
+          "frozen_intent_digest": "intent-1",
+          "head": "head-now",
+          "intent_digest": "intent-1",
+          "mold": "demo-mold",
+          "mold_digest": "aaaa",
+          "protected_paths": [],
+          "provider": "anthropic/claude",
+          "touched_paths": []
+        },
+        "missing": "",
+        "mold_run": {
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mold": "demo-mold",
+          "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+          "provider": "anthropic/claude",
+          "risk": "R2",
+          "tests": [
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-red",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "expected total 42, observed 41 on the externally visible summary",
+              "status": "failed",
+              "swallows_errors": false
+            },
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-green",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "",
+              "status": "passed",
+              "swallows_errors": false
+            }
+          ]
+        },
+        "observation": {
+          "command": "standardctl arc-a check",
+          "environment": "test/1.0",
+          "evidence": "corpus entry arc-a.clean.01",
+          "expected": "advance to IMPLEMENT_AUTHORIZED",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed": "all Arc A gates hold"
+        },
+        "project": {
+          "claims": [
+            {
+              "failure_shape": "crud",
+              "id": "c-py-1",
+              "kind": "generic",
+              "risk": "R2"
+            }
+          ],
+          "commands": {
+            "example_based": "pytest -m example_based"
+          },
+          "runtime_budget_s": 60,
+          "stack": "python"
+        },
+        "prompt": {
+          "allowed_mutations": "tools-only writes",
+          "disposition": "IMPLEMENT",
+          "evidence": "RED log",
+          "first_action": "run the qualification gate",
+          "forbidden_mutations": "no production writes",
+          "issue": "125",
+          "phase": "spec",
+          "primary_outcome": "Demo Arc A slice completes",
+          "protected_paths": "src/protected-impl.py",
+          "repository": "fixture-owner/fixture-app",
+          "risk": "R2",
+          "role": "builder",
+          "stop_conditions": "stop on drift",
+          "write_paths": "tools/"
+        },
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "receipt": {
+          "outcome": "Demo Arc A slice completes one outcome",
+          "proof": "RED log plus qualification receipt",
+          "scope": "one slice, tools-only writes"
+        },
+        "receipt_compact": true,
+        "satisfied": false,
+        "session": {
+          "controls_expected": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "controls_run": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "hash_pairs": [],
+          "production_writes": [
+            "tools/arc_gate.py"
+          ],
+          "protected_paths": [
+            "src/protected-impl.py"
+          ]
+        },
+        "spec": {
+          "assured": false,
+          "criteria": [
+            "Done within 200 ms"
+          ],
+          "examples": [],
+          "external_calls": [],
+          "migration_steps": [],
+          "risk": "R1",
+          "statements": [
+            "The slice completes one outcome"
+          ],
+          "title": "Demo Arc A slice completes one outcome"
+        }
+      }
+    },
+    {
+      "expected_authorized": false,
+      "expected_phase": "CHECKPOINTED",
+      "expected_rules": [
+        "budget-recovery"
+      ],
+      "id": "arc-a.budget-recovery.01",
+      "note": "Controller flags polluted history: govern trips RECOVERY_REQUIRED, so the packet pins at CHECKPOINTED with budget-recovery.",
+      "packet": {
+        "ambiguity": "",
+        "attack": {
+          "attacker_provider": "openai/reviewer",
+          "note": "independent review found nothing material",
+          "verdict": "clean"
+        },
+        "capsule_fields": {
+          "allowed_paths": "tools/",
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "blocker": "none",
+          "branch": "issue/125-arc-a-complete",
+          "expires": "2026-10-01",
+          "extensions": "none",
+          "focus_envelope": "one slice",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issue": "125",
+          "last_verification": "verify OK",
+          "lease": "lease-1",
+          "next_action": "advance toward Builder authorization",
+          "outcome": "Demo slice",
+          "phase": "spec",
+          "pr": "0",
+          "producer": "arc-a tests",
+          "protected_paths": "src/protected-impl.py",
+          "redacted": "no secrets",
+          "remaining_claims": "none",
+          "risk": "R2",
+          "role": "builder",
+          "rule_ids": "arc-a",
+          "schema": "task-capsule",
+          "source_hashes": "mold aebc4e7beeca",
+          "stop_conditions": "stop on drift",
+          "version": "5.0.0"
+        },
+        "code_is_remedy": true,
+        "context_polluted": true,
+        "disposition_value": "IMPLEMENT",
+        "files_touched": [
+          "tools/arc_gate.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "freeze_run": {
+          "commands": [],
+          "frozen_commands": [],
+          "frozen_digest": "aaaa",
+          "frozen_head": "head-freeze",
+          "frozen_intent_digest": "intent-1",
+          "head": "head-now",
+          "intent_digest": "intent-1",
+          "mold": "demo-mold",
+          "mold_digest": "aaaa",
+          "protected_paths": [],
+          "provider": "anthropic/claude",
+          "touched_paths": []
+        },
+        "missing": "",
+        "mold_run": {
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mold": "demo-mold",
+          "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+          "provider": "anthropic/claude",
+          "risk": "R2",
+          "tests": [
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-red",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "expected total 42, observed 41 on the externally visible summary",
+              "status": "failed",
+              "swallows_errors": false
+            },
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-green",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "",
+              "status": "passed",
+              "swallows_errors": false
+            }
+          ]
+        },
+        "observation": {
+          "command": "standardctl arc-a check",
+          "environment": "test/1.0",
+          "evidence": "corpus entry arc-a.clean.01",
+          "expected": "advance to IMPLEMENT_AUTHORIZED",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed": "all Arc A gates hold"
+        },
+        "project": {
+          "claims": [
+            {
+              "failure_shape": "crud",
+              "id": "c-py-1",
+              "kind": "generic",
+              "risk": "R2"
+            }
+          ],
+          "commands": {
+            "example_based": "pytest -m example_based"
+          },
+          "runtime_budget_s": 60,
+          "stack": "python"
+        },
+        "prompt": {
+          "allowed_mutations": "tools-only writes",
+          "disposition": "IMPLEMENT",
+          "evidence": "RED log",
+          "first_action": "run the qualification gate",
+          "forbidden_mutations": "no production writes",
+          "issue": "125",
+          "phase": "spec",
+          "primary_outcome": "Demo Arc A slice completes",
+          "protected_paths": "src/protected-impl.py",
+          "repository": "fixture-owner/fixture-app",
+          "risk": "R2",
+          "role": "builder",
+          "stop_conditions": "stop on drift",
+          "write_paths": "tools/"
+        },
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "receipt": {
+          "outcome": "Demo Arc A slice completes one outcome",
+          "proof": "RED log plus qualification receipt",
+          "scope": "one slice, tools-only writes"
+        },
+        "receipt_compact": true,
+        "satisfied": false,
+        "session": {
+          "controls_expected": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "controls_run": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "hash_pairs": [],
+          "production_writes": [
+            "tools/arc_gate.py"
+          ],
+          "protected_paths": [
+            "src/protected-impl.py"
+          ]
+        },
+        "spec": {
+          "assured": false,
+          "criteria": [
+            "Done within 200 ms"
+          ],
+          "examples": [],
+          "external_calls": [],
+          "migration_steps": [],
+          "risk": "R1",
+          "statements": [
+            "The slice completes one outcome"
+          ],
+          "title": "Demo Arc A slice completes one outcome"
+        }
+      }
+    },
+    {
+      "expected_authorized": false,
+      "expected_phase": "CHECKPOINTED",
+      "expected_rules": [
+        "production-write"
+      ],
+      "id": "arc-a.production-write.01",
+      "note": "Packet writes src/ship.py with every other gate clean: Arc A authorizes no production writes, so it pins at CHECKPOINTED with production-write.",
+      "packet": {
+        "ambiguity": "",
+        "attack": {
+          "attacker_provider": "openai/reviewer",
+          "note": "independent review found nothing material",
+          "verdict": "clean"
+        },
+        "capsule_fields": {
+          "allowed_paths": "tools/",
+          "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "blocker": "none",
+          "branch": "issue/125-arc-a-complete",
+          "expires": "2026-10-01",
+          "extensions": "none",
+          "focus_envelope": "one slice",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issue": "125",
+          "last_verification": "verify OK",
+          "lease": "lease-1",
+          "next_action": "advance toward Builder authorization",
+          "outcome": "Demo slice",
+          "phase": "spec",
+          "pr": "0",
+          "producer": "arc-a tests",
+          "protected_paths": "src/protected-impl.py",
+          "redacted": "no secrets",
+          "remaining_claims": "none",
+          "risk": "R2",
+          "role": "builder",
+          "rule_ids": "arc-a",
+          "schema": "task-capsule",
+          "source_hashes": "mold aebc4e7beeca",
+          "stop_conditions": "stop on drift",
+          "version": "5.0.0"
+        },
+        "code_is_remedy": true,
+        "disposition_value": "IMPLEMENT",
+        "files_touched": [
+          "tools/arc_gate.py",
+          "src/ship.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "freeze_run": {
+          "commands": [],
+          "frozen_commands": [],
+          "frozen_digest": "aaaa",
+          "frozen_head": "head-freeze",
+          "frozen_intent_digest": "intent-1",
+          "head": "head-now",
+          "intent_digest": "intent-1",
+          "mold": "demo-mold",
+          "mold_digest": "aaaa",
+          "protected_paths": [],
+          "provider": "anthropic/claude",
+          "touched_paths": []
+        },
+        "missing": "",
+        "mold_run": {
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mold": "demo-mold",
+          "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+          "provider": "anthropic/claude",
+          "risk": "R2",
+          "tests": [
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-red",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "expected total 42, observed 41 on the externally visible summary",
+              "status": "failed",
+              "swallows_errors": false
+            },
+            {
+              "alternative_impl_ok": true,
+              "asserts_mock_only": false,
+              "asserts_observable": true,
+              "asserts_setup_state": false,
+              "claims": [
+                "claim-total"
+              ],
+              "coverage_kind": "full",
+              "hard_codes_example": false,
+              "id": "t-green",
+              "is_equivalent_mutant": false,
+              "is_structural_failure": false,
+              "omits_relevant_state": false,
+              "red_reason": "",
+              "status": "passed",
+              "swallows_errors": false
+            }
+          ]
+        },
+        "observation": {
+          "command": "standardctl arc-a check",
+          "environment": "test/1.0",
+          "evidence": "corpus entry arc-a.clean.01",
+          "expected": "advance to IMPLEMENT_AUTHORIZED",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed": "all Arc A gates hold"
+        },
+        "project": {
+          "claims": [
+            {
+              "failure_shape": "crud",
+              "id": "c-py-1",
+              "kind": "generic",
+              "risk": "R2"
+            }
+          ],
+          "commands": {
+            "example_based": "pytest -m example_based"
+          },
+          "runtime_budget_s": 60,
+          "stack": "python"
+        },
+        "prompt": {
+          "allowed_mutations": "tools-only writes",
+          "disposition": "IMPLEMENT",
+          "evidence": "RED log",
+          "first_action": "run the qualification gate",
+          "forbidden_mutations": "no production writes",
+          "issue": "125",
+          "phase": "spec",
+          "primary_outcome": "Demo Arc A slice completes",
+          "protected_paths": "src/protected-impl.py",
+          "repository": "fixture-owner/fixture-app",
+          "risk": "R2",
+          "role": "builder",
+          "stop_conditions": "stop on drift",
+          "write_paths": "tools/"
+        },
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "receipt": {
+          "outcome": "Demo Arc A slice completes one outcome",
+          "proof": "RED log plus qualification receipt",
+          "scope": "one slice, tools-only writes"
+        },
+        "receipt_compact": true,
+        "satisfied": false,
+        "session": {
+          "controls_expected": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "controls_run": [
+            "arc-a.control.red",
+            "arc-a.control.receipt"
+          ],
+          "hash_pairs": [],
+          "production_writes": [
+            "tools/arc_gate.py"
+          ],
+          "protected_paths": [
+            "src/protected-impl.py"
+          ]
+        },
+        "spec": {
+          "assured": false,
+          "criteria": [
+            "Done within 200 ms"
+          ],
+          "examples": [],
+          "external_calls": [],
+          "migration_steps": [],
+          "risk": "R1",
+          "statements": [
+            "The slice completes one outcome"
+          ],
+          "title": "Demo Arc A slice completes one outcome"
+        }
+      }
+    }
+  ]
+}
