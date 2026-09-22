@@ -5197,6 +5197,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_review.add_argument("--json", action="store_true")
     p_review.set_defaults(func=cmd_independent_review)
 
+    p_control = sub.add_parser(
+        "control-plane",
+        help="Control plane readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_control.add_argument(
+        "--observation", default="",
+        help="path to a JSON observation file to evaluate; without "
+             "it, validates the frozen control fixture set")
+    p_control.add_argument(
+        "--corpus", default="Canonical/corpus/control-plane",
+        help="frozen corpus dir holding control.json for "
+             "validation mode")
+    p_control.add_argument("--json", action="store_true")
+    p_control.set_defaults(func=cmd_control_plane)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -8528,6 +8544,88 @@ def cmd_independent_review(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("independent-review: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_control_plane(args: argparse.Namespace) -> int:
+    """Advisory control-plane readout. With --observation,
+    evaluates that observation file; without it, validates the
+    frozen control oracle (every entry's computed rule ==
+    expected_rule and verdict == expected_verdict, IDs unique,
+    all 17 control rules covered) and prints findings. Always
+    exits 0 on findings: advisory never gates; only an
+    unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import control_plane
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.observation:
+        try:
+            observation = json.loads(
+                _Path(args.observation).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("control-plane: cannot load observation: %s" % exc)
+            return 2
+        if not isinstance(observation, dict):
+            print("control-plane: observation must be a JSON object")
+            return 2
+        result = control_plane.evaluate(observation)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "evaluate",
+                "observation": args.observation,
+                "verdict": result.verdict,
+                "rule": result.rule,
+                "profile": observation.get("profile", ""),
+                "ok": result.verdict == "ARM",
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("control-plane: %s -- %s (%s)" % (
+                args.observation, result.verdict, result.rule))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "control.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("control-plane: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        control_plane.validate_control_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(e.get("expected_rule", ""))
+                    for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("control-plane: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)

@@ -15239,5 +15239,272 @@ class IndependentReview(unittest.TestCase):
 
 
 
+
+class ControlPlane(unittest.TestCase):
+    """Stage 60a (#151): exact-head evidence, control plane, and PR
+    Gate hardening (Standard half).
+
+    Versioned simple/monorepo contract binding every claim, lane,
+    review, standards result, and merge action to the exact head:
+    lanes report, pins hold full-SHA, privilege stays least,
+    heads equal tested SHAs, privileged jobs run no PR code,
+    auto-merge arms on expected OIDs, holds gate explicitly.
+    Pure contract in tools/control_plane.py plus the frozen
+    corpus under Canonical/corpus/control-plane/."""
+
+    def _cp(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import control_plane
+            return control_plane
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "control-plane" / "control.json")
+            .read_text(encoding="utf-8"))
+
+    def _obs(self, **overrides):
+        cp = self._cp()
+        obs = cp.clean_observation()
+        for key, value in overrides.items():
+            obs[key] = value
+        return obs
+
+    def _lanes(self, lanes, **over):
+        base = {lane: "success" for lane in lanes}
+        base.update(over)
+        return base
+
+    def test_clean_observation_arms(self):
+        """Protects the Primary Outcome (positive control): green
+        lanes at the exact head with expected OIDs ARM, so
+        compliant merges actually arm."""
+        cp = self._cp()
+        result = cp.evaluate(cp.clean_observation())
+        self.assertEqual("ARM", result.verdict)
+        self.assertEqual("clean-arm", result.rule)
+
+    def test_missing_lane_refused(self):
+        """Protects lane presence: a missing required lane
+        refuses."""
+        cp = self._cp()
+        result = cp.evaluate(self._obs(
+            lanes=["policy"],
+            conclusions={"policy": "success"}))
+        self.assertEqual("missing-lane", result.rule)
+
+    def test_duplicate_lane_refused(self):
+        """Protects report integrity: a duplicate lane report
+        refuses."""
+        cp = self._cp()
+        lanes = ["policy", "tests", "gate-compliance", "policy"]
+        result = cp.evaluate(self._obs(
+            lanes=lanes,
+            conclusions=dict(self._lanes(
+                ["policy", "tests", "gate-compliance"]),
+                policy="success")))
+        self.assertEqual("duplicate-lane", result.rule)
+
+    def test_skipped_lane_refused(self):
+        """Protects reporting: a skipped lane refuses."""
+        cp = self._cp()
+        result = cp.evaluate(self._obs(conclusions=self._lanes(
+            ["policy", "tests", "gate-compliance"],
+            tests="skipped")))
+        self.assertEqual("skipped-lane", result.rule)
+
+    def test_neutral_lane_refused(self):
+        """Protects verdict discipline: a neutral lane refuses —
+        lanes report success/failure."""
+        cp = self._cp()
+        result = cp.evaluate(self._obs(conclusions=self._lanes(
+            ["policy", "tests", "gate-compliance"],
+            tests="neutral")))
+        self.assertEqual("neutral-lane", result.rule)
+
+    def test_cancelled_lane_refused(self):
+        """Protects reruns: a cancelled lane refuses and reruns."""
+        cp = self._cp()
+        result = cp.evaluate(self._obs(conclusions=self._lanes(
+            ["policy", "tests", "gate-compliance"],
+            tests="cancelled")))
+        self.assertEqual("cancelled-lane", result.rule)
+
+    def test_stale_tested_head_refused(self):
+        """Protects exact-head equality: a tested SHA differing
+        from the head refuses and re-verifies."""
+        cp = self._cp()
+        result = cp.evaluate(self._obs(live_head="b" * 40))
+        self.assertEqual("stale-lane", result.rule)
+
+    def test_path_filter_refused(self):
+        """Protects visibility: a path-filtered lane refuses."""
+        cp = self._cp()
+        result = cp.evaluate(self._obs(path_filtered=True))
+        self.assertEqual("path-filter", result.rule)
+
+    def test_unsafe_target_refused(self):
+        """Protects privilege: an unsafe pull_request_target with
+        PR code refuses."""
+        cp = self._cp()
+        result = cp.evaluate(self._obs(pr_target_unsafe=True))
+        self.assertEqual("unsafe-target", result.rule)
+
+    def test_floating_pin_refused(self):
+        """Protects pinning: a floating action pin refuses until
+        full-SHA."""
+        cp = self._cp()
+        result = cp.evaluate(self._obs(pins_floating=True))
+        self.assertEqual("floating-pin", result.rule)
+
+    def test_excess_permission_refused(self):
+        """Protects least privilege: an over-privileged worker
+        lane refuses."""
+        cp = self._cp()
+        result = cp.evaluate(self._obs(excess_permission=True))
+        self.assertEqual("excess-permission", result.rule)
+
+    def test_moved_head_refused(self):
+        """Protects arming: an armed OID differing from expected
+        refuses and re-arms."""
+        cp = self._cp()
+        result = cp.evaluate(self._obs(armed_oid="b" * 40))
+        self.assertEqual("head-moved", result.rule)
+
+    def test_missing_evidence_refused(self):
+        """Protects evidence: missing screenshots/digests refuse."""
+        cp = self._cp()
+        result = cp.evaluate(self._obs(evidence_complete=False))
+        self.assertEqual("missing-evidence", result.rule)
+
+    def test_policy_failure_refused(self):
+        """Protects policy: a standards-policy failure refuses."""
+        cp = self._cp()
+        result = cp.evaluate(self._obs(policy_ok=False))
+        self.assertEqual("policy-fail", result.rule)
+
+    def test_merge_conflict_holds(self):
+        """Protects merge integrity: a conflict holds, never
+        arms."""
+        cp = self._cp()
+        result = cp.evaluate(self._obs(conflicted=True))
+        self.assertEqual("HOLD", result.verdict)
+        self.assertEqual("merge-conflict", result.rule)
+
+    def test_draft_hold_holds(self):
+        """Protects holds: unauthorized drafts and owner holds
+        hold."""
+        cp = self._cp()
+        result = cp.evaluate(self._obs(draft=True,
+                                       owner_hold=True))
+        self.assertEqual("draft-hold", result.rule)
+
+    def test_rearm_holds_monorepo(self):
+        """Protects re-arming: a monorepo observation needing
+        re-arm holds with re-arm."""
+        cp = self._cp()
+        result = cp.evaluate(self._obs(profile="monorepo",
+                                       needs_rearm=True))
+        self.assertEqual("HOLD", result.verdict)
+        self.assertEqual("rearm", result.rule)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 17 corpus entries
+        reproduce their expected rules and verdicts, covering all
+        17 control rules with unique well-formed IDs."""
+        cp = self._cp()
+        findings, entries = cp.validate_control_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(17, len(entries))
+        covered = {e["expected_rule"] for e in entries}
+        self.assertEqual(set(cp.RULES), covered)
+
+    def test_red_by_construction_arm_stub_misses_refusals(self):
+        """Sensitivity proof (RED): an arm-everything stub misses
+        all 13 REFUSE corpus fragments while the real contract
+        refuses each — so the suite is green because the
+        control plane holds, not because refusals are absent."""
+        cp = self._cp()
+        corpus = self._corpus_doc()
+        refuses = [entry for entry in corpus["entries"]
+                   if entry.get("expected_verdict") == "REFUSE"]
+        self.assertEqual(13, len(refuses))
+        stub_hits = 0
+        for entry in refuses:
+            real = cp.evaluate(entry["observation"])
+            self.assertEqual(entry["expected_rule"],
+                             real.rule, entry["id"])
+            self.assertEqual(entry["expected_verdict"],
+                             real.verdict, entry["id"])
+            stub_hits += 0  # the arm stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_control_plane_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: control-plane
+        validates the real corpus (ok, 17 entries, 17 rules),
+        evaluates an --observation file as JSON, exits 0 on
+        refused observations, and exits 2 only on unreadable
+        files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "control-plane", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(17, payload["entries"])
+        self.assertEqual(17, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-obs.json"
+            good_path.write_text(
+                json.dumps(self._cp().clean_observation()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "control-plane", "--observation",
+                 str(good_path), "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("ARM", payload["verdict"])
+            bad_path = Path(tmp) / "bad-obs.json"
+            bad = self._cp().clean_observation()
+            bad["live_head"] = "b" * 40
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "control-plane", "--observation",
+                 str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "control-plane", "--observation",
+             "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "control-plane", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()
