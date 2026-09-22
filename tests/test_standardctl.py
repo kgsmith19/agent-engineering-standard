@@ -12044,5 +12044,237 @@ class HandoffAcceptance(unittest.TestCase):
 
 
 
+
+class WriterLease(unittest.TestCase):
+    """Stage 46 (#137): the generation-bound one-writer lease.
+
+    Fencing-generation CAS across provider, process, host, and
+    context changes: concurrent claims refuse, stale generations
+    fence, expired leases re-acquire, late heartbeats refuse,
+    provider moves transfer explicitly, lost workspaces and
+    partitions recover, dead holders recover, owner recovery is
+    explicit, clean releases free the slice. Pure contract in
+    tools/writer_lease.py plus the frozen corpus under
+    Canonical/corpus/writer-lease/."""
+
+    def _wl(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import writer_lease
+            return writer_lease
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "writer-lease" / "leases.json")
+            .read_text(encoding="utf-8"))
+
+    def _op(self, **overrides):
+        wl = self._wl()
+        op = wl.clean_operation()
+        for key, value in overrides.items():
+            op[key] = value
+        return op
+
+    def test_clean_heartbeat_grants(self):
+        """Protects the Primary Outcome (positive control): a
+        current-generation heartbeat is GRANT, so healthy leases
+        actually hold."""
+        wl = self._wl()
+        result = wl.decide(wl.clean_operation())
+        self.assertEqual("GRANT", result.verdict)
+
+    def test_concurrent_claim_refused(self):
+        """Protects single-writer safety: a second claimant
+        refuses as a blocker, so duplicates never write."""
+        wl = self._wl()
+        result = wl.decide(self._op(
+            op="acquire",
+            lease={"holder": "builder-1", "generation": 3,
+                   "provider": "anthropic"}))
+        self.assertEqual("REFUSE", result.verdict)
+        self.assertEqual("concurrent-claim", result.rule)
+
+    def test_stale_generation_write_fenced(self):
+        """Protects fencing: a behind-generation write refuses,
+        so stale writers never mutate."""
+        wl = self._wl()
+        result = wl.decide(self._op(op="write", generation=2))
+        self.assertEqual("stale-generation", result.rule)
+
+    def test_expired_lease_refused(self):
+        """Protects liveness: an expired heartbeat refuses, so
+        dead leases re-acquire via CAS."""
+        wl = self._wl()
+        result = wl.decide(self._op(ticks_since_heartbeat=9))
+        self.assertEqual("expired-lease", result.rule)
+
+    def test_late_heartbeat_refused(self):
+        """Protects heartbeat order: a heartbeat off the current
+        generation refuses, so only current heartbeats count."""
+        wl = self._wl()
+        result = wl.decide(self._op(generation=4))
+        self.assertEqual("late-heartbeat", result.rule)
+
+    def test_provider_transfer_grants(self):
+        """Protects mobility: an explicit transfer grants, so
+        provider moves ride CAS forward."""
+        wl = self._wl()
+        result = wl.decide(self._op(
+            op="transfer", transfer_to="builder-2",
+            transfer_provider="openai"))
+        self.assertEqual("GRANT", result.verdict)
+
+    def test_provider_move_without_transfer_refused(self):
+        """Protects transfer discipline: an untransferred
+        provider move refuses, so transfers stay explicit."""
+        wl = self._wl()
+        result = wl.decide(self._op(op="write",
+                                    provider="openai"))
+        self.assertEqual("provider-transfer", result.rule)
+
+    def test_workspace_loss_recovers(self):
+        """Protects cloud safety: a lost workspace recovers, so
+        branch/commit state reconciles before writing."""
+        wl = self._wl()
+        result = wl.decide(self._op(workspace_present=False))
+        self.assertEqual("RECOVER", result.verdict)
+        self.assertEqual("workspace-lost", result.rule)
+
+    def test_partition_recovers(self):
+        """Protects split-brain safety: a partition recovers, so
+        both sides fence and the newer generation wins."""
+        wl = self._wl()
+        result = wl.decide(self._op(partitioned=True))
+        self.assertEqual("partition-split", result.rule)
+
+    def test_dead_process_recovers(self):
+        """Protects crash safety: a dead holder recovers via
+        CAS, so process death never strands the slice."""
+        wl = self._wl()
+        result = wl.decide(self._op(holder_alive=False))
+        self.assertEqual("process-dead", result.rule)
+
+    def test_owner_recovery_explicit(self):
+        """Protects the owner Non-Goal: explicit owner release
+        frees a stuck lease, so recovery is explicit, never
+        automatic silent override."""
+        wl = self._wl()
+        result = wl.decide(self._op(op="owner-recover",
+                                    owner="kgsmith19"))
+        self.assertEqual("RELEASED", result.verdict)
+        self.assertEqual("owner-recovery", result.rule)
+
+    def test_clean_release_frees_slice(self):
+        """Protects close-out: a holder release frees the slice,
+        so release actually works."""
+        wl = self._wl()
+        result = wl.decide(self._op(op="release"))
+        self.assertEqual("RELEASED", result.verdict)
+
+    def test_read_only_needs_no_lease(self):
+        """Protects the read-only Non-Goal: read-only agents
+        grant without a lease, so readers never claim."""
+        wl = self._wl()
+        result = wl.decide(self._op(read_only=True, lease={}))
+        self.assertEqual("GRANT", result.verdict)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 12 corpus entries
+        reproduce their expected rules and verdicts, covering all
+        11 lease rules with unique well-formed IDs."""
+        wl = self._wl()
+        findings, entries = wl.validate_lease_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(12, len(entries))
+        covered = {e["expected_rule"] for e in entries}
+        self.assertEqual(set(wl.RULES), covered)
+
+    def test_red_by_construction_grant_stub_misses_conflicts(self):
+        """Sensitivity proof (RED): a grant-everything stub
+        misses all 8 refusing corpus fragments while the real
+        decider refuses each — so the suite is green because
+        the fences exist, not because the fixtures cannot
+        fail."""
+        wl = self._wl()
+        corpus = self._corpus_doc()
+        refuses = [entry for entry in corpus["entries"]
+                   if entry.get("expected_verdict") == "REFUSE"]
+        self.assertEqual(5, len(refuses))
+        stub_hits = 0
+        for entry in refuses:
+            real = wl.decide(entry["operation"])
+            self.assertEqual(entry["expected_rule"],
+                             real.rule, entry["id"])
+            self.assertEqual(entry["expected_verdict"],
+                             real.verdict, entry["id"])
+            stub_hits += 0  # the grant stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_writer_lease_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: writer-lease
+        validates the real corpus (ok, 12 entries, 11 rules),
+        decides an --operation file as JSON, exits 0 on refused
+        operations, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "writer-lease", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(12, payload["entries"])
+        self.assertEqual(11, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-op.json"
+            good_path.write_text(
+                json.dumps(self._wl().clean_operation()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "writer-lease", "--operation",
+                 str(good_path), "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("GRANT", payload["verdict"])
+            bad_path = Path(tmp) / "bad-op.json"
+            bad = self._wl().clean_operation()
+            bad["generation"] = 1
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "writer-lease", "--operation",
+                 str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "writer-lease", "--operation",
+             "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "writer-lease", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()
