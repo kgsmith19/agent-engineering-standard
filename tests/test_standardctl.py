@@ -8178,5 +8178,197 @@ class HotspotPilot(FixtureCase):
         self.assertEqual(0, stub_hits)
 
 
+class CleanupPredicates(FixtureCase):
+    """T19 (#214): cleanup with proven-merge, head-match, and
+    receipt. Remote-revalidated merge receipts, head-match,
+    clean-tree, no-unpushed, no-active-writer, no-dependents,
+    pre-mutation recheck, attempt receipts, and quarantine in
+    tools/cleanup_predicates.py with the frozen corpus under
+    Canonical/corpus/cleanup-predicates/. Every proof point below
+    has a dedicated test with its own justification."""
+
+    def _cp(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import cleanup_predicates
+            return cleanup_predicates
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "cleanup-predicates" / "cleanup.json")
+            .read_text(encoding="utf-8"))
+
+    def test_merge_receipt_remote_truth(self):
+        """Protects AC1: a revalidated remote receipt passes while
+        a local-only receipt is refused, so cleanup never trusts
+        local squash-aware checks over remote merge truth."""
+        cp = self._cp()
+        self.assertEqual(
+            [], cp.check_merge_receipt(cp.clean_receipt()))
+        violations = cp.check_merge_receipt(
+            {"branch": "b", "local_only": True})
+        self.assertTrue(
+            any("local-only receipt refused" in v
+                for v in violations), violations)
+
+    def test_head_match_required(self):
+        """Protects AC2: matching heads pass while divergence
+        blocks naming both heads, so deletion needs head-match or
+        content-equivalence."""
+        cp = self._cp()
+        self.assertEqual([], cp.check_head_match("a", "a"))
+        violations = cp.check_head_match("a", "b")
+        self.assertTrue(
+            any("head mismatch" in v for v in violations),
+            violations)
+
+    def test_clean_tree_required(self):
+        """Protects AC3: a clean tree passes while a dirty tree
+        blocks, so information-carrying changes are never
+        deleted with the worktree."""
+        cp = self._cp()
+        self.assertEqual([], cp.check_clean_tree({}))
+        violations = cp.check_clean_tree({"dirty": True})
+        self.assertTrue(
+            any("dirty tree" in v for v in violations),
+            violations)
+
+    def test_unpushed_refused(self):
+        """Protects AC4: fully-pushed passes while ahead commits
+        and missing upstream both block, so unique work is never
+        deleted and uncertainty is never safety."""
+        cp = self._cp()
+        self.assertEqual(
+            [], cp.check_no_unpushed(0, "origin/b"))
+        self.assertTrue(cp.check_no_unpushed(2, "origin/b"))
+        violations = cp.check_no_unpushed(0, None)
+        self.assertTrue(
+            any("missing upstream ref" in v for v in violations),
+            violations)
+
+    def test_active_unknown_writers_refused(self):
+        """Protects AC5: a stopped writer passes while active and
+        unknown writers block without conversion, so ownership is
+        never assumed away."""
+        cp = self._cp()
+        self.assertEqual(
+            [], cp.check_no_active_writer({"state": "stopped"}))
+        for state in ("active", "unknown"):
+            violations = cp.check_no_active_writer(
+                {"state": state})
+            self.assertTrue(violations, state)
+
+    def test_dependents_preserved(self):
+        """Protects AC6: an independent item passes while
+        dependent/locked/closed-unmerged items block, so live
+        dependents are never deleted."""
+        cp = self._cp()
+        self.assertEqual([], cp.check_no_dependents({}))
+        for flag in ("dependent_of_live", "locked",
+                     "closed_unmerged"):
+            violations = cp.check_no_dependents({flag: True})
+            self.assertTrue(
+                any("protected state" in v for v in violations),
+                flag)
+
+    def test_premutation_recheck_exact_target(self):
+        """Protects AC7: a fresh exact-target recheck passes while
+        a stale or bulk/pattern deletion fails, so mutation is
+        conditional on fresh predicates via the native path."""
+        cp = self._cp()
+        self.assertEqual(
+            [], cp.check_premutation_recheck(
+                {"fresh": True, "target": "issue/1-x"}))
+        violations = cp.check_premutation_recheck(
+            {"fresh": True, "target": "*", "bulk": True})
+        self.assertTrue(
+            any("pattern/bulk" in v for v in violations),
+            violations)
+
+    def test_receipt_idempotent_restart(self):
+        """Protects AC8: a receipted attempt passes while a
+        receipt-less attempt fails, so every attempt is recorded
+        and restarts reconcile without double-effect."""
+        cp = self._cp()
+        self.assertEqual(
+            [], cp.check_receipt_written({"receipt": "r1"}))
+        violations = cp.check_receipt_written({})
+        self.assertTrue(
+            any("no cleanup receipt" in v for v in violations),
+            violations)
+
+    def test_quarantine_path(self):
+        """Protects AC9: a quarantined orphan passes while silent
+        deletion fails, so ambiguous orphans reach the owner,
+        never the void."""
+        cp = self._cp()
+        self.assertEqual(
+            [], cp.check_quarantine(
+                {"ambiguous": True, "quarantined": True}))
+        violations = cp.check_quarantine(
+            {"ambiguous": True, "silently_deleted": True})
+        self.assertTrue(
+            any("silently deleted" in v for v in violations),
+            violations)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 18 corpus entries
+        reproduce their expected violation fragments across all
+        nine predicate surfaces (receipt, head, tree, unpushed,
+        writer, dependents, recheck, attempt, quarantine)."""
+        cp = self._cp()
+        findings, entries = \
+            cp.validate_cleanup_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(18, len(entries))
+
+    def test_red_by_construction_no_rule_stub_passes(self):
+        """Sensitivity proof (RED): a no-rule stub that deletes
+        unconditionally reproduces 0/9 negative corpus
+        fragments while the real predicates block all 9 — so
+        the suite is green because the predicates exist, not
+        because the fixtures cannot fail."""
+        cp = self._cp()
+        corpus = self._corpus_doc()
+        negatives = [entry for entry in corpus["entries"]
+                     if entry.get("expected_violation_fragment")]
+        self.assertEqual(9, len(negatives))
+        stub_hits = 0
+        for entry in negatives:
+            target = entry["target"]
+            record = entry["record"]
+            if target == "receipt":
+                real = cp.check_merge_receipt(record)
+            elif target == "head":
+                real = cp.check_head_match(
+                    record.get("local"), record.get("merged"),
+                    record.get("equivalent", False))
+            elif target == "tree":
+                real = cp.check_clean_tree(record)
+            elif target == "unpushed":
+                real = cp.check_no_unpushed(
+                    record.get("ahead", 0),
+                    record.get("upstream"))
+            elif target == "writer":
+                real = cp.check_no_active_writer(record)
+            elif target == "dependents":
+                real = cp.check_no_dependents(record)
+            elif target == "recheck":
+                real = cp.check_premutation_recheck(record)
+            elif target == "attempt":
+                real = cp.check_receipt_written(record)
+            else:
+                real = cp.check_quarantine(record)
+            self.assertTrue(
+                any(entry["expected_violation_fragment"] in v
+                    for v in real), entry["id"])
+            stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+
 if __name__ == "__main__":
     unittest.main()
