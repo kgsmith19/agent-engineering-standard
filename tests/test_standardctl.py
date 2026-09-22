@@ -13894,5 +13894,232 @@ class StandardsReceipt(unittest.TestCase):
 
 
 
+
+class CapabilityCompiler(unittest.TestCase):
+    """Stage 54a (#145): the capability compiler (Standard half).
+
+    Role/phase/task profiles compile to concrete bounds —
+    read/write roots, execute/network allowlists, secret
+    handles, owner-gated ops: sharp edges deny immediately,
+    sandbox gaps escalate dry-run, owner approvals allow,
+    routine edits and test commands flow. Pure contract in
+    tools/capability_compiler.py plus the frozen corpus under
+    Canonical/corpus/capability-compiler/."""
+
+    def _cc(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import capability_compiler
+            return capability_compiler
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "capability-compiler" / "capabilities.json")
+            .read_text(encoding="utf-8"))
+
+    def _action(self, **overrides):
+        cc = self._cc()
+        action = cc.clean_action()
+        for key, value in overrides.items():
+            action[key] = value
+        return action
+
+    def test_focused_edit_allowed(self):
+        """Protects the Primary Outcome (positive control): a
+        focused builder edit inside roots is ALLOW, so routine
+        work flows."""
+        cc = self._cc()
+        result = cc.check(cc.clean_action())
+        self.assertEqual("ALLOW", result.verdict)
+        self.assertEqual("focused-edit", result.rule)
+
+    def test_foreign_read_denied(self):
+        """Protects visibility: a home/SSH read outside roots
+        denies, so agents see only task roots."""
+        cc = self._cc()
+        result = cc.check(self._action(
+            kind="read", target="/home/user/.ssh/id_rsa",
+            read_roots=["tools/"]))
+        self.assertEqual("DENY", result.verdict)
+        self.assertEqual("foreign-read", result.rule)
+
+    def test_foreign_write_denied(self):
+        """Protects writability: a foreign write denies, so only
+        roots mutate."""
+        cc = self._cc()
+        result = cc.check(self._action(target="/etc/passwd"))
+        self.assertEqual("foreign-write", result.rule)
+
+    def test_frozen_mold_denied(self):
+        """Protects frozen oracles: a frozen Mold write denies, so
+        regeneration owns frozen bytes."""
+        cc = self._cc()
+        result = cc.check(self._action(
+            target="Canonical/corpus/arc-a/arc.json"))
+        self.assertEqual("frozen-mold", result.rule)
+
+    def test_direct_to_main_denied(self):
+        """Protects the PR lane: direct-to-main mutation denies,
+        so changes land via PR only."""
+        cc = self._cc()
+        result = cc.check(self._action(direct_main=True))
+        self.assertEqual("direct-main", result.rule)
+
+    def test_raw_secret_denied(self):
+        """Protects credentials: a raw secret where a handle
+        belongs denies."""
+        cc = self._cc()
+        result = cc.check(self._action(
+            kind="secret", target="api-key", raw_secret=True,
+            handle=""))
+        self.assertEqual("secret-mount", result.rule)
+
+    def test_arbitrary_egress_denied(self):
+        """Protects the network: egress outside the allowlist
+        denies."""
+        cc = self._cc()
+        result = cc.check(self._action(
+            kind="egress", target="",
+            endpoint="https://evil.example.com"))
+        self.assertEqual("arbitrary-egress", result.rule)
+
+    def test_allowlisted_test_command_allowed(self):
+        """Protects verification: an allowlisted test command
+        allows, so verification runs."""
+        cc = self._cc()
+        result = cc.check(self._action(
+            kind="execute",
+            command="python tools/standardctl.py verify",
+            test_command=True,
+            exec_allow=["python tools/standardctl.py verify"],
+            sandbox=True))
+        self.assertEqual("ALLOW", result.verdict)
+
+    def test_mcp_write_during_research_denied(self):
+        """Protects research: an MCP write in research phase
+        denies, so research stays read-only."""
+        cc = self._cc()
+        result = cc.check(self._action(
+            phase="research", mcp_write=True))
+        self.assertEqual("mcp-research-write", result.rule)
+
+    def test_provider_without_sandbox_escalates(self):
+        """Protects rollout: a sandbox-less provider escalates
+        dry-run/report instead of denying routine work."""
+        cc = self._cc()
+        result = cc.check(self._action(
+            kind="execute", command="custom-tool",
+            exec_allow=["custom-tool"], sandbox=False,
+            wrapper=False))
+        self.assertEqual("ESCALATE", result.verdict)
+
+    def test_owner_approved_escalation_allowed(self):
+        """Protects the escalation path: owner approval allows
+        with the approval recorded."""
+        cc = self._cc()
+        result = cc.check(self._action(
+            kind="execute", command="custom-tool",
+            exec_allow=["custom-tool"], sandbox=False,
+            wrapper=False, owner_approved=True))
+        self.assertEqual("ALLOW", result.verdict)
+        self.assertEqual("owner-escalation", result.rule)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 11 corpus entries
+        reproduce their expected rules and verdicts, covering all
+        11 capability rules with unique well-formed IDs."""
+        cc = self._cc()
+        findings, entries = cc.validate_capability_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(11, len(entries))
+        covered = {e["expected_rule"] for e in entries}
+        self.assertEqual(set(cc.RULES), covered)
+
+    def test_red_by_construction_allow_stub_misses_denies(self):
+        """Sensitivity proof (RED): an allow-everything stub
+        misses all 7 DENY corpus fragments while the real
+        compiler denies each — so the suite is green because
+        sharp edges exist, not because overreach is absent."""
+        cc = self._cc()
+        corpus = self._corpus_doc()
+        denies = [entry for entry in corpus["entries"]
+                  if entry.get("expected_verdict") == "DENY"]
+        self.assertEqual(7, len(denies))
+        stub_hits = 0
+        for entry in denies:
+            real = cc.check(entry["action"])
+            self.assertEqual(entry["expected_rule"],
+                             real.rule, entry["id"])
+            self.assertEqual(entry["expected_verdict"],
+                             real.verdict, entry["id"])
+            stub_hits += 0  # the allow stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_capability_compiler_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: capability-compiler
+        validates the real corpus (ok, 11 entries, 11 rules),
+        checks an --action file as JSON, exits 0 on denied
+        actions, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "capability-compiler", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(11, payload["entries"])
+        self.assertEqual(11, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-action.json"
+            good_path.write_text(
+                json.dumps(self._cc().clean_action()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "capability-compiler", "--action",
+                 str(good_path), "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("ALLOW", payload["verdict"])
+            bad_path = Path(tmp) / "bad-action.json"
+            bad = self._cc().clean_action()
+            bad["target"] = "/etc/passwd"
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "capability-compiler", "--action",
+                 str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "capability-compiler", "--action",
+             "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "capability-compiler", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()

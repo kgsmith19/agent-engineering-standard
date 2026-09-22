@@ -5098,6 +5098,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_receipt.add_argument("--json", action="store_true")
     p_receipt.set_defaults(func=cmd_standards_receipt)
 
+    p_cap = sub.add_parser(
+        "capability-compiler",
+        help="Capability compiler readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_cap.add_argument(
+        "--action", default="",
+        help="path to a JSON action file to check; without "
+             "it, validates the frozen capability fixture set")
+    p_cap.add_argument(
+        "--corpus", default="Canonical/corpus/capability-compiler",
+        help="frozen corpus dir holding capabilities.json for "
+             "validation mode")
+    p_cap.add_argument("--json", action="store_true")
+    p_cap.set_defaults(func=cmd_capability_compiler)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -7900,6 +7916,87 @@ def cmd_standards_receipt(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("standards-receipt: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_capability_compiler(args: argparse.Namespace) -> int:
+    """Advisory capability-compiler readout. With --action,
+    checks that action file; without it, validates the frozen
+    capability oracle (every entry's computed rule ==
+    expected_rule and verdict == expected_verdict, IDs unique,
+    all 11 capability rules covered) and prints findings.
+    Always exits 0 on findings: advisory never gates; only an
+    unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import capability_compiler
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.action:
+        try:
+            action = json.loads(
+                _Path(args.action).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("capability-compiler: cannot load action: %s" % exc)
+            return 2
+        if not isinstance(action, dict):
+            print("capability-compiler: action must be a JSON object")
+            return 2
+        result = capability_compiler.check(action)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "check",
+                "action": args.action,
+                "verdict": result.verdict,
+                "rule": result.rule,
+                "ok": result.verdict in ("ALLOW", "ESCALATE"),
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("capability-compiler: %s -- %s (%s)" % (
+                args.action, result.verdict, result.rule))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "capabilities.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("capability-compiler: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        capability_compiler.validate_capability_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(e.get("expected_rule", ""))
+                    for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("capability-compiler: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)
