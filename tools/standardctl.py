@@ -4970,6 +4970,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_wake.add_argument("--json", action="store_true")
     p_wake.set_defaults(func=cmd_replay_wake)
 
+    p_lease = sub.add_parser(
+        "writer-lease",
+        help="Writer lease readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_lease.add_argument(
+        "--operation", default="",
+        help="path to a JSON operation file to decide; without "
+             "it, validates the frozen lease fixture set")
+    p_lease.add_argument(
+        "--corpus", default="Canonical/corpus/writer-lease",
+        help="frozen corpus dir holding leases.json for "
+             "validation mode")
+    p_lease.add_argument("--json", action="store_true")
+    p_lease.set_defaults(func=cmd_writer_lease)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -7111,6 +7127,86 @@ def cmd_replay_wake(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("replay-wake: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_writer_lease(args: argparse.Namespace) -> int:
+    """Advisory writer-lease readout. With --operation,
+    decides that operation file; without it, validates the
+    frozen lease oracle (every entry's computed rule ==
+    expected_rule and verdict == expected_verdict, IDs unique,
+    all 11 lease rules covered) and prints findings. Always
+    exits 0 on findings: advisory never gates; only an
+    unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import writer_lease
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.operation:
+        try:
+            operation = json.loads(
+                _Path(args.operation).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("writer-lease: cannot load operation: %s" % exc)
+            return 2
+        if not isinstance(operation, dict):
+            print("writer-lease: operation must be a JSON object")
+            return 2
+        result = writer_lease.decide(operation)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "decide",
+                "operation": args.operation,
+                "verdict": result.verdict,
+                "rule": result.rule,
+                "ok": result.verdict in ("GRANT", "RELEASED"),
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("writer-lease: %s -- %s (%s)" % (
+                args.operation, result.verdict, result.rule))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "leases.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("writer-lease: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = writer_lease.validate_lease_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(e.get("expected_rule", ""))
+                    for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("writer-lease: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)

@@ -1,0 +1,318 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 46 #137 Writer lease frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "writer-lease.clean.01",
+   "note": "Current-generation heartbeat: GRANT, so healthy leases actually hold.",
+   "operation": {
+    "op": "heartbeat",
+    "agent": "builder-1",
+    "slice": "slice-1",
+    "lease": {
+     "holder": "builder-1",
+     "generation": 3,
+     "provider": "anthropic"
+    },
+    "generation": 3,
+    "ticks_since_heartbeat": 0,
+    "holder_alive": true,
+    "provider": "anthropic",
+    "transfer_to": "",
+    "transfer_provider": "",
+    "workspace_present": true,
+    "partitioned": false,
+    "owner": "",
+    "read_only": false
+   },
+   "expected_rule": "no-lease",
+   "expected_verdict": "GRANT"
+  },
+  {
+   "id": "writer-lease.concurrent.01",
+   "note": "Second claimant refused: one writer only, so duplicates never write.",
+   "operation": {
+    "op": "acquire",
+    "agent": "builder-1",
+    "slice": "slice-1",
+    "lease": {
+     "holder": "builder-1",
+     "generation": 3,
+     "provider": "anthropic"
+    },
+    "generation": 3,
+    "ticks_since_heartbeat": 0,
+    "holder_alive": true,
+    "provider": "anthropic",
+    "transfer_to": "",
+    "transfer_provider": "",
+    "workspace_present": true,
+    "partitioned": false,
+    "owner": "",
+    "read_only": false
+   },
+   "expected_rule": "concurrent-claim",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "writer-lease.stale.01",
+   "note": "Stale-generation write fenced: old writers never mutate.",
+   "operation": {
+    "op": "write",
+    "agent": "builder-1",
+    "slice": "slice-1",
+    "lease": {
+     "holder": "builder-1",
+     "generation": 3,
+     "provider": "anthropic"
+    },
+    "generation": 2,
+    "ticks_since_heartbeat": 0,
+    "holder_alive": true,
+    "provider": "anthropic",
+    "transfer_to": "",
+    "transfer_provider": "",
+    "workspace_present": true,
+    "partitioned": false,
+    "owner": "",
+    "read_only": false
+   },
+   "expected_rule": "stale-generation",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "writer-lease.expired.01",
+   "note": "Expired heartbeat refused: leases re-acquire via CAS.",
+   "operation": {
+    "op": "heartbeat",
+    "agent": "builder-1",
+    "slice": "slice-1",
+    "lease": {
+     "holder": "builder-1",
+     "generation": 3,
+     "provider": "anthropic"
+    },
+    "generation": 3,
+    "ticks_since_heartbeat": 9,
+    "holder_alive": true,
+    "provider": "anthropic",
+    "transfer_to": "",
+    "transfer_provider": "",
+    "workspace_present": true,
+    "partitioned": false,
+    "owner": "",
+    "read_only": false
+   },
+   "expected_rule": "expired-lease",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "writer-lease.late.01",
+   "note": "Late heartbeat ahead of the lease refused: only the current generation heartbeats.",
+   "operation": {
+    "op": "heartbeat",
+    "agent": "builder-1",
+    "slice": "slice-1",
+    "lease": {
+     "holder": "builder-1",
+     "generation": 3,
+     "provider": "anthropic"
+    },
+    "generation": 4,
+    "ticks_since_heartbeat": 0,
+    "holder_alive": true,
+    "provider": "anthropic",
+    "transfer_to": "",
+    "transfer_provider": "",
+    "workspace_present": true,
+    "partitioned": false,
+    "owner": "",
+    "read_only": false
+   },
+   "expected_rule": "late-heartbeat",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "writer-lease.transfer.01",
+   "note": "Provider move with transfer grants: mobility via CAS forward.",
+   "operation": {
+    "op": "transfer",
+    "agent": "builder-1",
+    "slice": "slice-1",
+    "lease": {
+     "holder": "builder-1",
+     "generation": 3,
+     "provider": "anthropic"
+    },
+    "generation": 3,
+    "ticks_since_heartbeat": 0,
+    "holder_alive": true,
+    "provider": "anthropic",
+    "transfer_to": "builder-2",
+    "transfer_provider": "openai",
+    "workspace_present": true,
+    "partitioned": false,
+    "owner": "",
+    "read_only": false
+   },
+   "expected_rule": "provider-transfer",
+   "expected_verdict": "GRANT"
+  },
+  {
+   "id": "writer-lease.provider.01",
+   "note": "Provider move without transfer refused: transfers are explicit.",
+   "operation": {
+    "op": "write",
+    "agent": "builder-1",
+    "slice": "slice-1",
+    "lease": {
+     "holder": "builder-1",
+     "generation": 3,
+     "provider": "anthropic"
+    },
+    "generation": 3,
+    "ticks_since_heartbeat": 0,
+    "holder_alive": true,
+    "provider": "openai",
+    "transfer_to": "",
+    "transfer_provider": "",
+    "workspace_present": true,
+    "partitioned": false,
+    "owner": "",
+    "read_only": false
+   },
+   "expected_rule": "provider-transfer",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "writer-lease.workspace.01",
+   "note": "Cloud workspace loss recovers: reconcile against branch/commits first.",
+   "operation": {
+    "op": "heartbeat",
+    "agent": "builder-1",
+    "slice": "slice-1",
+    "lease": {
+     "holder": "builder-1",
+     "generation": 3,
+     "provider": "anthropic"
+    },
+    "generation": 3,
+    "ticks_since_heartbeat": 0,
+    "holder_alive": true,
+    "provider": "anthropic",
+    "transfer_to": "",
+    "transfer_provider": "",
+    "workspace_present": false,
+    "partitioned": false,
+    "owner": "",
+    "read_only": false
+   },
+   "expected_rule": "workspace-lost",
+   "expected_verdict": "RECOVER"
+  },
+  {
+   "id": "writer-lease.partition.01",
+   "note": "Network partition recovers: both sides fence, newer wins on reconcile.",
+   "operation": {
+    "op": "heartbeat",
+    "agent": "builder-1",
+    "slice": "slice-1",
+    "lease": {
+     "holder": "builder-1",
+     "generation": 3,
+     "provider": "anthropic"
+    },
+    "generation": 3,
+    "ticks_since_heartbeat": 0,
+    "holder_alive": true,
+    "provider": "anthropic",
+    "transfer_to": "",
+    "transfer_provider": "",
+    "workspace_present": true,
+    "partitioned": true,
+    "owner": "",
+    "read_only": false
+   },
+   "expected_rule": "partition-split",
+   "expected_verdict": "RECOVER"
+  },
+  {
+   "id": "writer-lease.dead.01",
+   "note": "Dead holder process recovers via CAS at a new generation.",
+   "operation": {
+    "op": "heartbeat",
+    "agent": "builder-1",
+    "slice": "slice-1",
+    "lease": {
+     "holder": "builder-1",
+     "generation": 3,
+     "provider": "anthropic"
+    },
+    "generation": 3,
+    "ticks_since_heartbeat": 0,
+    "holder_alive": false,
+    "provider": "anthropic",
+    "transfer_to": "",
+    "transfer_provider": "",
+    "workspace_present": true,
+    "partitioned": false,
+    "owner": "",
+    "read_only": false
+   },
+   "expected_rule": "process-dead",
+   "expected_verdict": "RECOVER"
+  },
+  {
+   "id": "writer-lease.owner.01",
+   "note": "Explicit owner release frees a stuck lease: recovery is explicit.",
+   "operation": {
+    "op": "owner-recover",
+    "agent": "builder-1",
+    "slice": "slice-1",
+    "lease": {
+     "holder": "builder-1",
+     "generation": 3,
+     "provider": "anthropic"
+    },
+    "generation": 3,
+    "ticks_since_heartbeat": 0,
+    "holder_alive": true,
+    "provider": "anthropic",
+    "transfer_to": "",
+    "transfer_provider": "",
+    "workspace_present": true,
+    "partitioned": false,
+    "owner": "kgsmith19",
+    "read_only": false
+   },
+   "expected_rule": "owner-recovery",
+   "expected_verdict": "RELEASED"
+  },
+  {
+   "id": "writer-lease.release.01",
+   "note": "Clean holder release frees the slice, so close-out actually works.",
+   "operation": {
+    "op": "release",
+    "agent": "builder-1",
+    "slice": "slice-1",
+    "lease": {
+     "holder": "builder-1",
+     "generation": 3,
+     "provider": "anthropic"
+    },
+    "generation": 3,
+    "ticks_since_heartbeat": 0,
+    "holder_alive": true,
+    "provider": "anthropic",
+    "transfer_to": "",
+    "transfer_provider": "",
+    "workspace_present": true,
+    "partitioned": false,
+    "owner": "",
+    "read_only": false
+   },
+   "expected_rule": "clean-release",
+   "expected_verdict": "RELEASED"
+  }
+ ]
+}
