@@ -4890,6 +4890,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_quality.add_argument("--json", action="store_true")
     p_quality.set_defaults(func=cmd_quality_gates)
 
+    p_dep = sub.add_parser(
+        "dependency-contract",
+        help="Dependency decision readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_dep.add_argument(
+        "--proposal", default="",
+        help="path to a JSON proposal file; without "
+             "it, validates the frozen dependency fixture set")
+    p_dep.add_argument(
+        "--corpus", default="Canonical/corpus/dependency-contract",
+        help="frozen corpus dir holding contracts.json for "
+             "validation mode")
+    p_dep.add_argument("--json", action="store_true")
+    p_dep.set_defaults(func=cmd_dependency_contract)
+
     p_plane = sub.add_parser(
         "plane-enforcement",
         help="Plane enforcement readout and "
@@ -6426,6 +6442,87 @@ def cmd_plane_enforcement(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("plane-enforcement: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_dependency_contract(args: argparse.Namespace) -> int:
+    """Advisory dependency-contract readout. With --proposal,
+    decides that proposal file; without it, validates the frozen
+    dependency oracle (every entry's computed rules ==
+    expected_rules, verdict == expected_verdict, IDs unique, all
+    5 dependency rules covered) and prints findings. Always exits
+    0 on findings: advisory never gates; only an unreadable file
+    exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import dependency_contract
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.proposal:
+        try:
+            proposal = json.loads(
+                _Path(args.proposal).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("dependency-contract: cannot load proposal: %s" % exc)
+            return 2
+        if not isinstance(proposal, dict):
+            print("dependency-contract: proposal must be a JSON object")
+            return 2
+        result = dependency_contract.decide(proposal)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "decide",
+                "proposal": args.proposal,
+                "verdict": result.verdict,
+                "ok": result.verdict != "REJECT",
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("dependency-contract: %s -- %s" % (
+                args.proposal, result.verdict))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "contracts.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("dependency-contract: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = dependency_contract.validate_dependency_corpus(
+        corpus)
+    ok = not findings
+    rules = sorted({str(r)
+                    for e in entries if isinstance(e, dict)
+                    for r in (e.get("expected_rules") or [])})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("dependency-contract: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)

@@ -1,0 +1,189 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 39 #130 Dependency decision contract frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "dependency-contract.clean.01",
+   "note": "MIT library deleting 500 owned LOC: ADOPT-LIBRARY with zero findings, so earned dependencies actually pass.",
+   "proposal": {
+    "name": "earned-lib",
+    "license": "MIT",
+    "abandoned": false,
+    "supply_alert": false,
+    "platform_has": false,
+    "heavy": true,
+    "deletes_loc": 500,
+    "local_loc": 200,
+    "local_secure": false,
+    "pinned": true,
+    "revert_plan": "revert the commit"
+   },
+   "expected_rules": [],
+   "expected_verdict": "ADOPT-LIBRARY"
+  },
+  {
+   "id": "dependency-contract.heavy.01",
+   "note": "Popular-but-heavy library deleting almost nothing: REJECT, so weight must earn its place.",
+   "proposal": {
+    "name": "heavy-lib",
+    "license": "MIT",
+    "abandoned": false,
+    "supply_alert": false,
+    "platform_has": false,
+    "heavy": true,
+    "deletes_loc": 40,
+    "local_loc": 200,
+    "local_secure": false,
+    "pinned": true,
+    "revert_plan": "revert the commit"
+   },
+   "expected_rules": [
+    "heavy-for-value"
+   ],
+   "expected_verdict": "REJECT"
+  },
+  {
+   "id": "dependency-contract.abandoned.01",
+   "note": "Abandoned dependency: REJECT, so maintenance is proven before adoption.",
+   "proposal": {
+    "name": "old-lib",
+    "license": "MIT",
+    "abandoned": true,
+    "supply_alert": false,
+    "platform_has": false,
+    "heavy": false,
+    "deletes_loc": 0,
+    "local_loc": 200,
+    "local_secure": false,
+    "pinned": true,
+    "revert_plan": "revert the commit"
+   },
+   "expected_rules": [
+    "supply-chain-alert"
+   ],
+   "expected_verdict": "REJECT"
+  },
+  {
+   "id": "dependency-contract.platform.01",
+   "note": "Duplicate of an existing platform feature: REJECT, so stdlib wins.",
+   "proposal": {
+    "name": "date-lib",
+    "license": "MIT",
+    "abandoned": false,
+    "supply_alert": false,
+    "platform_has": true,
+    "heavy": false,
+    "deletes_loc": 0,
+    "local_loc": 200,
+    "local_secure": false,
+    "pinned": true,
+    "revert_plan": "revert the commit"
+   },
+   "expected_rules": [
+    "duplicates-platform"
+   ],
+   "expected_verdict": "REJECT"
+  },
+  {
+   "id": "dependency-contract.local.01",
+   "note": "Tiny secure 30-line local helper preferred: ADOPT-LOCAL, so small clear code beats a dependency.",
+   "proposal": {
+    "name": "tiny-help",
+    "license": "MIT",
+    "abandoned": false,
+    "supply_alert": false,
+    "platform_has": false,
+    "heavy": false,
+    "deletes_loc": 0,
+    "local_loc": 30,
+    "local_secure": true,
+    "pinned": true,
+    "revert_plan": "write the helper locally; no install"
+   },
+   "expected_rules": [
+    "local-cheaper"
+   ],
+   "expected_verdict": "ADOPT-LOCAL"
+  },
+  {
+   "id": "dependency-contract.deletes.01",
+   "note": "Dependency deleting 500 owned LOC: ADOPT-LIBRARY, so complexity removal is rewarded.",
+   "proposal": {
+    "name": "slim-lib",
+    "license": "MIT",
+    "abandoned": false,
+    "supply_alert": false,
+    "platform_has": false,
+    "heavy": true,
+    "deletes_loc": 500,
+    "local_loc": 200,
+    "local_secure": false,
+    "pinned": true,
+    "revert_plan": "revert the commit"
+   },
+   "expected_rules": [],
+   "expected_verdict": "ADOPT-LIBRARY"
+  },
+  {
+   "id": "dependency-contract.license.01",
+   "note": "GPL license conflict: REJECT as blocker, so incompatible licenses never land.",
+   "proposal": {
+    "name": "gpl-lib",
+    "license": "GPL-3.0",
+    "abandoned": false,
+    "supply_alert": false,
+    "platform_has": false,
+    "heavy": false,
+    "deletes_loc": 0,
+    "local_loc": 200,
+    "local_secure": false,
+    "pinned": true,
+    "revert_plan": "revert the commit"
+   },
+   "expected_rules": [
+    "license-conflict"
+   ],
+   "expected_verdict": "REJECT"
+  },
+  {
+   "id": "dependency-contract.supply.01",
+   "note": "Active supply-chain alert: REJECT as blocker, so alerts pin a fork or a helper.",
+   "proposal": {
+    "name": "alert-lib",
+    "license": "MIT",
+    "abandoned": false,
+    "supply_alert": true,
+    "platform_has": false,
+    "heavy": false,
+    "deletes_loc": 0,
+    "local_loc": 200,
+    "local_secure": false,
+    "pinned": true,
+    "revert_plan": "revert the commit"
+   },
+   "expected_rules": [
+    "supply-chain-alert"
+   ],
+   "expected_verdict": "REJECT"
+  },
+  {
+   "id": "dependency-contract.rollback.01",
+   "note": "Pinned MIT library with a revert plan deleting 600 LOC: ADOPT-LIBRARY, so rollback-ready proposals pass.",
+   "proposal": {
+    "name": "safe-lib",
+    "license": "MIT",
+    "abandoned": false,
+    "supply_alert": false,
+    "platform_has": false,
+    "heavy": true,
+    "deletes_loc": 600,
+    "local_loc": 200,
+    "local_secure": false,
+    "pinned": true,
+    "revert_plan": "revert the commit"
+   },
+   "expected_rules": [],
+   "expected_verdict": "ADOPT-LIBRARY"
+  }
+ ]
+}

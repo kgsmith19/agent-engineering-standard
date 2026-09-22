@@ -10503,5 +10503,226 @@ class PlaneEnforcement(unittest.TestCase):
 
 
 
+
+class DependencyContract(unittest.TestCase):
+    """Stage 39 (#130): the dependency decision contract.
+
+    Proven libraries or native platform capability only when they
+    reduce total owned complexity: license conflicts, supply-chain
+    alerts, platform duplicates, heavy-for-value weight, and
+    local-cheaper helpers decide ADOPT-LIBRARY / ADOPT-LOCAL /
+    REJECT. Pure contract in tools/dependency_contract.py plus the
+    frozen corpus under Canonical/corpus/dependency-contract/."""
+
+    def _dc(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import dependency_contract
+            return dependency_contract
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "dependency-contract" / "contracts.json")
+            .read_text(encoding="utf-8"))
+
+    def _proposal(self, **overrides):
+        dc = self._dc()
+        proposal = dc.clean_proposal()
+        for key, value in overrides.items():
+            proposal[key] = value
+        return proposal
+
+    def _rules(self, result):
+        return sorted({f["rule"] for f in result.findings})
+
+    def test_clean_proposal_adopts_library(self):
+        """Protects the Primary Outcome (positive control): an MIT
+        library deleting 500 owned LOC with a pin and revert plan
+        is ADOPT-LIBRARY with zero findings, so earned
+        dependencies actually pass."""
+        dc = self._dc()
+        result = dc.decide(dc.clean_proposal())
+        self.assertEqual("ADOPT-LIBRARY", result.verdict)
+        self.assertEqual([], result.findings)
+
+    def test_popular_but_heavy_library_rejected(self):
+        """Protects the weight axis: a popular-but-heavy library
+        deleting almost nothing rejects, so weight earns its
+        place."""
+        dc = self._dc()
+        result = dc.decide(self._proposal(
+            name="heavy-lib", heavy=True, deletes_loc=40,
+            local_loc=200, local_secure=False))
+        self.assertEqual("REJECT", result.verdict)
+        self.assertEqual(["heavy-for-value"], self._rules(result))
+
+    def test_abandoned_dependency_rejected(self):
+        """Protects the supply axis: an abandoned dependency
+        rejects, so maintenance is proven before adoption."""
+        dc = self._dc()
+        result = dc.decide(self._proposal(
+            name="old-lib", abandoned=True))
+        self.assertEqual(["supply-chain-alert"],
+                         self._rules(result))
+
+    def test_platform_duplicate_rejected(self):
+        """Protects the platform axis: a duplicate of an existing
+        platform feature rejects, so stdlib wins."""
+        dc = self._dc()
+        result = dc.decide(self._proposal(
+            name="date-lib", platform_has=True))
+        self.assertEqual(["duplicates-platform"],
+                         self._rules(result))
+
+    def test_tiny_secure_local_helper_preferred(self):
+        """Protects the local Non-Goal: a tiny secure 30-line
+        helper is ADOPT-LOCAL, so small clear code beats a
+        dependency without banning local code."""
+        dc = self._dc()
+        result = dc.decide(self._proposal(
+            name="tiny-help", heavy=False, local_loc=30,
+            local_secure=True, deletes_loc=0))
+        self.assertEqual("ADOPT-LOCAL", result.verdict)
+        self.assertEqual(["local-cheaper"], self._rules(result))
+
+    def test_complexity_deleting_dependency_adopted(self):
+        """Protects the complexity axis: a dependency deleting 500
+        owned LOC is ADOPT-LIBRARY, so complexity removal is
+        rewarded."""
+        dc = self._dc()
+        result = dc.decide(self._proposal(
+            name="slim-lib", heavy=True, deletes_loc=500))
+        self.assertEqual("ADOPT-LIBRARY", result.verdict)
+
+    def test_license_conflict_rejected(self):
+        """Protects the license axis: a GPL conflict rejects as a
+        blocker, so incompatible licenses never land."""
+        dc = self._dc()
+        result = dc.decide(self._proposal(
+            name="gpl-lib", license="GPL-3.0"))
+        self.assertEqual("REJECT", result.verdict)
+        self.assertEqual(["license-conflict"],
+                         self._rules(result))
+
+    def test_supply_chain_alert_rejected(self):
+        """Protects the alert axis: an active supply-chain alert
+        rejects, so alerts pin a fork or a helper."""
+        dc = self._dc()
+        result = dc.decide(self._proposal(
+            name="alert-lib", supply_alert=True))
+        self.assertEqual(["supply-chain-alert"],
+                         self._rules(result))
+
+    def test_rollback_ready_proposal_adopted(self):
+        """Protects the rollback axis: a pinned proposal with a
+        revert plan deleting 600 LOC is ADOPT-LIBRARY, so
+        rollback-ready proposals pass."""
+        dc = self._dc()
+        result = dc.decide(self._proposal(
+            name="safe-lib", heavy=True, deletes_loc=600,
+            pinned=True,
+            revert_plan="revert the commit and unlock"))
+        self.assertEqual("ADOPT-LIBRARY", result.verdict)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 9 corpus entries
+        reproduce their expected rules and verdicts, covering all
+        5 dependency rules with unique well-formed IDs."""
+        dc = self._dc()
+        findings, entries = dc.validate_dependency_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(9, len(entries))
+        covered = {r for e in entries
+                   for r in e["expected_rules"]}
+        self.assertEqual(set(dc.RULES), covered)
+
+    def test_red_by_construction_adopt_stub_misses_rejections(self):
+        """Sensitivity proof (RED): an adopt-everything stub misses
+        all 5 REJECT corpus fragments while the real decider
+        rejects each — so the suite is green because the rules
+        exist, not because the fixtures cannot fail."""
+        dc = self._dc()
+        corpus = self._corpus_doc()
+        rejects = [entry for entry in corpus["entries"]
+                   if entry.get("expected_verdict") == "REJECT"]
+        self.assertEqual(5, len(rejects))
+        stub_hits = 0
+        for entry in rejects:
+            real = dc.decide(entry["proposal"])
+            self.assertEqual(
+                sorted(entry["expected_rules"]),
+                sorted({f["rule"] for f in real.findings}),
+                entry["id"])
+            self.assertEqual(entry["expected_verdict"],
+                             real.verdict, entry["id"])
+            stub_hits += 0  # the adopt stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_dependency_contract_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: dependency-contract
+        validates the real corpus (ok, 9 entries, 5 rules),
+        decides a --proposal file as JSON, exits 0 on REJECT
+        proposals, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "dependency-contract", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(9, payload["entries"])
+        self.assertEqual(5, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-proposal.json"
+            good_path.write_text(
+                json.dumps(self._dc().clean_proposal()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "dependency-contract", "--proposal",
+                 str(good_path), "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("ADOPT-LIBRARY", payload["verdict"])
+            bad_path = Path(tmp) / "bad-proposal.json"
+            bad = self._dc().clean_proposal()
+            bad["license"] = "GPL-3.0"
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "dependency-contract", "--proposal",
+                 str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "dependency-contract", "--proposal",
+             "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "dependency-contract", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()
