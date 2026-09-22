@@ -5002,6 +5002,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_effect.add_argument("--json", action="store_true")
     p_effect.set_defaults(func=cmd_idempotent_effects)
 
+    p_rot = sub.add_parser(
+        "context-rotation",
+        help="Context rotation readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_rot.add_argument(
+        "--signal", default="",
+        help="path to a JSON signal file to decide; without "
+             "it, validates the frozen rotation fixture set")
+    p_rot.add_argument(
+        "--corpus", default="Canonical/corpus/context-rotation",
+        help="frozen corpus dir holding rotations.json for "
+             "validation mode")
+    p_rot.add_argument("--json", action="store_true")
+    p_rot.set_defaults(func=cmd_context_rotation)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -7309,6 +7325,87 @@ def cmd_idempotent_effects(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("idempotent-effects: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_context_rotation(args: argparse.Namespace) -> int:
+    """Advisory context-rotation readout. With --signal,
+    decides that signal file; without it, validates the frozen
+    rotation oracle (every entry's computed rule ==
+    expected_rule and verdict == expected_verdict, IDs unique,
+    all 10 rotation rules covered) and prints findings. Always
+    exits 0 on findings: advisory never gates; only an
+    unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import context_rotation
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.signal:
+        try:
+            signal = json.loads(
+                _Path(args.signal).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("context-rotation: cannot load signal: %s" % exc)
+            return 2
+        if not isinstance(signal, dict):
+            print("context-rotation: signal must be a JSON object")
+            return 2
+        result = context_rotation.decide(signal)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "decide",
+                "signal": args.signal,
+                "verdict": result.verdict,
+                "rule": result.rule,
+                "ok": result.verdict in ("ROTATE", "RECOVER"),
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("context-rotation: %s -- %s (%s)" % (
+                args.signal, result.verdict, result.rule))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "rotations.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("context-rotation: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        context_rotation.validate_rotation_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(e.get("expected_rule", ""))
+                    for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("context-rotation: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)
