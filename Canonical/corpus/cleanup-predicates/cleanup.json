@@ -1,0 +1,174 @@
+{
+  "_frozen": true,
+  "_provenance": "T19 #214 (cleanup-predicates). Hand-authored, adjudicated oracle: every entry expected fragment reproduces the contract checkers exactly. Do not edit without a structured reopen.",
+  "entries": [
+    {
+      "id": "cl.receipt.01",
+      "note": "Revalidated receipt passes.",
+      "target": "receipt",
+      "record": {
+        "branch": "issue/1-x",
+        "merged_head": "abc",
+        "merge_commit": "def",
+        "remote_revalidated": true
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "cl.receipt.02",
+      "note": "Local-only receipt refused.",
+      "target": "receipt",
+      "record": {
+        "branch": "b",
+        "local_only": true
+      },
+      "expected_violation_fragment": "local-only receipt refused"
+    },
+    {
+      "id": "cl.head.01",
+      "note": "Head match passes.",
+      "target": "head",
+      "record": {
+        "local": "a",
+        "merged": "a"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "cl.head.02",
+      "note": "Divergence blocks.",
+      "target": "head",
+      "record": {
+        "local": "a",
+        "merged": "b"
+      },
+      "expected_violation_fragment": "head mismatch"
+    },
+    {
+      "id": "cl.tree.01",
+      "note": "Clean tree passes.",
+      "target": "tree",
+      "record": {},
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "cl.tree.02",
+      "note": "Dirty tree blocks.",
+      "target": "tree",
+      "record": {
+        "dirty": true
+      },
+      "expected_violation_fragment": "dirty tree"
+    },
+    {
+      "id": "cl.unpushed.01",
+      "note": "Fully pushed passes.",
+      "target": "unpushed",
+      "record": {
+        "ahead": 0,
+        "upstream": "origin/b"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "cl.unpushed.02",
+      "note": "Missing upstream blocks.",
+      "target": "unpushed",
+      "record": {
+        "ahead": 0
+      },
+      "expected_violation_fragment": "missing upstream ref"
+    },
+    {
+      "id": "cl.writer.01",
+      "note": "Stopped writer passes.",
+      "target": "writer",
+      "record": {
+        "state": "stopped"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "cl.writer.02",
+      "note": "Unknown writer blocks.",
+      "target": "writer",
+      "record": {
+        "state": "unknown"
+      },
+      "expected_violation_fragment": "blocks deletion"
+    },
+    {
+      "id": "cl.depend.01",
+      "note": "Independent item passes.",
+      "target": "dependents",
+      "record": {},
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "cl.depend.02",
+      "note": "Locked worktree preserved.",
+      "target": "dependents",
+      "record": {
+        "locked": true
+      },
+      "expected_violation_fragment": "protected state"
+    },
+    {
+      "id": "cl.recheck.01",
+      "note": "Fresh exact target passes.",
+      "target": "recheck",
+      "record": {
+        "fresh": true,
+        "target": "issue/1-x"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "cl.recheck.02",
+      "note": "Bulk deletion forbidden.",
+      "target": "recheck",
+      "record": {
+        "fresh": true,
+        "target": "*",
+        "bulk": true
+      },
+      "expected_violation_fragment": "pattern/bulk"
+    },
+    {
+      "id": "cl.attempt.01",
+      "note": "Receipted attempt passes.",
+      "target": "attempt",
+      "record": {
+        "receipt": "r1"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "cl.attempt.02",
+      "note": "Missing receipt fails.",
+      "target": "attempt",
+      "record": {},
+      "expected_violation_fragment": "no cleanup receipt"
+    },
+    {
+      "id": "cl.quar.01",
+      "note": "Quarantined orphan passes.",
+      "target": "quarantine",
+      "record": {
+        "ambiguous": true,
+        "quarantined": true
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "cl.quar.02",
+      "note": "Silent delete fails.",
+      "target": "quarantine",
+      "record": {
+        "ambiguous": true,
+        "silently_deleted": true
+      },
+      "expected_violation_fragment": "silently deleted"
+    }
+  ]
+}
