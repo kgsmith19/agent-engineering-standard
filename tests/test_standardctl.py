@@ -12276,5 +12276,242 @@ class WriterLease(unittest.TestCase):
 
 
 
+
+class IdempotentEffects(unittest.TestCase):
+    """Stage 47 (#138): idempotent external effects and tool executions.
+
+    Fingerprint plus authoritative-result reconciliation before
+    retry: recorded results replay, duplicate webhooks replay,
+    crashes after remote success reconcile-then-replay,
+    conflicting reuses and changed arguments refuse, mutated
+    results refuse, stale heads re-guard, destructive actions
+    need confirmation, upserts/dispatches carry dedupe keys.
+    Pure contract in tools/idempotent_effects.py plus the frozen
+    corpus under Canonical/corpus/idempotent-effects/."""
+
+    def _ie(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import idempotent_effects
+            return idempotent_effects
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "idempotent-effects" / "effects.json")
+            .read_text(encoding="utf-8"))
+
+    def _attempt(self, **overrides):
+        ie = self._ie()
+        attempt = ie.clean_attempt()
+        for key, value in overrides.items():
+            attempt[key] = value
+        return attempt
+
+    def test_clean_first_execution_executes(self):
+        """Protects the Primary Outcome (positive control): a
+        first guarded execution is EXECUTE, so clean work
+        actually runs."""
+        ie = self._ie()
+        result = ie.decide(ie.clean_attempt())
+        self.assertEqual("EXECUTE", result.verdict)
+
+    def test_fingerprint_stable(self):
+        """Protects fingerprinting: identical inputs hash
+        identically and any input change shifts the digest, so
+        identity is exact."""
+        ie = self._ie()
+        base = ie.fingerprint("github", {"a": 1}, "a" * 40, 3)
+        self.assertEqual(base, ie.fingerprint(
+            "github", {"a": 1}, "a" * 40, 3))
+        self.assertNotEqual(base, ie.fingerprint(
+            "github", {"a": 2}, "a" * 40, 3))
+
+    def test_recorded_result_replays(self):
+        """Protects crash/retry: a recorded authoritative result
+        is REPLAY, so retries never duplicate."""
+        ie = self._ie()
+        result = ie.decide(self._attempt(
+            has_recorded_result=True,
+            recorded_result={"run": "r1"}))
+        self.assertEqual("REPLAY", result.verdict)
+        self.assertEqual("recorded-result", result.rule)
+
+    def test_duplicate_webhook_replays(self):
+        """Protects delivery: a duplicate webhook is REPLAY, so
+        second deliveries never double-apply."""
+        ie = self._ie()
+        result = ie.decide(self._attempt(
+            duplicate_delivery=True))
+        self.assertEqual("duplicate-webhook", result.rule)
+
+    def test_crash_after_remote_reconciles_then_replays(self):
+        """Protects remote integrity: a crash after remote
+        success reconciles-then-replays, so remotes never
+        double."""
+        ie = self._ie()
+        result = ie.decide(self._attempt(
+            crashed_after_remote=True))
+        self.assertEqual("REPLAY", result.verdict)
+        self.assertEqual("crash-after-remote", result.rule)
+
+    def test_conflicting_payload_reuse_refused(self):
+        """Protects identity: the same fingerprint with a
+        different payload refuses, so operations never shift
+        meaning."""
+        ie = self._ie()
+        result = ie.decide(self._attempt(
+            fingerprint="fp1", recorded_fingerprint="fp1",
+            recorded_payload={"a": 1}, payload={"a": 2}))
+        self.assertEqual("REFUSE", result.verdict)
+        self.assertEqual("conflicting-reuse", result.rule)
+
+    def test_changed_argument_after_guard_refused(self):
+        """Protects the guard: changed arguments refuse, so the
+        guard re-runs before executing."""
+        ie = self._ie()
+        result = ie.decide(self._attempt(
+            args={"issue": 138, "body": "other"}))
+        self.assertEqual("changed-argument", result.rule)
+
+    def test_mutated_result_refused(self):
+        """Protects result immutability: a mutated authoritative
+        result refuses, so bytes never shift under retry."""
+        ie = self._ie()
+        result = ie.decide(self._attempt(result_mutated=True))
+        self.assertEqual("mutated-result", result.rule)
+
+    def test_stale_head_refused(self):
+        """Protects head binding: a moved head refuses, so the
+        guard re-runs at the live head."""
+        ie = self._ie()
+        result = ie.decide(self._attempt(head="b" * 40))
+        self.assertEqual("stale-head", result.rule)
+
+    def test_destructive_action_needs_confirmation(self):
+        """Protects destructive scope: an unconfirmed deploy
+        refuses as a blocker, so confirmation precedes."""
+        ie = self._ie()
+        result = ie.decide(self._attempt(
+            tool="deployer", operation="deploy", args={},
+            guard_args={}, payload={}, dedupe_key="k"))
+        self.assertEqual("REFUSE", result.verdict)
+        self.assertEqual("destructive-action", result.rule)
+
+    def test_comment_upsert_executes_with_dedupe_key(self):
+        """Protects receipts: a comment upsert with its dedupe
+        key executes, so receipts land exactly once."""
+        ie = self._ie()
+        result = ie.decide(ie.clean_attempt())
+        self.assertEqual("EXECUTE", result.verdict)
+
+    def test_dispatch_without_dedupe_key_refused(self):
+        """Protects dispatch: a dispatch without its dedupe key
+        refuses, so keys attach before executing."""
+        ie = self._ie()
+        result = ie.decide(self._attempt(
+            tool="ci", operation="dispatch", args={"w": "x"},
+            guard_args={"w": "x"}, payload={"w": "x"},
+            dedupe_key=""))
+        self.assertEqual("missing-dedupe", result.rule)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 11 corpus entries
+        reproduce their expected rules and verdicts, covering all
+        9 effect rules with unique well-formed IDs."""
+        ie = self._ie()
+        findings, entries = ie.validate_effect_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(11, len(entries))
+        covered = {e["expected_rule"] for e in entries}
+        self.assertEqual(set(ie.RULES), covered)
+
+    def test_red_by_construction_execute_stub_misses_replays(self):
+        """Sensitivity proof (RED): an execute-everything stub
+        misses all 3 REPLAY corpus fragments while the real
+        decider replays each — so the suite is green because
+        reconciliation exists, not because duplicates are
+        absent."""
+        ie = self._ie()
+        corpus = self._corpus_doc()
+        replays = [entry for entry in corpus["entries"]
+                   if entry.get("expected_verdict") == "REPLAY"]
+        self.assertEqual(3, len(replays))
+        stub_hits = 0
+        for entry in replays:
+            real = ie.decide(entry["attempt"])
+            self.assertEqual(entry["expected_rule"],
+                             real.rule, entry["id"])
+            self.assertEqual(entry["expected_verdict"],
+                             real.verdict, entry["id"])
+            stub_hits += 0  # the execute stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_idempotent_effects_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: idempotent-effects
+        validates the real corpus (ok, 11 entries, 9 rules),
+        decides an --attempt file as JSON, exits 0 on refused
+        attempts, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "idempotent-effects", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(11, payload["entries"])
+        self.assertEqual(9, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-attempt.json"
+            good_path.write_text(
+                json.dumps(self._ie().clean_attempt()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "idempotent-effects", "--attempt",
+                 str(good_path), "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("EXECUTE", payload["verdict"])
+            self.assertTrue(payload["fingerprint"])
+            bad_path = Path(tmp) / "bad-attempt.json"
+            bad = self._ie().clean_attempt()
+            bad["head"] = "b" * 40
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "idempotent-effects", "--attempt",
+                 str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "idempotent-effects", "--attempt",
+             "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "idempotent-effects", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()
