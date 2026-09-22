@@ -2,3 +2,8 @@
 .superpowers/
 .agent-runtime/
 .evidence/
+
+# Capability layer (agent-extensions) — machine-global, never committed
+.agent-extensions/
+.bootstrap-out/
+.agent-state/
