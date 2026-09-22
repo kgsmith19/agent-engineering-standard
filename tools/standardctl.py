@@ -5178,6 +5178,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_triage.add_argument("--json", action="store_true")
     p_triage.set_defaults(func=cmd_triage)
 
+    p_review = sub.add_parser(
+        "independent-review",
+        help="Independent review readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_review.add_argument(
+        "--request", default="",
+        help="path to a JSON review-request file to review; without "
+             "it, validates the frozen review fixture set")
+    p_review.add_argument(
+        "--round", default="",
+        help="path to a JSON remediation-round file to remediate")
+    p_review.add_argument(
+        "--corpus", default="Canonical/corpus/independent-review",
+        help="frozen corpus dir holding review.json for "
+             "validation mode")
+    p_review.add_argument("--json", action="store_true")
+    p_review.set_defaults(func=cmd_independent_review)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -8386,6 +8405,129 @@ def cmd_triage(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("triage: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_independent_review(args: argparse.Namespace) -> int:
+    """Advisory independent-review readout. With --request,
+    reviews that request file; with --round, remediates that
+    round file; without either, validates the frozen review
+    oracle (review and remediation entries compute their
+    expected rules, verdicts, and outcomes, IDs unique, all 15
+    review rules covered) and prints findings. Always exits 0
+    on findings: advisory never gates; only an unreadable file
+    exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import independent_review
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.round:
+        try:
+            round_ = json.loads(
+                _Path(args.round).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("independent-review: cannot load round: %s" % exc)
+            return 2
+        if not isinstance(round_, dict):
+            print("independent-review: round must be a JSON object")
+            return 2
+        result = independent_review.remediate(round_)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "remediate",
+                "round": args.round,
+                "outcome": result.outcome,
+                "rule": result.rule,
+                "ok": result.outcome in ("FIXED", "DISPUTE",
+                                           "RECHECK"),
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("independent-review: %s -- %s (%s)" % (
+                args.round, result.outcome, result.rule))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    if args.request:
+        try:
+            request = json.loads(
+                _Path(args.request).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("independent-review: cannot load request: %s" % exc)
+            return 2
+        if not isinstance(request, dict):
+            print("independent-review: request must be a JSON object")
+            return 2
+        result = independent_review.review(request)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "review",
+                "request": args.request,
+                "verdict": result.verdict,
+                "rule": result.rule,
+                "fingerprint": independent_review.fingerprint(
+                    [str(f.get("citation", ""))
+                     for f in request.get("findings", [])
+                     if isinstance(f, dict)],
+                    result.verdict,
+                    request.get("head", "")),
+                "ok": result.verdict == "PASS",
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("independent-review: %s -- %s (%s)" % (
+                args.request, result.verdict, result.rule))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "review.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("independent-review: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        independent_review.validate_review_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(e.get("expected_rule", ""))
+                    for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("independent-review: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)
