@@ -5114,6 +5114,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_cap.add_argument("--json", action="store_true")
     p_cap.set_defaults(func=cmd_capability_compiler)
 
+    p_deny = sub.add_parser(
+        "deny-guards",
+        help="Deny guards readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_deny.add_argument(
+        "--request", default="",
+        help="path to a JSON request file to evaluate; without "
+             "it, validates the frozen guard fixture set")
+    p_deny.add_argument(
+        "--corpus", default="Canonical/corpus/deny-guards",
+        help="frozen corpus dir holding guards.json for "
+             "validation mode")
+    p_deny.add_argument("--json", action="store_true")
+    p_deny.set_defaults(func=cmd_deny_guards)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -7997,6 +8013,85 @@ def cmd_capability_compiler(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("capability-compiler: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_deny_guards(args: argparse.Namespace) -> int:
+    """Advisory deny-guards readout. With --request, evaluates
+    that request file; without it, validates the frozen guard
+    oracle (every entry's computed rule == expected_rule and
+    verdict == expected_verdict, IDs unique, all 8 guard rules
+    covered) and prints findings. Always exits 0 on findings:
+    advisory never gates; only an unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import deny_guards
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.request:
+        try:
+            request = json.loads(
+                _Path(args.request).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("deny-guards: cannot load request: %s" % exc)
+            return 2
+        if not isinstance(request, dict):
+            print("deny-guards: request must be a JSON object")
+            return 2
+        result = deny_guards.evaluate(request)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "evaluate",
+                "request": args.request,
+                "verdict": result.verdict,
+                "rule": result.rule,
+                "ok": result.verdict in ("ALLOW", "NO_OP"),
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("deny-guards: %s -- %s (%s)" % (
+                args.request, result.verdict, result.rule))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "guards.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("deny-guards: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = deny_guards.validate_guard_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(e.get("expected_rule", ""))
+                    for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("deny-guards: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)
