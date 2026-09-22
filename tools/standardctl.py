@@ -4890,6 +4890,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_quality.add_argument("--json", action="store_true")
     p_quality.set_defaults(func=cmd_quality_gates)
 
+    p_plane = sub.add_parser(
+        "plane-enforcement",
+        help="Plane enforcement readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_plane.add_argument(
+        "--event", default="",
+        help="path to a JSON file-event file; without "
+             "it, validates the frozen plane fixture set")
+    p_plane.add_argument(
+        "--corpus", default="Canonical/corpus/plane-enforcement",
+        help="frozen corpus dir holding planes.json for "
+             "validation mode")
+    p_plane.add_argument("--json", action="store_true")
+    p_plane.set_defaults(func=cmd_plane_enforcement)
+
     p_clean = sub.add_parser(
         "clean-charter",
         help="Clean Implementation Charter readout and "
@@ -6334,6 +6350,87 @@ def cmd_quality_gates(args: argparse.Namespace) -> int:
             print("  - %s" % line)
         print("  corpus: %d entries, classes %s"
               % (len(entries), ", ".join(classes)))
+    return 0
+
+
+def cmd_plane_enforcement(args: argparse.Namespace) -> int:
+    """Advisory plane-enforcement readout. With --event,
+    classifies that file-event file; without it, validates the
+    frozen plane oracle (every entry's computed rules ==
+    expected_rules, clean == expected_clean, IDs unique, all
+    7 plane rules covered) and prints findings. Always exits 0
+    on findings: advisory never gates; only an unreadable file
+    exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import plane_enforcement
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.event:
+        try:
+            event = json.loads(
+                _Path(args.event).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("plane-enforcement: cannot load event: %s" % exc)
+            return 2
+        if not isinstance(event, dict):
+            print("plane-enforcement: event must be a JSON object")
+            return 2
+        result = plane_enforcement.classify(event)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "classify",
+                "event": args.event,
+                "clean": result.clean,
+                "ok": result.clean,
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("plane-enforcement: %s -- %s" % (
+                args.event,
+                "CLEAN" if result.clean else "FLAGGED"))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "planes.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("plane-enforcement: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = plane_enforcement.validate_plane_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(r)
+                    for e in entries if isinstance(e, dict)
+                    for r in (e.get("expected_rules") or [])})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("plane-enforcement: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
     return 0
 
 
