@@ -1,0 +1,238 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 55a #146 Deny guards frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "deny-guards.clean.01",
+   "note": "Harmless allowed edit: ALLOW low-friction, so routine work flows.",
+   "request": {
+    "action": "edit-tools",
+    "path": "tools/demo.py",
+    "layers": {
+     "admin": "NO_OP",
+     "trusted": "NO_OP",
+     "standard": "NO_OP",
+     "repo": "NO_OP",
+     "phase-role": "NO_OP",
+     "task": "NO_OP",
+     "dynamic": "NO_OP"
+    },
+    "hook_error": false,
+    "pr_weakens_policy": false,
+    "base_policy": "",
+    "pr_policy": "",
+    "owner": "",
+    "owner_fresh": false,
+    "adapter_enforces": true,
+    "protected": false,
+    "owner_approved": false,
+    "harmless": true
+   },
+   "expected_rule": "ordinary-allow",
+   "expected_verdict": "ALLOW"
+  },
+  {
+   "id": "deny-guards.later.01",
+   "note": "Later FORCE_ALLOW after trusted DENY: DENY, so denial is monotonic.",
+   "request": {
+    "action": "edit-tools",
+    "path": "tools/demo.py",
+    "layers": {
+     "admin": "NO_OP",
+     "trusted": "DENY",
+     "standard": "NO_OP",
+     "repo": "NO_OP",
+     "phase-role": "NO_OP",
+     "task": "ALLOW",
+     "dynamic": "NO_OP"
+    },
+    "hook_error": false,
+    "pr_weakens_policy": false,
+    "base_policy": "",
+    "pr_policy": "",
+    "owner": "",
+    "owner_fresh": false,
+    "adapter_enforces": true,
+    "protected": false,
+    "owner_approved": false,
+    "harmless": true
+   },
+   "expected_rule": "later-allow",
+   "expected_verdict": "DENY"
+  },
+  {
+   "id": "deny-guards.hook.01",
+   "note": "Hook bug after denial: DENY, so bugs never restore authority.",
+   "request": {
+    "action": "edit-tools",
+    "path": "tools/demo.py",
+    "layers": {
+     "admin": "NO_OP",
+     "trusted": "NO_OP",
+     "standard": "DENY",
+     "repo": "NO_OP",
+     "phase-role": "NO_OP",
+     "task": "NO_OP",
+     "dynamic": "NO_OP"
+    },
+    "hook_error": true,
+    "pr_weakens_policy": false,
+    "base_policy": "",
+    "pr_policy": "",
+    "owner": "",
+    "owner_fresh": false,
+    "adapter_enforces": true,
+    "protected": false,
+    "owner_approved": false,
+    "harmless": true
+   },
+   "expected_rule": "hook-bug",
+   "expected_verdict": "DENY"
+  },
+  {
+   "id": "deny-guards.self.01",
+   "note": "PR weakens its own policy: DENY, so policy never self-certifies.",
+   "request": {
+    "action": "edit-tools",
+    "path": "tools/demo.py",
+    "layers": {
+     "admin": "NO_OP",
+     "trusted": "NO_OP",
+     "standard": "NO_OP",
+     "repo": "NO_OP",
+     "phase-role": "NO_OP",
+     "task": "NO_OP",
+     "dynamic": "NO_OP"
+    },
+    "hook_error": false,
+    "pr_weakens_policy": true,
+    "base_policy": "",
+    "pr_policy": "",
+    "owner": "",
+    "owner_fresh": false,
+    "adapter_enforces": true,
+    "protected": false,
+    "owner_approved": false,
+    "harmless": true
+   },
+   "expected_rule": "self-weaken",
+   "expected_verdict": "DENY"
+  },
+  {
+   "id": "deny-guards.base.01",
+   "note": "Base/PR policy disagreement: DENY until reconciled.",
+   "request": {
+    "action": "edit-tools",
+    "path": "tools/demo.py",
+    "layers": {
+     "admin": "NO_OP",
+     "trusted": "NO_OP",
+     "standard": "NO_OP",
+     "repo": "NO_OP",
+     "phase-role": "NO_OP",
+     "task": "NO_OP",
+     "dynamic": "NO_OP"
+    },
+    "hook_error": false,
+    "pr_weakens_policy": false,
+    "base_policy": "strict",
+    "pr_policy": "loose",
+    "owner": "",
+    "owner_fresh": false,
+    "adapter_enforces": true,
+    "protected": false,
+    "owner_approved": false,
+    "harmless": true
+   },
+   "expected_rule": "base-disagreement",
+   "expected_verdict": "DENY"
+  },
+  {
+   "id": "deny-guards.owner.01",
+   "note": "Explicit owner replacement: ALLOW with fresh provenance.",
+   "request": {
+    "action": "edit-tools",
+    "path": "tools/demo.py",
+    "layers": {
+     "admin": "NO_OP",
+     "trusted": "NO_OP",
+     "standard": "NO_OP",
+     "repo": "NO_OP",
+     "phase-role": "NO_OP",
+     "task": "NO_OP",
+     "dynamic": "NO_OP"
+    },
+    "hook_error": false,
+    "pr_weakens_policy": false,
+    "base_policy": "",
+    "pr_policy": "",
+    "owner": "kgsmith19",
+    "owner_fresh": true,
+    "adapter_enforces": true,
+    "protected": false,
+    "owner_approved": false,
+    "harmless": true
+   },
+   "expected_rule": "owner-replacement",
+   "expected_verdict": "ALLOW"
+  },
+  {
+   "id": "deny-guards.adapter.01",
+   "note": "Adapter unable to enforce: NO_OP with escalation, never silent allow.",
+   "request": {
+    "action": "edit-tools",
+    "path": "tools/demo.py",
+    "layers": {
+     "admin": "NO_OP",
+     "trusted": "NO_OP",
+     "standard": "NO_OP",
+     "repo": "NO_OP",
+     "phase-role": "NO_OP",
+     "task": "NO_OP",
+     "dynamic": "NO_OP"
+    },
+    "hook_error": false,
+    "pr_weakens_policy": false,
+    "base_policy": "",
+    "pr_policy": "",
+    "owner": "",
+    "owner_fresh": false,
+    "adapter_enforces": false,
+    "protected": false,
+    "owner_approved": false,
+    "harmless": true
+   },
+   "expected_rule": "adapter-gap",
+   "expected_verdict": "NO_OP"
+  },
+  {
+   "id": "deny-guards.protected.01",
+   "note": "Protected path without approval: DENY.",
+   "request": {
+    "action": "edit-tools",
+    "path": ".github/workflows/pr-gate.yml",
+    "layers": {
+     "admin": "NO_OP",
+     "trusted": "NO_OP",
+     "standard": "NO_OP",
+     "repo": "NO_OP",
+     "phase-role": "NO_OP",
+     "task": "NO_OP",
+     "dynamic": "NO_OP"
+    },
+    "hook_error": false,
+    "pr_weakens_policy": false,
+    "base_policy": "",
+    "pr_policy": "",
+    "owner": "",
+    "owner_fresh": false,
+    "adapter_enforces": true,
+    "protected": true,
+    "owner_approved": false,
+    "harmless": true
+   },
+   "expected_rule": "protected-path",
+   "expected_verdict": "DENY"
+  }
+ ]
+}

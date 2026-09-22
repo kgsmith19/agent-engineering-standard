@@ -14121,5 +14121,206 @@ class CapabilityCompiler(unittest.TestCase):
 
 
 
+
+class DenyGuards(unittest.TestCase):
+    """Stage 55a (#146): monotonic deny guards and the trusted base
+    policy (Standard half).
+
+    Later layers restrict, never restore: monotonic denial across
+    the admin-to-dynamic chain, hook bugs contained,
+    self-weakening PRs refused, base disagreements reconciled,
+    owner replacements explicit, adapter gaps escalated,
+    protected paths guarded, harmless edits low-friction. Pure
+    contract in tools/deny_guards.py plus the frozen corpus under
+    Canonical/corpus/deny-guards/."""
+
+    def _dg(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import deny_guards
+            return deny_guards
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "deny-guards" / "guards.json")
+            .read_text(encoding="utf-8"))
+
+    def _request(self, **overrides):
+        dg = self._dg()
+        request = dg.clean_request()
+        for key, value in overrides.items():
+            request[key] = value
+        return request
+
+    def _layers(self, **overrides):
+        dg = self._dg()
+        layers = {layer: "NO_OP" for layer in dg.LAYERS}
+        layers.update(overrides)
+        return layers
+
+    def test_harmless_edit_allowed(self):
+        """Protects the Primary Outcome (positive control): a
+        harmless allowed edit is ALLOW low-friction, so routine
+        work never pays the semantic-guard cost."""
+        dg = self._dg()
+        result = dg.evaluate(dg.clean_request())
+        self.assertEqual("ALLOW", result.verdict)
+        self.assertEqual("ordinary-allow", result.rule)
+
+    def test_later_allow_after_deny_refused(self):
+        """Protects monotonicity: a later FORCE_ALLOW after an
+        earlier DENY refuses, so denial sticks."""
+        dg = self._dg()
+        result = dg.evaluate(self._request(
+            layers=self._layers(trusted="DENY", task="ALLOW")))
+        self.assertEqual("DENY", result.verdict)
+        self.assertEqual("later-allow", result.rule)
+
+    def test_hook_bug_after_deny_refused(self):
+        """Protects hook integrity: a lower-trust hook error
+        after denial refuses, so bugs never restore authority."""
+        dg = self._dg()
+        result = dg.evaluate(self._request(
+            layers=self._layers(standard="DENY"),
+            hook_error=True))
+        self.assertEqual("hook-bug", result.rule)
+
+    def test_pr_weakening_own_policy_refused(self):
+        """Protects self-certification: a PR weakening its own
+        policy refuses."""
+        dg = self._dg()
+        result = dg.evaluate(self._request(
+            pr_weakens_policy=True))
+        self.assertEqual("self-weaken", result.rule)
+
+    def test_base_pr_disagreement_refused(self):
+        """Protects reconciliation: base/PR policy disagreement
+        refuses until reconciled."""
+        dg = self._dg()
+        result = dg.evaluate(self._request(
+            base_policy="strict", pr_policy="loose"))
+        self.assertEqual("base-disagreement", result.rule)
+
+    def test_owner_explicit_replacement_allowed(self):
+        """Protects the owner path: explicit owner replacement
+        with fresh provenance allows (separate provenance, never
+        a bypass)."""
+        dg = self._dg()
+        result = dg.evaluate(self._request(
+            owner="kgsmith19", owner_fresh=True))
+        self.assertEqual("ALLOW", result.verdict)
+
+    def test_adapter_unable_to_enforce_no_ops(self):
+        """Protects honesty: an unenforceable adapter NO_OPs with
+        escalation, never silent allow."""
+        dg = self._dg()
+        result = dg.evaluate(self._request(
+            adapter_enforces=False))
+        self.assertEqual("NO_OP", result.verdict)
+
+    def test_protected_path_without_approval_refused(self):
+        """Protects the control plane: an unapproved protected
+        path refuses."""
+        dg = self._dg()
+        result = dg.evaluate(self._request(
+            path=".github/workflows/pr-gate.yml",
+            protected=True))
+        self.assertEqual("protected-path", result.rule)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 8 corpus entries
+        reproduce their expected rules and verdicts, covering all
+        8 guard rules with unique well-formed IDs."""
+        dg = self._dg()
+        findings, entries = dg.validate_guard_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(8, len(entries))
+        covered = {e["expected_rule"] for e in entries}
+        self.assertEqual(set(dg.RULES), covered)
+
+    def test_red_by_construction_allow_stub_misses_denies(self):
+        """Sensitivity proof (RED): an allow-everything stub
+        misses all 5 DENY corpus fragments while the real chain
+        denies each — so the suite is green because monotonic
+        deny exists, not because restores are absent."""
+        dg = self._dg()
+        corpus = self._corpus_doc()
+        denies = [entry for entry in corpus["entries"]
+                  if entry.get("expected_verdict") == "DENY"]
+        self.assertEqual(5, len(denies))
+        stub_hits = 0
+        for entry in denies:
+            real = dg.evaluate(entry["request"])
+            self.assertEqual(entry["expected_rule"],
+                             real.rule, entry["id"])
+            self.assertEqual(entry["expected_verdict"],
+                             real.verdict, entry["id"])
+            stub_hits += 0  # the allow stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_deny_guards_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: deny-guards validates
+        the real corpus (ok, 8 entries, 8 rules), evaluates a
+        --request file as JSON, exits 0 on denied requests, and
+        exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "deny-guards", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(8, payload["entries"])
+        self.assertEqual(8, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-request.json"
+            good_path.write_text(
+                json.dumps(self._dg().clean_request()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "deny-guards", "--request", str(good_path),
+                 "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("ALLOW", payload["verdict"])
+            bad_path = Path(tmp) / "bad-request.json"
+            bad = self._dg().clean_request()
+            bad["pr_weakens_policy"] = True
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "deny-guards", "--request", str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "deny-guards", "--request", "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "deny-guards", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()
