@@ -1,0 +1,268 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 43 #134 Atomic checkpoint frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "atomic-checkpoint.clean.01",
+   "note": "Clean attempt checkpoints at FINALIZE, so the mechanism actually completes.",
+   "attempt": {
+    "name": "checkpoint-1",
+    "worktree_clean": true,
+    "tests_green": true,
+    "cas_current": "cas-7",
+    "cas_expected": "cas-7",
+    "crash_at": "",
+    "push_ok": true,
+    "artifact_ok": true,
+    "already_finalized": false,
+    "remote_ack": true,
+    "local_receipt": true
+   },
+   "expected_rules": [],
+   "expected_outcome": "CHECKPOINTED",
+   "expected_coherent": "FINALIZE"
+  },
+  {
+   "id": "atomic-checkpoint.crash.01",
+   "note": "Crash at PUBLISH recovers to SAVE, so interruption never corrupts.",
+   "attempt": {
+    "name": "checkpoint-1",
+    "worktree_clean": true,
+    "tests_green": true,
+    "cas_current": "cas-7",
+    "cas_expected": "cas-7",
+    "crash_at": "PUBLISH",
+    "push_ok": true,
+    "artifact_ok": true,
+    "already_finalized": false,
+    "remote_ack": true,
+    "local_receipt": true
+   },
+   "expected_rules": [
+    "crash-interrupt"
+   ],
+   "expected_outcome": "RECOVER",
+   "expected_coherent": "SAVE"
+  },
+  {
+   "id": "atomic-checkpoint.crash.02",
+   "note": "Crash at FINALIZE recovers to READ-BACK, so late crashes read back.",
+   "attempt": {
+    "name": "checkpoint-1",
+    "worktree_clean": true,
+    "tests_green": true,
+    "cas_current": "cas-7",
+    "cas_expected": "cas-7",
+    "crash_at": "FINALIZE",
+    "push_ok": true,
+    "artifact_ok": true,
+    "already_finalized": false,
+    "remote_ack": true,
+    "local_receipt": true
+   },
+   "expected_rules": [
+    "crash-interrupt"
+   ],
+   "expected_outcome": "RECOVER",
+   "expected_coherent": "READ-BACK"
+  },
+  {
+   "id": "atomic-checkpoint.crash.03",
+   "note": "Crash at SAVE recovers to PREPARE, so early crashes restart safely.",
+   "attempt": {
+    "name": "checkpoint-1",
+    "worktree_clean": true,
+    "tests_green": true,
+    "cas_current": "cas-7",
+    "cas_expected": "cas-7",
+    "crash_at": "SAVE",
+    "push_ok": true,
+    "artifact_ok": true,
+    "already_finalized": false,
+    "remote_ack": true,
+    "local_receipt": true
+   },
+   "expected_rules": [
+    "crash-interrupt"
+   ],
+   "expected_outcome": "RECOVER",
+   "expected_coherent": "PREPARE"
+  },
+  {
+   "id": "atomic-checkpoint.push.01",
+   "note": "Push failure recovers to SAVE for publish retry, so remote faults stay recoverable.",
+   "attempt": {
+    "name": "checkpoint-1",
+    "worktree_clean": true,
+    "tests_green": true,
+    "cas_current": "cas-7",
+    "cas_expected": "cas-7",
+    "crash_at": "",
+    "push_ok": false,
+    "artifact_ok": true,
+    "already_finalized": false,
+    "remote_ack": true,
+    "local_receipt": true
+   },
+   "expected_rules": [
+    "push-failed"
+   ],
+   "expected_outcome": "RECOVER",
+   "expected_coherent": "SAVE"
+  },
+  {
+   "id": "atomic-checkpoint.cas.01",
+   "note": "Stale CAS refuses as blocker: CAS is never bypassed for convenience.",
+   "attempt": {
+    "name": "checkpoint-1",
+    "worktree_clean": true,
+    "tests_green": true,
+    "cas_current": "cas-6",
+    "cas_expected": "cas-7",
+    "crash_at": "",
+    "push_ok": true,
+    "artifact_ok": true,
+    "already_finalized": false,
+    "remote_ack": true,
+    "local_receipt": true
+   },
+   "expected_rules": [
+    "stale-cas"
+   ],
+   "expected_outcome": "REFUSE",
+   "expected_coherent": "START"
+  },
+  {
+   "id": "atomic-checkpoint.artifact.01",
+   "note": "Corrupt artifact refuses: re-save before publishing.",
+   "attempt": {
+    "name": "checkpoint-1",
+    "worktree_clean": true,
+    "tests_green": true,
+    "cas_current": "cas-7",
+    "cas_expected": "cas-7",
+    "crash_at": "",
+    "push_ok": true,
+    "artifact_ok": false,
+    "already_finalized": false,
+    "remote_ack": true,
+    "local_receipt": true
+   },
+   "expected_rules": [
+    "corrupt-artifact"
+   ],
+   "expected_outcome": "REFUSE",
+   "expected_coherent": "SAVE"
+  },
+  {
+   "id": "atomic-checkpoint.finalize.01",
+   "note": "Duplicate finalize refuses: the second finalize is a no-op signal.",
+   "attempt": {
+    "name": "checkpoint-1",
+    "worktree_clean": true,
+    "tests_green": true,
+    "cas_current": "cas-7",
+    "cas_expected": "cas-7",
+    "crash_at": "",
+    "push_ok": true,
+    "artifact_ok": true,
+    "already_finalized": true,
+    "remote_ack": true,
+    "local_receipt": true
+   },
+   "expected_rules": [
+    "duplicate-finalize"
+   ],
+   "expected_outcome": "REFUSE",
+   "expected_coherent": "FINALIZE"
+  },
+  {
+   "id": "atomic-checkpoint.remote.01",
+   "note": "Remote success before local receipt recovers to READ-BACK, so receipts are read back.",
+   "attempt": {
+    "name": "checkpoint-1",
+    "worktree_clean": true,
+    "tests_green": true,
+    "cas_current": "cas-7",
+    "cas_expected": "cas-7",
+    "crash_at": "",
+    "push_ok": true,
+    "artifact_ok": true,
+    "already_finalized": false,
+    "remote_ack": true,
+    "local_receipt": false
+   },
+   "expected_rules": [
+    "remote-ahead"
+   ],
+   "expected_outcome": "RECOVER",
+   "expected_coherent": "READ-BACK"
+  },
+  {
+   "id": "atomic-checkpoint.dirty.01",
+   "note": "Dirty worktree refuses: half-finished edits are never checkpointed complete.",
+   "attempt": {
+    "name": "checkpoint-1",
+    "worktree_clean": false,
+    "tests_green": true,
+    "cas_current": "cas-7",
+    "cas_expected": "cas-7",
+    "crash_at": "",
+    "push_ok": true,
+    "artifact_ok": true,
+    "already_finalized": false,
+    "remote_ack": true,
+    "local_receipt": true
+   },
+   "expected_rules": [
+    "dirty-worktree"
+   ],
+   "expected_outcome": "REFUSE",
+   "expected_coherent": "START"
+  },
+  {
+   "id": "atomic-checkpoint.tests.01",
+   "note": "Incomplete tests refuse: nothing incomplete checkpoints as complete.",
+   "attempt": {
+    "name": "checkpoint-1",
+    "worktree_clean": true,
+    "tests_green": false,
+    "cas_current": "cas-7",
+    "cas_expected": "cas-7",
+    "crash_at": "",
+    "push_ok": true,
+    "artifact_ok": true,
+    "already_finalized": false,
+    "remote_ack": true,
+    "local_receipt": true
+   },
+   "expected_rules": [
+    "tests-incomplete"
+   ],
+   "expected_outcome": "REFUSE",
+   "expected_coherent": "START"
+  },
+  {
+   "id": "atomic-checkpoint.recover.01",
+   "note": "Crash at READ-BACK recovers to PUBLISH, so every barrier has a coherent fallback.",
+   "attempt": {
+    "name": "checkpoint-1",
+    "worktree_clean": true,
+    "tests_green": true,
+    "cas_current": "cas-7",
+    "cas_expected": "cas-7",
+    "crash_at": "READ-BACK",
+    "push_ok": true,
+    "artifact_ok": true,
+    "already_finalized": false,
+    "remote_ack": true,
+    "local_receipt": true
+   },
+   "expected_rules": [
+    "crash-interrupt"
+   ],
+   "expected_outcome": "RECOVER",
+   "expected_coherent": "PUBLISH"
+  }
+ ]
+}

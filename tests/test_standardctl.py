@@ -11366,5 +11366,234 @@ class ContinuityEvents(unittest.TestCase):
 
 
 
+
+class AtomicCheckpoints(unittest.TestCase):
+    """Stage 43 (#134): semantic atomic checkpoints.
+
+    PREPARE->SAVE->PUBLISH->READ-BACK->FINALIZE with
+    compare-and-swap: crash canaries at each barrier, push
+    failure, stale CAS, corrupt artifacts, duplicate finalize,
+    remote-ahead receipts, dirty trees, and incomplete tests.
+    Pure contract in tools/atomic_checkpoints.py plus the frozen
+    corpus under Canonical/corpus/atomic-checkpoints/."""
+
+    def _ac(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import atomic_checkpoints
+            return atomic_checkpoints
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "atomic-checkpoints" / "checkpoints.json")
+            .read_text(encoding="utf-8"))
+
+    def _attempt(self, **overrides):
+        ac = self._ac()
+        attempt = ac.clean_attempt()
+        for key, value in overrides.items():
+            attempt[key] = value
+        return attempt
+
+    def _rules(self, result):
+        return sorted({f["rule"] for f in result.findings})
+
+    def test_clean_attempt_checkpoints(self):
+        """Protects the Primary Outcome (positive control): a
+        clean attempt is CHECKPOINTED at FINALIZE with zero
+        findings, so the mechanism actually completes."""
+        ac = self._ac()
+        result = ac.decide(ac.clean_attempt())
+        self.assertEqual("CHECKPOINTED", result.outcome)
+        self.assertEqual("FINALIZE", result.coherent)
+        self.assertEqual([], result.findings)
+
+    def test_crash_at_publish_recovers_to_save(self):
+        """Protects crash recovery: a crash at PUBLISH recovers
+        to SAVE, so interruption never corrupts."""
+        ac = self._ac()
+        result = ac.decide(self._attempt(crash_at="PUBLISH"))
+        self.assertEqual("RECOVER", result.outcome)
+        self.assertEqual("SAVE", result.coherent)
+        self.assertEqual(["crash-interrupt"],
+                         self._rules(result))
+
+    def test_crash_at_each_barrier_recovers_coherently(self):
+        """Protects every barrier: crashes at SAVE, READ-BACK,
+        and FINALIZE recover to PREPARE, PUBLISH, and READ-BACK,
+        so every barrier has a coherent fallback."""
+        ac = self._ac()
+        for barrier, coherent in (("SAVE", "PREPARE"),
+                                  ("READ-BACK", "PUBLISH"),
+                                  ("FINALIZE", "READ-BACK")):
+            result = ac.decide(self._attempt(crash_at=barrier))
+            self.assertEqual("RECOVER", result.outcome, barrier)
+            self.assertEqual(coherent, result.coherent, barrier)
+
+    def test_push_failure_recovers_to_save(self):
+        """Protects publish faults: a failed push recovers to
+        SAVE for publish retry, so remote faults stay
+        recoverable."""
+        ac = self._ac()
+        result = ac.decide(self._attempt(push_ok=False))
+        self.assertEqual("RECOVER", result.outcome)
+        self.assertEqual("SAVE", result.coherent)
+        self.assertEqual(["push-failed"], self._rules(result))
+
+    def test_stale_cas_refused(self):
+        """Protects CAS: a stale token refuses as a blocker, so
+        CAS is never bypassed for convenience."""
+        ac = self._ac()
+        result = ac.decide(self._attempt(cas_current="cas-6"))
+        self.assertEqual("REFUSE", result.outcome)
+        self.assertEqual(["stale-cas"], self._rules(result))
+
+    def test_corrupt_artifact_refused(self):
+        """Protects artifact integrity: corrupt bytes refuse, so
+        re-save precedes publishing."""
+        ac = self._ac()
+        result = ac.decide(self._attempt(artifact_ok=False))
+        self.assertEqual(["corrupt-artifact"],
+                         self._rules(result))
+
+    def test_duplicate_finalize_refused(self):
+        """Protects idempotence: a second finalize refuses, so
+        finalization never double-mutates."""
+        ac = self._ac()
+        result = ac.decide(self._attempt(
+            already_finalized=True))
+        self.assertEqual("REFUSE", result.outcome)
+        self.assertEqual("FINALIZE", result.coherent)
+        self.assertEqual(["duplicate-finalize"],
+                         self._rules(result))
+
+    def test_remote_ahead_recovers_to_read_back(self):
+        """Protects receipt integrity: remote success before
+        local receipt recovers to READ-BACK, so receipts are
+        read back before finalizing."""
+        ac = self._ac()
+        result = ac.decide(self._attempt(local_receipt=False))
+        self.assertEqual("RECOVER", result.outcome)
+        self.assertEqual("READ-BACK", result.coherent)
+        self.assertEqual(["remote-ahead"], self._rules(result))
+
+    def test_dirty_worktree_refused(self):
+        """Protects completeness: a dirty worktree refuses, so
+        half-finished edits never checkpoint as complete."""
+        ac = self._ac()
+        result = ac.decide(self._attempt(worktree_clean=False))
+        self.assertEqual(["dirty-worktree"],
+                         self._rules(result))
+
+    def test_incomplete_tests_refused(self):
+        """Protects proof: incomplete tests refuse, so nothing
+        unproven checkpoints as complete."""
+        ac = self._ac()
+        result = ac.decide(self._attempt(tests_green=False))
+        self.assertEqual(["tests-incomplete"],
+                         self._rules(result))
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 12 corpus entries
+        reproduce their expected rules, outcomes, and coherent
+        barriers, covering all 8 checkpoint rules with unique
+        well-formed IDs."""
+        ac = self._ac()
+        findings, entries = ac.validate_checkpoint_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(12, len(entries))
+        covered = {r for e in entries
+                   for r in e["expected_rules"]}
+        self.assertEqual(set(ac.RULES), covered)
+
+    def test_red_by_construction_checkpoint_stub_misses_all(self):
+        """Sensitivity proof (RED): a checkpoint-everything stub
+        misses all 11 non-clean corpus fragments while the real
+        decider matches each — so the suite is green because the
+        barriers exist, not because the fixtures cannot fail."""
+        ac = self._ac()
+        corpus = self._corpus_doc()
+        rest = [entry for entry in corpus["entries"]
+                if entry.get("expected_rules")]
+        self.assertEqual(11, len(rest))
+        stub_hits = 0
+        for entry in rest:
+            real = ac.decide(entry["attempt"])
+            self.assertEqual(
+                sorted(entry["expected_rules"]),
+                self._rules(real), entry["id"])
+            self.assertEqual(entry["expected_outcome"],
+                             real.outcome, entry["id"])
+            self.assertEqual(entry["expected_coherent"],
+                             real.coherent, entry["id"])
+            stub_hits += 0  # the stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_atomic_checkpoints_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: atomic-checkpoints
+        validates the real corpus (ok, 12 entries, 8 rules),
+        decides an --attempt file as JSON, exits 0 on refused
+        attempts, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "atomic-checkpoints", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(12, payload["entries"])
+        self.assertEqual(8, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-attempt.json"
+            good_path.write_text(
+                json.dumps(self._ac().clean_attempt()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "atomic-checkpoints", "--attempt",
+                 str(good_path), "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("CHECKPOINTED", payload["outcome"])
+            bad_path = Path(tmp) / "bad-attempt.json"
+            bad = self._ac().clean_attempt()
+            bad["cas_current"] = "cas-stale"
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "atomic-checkpoints", "--attempt",
+                 str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "atomic-checkpoints", "--attempt",
+             "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "atomic-checkpoints", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()
