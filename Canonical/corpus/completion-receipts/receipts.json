@@ -1,0 +1,184 @@
+{
+  "_frozen": true,
+  "_provenance": "T20 #215 (completion-receipts). Hand-authored, adjudicated oracle: every entry expected fragment reproduces the contract checkers exactly. Do not edit without a structured reopen.",
+  "entries": [
+    {
+      "id": "rc.merged.01",
+      "note": "Remote truth MERGED passes.",
+      "target": "merged",
+      "record": {
+        "pr_state": "merged",
+        "merge_commit": "abc"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "rc.merged.02",
+      "note": "Local-only refused.",
+      "target": "merged",
+      "record": {
+        "local_only": true
+      },
+      "expected_violation_fragment": "local-only evidence refused"
+    },
+    {
+      "id": "rc.cleaned.01",
+      "note": "CLEANED with #214 receipt passes.",
+      "target": "cleaned",
+      "record": {
+        "state": "CLEANED"
+      },
+      "cleanup_receipt": "cl-1",
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "rc.cleaned.02",
+      "note": "CLEANED without receipt forbidden.",
+      "target": "cleaned",
+      "record": {
+        "state": "CLEANED"
+      },
+      "expected_violation_fragment": "without a #214 cleanup receipt"
+    },
+    {
+      "id": "rc.cleaned.03",
+      "note": "CLEANUP_PENDING stays distinct.",
+      "target": "cleaned",
+      "record": {
+        "state": "CLEANUP_PENDING"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "rc.excl.01",
+      "note": "Rationale exclusion passes.",
+      "target": "exclusion",
+      "record": {
+        "excluded": true,
+        "rationale_url": "https://x/1"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "rc.excl.02",
+      "note": "Excluded counted delivered fails.",
+      "target": "exclusion",
+      "record": {
+        "excluded": true,
+        "rationale_url": "https://x/1",
+        "counted_delivered": true
+      },
+      "expected_violation_fragment": "never delivered"
+    },
+    {
+      "id": "rc.parent.01",
+      "note": "Gated parent passes.",
+      "target": "parent",
+      "record": {
+        "closing": true,
+        "children": [
+          {
+            "id": "c1",
+            "state": "MERGED"
+          }
+        ],
+        "integration_proof": "proof-1"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "rc.parent.02",
+      "note": "Open child refuses.",
+      "target": "parent",
+      "record": {
+        "closing": true,
+        "children": [
+          {
+            "id": "c1",
+            "state": "OPEN"
+          }
+        ]
+      },
+      "expected_violation_fragment": "required child"
+    },
+    {
+      "id": "rc.parent.03",
+      "note": "Counts alone refuse.",
+      "target": "parent",
+      "record": {
+        "closing": true,
+        "children": [
+          {
+            "id": "c1",
+            "state": "MERGED"
+          }
+        ]
+      },
+      "expected_violation_fragment": "integration proof required"
+    },
+    {
+      "id": "rc.dup.01",
+      "note": "Replay no-op passes.",
+      "target": "duplicate",
+      "record": {
+        "count_delta": 0
+      },
+      "replay": {
+        "count_delta": 0
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "rc.dup.02",
+      "note": "Double count fails.",
+      "target": "duplicate",
+      "record": {
+        "count_delta": 0
+      },
+      "replay": {
+        "count_delta": 1
+      },
+      "expected_violation_fragment": "double-counts"
+    },
+    {
+      "id": "rc.race.01",
+      "note": "Refused race passes.",
+      "target": "race",
+      "record": {
+        "membership_changed": true,
+        "outcome": "refused"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "rc.race.02",
+      "note": "Silent success fails.",
+      "target": "race",
+      "record": {
+        "membership_changed": true,
+        "outcome": "closed"
+      },
+      "expected_violation_fragment": "silently succeeded"
+    },
+    {
+      "id": "rc.tracker.01",
+      "note": "Exact math passes.",
+      "target": "tracker",
+      "record": {
+        "merged_child_receipts": 3,
+        "completed": 3
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "rc.tracker.02",
+      "note": "Wrong count fails.",
+      "target": "tracker",
+      "record": {
+        "merged_child_receipts": 3,
+        "completed": 5
+      },
+      "expected_violation_fragment": "tracker math wrong"
+    }
+  ]
+}

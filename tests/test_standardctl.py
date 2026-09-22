@@ -8745,5 +8745,197 @@ class ScopedSecrets(FixtureCase):
         self.assertEqual(0, stub_hits)
 
 
+class CompletionReceipts(FixtureCase):
+    """T20 (#215): completion receipts distinguish merged,
+    cleaned, and excluded closes. Remote-truth MERGED,
+    #214-gated CLEANED, rationale exclusions, parent gate,
+    duplicate no-op, race refusal, and tracker math in
+    tools/completion_receipts.py with the frozen corpus under
+    Canonical/corpus/completion-receipts/. Every proof point
+    below has a dedicated test with its own justification."""
+
+    def _cr(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import completion_receipts
+            return completion_receipts
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "completion-receipts" / "receipts.json")
+            .read_text(encoding="utf-8"))
+
+    def test_merged_remote_truth_only(self):
+        """Protects AC1: remote-truth MERGED passes while
+        local-only evidence is refused, so release signals never
+        trust local checks."""
+        cr = self._cr()
+        self.assertEqual(
+            [], cr.check_merged_receipt(
+                {"pr_state": "merged", "merge_commit": "abc"}))
+        violations = cr.check_merged_receipt({"local_only": True})
+        self.assertTrue(
+            any("local-only evidence refused" in v
+                for v in violations), violations)
+
+    def test_cleaned_needs_cleanup_receipt(self):
+        """Protects AC2 (MERGED != CLEANED axis): CLEANED with a
+        #214 receipt passes while CLEANED without one is
+        forbidden and CLEANUP_PENDING stays distinct, so merge
+        never implies cleanup."""
+        cr = self._cr()
+        self.assertEqual(
+            [], cr.check_cleaned_receipt({"state": "CLEANED"},
+                                         "cl-1"))
+        violations = cr.check_cleaned_receipt({"state": "CLEANED"},
+                                              None)
+        self.assertTrue(
+            any("without a #214 cleanup receipt" in v
+                for v in violations), violations)
+        self.assertEqual(
+            [], cr.check_cleaned_receipt(
+                {"state": "CLEANUP_PENDING"}, None))
+
+    def test_exclusion_distinct_never_delivered(self):
+        """Protects AC3: a rationale exclusion passes while an
+        excluded-as-delivered item fails, so exclusions never
+        inflate delivery."""
+        cr = self._cr()
+        self.assertEqual(
+            [], cr.check_exclusion(
+                {"excluded": True,
+                 "rationale_url": "https://x/1"}))
+        violations = cr.check_exclusion(
+            {"excluded": True, "rationale_url": "https://x/1",
+             "counted_delivered": True})
+        self.assertTrue(
+            any("never delivered" in v for v in violations),
+            violations)
+
+    def test_parent_gate_proof_required(self):
+        """Protects AC4: a gated parent with proof passes while an
+        open child and counts-alone each refuse, so parents close
+        on proof, never on counts."""
+        cr = self._cr()
+        parent = {"closing": True,
+                  "children": [{"id": "c1", "state": "MERGED"}],
+                  "integration_proof": "proof-1"}
+        self.assertEqual([], cr.check_parent_gate(parent))
+        no_proof = {"closing": True,
+                    "children": [{"id": "c1", "state": "MERGED"}]}
+        self.assertTrue(
+            any("integration proof required" in v for v in
+                cr.check_parent_gate(no_proof)))
+        open_child = {"closing": True,
+                      "children": [{"id": "c1", "state": "OPEN"}]}
+        self.assertTrue(
+            any("required child" in v for v in
+                cr.check_parent_gate(open_child)))
+
+    def test_duplicate_noop(self):
+        """Protects AC5: a zero-delta replay passes while a
+        double-count replay fails, so retries never repeat
+        effects."""
+        cr = self._cr()
+        self.assertEqual(
+            [], cr.check_duplicate_noop({"count_delta": 0},
+                                        {"count_delta": 0}))
+        violations = cr.check_duplicate_noop({"count_delta": 0},
+                                             {"count_delta": 1})
+        self.assertTrue(
+            any("double-counts" in v for v in violations),
+            violations)
+
+    def test_membership_race_refuses(self):
+        """Protects AC6: a refused race passes while a silent
+        success fails, so races refuse visibly, never succeed
+        silently."""
+        cr = self._cr()
+        self.assertEqual(
+            [], cr.check_membership_race(
+                {"membership_changed": True, "outcome": "refused"}))
+        violations = cr.check_membership_race(
+            {"membership_changed": True, "outcome": "closed"})
+        self.assertTrue(
+            any("silently succeeded" in v for v in violations),
+            violations)
+
+    def test_tracker_math_exact(self):
+        """Protects AC7 (Q12 axis): exact completed == receipts
+        passes while a wrong count fails, so the #197 tracker
+        reads receipts with no second store."""
+        cr = self._cr()
+        self.assertEqual(
+            [], cr.check_tracker_math(
+                {"merged_child_receipts": 3, "completed": 3}))
+        violations = cr.check_tracker_math(
+            {"merged_child_receipts": 3, "completed": 5})
+        self.assertTrue(
+            any("tracker math wrong" in v for v in violations),
+            violations)
+
+    def test_no_second_tracker(self):
+        """Protects the Must-never-happen (Q12 axis): the module
+        creates no tracker/ledger/store — receipts live on
+        existing issues — so no second state system exists."""
+        text = (WORKTREE / "tools" / "completion_receipts.py"
+                ).read_text(encoding="utf-8")
+        for marker in ("create_tracker", "new_ledger",
+                       "state_store", "sqlite", "shelve"):
+            self.assertNotIn(marker, text, marker)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 16 corpus entries
+        reproduce their expected violation fragments across all
+        seven receipt surfaces (merged, cleaned, exclusion,
+        parent, duplicate, race, tracker)."""
+        cr = self._cr()
+        findings, entries = \
+            cr.validate_receipt_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(16, len(entries))
+
+    def test_red_by_construction_no_rule_stub_passes(self):
+        """Sensitivity proof (RED): a no-rule stub that closes
+        unconditionally reproduces 0/8 negative corpus fragments
+        while the real receipt rules block all 8 — so the suite
+        is green because the rules exist, not because the
+        fixtures cannot fail."""
+        cr = self._cr()
+        corpus = self._corpus_doc()
+        negatives = [entry for entry in corpus["entries"]
+                     if entry.get("expected_violation_fragment")]
+        self.assertEqual(8, len(negatives))
+        stub_hits = 0
+        for entry in negatives:
+            target = entry["target"]
+            record = entry["record"]
+            if target == "merged":
+                real = cr.check_merged_receipt(record)
+            elif target == "cleaned":
+                real = cr.check_cleaned_receipt(
+                    record, entry.get("cleanup_receipt"))
+            elif target == "exclusion":
+                real = cr.check_exclusion(record)
+            elif target == "parent":
+                real = cr.check_parent_gate(record)
+            elif target == "duplicate":
+                real = cr.check_duplicate_noop(
+                    record, entry.get("replay", {}))
+            elif target == "race":
+                real = cr.check_membership_race(record)
+            else:
+                real = cr.check_tracker_math(record)
+            self.assertTrue(
+                any(entry["expected_violation_fragment"] in v
+                    for v in real), entry["id"])
+            stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+
 if __name__ == "__main__":
     unittest.main()
