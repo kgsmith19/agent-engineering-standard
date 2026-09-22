@@ -4922,6 +4922,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_cont.add_argument("--json", action="store_true")
     p_cont.set_defaults(func=cmd_continuity_events)
 
+    p_ckpt = sub.add_parser(
+        "atomic-checkpoints",
+        help="Atomic checkpoint readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_ckpt.add_argument(
+        "--attempt", default="",
+        help="path to a JSON attempt file to decide; without "
+             "it, validates the frozen checkpoint fixture set")
+    p_ckpt.add_argument(
+        "--corpus", default="Canonical/corpus/atomic-checkpoints",
+        help="frozen corpus dir holding checkpoints.json for "
+             "validation mode")
+    p_ckpt.add_argument("--json", action="store_true")
+    p_ckpt.set_defaults(func=cmd_atomic_checkpoints)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -6816,6 +6832,88 @@ def cmd_continuity_events(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("continuity-events: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_atomic_checkpoints(args: argparse.Namespace) -> int:
+    """Advisory atomic-checkpoints readout. With --attempt,
+    decides that attempt file; without it, validates the frozen
+    checkpoint oracle (every entry's computed rules ==
+    expected_rules, outcome and coherent barrier match, IDs
+    unique, all 8 checkpoint rules covered) and prints findings.
+    Always exits 0 on findings: advisory never gates; only an
+    unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import atomic_checkpoints
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.attempt:
+        try:
+            attempt = json.loads(
+                _Path(args.attempt).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("atomic-checkpoints: cannot load attempt: %s" % exc)
+            return 2
+        if not isinstance(attempt, dict):
+            print("atomic-checkpoints: attempt must be a JSON object")
+            return 2
+        result = atomic_checkpoints.decide(attempt)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "decide",
+                "attempt": args.attempt,
+                "outcome": result.outcome,
+                "coherent": result.coherent,
+                "ok": result.outcome == "CHECKPOINTED",
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("atomic-checkpoints: %s -- %s at %s" % (
+                args.attempt, result.outcome, result.coherent))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "checkpoints.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("atomic-checkpoints: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        atomic_checkpoints.validate_checkpoint_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(r)
+                    for e in entries if isinstance(e, dict)
+                    for r in (e.get("expected_rules") or [])})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("atomic-checkpoints: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)
