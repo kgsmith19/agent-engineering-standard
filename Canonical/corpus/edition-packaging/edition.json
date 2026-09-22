@@ -1,0 +1,184 @@
+{
+  "_frozen": true,
+  "_provenance": "T10 #209 (edition-packaging). Hand-authored, adjudicated oracle: every entry expected fragment reproduces the contract checkers exactly. Do not edit without a structured reopen.",
+  "entries": [
+    {
+      "id": "ed.full.01",
+      "note": "Full runs everything.",
+      "target": "full",
+      "record": [
+        "check_template_pairs",
+        "check_harness_edition",
+        "check_gate_aggregator",
+        "check_gate_noop_stages",
+        "check_review_always_comments",
+        "check_capability_registry"
+      ],
+      "known": [
+        "check_template_pairs",
+        "check_harness_edition",
+        "check_gate_aggregator",
+        "check_gate_noop_stages",
+        "check_review_always_comments",
+        "check_capability_registry"
+      ],
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ed.full.02",
+      "note": "Full dropping a check fails.",
+      "target": "full",
+      "record": [
+        "a"
+      ],
+      "known": [
+        "a",
+        "b"
+      ],
+      "expected_violation_fragment": "drops capability"
+    },
+    {
+      "id": "ed.lite.01",
+      "note": "Lite safety net passes.",
+      "target": "lite",
+      "record": [
+        "check_template_pairs",
+        "check_harness_edition",
+        "check_gate_aggregator",
+        "check_gate_noop_stages"
+      ],
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ed.lite.02",
+      "note": "Lite missing safety net fails.",
+      "target": "lite",
+      "record": [
+        "check_template_pairs"
+      ],
+      "expected_violation_fragment": "safety-net"
+    },
+    {
+      "id": "ed.lite.03",
+      "note": "Lite running deep checks fails.",
+      "target": "lite",
+      "record": [
+        "check_template_pairs",
+        "check_harness_edition",
+        "check_gate_aggregator",
+        "check_gate_noop_stages",
+        "check_capability_registry"
+      ],
+      "expected_violation_fragment": "deep-evidence"
+    },
+    {
+      "id": "ed.review.01",
+      "note": "Lite render without review passes.",
+      "target": "review",
+      "record": {
+        "needs": [
+          "setup",
+          "policy"
+        ],
+        "expected_jobs": [
+          "setup",
+          "policy"
+        ],
+        "stubs": []
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ed.review.02",
+      "note": "Lite keeping llm_review fails.",
+      "target": "review",
+      "record": {
+        "needs": [
+          "llm_review"
+        ],
+        "expected_jobs": [],
+        "stubs": []
+      },
+      "expected_violation_fragment": "delete, never stub"
+    },
+    {
+      "id": "ed.deferral.01",
+      "note": "Approved deferral passes.",
+      "target": "deferral",
+      "record": [
+        {
+          "capability": "x",
+          "owner_approved": true
+        }
+      ],
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ed.deferral.02",
+      "note": "Quiet omission fails.",
+      "target": "deferral",
+      "record": [
+        {
+          "capability": "x"
+        }
+      ],
+      "expected_violation_fragment": "owner approval"
+    },
+    {
+      "id": "ed.receipt.01",
+      "note": "Both-green receipt passes.",
+      "target": "receipt",
+      "record": {
+        "full": {
+          "result": "pass",
+          "head": "h1"
+        },
+        "lite": {
+          "result": "pass",
+          "head": "h1"
+        },
+        "gate": "pass",
+        "head": "h1"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ed.receipt.02",
+      "note": "Head mismatch fails.",
+      "target": "receipt",
+      "record": {
+        "full": {
+          "result": "pass",
+          "head": "h1"
+        },
+        "lite": {
+          "result": "pass",
+          "head": "h2"
+        },
+        "gate": "pass",
+        "head": "h1"
+      },
+      "expected_violation_fragment": "head mismatch"
+    },
+    {
+      "id": "ed.stale.01",
+      "note": "Matched SHA passes.",
+      "target": "stale",
+      "record": {
+        "tested": "h",
+        "head": "h"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "ed.stale.02",
+      "note": "Stale SHA refused.",
+      "target": "stale",
+      "record": {
+        "tested": "old",
+        "head": "new"
+      },
+      "expected_violation_fragment": "stale SHA refused"
+    }
+  ]
+}

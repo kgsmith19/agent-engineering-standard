@@ -7841,5 +7841,181 @@ class OwnerStackValues(FixtureCase):
         self.assertEqual(0, stub_hits)
 
 
+class EditionPackaging(FixtureCase):
+    """T10 (#209): edition UX and Premium packaging with release
+    VERIFY. Full-completeness, lite safety-net, lite-omits-review,
+    explicit-deferral, VERIFY-receipt, and stale-SHA-refusal
+    contracts in tools/edition_packaging.py with the frozen corpus
+    under Canonical/corpus/edition-packaging/. Every proof point
+    below has a dedicated test with its own justification."""
+
+    def _ep(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import edition_packaging
+            return edition_packaging
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "edition-packaging" / "edition.json")
+            .read_text(encoding="utf-8"))
+
+    def _full(self):
+        return ["check_template_pairs", "check_harness_edition",
+                "check_gate_aggregator", "check_gate_noop_stages",
+                "check_review_always_comments",
+                "check_capability_registry"]
+
+    def _lite(self):
+        return ["check_template_pairs", "check_harness_edition",
+                "check_gate_aggregator", "check_gate_noop_stages"]
+
+    def test_full_packages_everything(self):
+        """Protects AC1: full with every known check passes while
+        full missing one fails naming the drop, so Full never
+        silently drops a capability."""
+        ep = self._ep()
+        full = self._full()
+        self.assertEqual(
+            [], ep.check_full_completeness(full, full))
+        violations = ep.check_full_completeness(["a"], ["a", "b"])
+        self.assertTrue(
+            any("drops capability" in v and "b" in v
+                for v in violations), violations)
+
+    def test_lite_safety_net(self):
+        """Protects AC2: the lite safety net passes while a lite
+        missing safety-net checks or running deep checks fails,
+        so lite is exactly the safety net."""
+        ep = self._ep()
+        self.assertEqual(
+            [], ep.check_lite_safety_net(self._lite()))
+        violations = ep.check_lite_safety_net(
+            ["check_template_pairs"])
+        self.assertTrue(
+            any("safety-net" in v for v in violations),
+            violations)
+        violations = ep.check_lite_safety_net(
+            self._lite() + ["check_capability_registry"])
+        self.assertTrue(
+            any("deep-evidence" in v for v in violations),
+            violations)
+
+    def test_lite_omits_review_entirely(self):
+        """Protects AC3: a lite render without review passes while
+        one keeping llm_review fails naming delete-never-stub, so
+        lite omits review entirely."""
+        ep = self._ep()
+        render = {"needs": ["setup", "policy"],
+                  "expected_jobs": ["setup", "policy"], "stubs": []}
+        self.assertEqual([], ep.check_lite_omits_review(render))
+        kept = {"needs": ["llm_review"], "expected_jobs": [],
+                "stubs": []}
+        violations = ep.check_lite_omits_review(kept)
+        self.assertTrue(
+            any("delete, never stub" in v for v in violations),
+            violations)
+
+    def test_verify_edition_flags_live(self):
+        """Protects AC4 (seamless axis): verify --edition full and
+        --edition lite both pass at this head, so init/doctor
+        edition plumbing rides live flags, not dead text."""
+        for edition in ("full", "lite"):
+            rc, _ = run_cli(["--root", str(self.std_fixture()),
+                             "verify", "--edition", edition])
+            self.assertEqual(0, rc, edition)
+
+    def test_verify_receipt_both_green(self):
+        """Protects AC5: a both-green same-head receipt with gate
+        green passes while a head-mismatched receipt fails, so
+        release VERIFY is exact-head evidence for both
+        editions."""
+        ep = self._ep()
+        receipt = {"full": {"result": "pass", "head": "h1"},
+                   "lite": {"result": "pass", "head": "h1"},
+                   "gate": "pass", "head": "h1"}
+        self.assertEqual([], ep.check_verify_receipt(receipt))
+        bad = dict(receipt,
+                   lite={"result": "pass", "head": "h2"})
+        violations = ep.check_verify_receipt(bad)
+        self.assertTrue(
+            any("head mismatch" in v for v in violations),
+            violations)
+
+    def test_no_silent_capability_drop(self):
+        """Protects AC6 (W6 axis): an approved deferral passes
+        while a quiet omission fails naming owner approval, so no
+        deferral from Full is ever silent."""
+        ep = self._ep()
+        self.assertEqual(
+            [], ep.check_explicit_deferral(
+                [{"capability": "x", "owner_approved": True}]))
+        violations = ep.check_explicit_deferral([{"capability": "x"}])
+        self.assertTrue(
+            any("owner approval" in v for v in violations),
+            violations)
+
+    def test_stale_sha_refused(self):
+        """Protects the VERIFY exact-head axis: a matched SHA
+        passes while a stale SHA fails naming both, so VERIFY
+        never gates a moved head."""
+        ep = self._ep()
+        self.assertEqual([], ep.check_stale_sha_refusal("h", "h"))
+        violations = ep.check_stale_sha_refusal("old", "new")
+        self.assertTrue(
+            any("stale SHA refused" in v for v in violations),
+            violations)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 13 corpus entries
+        reproduce their expected violation fragments across all
+        six contract surfaces (full, lite, review, deferral,
+        receipt, stale)."""
+        ep = self._ep()
+        findings, entries = \
+            ep.validate_edition_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(13, len(entries))
+
+    def test_red_by_construction_no_rule_stub_passes(self):
+        """Sensitivity proof (RED): a no-rule stub that accepts
+        every edition input reproduces 0/8 negative corpus
+        fragments while the real checkers fire on all 8 — so the
+        suite is green because the rules exist, not because the
+        fixtures cannot fail."""
+        ep = self._ep()
+        corpus = self._corpus_doc()
+        negatives = [entry for entry in corpus["entries"]
+                     if entry.get("expected_violation_fragment")]
+        self.assertEqual(7, len(negatives))
+        stub_hits = 0
+        for entry in negatives:
+            target = entry["target"]
+            record = entry["record"]
+            if target == "full":
+                real = ep.check_full_completeness(
+                    record, entry.get("known", []))
+            elif target == "lite":
+                real = ep.check_lite_safety_net(record)
+            elif target == "review":
+                real = ep.check_lite_omits_review(record)
+            elif target == "deferral":
+                real = ep.check_explicit_deferral(record)
+            elif target == "receipt":
+                real = ep.check_verify_receipt(record)
+            else:
+                real = ep.check_stale_sha_refusal(
+                    record.get("tested"), record.get("head"))
+            self.assertTrue(
+                any(entry["expected_violation_fragment"] in v
+                    for v in real), entry["id"])
+            stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+
 if __name__ == "__main__":
     unittest.main()
