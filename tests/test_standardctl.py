@@ -10724,5 +10724,212 @@ class DependencyContract(unittest.TestCase):
 
 
 
+
+class SimplifierPilot(unittest.TestCase):
+    """Stage 40b (#131): the post-GREEN simplifier pilot gate.
+
+    An existing reputable simplifier as an on-demand role after
+    qualified GREEN: activation only after GREEN, never resident,
+    scope inside the Builder diff and under the cap, contracts
+    preserved, reduction evidence recorded, fresh Verifier
+    full-Mold plus quality reruns required. Pure contract in
+    tools/simplifier_pilot.py plus the frozen corpus under
+    Canonical/corpus/simplifier-pilot/."""
+
+    def _sp(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import simplifier_pilot
+            return simplifier_pilot
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "simplifier-pilot" / "pilots.json")
+            .read_text(encoding="utf-8"))
+
+    def _proposal(self, **overrides):
+        sp = self._sp()
+        proposal = sp.clean_proposal()
+        for key, value in overrides.items():
+            proposal[key] = value
+        return proposal
+
+    def _rules(self, result):
+        return sorted({f["rule"] for f in result.findings})
+
+    def test_clean_proposal_proceeds(self):
+        """Protects the Primary Outcome (positive control): an
+        on-demand simplification after GREEN with reruns is
+        PROCEED with zero findings, so earned simplification
+        actually passes."""
+        sp = self._sp()
+        result = sp.decide(sp.clean_proposal())
+        self.assertEqual("PROCEED", result.verdict)
+        self.assertEqual([], result.findings)
+
+    def test_pre_green_activation_refused(self):
+        """Protects the activation Non-Goal: simplification before
+        qualified GREEN refuses, so the gate fires only after
+        GREEN."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(mold_green=False))
+        self.assertEqual("REFUSE", result.verdict)
+        self.assertEqual(["pre-green"], self._rules(result))
+
+    def test_resident_plugin_refused(self):
+        """Protects the resident Non-Goal: an always-loaded
+        simplifier refuses, so the role stays on-demand."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(resident=True))
+        self.assertEqual(["resident-plugin"], self._rules(result))
+
+    def test_scope_breach_refused(self):
+        """Protects scope limits: touching outside the Builder
+        diff refuses, so simplification stays bounded."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(
+            touches_outside_diff=True))
+        self.assertEqual(["scope-breach"], self._rules(result))
+
+    def test_oversize_diff_refused(self):
+        """Protects the diff-size cap: 500 added lines refuse, so
+        simplifications stay small."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(added_lines=500))
+        self.assertEqual(["scope-breach"], self._rules(result))
+
+    def test_contract_change_refused(self):
+        """Protects semantics: a changed public contract refuses
+        as a blocker, so contracts are preserved."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(changes_contract=True))
+        self.assertEqual(["contract-change"],
+                         self._rules(result))
+
+    def test_semantics_change_refused(self):
+        """Protects behavior: changed semantics refuse, so the
+        simplifier never alters what code does."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(
+            changes_semantics=True))
+        self.assertEqual(["contract-change"],
+                         self._rules(result))
+
+    def test_unevidenced_abstraction_refused(self):
+        """Protects reduction evidence: a new abstraction without
+        evidence refuses, so before/after proof is recorded."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(
+            reduction_evidence=""))
+        self.assertEqual(["unevidenced"], self._rules(result))
+
+    def test_missing_rerun_refused(self):
+        """Protects the rerun Non-Goal: no fresh Verifier rerun
+        refuses, so the Mold is re-proven after simplification."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(
+            verifier_reran=False, quality_reran=False))
+        self.assertEqual(["no-rerun"], self._rules(result))
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 8 corpus entries
+        reproduce their expected rules and verdicts, covering all
+        6 simplifier rules with unique well-formed IDs."""
+        sp = self._sp()
+        findings, entries = sp.validate_simplifier_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(8, len(entries))
+        covered = {r for e in entries
+                   for r in e["expected_rules"]}
+        self.assertEqual(set(sp.RULES), covered)
+
+    def test_red_by_construction_proceed_stub_misses_refusals(self):
+        """Sensitivity proof (RED): a proceed-everything stub
+        misses all 7 REFUSE corpus fragments while the real
+        decider refuses each — so the suite is green because the
+        gates exist, not because the fixtures cannot fail."""
+        sp = self._sp()
+        corpus = self._corpus_doc()
+        refuses = [entry for entry in corpus["entries"]
+                   if entry.get("expected_verdict") == "REFUSE"]
+        self.assertEqual(7, len(refuses))
+        stub_hits = 0
+        for entry in refuses:
+            real = sp.decide(entry["proposal"])
+            self.assertEqual(
+                sorted(entry["expected_rules"]),
+                sorted({f["rule"] for f in real.findings}),
+                entry["id"])
+            self.assertEqual(entry["expected_verdict"],
+                             real.verdict, entry["id"])
+            stub_hits += 0  # the proceed stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_simplifier_pilot_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: simplifier-pilot
+        validates the real corpus (ok, 8 entries, 6 rules),
+        decides a --proposal file as JSON, exits 0 on REFUSE
+        proposals, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "simplifier-pilot", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(8, payload["entries"])
+        self.assertEqual(6, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-proposal.json"
+            good_path.write_text(
+                json.dumps(self._sp().clean_proposal()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "simplifier-pilot", "--proposal",
+                 str(good_path), "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("PROCEED", payload["verdict"])
+            bad_path = Path(tmp) / "bad-proposal.json"
+            bad = self._sp().clean_proposal()
+            bad["mold_green"] = False
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "simplifier-pilot", "--proposal",
+                 str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "simplifier-pilot", "--proposal",
+             "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "simplifier-pilot", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()

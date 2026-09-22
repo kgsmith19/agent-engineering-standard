@@ -1,0 +1,260 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 40b #131 Simplifier pilot frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "simplifier-pilot.clean.01",
+   "note": "Clean on-demand simplification after GREEN with reruns: PROCEED, so earned simplification actually passes.",
+   "proposal": {
+    "target": "tools/demo.py",
+    "mold_green": true,
+    "qualified": true,
+    "resident": false,
+    "touches_outside_diff": false,
+    "added_lines": 40,
+    "changes_contract": false,
+    "changes_semantics": false,
+    "adds_abstraction": true,
+    "reduction_evidence": "LOC 120->90, complexity 9->6, duplication 3->0 blocks",
+    "verifier_reran": true,
+    "quality_reran": true,
+    "evidence": {
+     "loc_before": 120,
+     "loc_after": 90,
+     "complexity_before": 9,
+     "complexity_after": 6,
+     "duplication_before": 3,
+     "duplication_after": 0,
+     "regressions": 0,
+     "model_cost_note": "one on-demand call, 2k tokens"
+    }
+   },
+   "expected_rules": [],
+   "expected_verdict": "PROCEED"
+  },
+  {
+   "id": "simplifier-pilot.pre-green.01",
+   "note": "Simplifier before qualified GREEN: REFUSE, so activation waits for GREEN.",
+   "proposal": {
+    "target": "tools/demo.py",
+    "mold_green": false,
+    "qualified": true,
+    "resident": false,
+    "touches_outside_diff": false,
+    "added_lines": 40,
+    "changes_contract": false,
+    "changes_semantics": false,
+    "adds_abstraction": true,
+    "reduction_evidence": "LOC 120->90, complexity 9->6, duplication 3->0 blocks",
+    "verifier_reran": true,
+    "quality_reran": true,
+    "evidence": {
+     "loc_before": 120,
+     "loc_after": 90,
+     "complexity_before": 9,
+     "complexity_after": 6,
+     "duplication_before": 3,
+     "duplication_after": 0,
+     "regressions": 0,
+     "model_cost_note": "one on-demand call, 2k tokens"
+    }
+   },
+   "expected_rules": [
+    "pre-green"
+   ],
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "simplifier-pilot.resident.01",
+   "note": "Resident always-loaded simplifier: REFUSE, so the role stays on-demand.",
+   "proposal": {
+    "target": "tools/demo.py",
+    "mold_green": true,
+    "qualified": true,
+    "resident": true,
+    "touches_outside_diff": false,
+    "added_lines": 40,
+    "changes_contract": false,
+    "changes_semantics": false,
+    "adds_abstraction": true,
+    "reduction_evidence": "LOC 120->90, complexity 9->6, duplication 3->0 blocks",
+    "verifier_reran": true,
+    "quality_reran": true,
+    "evidence": {
+     "loc_before": 120,
+     "loc_after": 90,
+     "complexity_before": 9,
+     "complexity_after": 6,
+     "duplication_before": 3,
+     "duplication_after": 0,
+     "regressions": 0,
+     "model_cost_note": "one on-demand call, 2k tokens"
+    }
+   },
+   "expected_rules": [
+    "resident-plugin"
+   ],
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "simplifier-pilot.scope.01",
+   "note": "Simplifier touching outside the Builder diff: REFUSE, so scope stays bounded.",
+   "proposal": {
+    "target": "tools/demo.py",
+    "mold_green": true,
+    "qualified": true,
+    "resident": false,
+    "touches_outside_diff": true,
+    "added_lines": 40,
+    "changes_contract": false,
+    "changes_semantics": false,
+    "adds_abstraction": true,
+    "reduction_evidence": "LOC 120->90, complexity 9->6, duplication 3->0 blocks",
+    "verifier_reran": true,
+    "quality_reran": true,
+    "evidence": {
+     "loc_before": 120,
+     "loc_after": 90,
+     "complexity_before": 9,
+     "complexity_after": 6,
+     "duplication_before": 3,
+     "duplication_after": 0,
+     "regressions": 0,
+     "model_cost_note": "one on-demand call, 2k tokens"
+    }
+   },
+   "expected_rules": [
+    "scope-breach"
+   ],
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "simplifier-pilot.contract.01",
+   "note": "Simplification changing a public contract: REFUSE, so contracts are preserved.",
+   "proposal": {
+    "target": "tools/demo.py",
+    "mold_green": true,
+    "qualified": true,
+    "resident": false,
+    "touches_outside_diff": false,
+    "added_lines": 40,
+    "changes_contract": true,
+    "changes_semantics": false,
+    "adds_abstraction": true,
+    "reduction_evidence": "LOC 120->90, complexity 9->6, duplication 3->0 blocks",
+    "verifier_reran": true,
+    "quality_reran": true,
+    "evidence": {
+     "loc_before": 120,
+     "loc_after": 90,
+     "complexity_before": 9,
+     "complexity_after": 6,
+     "duplication_before": 3,
+     "duplication_after": 0,
+     "regressions": 0,
+     "model_cost_note": "one on-demand call, 2k tokens"
+    }
+   },
+   "expected_rules": [
+    "contract-change"
+   ],
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "simplifier-pilot.evidence.01",
+   "note": "New abstraction without reduction evidence: REFUSE, so evidence is recorded.",
+   "proposal": {
+    "target": "tools/demo.py",
+    "mold_green": true,
+    "qualified": true,
+    "resident": false,
+    "touches_outside_diff": false,
+    "added_lines": 40,
+    "changes_contract": false,
+    "changes_semantics": false,
+    "adds_abstraction": true,
+    "reduction_evidence": "",
+    "verifier_reran": true,
+    "quality_reran": true,
+    "evidence": {
+     "loc_before": 120,
+     "loc_after": 90,
+     "complexity_before": 9,
+     "complexity_after": 6,
+     "duplication_before": 3,
+     "duplication_after": 0,
+     "regressions": 0,
+     "model_cost_note": "one on-demand call, 2k tokens"
+    }
+   },
+   "expected_rules": [
+    "unevidenced"
+   ],
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "simplifier-pilot.rerun.01",
+   "note": "No fresh Verifier rerun after simplification: REFUSE, so the Mold is re-proven.",
+   "proposal": {
+    "target": "tools/demo.py",
+    "mold_green": true,
+    "qualified": true,
+    "resident": false,
+    "touches_outside_diff": false,
+    "added_lines": 40,
+    "changes_contract": false,
+    "changes_semantics": false,
+    "adds_abstraction": true,
+    "reduction_evidence": "LOC 120->90, complexity 9->6, duplication 3->0 blocks",
+    "verifier_reran": false,
+    "quality_reran": false,
+    "evidence": {
+     "loc_before": 120,
+     "loc_after": 90,
+     "complexity_before": 9,
+     "complexity_after": 6,
+     "duplication_before": 3,
+     "duplication_after": 0,
+     "regressions": 0,
+     "model_cost_note": "one on-demand call, 2k tokens"
+    }
+   },
+   "expected_rules": [
+    "no-rerun"
+   ],
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "simplifier-pilot.semantics.01",
+   "note": "Simplification changing semantics: REFUSE, so behavior is preserved.",
+   "proposal": {
+    "target": "tools/demo.py",
+    "mold_green": true,
+    "qualified": true,
+    "resident": false,
+    "touches_outside_diff": false,
+    "added_lines": 40,
+    "changes_contract": false,
+    "changes_semantics": true,
+    "adds_abstraction": true,
+    "reduction_evidence": "LOC 120->90, complexity 9->6, duplication 3->0 blocks",
+    "verifier_reran": true,
+    "quality_reran": true,
+    "evidence": {
+     "loc_before": 120,
+     "loc_after": 90,
+     "complexity_before": 9,
+     "complexity_after": 6,
+     "duplication_before": 3,
+     "duplication_after": 0,
+     "regressions": 0,
+     "model_cost_note": "one on-demand call, 2k tokens"
+    }
+   },
+   "expected_rules": [
+    "contract-change"
+   ],
+   "expected_verdict": "REFUSE"
+  }
+ ]
+}
