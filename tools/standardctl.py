@@ -4906,6 +4906,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_dep.add_argument("--json", action="store_true")
     p_dep.set_defaults(func=cmd_dependency_contract)
 
+    p_qe = sub.add_parser(
+        "quality-eval",
+        help="Quality evaluation readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_qe.add_argument(
+        "--solution", default="",
+        help="path to a JSON solution file to score; without "
+             "it, validates the frozen evaluation fixture set")
+    p_qe.add_argument(
+        "--corpus", default="Canonical/corpus/quality-eval",
+        help="frozen corpus dir holding eval.json for "
+             "validation mode")
+    p_qe.add_argument("--json", action="store_true")
+    p_qe.set_defaults(func=cmd_quality_eval)
+
     p_simp = sub.add_parser(
         "simplifier-pilot",
         help="Simplifier pilot readout and "
@@ -6625,6 +6641,84 @@ def cmd_simplifier_pilot(args: argparse.Namespace) -> int:
             print("  - %s" % line)
         print("  corpus: %d entries, rules %s"
               % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_quality_eval(args: argparse.Namespace) -> int:
+    """Advisory quality-eval readout. With --solution, scores
+    that solution file; without it, validates the frozen
+    evaluation oracle (every entry's ranked winner ==
+    expected_winner with reviewer agreement, all 6 dimensions
+    exercised) and prints findings. Always exits 0 on findings:
+    advisory never gates; only an unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import quality_eval
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.solution:
+        try:
+            solution = json.loads(
+                _Path(args.solution).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("quality-eval: cannot load solution: %s" % exc)
+            return 2
+        if not isinstance(solution, dict):
+            print("quality-eval: solution must be a JSON object")
+            return 2
+        result = quality_eval.score(solution)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "score",
+                "solution": args.solution,
+                "points": result.points,
+                "wins": result.wins,
+                "ok": result.wins,
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("quality-eval: %s -- %d points (%s)" % (
+                args.solution, result.points,
+                "WINS" if result.wins else "LOSES"))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "eval.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("quality-eval: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = quality_eval.validate_quality_eval_corpus(
+        corpus)
+    ok = not findings
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "dimensions": list(quality_eval.DIMENSIONS),
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("quality-eval: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries" % len(entries))
     return 0
 
 

@@ -10931,5 +10931,189 @@ class SimplifierPilot(unittest.TestCase):
 
 
 
+
+class QualityEval(unittest.TestCase):
+    """Stage 41 (#132): the implementation-quality evaluation corpus.
+
+    Correctness-first scoring over frozen tasks: incorrect
+    solutions always lose however small, conformance misses
+    cost, parsimony breaks ties among the correct, necessary
+    larger safety code beats incorrect shortcuts, the Stage 40
+    simplifier is never favored, and reviewers agree on
+    rule-grounded results. Pure contract in tools/quality_eval.py
+    plus the frozen corpus under Canonical/corpus/quality-eval/."""
+
+    def _qe(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import quality_eval
+            return quality_eval
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "quality-eval" / "eval.json")
+            .read_text(encoding="utf-8"))
+
+    def _sol(self, sid, **overrides):
+        base = {"id": sid, "correct": True,
+                "charter_clean": True, "quality_ok": True,
+                "plane_clean": True, "dependency_ok": True,
+                "simplifier_touched": False, "owned_loc": 100,
+                "reviewers_agree": True}
+        base.update(overrides)
+        return base
+
+    def test_correct_solution_wins(self):
+        """Protects the Primary Outcome (positive control): a
+        correct fully-conforming solution wins with points, so
+        the rubric can actually pass."""
+        qe = self._qe()
+        result = qe.score(self._sol("good"))
+        self.assertTrue(result.wins)
+        self.assertGreater(result.points, 0)
+
+    def test_smallest_incorrect_loses(self):
+        """Protects the shortness Non-Goal: the smallest-LOC
+        incorrect solution scores 0 and never wins, so
+        superficial shortness is never rewarded."""
+        qe = self._qe()
+        result = qe.score(self._sol("tiny-wrong", correct=False,
+                                    owned_loc=10))
+        self.assertFalse(result.wins)
+        self.assertEqual(0, result.points)
+
+    def test_necessary_safety_beats_shortcut(self):
+        """Protects the safety axis: a 400-LOC correct guard
+        outranks a 20-LOC incorrect shortcut, so necessary
+        larger safety code passes."""
+        qe = self._qe()
+        ranked = qe.rank([self._sol("guard", owned_loc=400),
+                          self._sol("shortcut", correct=False,
+                                    owned_loc=20)])
+        self.assertEqual("guard", ranked[0]["id"])
+
+    def test_duplicate_reuse_wins(self):
+        """Protects charter conformance: the reusing solution
+        beats the duplicating one at equal size, so reuse is
+        measured."""
+        qe = self._qe()
+        ranked = qe.rank([self._sol("reuse", owned_loc=100),
+                          self._sol("dup", charter_clean=False,
+                                    owned_loc=100)])
+        self.assertEqual("reuse", ranked[0]["id"])
+
+    def test_simplifier_not_favored(self):
+        """Protects simplifier neutrality: a simplifier-touched
+        but non-conforming solution loses to the untouched
+        conforming one, so the scorer never favors Stage 40."""
+        qe = self._qe()
+        ranked = qe.rank([
+            self._sol("plain", owned_loc=100),
+            self._sol("simp", simplifier_touched=True,
+                      charter_clean=False, owned_loc=60)])
+        self.assertEqual("plain", ranked[0]["id"])
+
+    def test_parsimony_breaks_valid_ties(self):
+        """Protects parsimony: among correct conforming designs,
+        less owned complexity wins, so valid variety converges."""
+        qe = self._qe()
+        ranked = qe.rank([self._sol("lean", owned_loc=80),
+                          self._sol("roomy", owned_loc=160)])
+        self.assertEqual("lean", ranked[0]["id"])
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 10 corpus entries
+        rank their expected winners with reviewer agreement,
+        exercising all 6 dimensions with unique IDs."""
+        qe = self._qe()
+        findings, entries = qe.validate_quality_eval_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(10, len(entries))
+
+    def test_red_by_construction_shortness_loses(self):
+        """Sensitivity proof (RED): every corpus entry outranks
+        its smallest-LOC incorrect rival — so the suite is green
+        because correctness gates size, not because small rivals
+        are absent."""
+        qe = self._qe()
+        corpus = self._corpus_doc()
+        checked = 0
+        for entry in corpus["entries"]:
+            ranked = qe.rank(entry["solutions"])
+            winner = qe.score([s for s in entry["solutions"]
+                               if s["id"] == ranked[0]["id"]][0])
+            self.assertTrue(winner.wins, entry["id"])
+            rival = self._sol("tiny-rival", correct=False,
+                              owned_loc=1)
+            self.assertFalse(qe.score(rival).wins, entry["id"])
+            checked += 1
+        self.assertEqual(len(corpus["entries"]), checked)
+
+    def test_standardctl_quality_eval_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: quality-eval
+        validates the real corpus (ok, 10 entries, 6
+        dimensions), scores a --solution file as JSON, exits 0
+        on losing solutions, and exits 2 only on unreadable
+        files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "quality-eval", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(10, payload["entries"])
+        self.assertEqual(6, len(payload["dimensions"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-solution.json"
+            good_path.write_text(
+                json.dumps(self._sol("good")),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "quality-eval", "--solution", str(good_path),
+                 "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertTrue(payload["wins"])
+            bad_path = Path(tmp) / "bad-solution.json"
+            bad_path.write_text(
+                json.dumps(self._sol("tiny-wrong", correct=False,
+                                     owned_loc=10)),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "quality-eval", "--solution", str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "quality-eval", "--solution", "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "quality-eval", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()
