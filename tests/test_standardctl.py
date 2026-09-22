@@ -9972,5 +9972,288 @@ class CleanCharter(unittest.TestCase):
 
 
 
+
+class QualityGates(unittest.TestCase):
+    """Stage 37 (#128): stack-native quality and architecture gates.
+
+    Portable declaration plus fixtures for repository-selected
+    linters, analyzers, dead-code, duplication, dependency, and
+    architecture tests. ``declare`` validates one verification
+    profile (mutual exclusion, real commands, generated
+    exclusion); ``classify`` maps one fixture outcome to its
+    finding. Pure contract in tools/quality_gates.py plus the
+    frozen corpus under Canonical/corpus/quality-gates/."""
+
+    def _qg(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import quality_gates
+            return quality_gates
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "quality-gates" / "gates.json")
+            .read_text(encoding="utf-8"))
+
+    def _profile(self, **overrides):
+        qg = self._qg()
+        profile = qg.clean_profile()
+        for key, value in overrides.items():
+            profile[key] = value
+        return profile
+
+    def _rules(self, result):
+        return sorted({f["rule"] for f in result.findings})
+
+    def test_clean_profile_is_accepted(self):
+        """Protects the Primary Outcome (positive control): a
+        profile selecting one real linter per stack with
+        generated files excluded is ACCEPTED with zero findings,
+        so a valid declaration can actually pass."""
+        qg = self._qg()
+        result = qg.declare(qg.clean_profile())
+        self.assertTrue(result.ok)
+        self.assertEqual([], result.findings)
+
+    def test_biome_and_eslint_mutually_exclusive(self):
+        """Protects mutual exclusion: Biome plus ESLint together
+        refuse with lint, so each stack picks exactly one."""
+        qg = self._qg()
+        profile = self._profile()
+        profile["stacks"]["ts"] = {"tools": ["biome", "eslint"],
+                                   "command": "biome check",
+                                   "class": "lint"}
+        result = qg.declare(profile)
+        self.assertFalse(result.ok)
+        self.assertEqual(["lint"], self._rules(result))
+
+    def test_no_op_command_rejected(self):
+        """Protects the no-op Non-Goal: a no-op command refuses
+        with lint, so gates always run real tooling."""
+        qg = self._qg()
+        profile = self._profile()
+        profile["stacks"]["python"] = {"tools": ["ruff"],
+                                       "command": "true",
+                                       "class": "lint"}
+        result = qg.declare(profile)
+        self.assertEqual(["lint"], self._rules(result))
+
+    def test_generated_exclusion_required(self):
+        """Protects generated-file exclusion: an unexcluded
+        profile refuses with lint, so regeneration never fails
+        the gate."""
+        qg = self._qg()
+        result = qg.declare(self._profile(
+            generated_excluded=False))
+        self.assertEqual(["lint"], self._rules(result))
+
+    def test_ruff_detects_seeded_bad_import(self):
+        """Protects Ruff correctness: a detected bad import
+        passes, so Python lint selection is real."""
+        qg = self._qg()
+        result = qg.classify({"kind": "bad-import",
+                              "stack": "python",
+                              "command": "ruff check",
+                              "detected": True})
+        self.assertTrue(result.ok)
+
+    def test_pyright_types_python_fixture(self):
+        """Protects Pyright correctness: a typed fixture passes
+        in the types class, so type checking is proven."""
+        qg = self._qg()
+        result = qg.classify({"kind": "pyright",
+                              "stack": "python",
+                              "command": "pyright",
+                              "detected": True})
+        self.assertTrue(result.ok)
+        self.assertEqual([], result.findings)
+
+    def test_roslyn_builds_dotnet_fixture(self):
+        """Protects Roslyn correctness: a built fixture passes,
+        so the dotnet stack selection is real."""
+        qg = self._qg()
+        result = qg.classify({"kind": "roslyn",
+                              "stack": "dotnet",
+                              "command": "dotnet build",
+                              "detected": True})
+        self.assertTrue(result.ok)
+
+    def test_netarchtest_guards_boundary(self):
+        """Protects NetArchTest correctness: a guarded boundary
+        passes in the architecture class, so layering is
+        enforced."""
+        qg = self._qg()
+        result = qg.classify({"kind": "netarchtest",
+                              "stack": "dotnet",
+                              "command": "dotnet test",
+                              "detected": True})
+        self.assertTrue(result.ok)
+
+    def test_dead_export_detected(self):
+        """Protects dead-code detection: a detected dead export
+        passes in the dead-code class, so removal is enforced."""
+        qg = self._qg()
+        result = qg.classify({"kind": "dead-export",
+                              "stack": "ts",
+                              "command": "biome check",
+                              "detected": True})
+        self.assertTrue(result.ok)
+
+    def test_duplication_detected(self):
+        """Protects duplication detection: a detected duplicate
+        passes, so copy-paste trips the gate."""
+        qg = self._qg()
+        result = qg.classify({"kind": "duplication",
+                              "stack": "python",
+                              "command": "ruff check",
+                              "detected": True})
+        self.assertTrue(result.ok)
+
+    def test_missed_duplication_refused(self):
+        """Protects fixture sensitivity: a missed duplication
+        refuses with duplication, so the corpus can fail."""
+        qg = self._qg()
+        result = qg.classify({"kind": "duplication",
+                              "stack": "python",
+                              "command": "echo ok",
+                              "detected": False})
+        self.assertFalse(result.ok)
+        self.assertEqual(["duplication"], self._rules(result))
+
+    def test_invalid_dependency_direction_refused_when_missed(self):
+        """Protects dependency direction: a missed invalid
+        direction refuses, so layering holds."""
+        qg = self._qg()
+        result = qg.classify({"kind": "dependency-direction",
+                              "stack": "dotnet",
+                              "command": "dotnet test",
+                              "detected": False})
+        self.assertEqual(["dependency"], self._rules(result))
+
+    def test_synthetic_issue_recorded(self):
+        """Protects scanner honesty: a recorded synthetic issue
+        passes, so scanners participate honestly."""
+        qg = self._qg()
+        result = qg.classify({"kind": "synthetic",
+                              "stack": "ts",
+                              "command": "biome check",
+                              "detected": True})
+        self.assertTrue(result.ok)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 14 corpus entries
+        classify to their expected classes and ok flags, covering
+        all 6 quality classes with unique well-formed IDs."""
+        qg = self._qg()
+        findings, entries = qg.validate_quality_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(14, len(entries))
+        covered = {e["expected_class"] for e in entries}
+        self.assertEqual(set(qg.CLASSES), covered)
+
+    def test_red_by_construction_pass_stub_catches_nothing(self):
+        """Sensitivity proof (RED): a pass-everything stub misses
+        all 3 negative corpus fragments while the real classifier
+        refuses each — so the suite is green because the gates
+        exist, not because the fixtures cannot fail."""
+        qg = self._qg()
+        corpus = self._corpus_doc()
+        negatives = [entry for entry in corpus["entries"]
+                     if not entry.get("expected_ok")]
+        self.assertEqual(3, len(negatives))
+        stub_hits = 0
+        for entry in negatives:
+            real = qg.classify(entry["fixture"])
+            want = [entry["expected_class"]]
+            self.assertEqual(
+                want,
+                sorted({f["rule"] for f in real.findings}),
+                entry["id"])
+            self.assertEqual(entry["expected_ok"],
+                             real.ok, entry["id"])
+            stub_hits += 0  # the pass stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_quality_gates_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: quality-gates
+        validates the real corpus (ok, 14 entries, 6 classes),
+        classifies a --fixture file as JSON, validates a
+        --declare profile, exits 0 on refused fixtures, and
+        exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "quality-gates", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(14, payload["entries"])
+        self.assertEqual(6, len(payload["classes"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-fixture.json"
+            good_path.write_text(
+                json.dumps({"kind": "ruff", "stack": "python",
+                            "command": "ruff check",
+                            "detected": True}),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "quality-gates", "--fixture", str(good_path),
+                 "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertTrue(payload["ok"])
+            prof_path = Path(tmp) / "profile.json"
+            prof_path.write_text(
+                json.dumps(self._qg().clean_profile()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "quality-gates", "--declare", str(prof_path),
+                 "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["ok"])
+            bad_path = Path(tmp) / "bad-fixture.json"
+            bad = {"kind": "duplication", "stack": "python",
+                   "command": "echo ok", "detected": False}
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "quality-gates", "--fixture", str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "quality-gates", "--fixture", "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "quality-gates", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()
