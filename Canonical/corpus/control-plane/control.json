@@ -1,0 +1,683 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 60a #151 Control plane frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "control-plane.clean.01",
+   "note": "Green lanes at the exact head with expected OIDs: ARM (simple profile).",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "lanes": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success",
+     "tests": "success",
+     "gate-compliance": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path_filtered": false,
+    "pr_target_unsafe": false,
+    "pins_floating": false,
+    "excess_permission": false,
+    "evidence_complete": true,
+    "policy_ok": true,
+    "conflicted": false,
+    "draft": false,
+    "draft_allowed": false,
+    "owner_hold": false,
+    "needs_rearm": false,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "clean-arm",
+   "expected_verdict": "ARM"
+  },
+  {
+   "id": "control-plane.missing.01",
+   "note": "Required lane missing: REFUSE.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "lanes": [
+     "policy"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path_filtered": false,
+    "pr_target_unsafe": false,
+    "pins_floating": false,
+    "excess_permission": false,
+    "evidence_complete": true,
+    "policy_ok": true,
+    "conflicted": false,
+    "draft": false,
+    "draft_allowed": false,
+    "owner_hold": false,
+    "needs_rearm": false,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "missing-lane",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "control-plane.duplicate.01",
+   "note": "Duplicate lane report: REFUSE.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "lanes": [
+     "policy",
+     "tests",
+     "gate-compliance",
+     "policy"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success",
+     "tests": "success",
+     "gate-compliance": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path_filtered": false,
+    "pr_target_unsafe": false,
+    "pins_floating": false,
+    "excess_permission": false,
+    "evidence_complete": true,
+    "policy_ok": true,
+    "conflicted": false,
+    "draft": false,
+    "draft_allowed": false,
+    "owner_hold": false,
+    "needs_rearm": false,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "duplicate-lane",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "control-plane.skipped.01",
+   "note": "Skipped lane: REFUSE.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "lanes": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success",
+     "tests": "skipped",
+     "gate-compliance": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path_filtered": false,
+    "pr_target_unsafe": false,
+    "pins_floating": false,
+    "excess_permission": false,
+    "evidence_complete": true,
+    "policy_ok": true,
+    "conflicted": false,
+    "draft": false,
+    "draft_allowed": false,
+    "owner_hold": false,
+    "needs_rearm": false,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "skipped-lane",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "control-plane.neutral.01",
+   "note": "Neutral lane: REFUSE, lanes report success/failure.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "lanes": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success",
+     "tests": "neutral",
+     "gate-compliance": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path_filtered": false,
+    "pr_target_unsafe": false,
+    "pins_floating": false,
+    "excess_permission": false,
+    "evidence_complete": true,
+    "policy_ok": true,
+    "conflicted": false,
+    "draft": false,
+    "draft_allowed": false,
+    "owner_hold": false,
+    "needs_rearm": false,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "neutral-lane",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "control-plane.cancelled.01",
+   "note": "Cancelled lane: REFUSE and rerun.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "lanes": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success",
+     "tests": "cancelled",
+     "gate-compliance": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path_filtered": false,
+    "pr_target_unsafe": false,
+    "pins_floating": false,
+    "excess_permission": false,
+    "evidence_complete": true,
+    "policy_ok": true,
+    "conflicted": false,
+    "draft": false,
+    "draft_allowed": false,
+    "owner_hold": false,
+    "needs_rearm": false,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "cancelled-lane",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "control-plane.stale.01",
+   "note": "Tested SHA differs from head: REFUSE and re-verify.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "lanes": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success",
+     "tests": "success",
+     "gate-compliance": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "path_filtered": false,
+    "pr_target_unsafe": false,
+    "pins_floating": false,
+    "excess_permission": false,
+    "evidence_complete": true,
+    "policy_ok": true,
+    "conflicted": false,
+    "draft": false,
+    "draft_allowed": false,
+    "owner_hold": false,
+    "needs_rearm": false,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "stale-lane",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "control-plane.filter.01",
+   "note": "Path filter hides a lane: REFUSE.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "lanes": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success",
+     "tests": "success",
+     "gate-compliance": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path_filtered": true,
+    "pr_target_unsafe": false,
+    "pins_floating": false,
+    "excess_permission": false,
+    "evidence_complete": true,
+    "policy_ok": true,
+    "conflicted": false,
+    "draft": false,
+    "draft_allowed": false,
+    "owner_hold": false,
+    "needs_rearm": false,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "path-filter",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "control-plane.target.01",
+   "note": "Unsafe pull_request_target with PR code: REFUSE.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "lanes": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success",
+     "tests": "success",
+     "gate-compliance": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path_filtered": false,
+    "pr_target_unsafe": true,
+    "pins_floating": false,
+    "excess_permission": false,
+    "evidence_complete": true,
+    "policy_ok": true,
+    "conflicted": false,
+    "draft": false,
+    "draft_allowed": false,
+    "owner_hold": false,
+    "needs_rearm": false,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "unsafe-target",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "control-plane.pin.01",
+   "note": "Floating action pin: REFUSE and pin full-SHA.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "lanes": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success",
+     "tests": "success",
+     "gate-compliance": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path_filtered": false,
+    "pr_target_unsafe": false,
+    "pins_floating": true,
+    "excess_permission": false,
+    "evidence_complete": true,
+    "policy_ok": true,
+    "conflicted": false,
+    "draft": false,
+    "draft_allowed": false,
+    "owner_hold": false,
+    "needs_rearm": false,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "floating-pin",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "control-plane.permission.01",
+   "note": "Excess worker permission: REFUSE to least privilege.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "lanes": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success",
+     "tests": "success",
+     "gate-compliance": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path_filtered": false,
+    "pr_target_unsafe": false,
+    "pins_floating": false,
+    "excess_permission": true,
+    "evidence_complete": true,
+    "policy_ok": true,
+    "conflicted": false,
+    "draft": false,
+    "draft_allowed": false,
+    "owner_hold": false,
+    "needs_rearm": false,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "excess-permission",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "control-plane.moved.01",
+   "note": "Armed OID differs from expected: REFUSE and re-arm.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "lanes": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success",
+     "tests": "success",
+     "gate-compliance": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path_filtered": false,
+    "pr_target_unsafe": false,
+    "pins_floating": false,
+    "excess_permission": false,
+    "evidence_complete": true,
+    "policy_ok": true,
+    "conflicted": false,
+    "draft": false,
+    "draft_allowed": false,
+    "owner_hold": false,
+    "needs_rearm": false,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "expected_rule": "head-moved",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "control-plane.evidence.01",
+   "note": "Missing screenshot/digest evidence: REFUSE.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "lanes": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success",
+     "tests": "success",
+     "gate-compliance": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path_filtered": false,
+    "pr_target_unsafe": false,
+    "pins_floating": false,
+    "excess_permission": false,
+    "evidence_complete": false,
+    "policy_ok": true,
+    "conflicted": false,
+    "draft": false,
+    "draft_allowed": false,
+    "owner_hold": false,
+    "needs_rearm": false,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "missing-evidence",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "control-plane.policy.01",
+   "note": "Standards-policy failure: REFUSE.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "lanes": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success",
+     "tests": "success",
+     "gate-compliance": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path_filtered": false,
+    "pr_target_unsafe": false,
+    "pins_floating": false,
+    "excess_permission": false,
+    "evidence_complete": true,
+    "policy_ok": false,
+    "conflicted": false,
+    "draft": false,
+    "draft_allowed": false,
+    "owner_hold": false,
+    "needs_rearm": false,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "policy-fail",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "control-plane.conflict.01",
+   "note": "Merge conflict present: HOLD.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "lanes": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success",
+     "tests": "success",
+     "gate-compliance": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path_filtered": false,
+    "pr_target_unsafe": false,
+    "pins_floating": false,
+    "excess_permission": false,
+    "evidence_complete": true,
+    "policy_ok": true,
+    "conflicted": true,
+    "draft": false,
+    "draft_allowed": false,
+    "owner_hold": false,
+    "needs_rearm": false,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "merge-conflict",
+   "expected_verdict": "HOLD"
+  },
+  {
+   "id": "control-plane.hold.01",
+   "note": "Unauthorized draft and owner hold: HOLD.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "lanes": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success",
+     "tests": "success",
+     "gate-compliance": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path_filtered": false,
+    "pr_target_unsafe": false,
+    "pins_floating": false,
+    "excess_permission": false,
+    "evidence_complete": true,
+    "policy_ok": true,
+    "conflicted": false,
+    "draft": true,
+    "draft_allowed": false,
+    "owner_hold": true,
+    "needs_rearm": false,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "draft-hold",
+   "expected_verdict": "HOLD"
+  },
+  {
+   "id": "control-plane.rearm.01",
+   "note": "Auto-merge needs re-arm on the exact head: HOLD with re-arm.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "monorepo",
+    "lanes": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "required": [
+     "policy",
+     "tests",
+     "gate-compliance"
+    ],
+    "conclusions": {
+     "policy": "success",
+     "tests": "success",
+     "gate-compliance": "success"
+    },
+    "tested_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path_filtered": false,
+    "pr_target_unsafe": false,
+    "pins_floating": false,
+    "excess_permission": false,
+    "evidence_complete": true,
+    "policy_ok": true,
+    "conflicted": false,
+    "draft": false,
+    "draft_allowed": false,
+    "owner_hold": false,
+    "needs_rearm": true,
+    "expected_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "armed_oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "rearm",
+   "expected_verdict": "HOLD"
+  }
+ ]
+}
