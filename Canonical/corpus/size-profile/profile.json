@@ -1,0 +1,192 @@
+{
+  "_frozen": true,
+  "_provenance": "T14 #211 (size-profile). Pilot/advisory only until owner D2 approval: thresholds never enforce before D2. Do not edit without a structured reopen.",
+  "entries": [
+    {
+      "id": "prof.triple.01",
+      "note": "Triple-measured unit passes.",
+      "target": "triple",
+      "record": {
+        "tools/a.py": {
+          "loc_post_format": 100,
+          "bytes": 3000,
+          "complexity": 5
+        }
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "prof.triple.02",
+      "note": "Pre-format LOC only fails.",
+      "target": "triple",
+      "record": {
+        "a.py": {
+          "loc_pre_format": 50
+        }
+      },
+      "expected_violation_fragment": "raw pre-format LOC only"
+    },
+    {
+      "id": "prof.ratchet.01",
+      "note": "Shrinking change passes.",
+      "target": "ratchet",
+      "record": {
+        "scope": "s",
+        "measures": {
+          "loc_post_format": 50,
+          "bytes": 100,
+          "complexity": 1
+        }
+      },
+      "baseline": {
+        "s": {
+          "loc_post_format": 100,
+          "bytes": 999,
+          "complexity": 9
+        }
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "prof.ratchet.02",
+      "note": "New growth fails.",
+      "target": "ratchet",
+      "record": {
+        "scope": "s",
+        "measures": {
+          "loc_post_format": 120,
+          "bytes": 1,
+          "complexity": 1
+        }
+      },
+      "baseline": {
+        "s": {
+          "loc_post_format": 100,
+          "bytes": 999,
+          "complexity": 9
+        }
+      },
+      "expected_violation_fragment": "new growth blocked"
+    },
+    {
+      "id": "prof.owner.01",
+      "note": "Distinct owner passes.",
+      "target": "owner",
+      "record": {
+        "owner": "kgsmith19"
+      },
+      "builder": "builder-bot",
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "prof.owner.02",
+      "note": "Self-exemption refused.",
+      "target": "owner",
+      "record": {
+        "owner": "b"
+      },
+      "builder": "b",
+      "expected_violation_fragment": "self-exemption refused"
+    },
+    {
+      "id": "prof.record.01",
+      "note": "Complete record passes.",
+      "target": "record",
+      "record": {
+        "owner": "kgsmith19",
+        "reason": "generated",
+        "scope": "gen/",
+        "alternative": "hand-write",
+        "revisit": "2027-01-01"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "prof.record.02",
+      "note": "Missing reason fails.",
+      "target": "record",
+      "record": {
+        "owner": "o"
+      },
+      "expected_violation_fragment": "missing"
+    },
+    {
+      "id": "prof.excl.01",
+      "note": "Listed exclusion passes.",
+      "target": "exclusions",
+      "record": [
+        "generated:listed.py"
+      ],
+      "trusted": [
+        "listed.py",
+        "generated:listed.py"
+      ],
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "prof.excl.02",
+      "note": "Unlisted exclusion fails.",
+      "target": "exclusions",
+      "record": [
+        "generated:unlisted.py"
+      ],
+      "trusted": [
+        "listed.py"
+      ],
+      "expected_violation_fragment": "unlisted exclusion"
+    },
+    {
+      "id": "prof.gaming.01",
+      "note": "Clean change passes.",
+      "target": "gaming",
+      "record": {},
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "prof.gaming.02",
+      "note": "Split-to-dodge fails.",
+      "target": "gaming",
+      "record": {
+        "split_to_dodge": true
+      },
+      "expected_violation_fragment": "detected"
+    },
+    {
+      "id": "prof.d2.01",
+      "note": "Advisory without enforcement passes.",
+      "target": "d2",
+      "record": false,
+      "d2_approved": false,
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "prof.d2.02",
+      "note": "Enforcement before D2 fails.",
+      "target": "d2",
+      "record": true,
+      "d2_approved": false,
+      "expected_violation_fragment": "D2 gate"
+    },
+    {
+      "id": "prof.joint.01",
+      "note": "Full joint amendment passes.",
+      "target": "joint",
+      "record": {
+        "issue_128": true,
+        "prompt_37": true,
+        "templates": true,
+        "adopter": true
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "prof.joint.02",
+      "note": "Partial amendment fails.",
+      "target": "joint",
+      "record": {
+        "issue_128": true
+      },
+      "expected_violation_fragment": "partial"
+    }
+  ]
+}
