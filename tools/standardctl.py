@@ -5066,6 +5066,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_human.add_argument("--json", action="store_true")
     p_human.set_defaults(func=cmd_human_exception)
 
+    p_route = sub.add_parser(
+        "standards-route",
+        help="Standards route readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_route.add_argument(
+        "--task", default="",
+        help="path to a JSON task file to compile; without "
+             "it, validates the frozen route fixture set")
+    p_route.add_argument(
+        "--corpus", default="Canonical/corpus/standards-route",
+        help="frozen corpus dir holding routes.json for "
+             "validation mode")
+    p_route.add_argument("--json", action="store_true")
+    p_route.set_defaults(func=cmd_standards_route)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -7698,6 +7714,92 @@ def cmd_human_exception(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("human-exception: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_standards_route(args: argparse.Namespace) -> int:
+    """Advisory standards-route readout. With --task, compiles
+    that task file; without it, validates the frozen route
+    oracle (every entry's computed rules == expected_rules,
+    clean entries route 5-15 IDs with critical classes held,
+    IDs unique, all 11 route rules covered) and prints findings.
+    Always exits 0 on findings: advisory never gates; only an
+    unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import standards_route
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.task:
+        try:
+            task = json.loads(
+                _Path(args.task).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("standards-route: cannot load task: %s" % exc)
+            return 2
+        if not isinstance(task, dict):
+            print("standards-route: task must be a JSON object")
+            return 2
+        result = standards_route.compile(task)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "compile",
+                "task": args.task,
+                "route": result.route,
+                "classes": result.classes,
+                "ok": not [f for f in findings
+                         if f["severity"] == "blocker"],
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("standards-route: %s -- %d rules" % (
+                args.task, len(result.route)))
+            for rid in result.route:
+                print("  - [%s] %s" % (
+                    result.classes.get(rid, "?"), rid))
+            for item in findings:
+                print("  ! [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "routes.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("standards-route: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        standards_route.validate_route_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(r)
+                    for e in entries if isinstance(e, dict)
+                    for r in (e.get("expected_rules") or [])})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("standards-route: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)
