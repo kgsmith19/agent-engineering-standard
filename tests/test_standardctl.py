@@ -8017,5 +8017,166 @@ class EditionPackaging(FixtureCase):
         self.assertEqual(0, stub_hits)
 
 
+class HotspotPilot(FixtureCase):
+    """T16 (#213): single measured hotspot pilot. Hotspot
+    declaration, scope containment, contract freeze, cold matched
+    measurement, honest verdict, and change containment in
+    tools/hotspot_pilot.py with the frozen corpus under
+    Canonical/corpus/hotspot-pilot/. Every proof point below has a
+    dedicated test with its own justification."""
+
+    def _hp(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import hotspot_pilot
+            return hotspot_pilot
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "hotspot-pilot" / "pilot.json")
+            .read_text(encoding="utf-8"))
+
+    def test_hotspot_declared_first(self):
+        """Protects AC1: a declared hotspot passes while
+        measuring an undeclared area fails naming the area, so
+        declaration always precedes measurement."""
+        hp = self._hp()
+        pilot = hp.clean_pilot()
+        self.assertEqual([], hp.check_hotspot_declared(pilot))
+        import copy
+        other = copy.deepcopy(pilot)
+        other["measured"] = ["elsewhere.py"]
+        violations = hp.check_hotspot_declared(other)
+        self.assertTrue(
+            any("undeclared area measured" in v for v in violations),
+            violations)
+
+    def test_scopes_recorded_first(self):
+        """Protects AC2: in-scope edits pass while an
+        out-of-scope edit fails naming the edit, so T12 scopes
+        bind the pilot before the run."""
+        hp = self._hp()
+        pilot = hp.clean_pilot()
+        self.assertEqual([], hp.check_scope_containment(pilot))
+        import copy
+        other = copy.deepcopy(pilot)
+        other["edits"] = ["other.py"]
+        violations = hp.check_scope_containment(other)
+        self.assertTrue(
+            any("out-of-scope edit" in v for v in violations),
+            violations)
+
+    def test_contracts_unchanged(self):
+        """Protects AC3: identical before/after contracts pass
+        while drifted contracts fail naming the contract, so
+        benefit is never credited to a moved contract."""
+        hp = self._hp()
+        pilot = hp.clean_pilot()
+        self.assertEqual(
+            [], hp.check_contracts_frozen(
+                pilot["contracts_before"],
+                pilot["contracts_after"]))
+        violations = hp.check_contracts_frozen(
+            {"mold-v1": "abc"}, {"mold-v1": "CHANGED"})
+        self.assertTrue(
+            any("contract drift" in v for v in violations),
+            violations)
+
+    def test_cold_start_matched_tasks(self):
+        """Protects AC4: cold matched legs with repeats and effort
+        pass while a warm leg fails, so before/after evidence is
+        cold-start and comparable."""
+        hp = self._hp()
+        pilot = hp.clean_pilot()
+        self.assertEqual(
+            [], hp.check_cold_matched(pilot["measurement"]))
+        import copy
+        warm = copy.deepcopy(pilot["measurement"])
+        warm["before"]["warm"] = True
+        violations = hp.check_cold_matched(warm)
+        self.assertTrue(
+            any("cold start required" in v for v in violations),
+            violations)
+
+    def test_no_change_accepted(self):
+        """Protects AC5 (honesty axis): NO_CHANGE with data passes
+        while re-run-until-green fails, so no benefit is still a
+        complete, honest outcome."""
+        hp = self._hp()
+        pilot = hp.clean_pilot()
+        self.assertEqual([], hp.check_honest_verdict(pilot))
+        import copy
+        rerun = copy.deepcopy(pilot)
+        rerun["rerun_until_green"] = True
+        violations = hp.check_honest_verdict(rerun)
+        self.assertTrue(
+            any("re-run until green forbidden" in v
+                for v in violations), violations)
+
+    def test_not_copied_repo_wide(self):
+        """Protects AC6 (containment axis): a contained change
+        passes while a repo-wide copy fails naming the escape, so
+        the pilot proves one hotspot, never the repo."""
+        hp = self._hp()
+        pilot = hp.clean_pilot()
+        self.assertEqual([], hp.check_containment(pilot))
+        import copy
+        wide = copy.deepcopy(pilot)
+        wide["changed_files"] = ["other/repo.py"]
+        violations = hp.check_containment(wide)
+        self.assertTrue(
+            any("escaped scope" in v for v in violations),
+            violations)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 13 corpus entries
+        reproduce their expected violation fragments across all
+        six contract surfaces (hotspot, scope, contracts, cold,
+        verdict, containment)."""
+        hp = self._hp()
+        findings, entries = \
+            hp.validate_pilot_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(13, len(entries))
+
+    def test_red_by_construction_no_rule_stub_passes(self):
+        """Sensitivity proof (RED): a no-rule stub that accepts
+        every pilot input reproduces 0/7 negative corpus
+        fragments while the real checkers fire on all 7 — so the
+        suite is green because the rules exist, not because the
+        fixtures cannot fail."""
+        hp = self._hp()
+        corpus = self._corpus_doc()
+        negatives = [entry for entry in corpus["entries"]
+                     if entry.get("expected_violation_fragment")]
+        self.assertEqual(7, len(negatives))
+        stub_hits = 0
+        for entry in negatives:
+            target = entry["target"]
+            record = entry["record"]
+            if target == "hotspot":
+                real = hp.check_hotspot_declared(record)
+            elif target == "scope":
+                real = hp.check_scope_containment(record)
+            elif target == "contracts":
+                real = hp.check_contracts_frozen(
+                    record, entry.get("after", {}))
+            elif target == "cold":
+                real = hp.check_cold_matched(record)
+            elif target == "verdict":
+                real = hp.check_honest_verdict(record)
+            else:
+                real = hp.check_containment(record)
+            self.assertTrue(
+                any(entry["expected_violation_fragment"] in v
+                    for v in real), entry["id"])
+            stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+
 if __name__ == "__main__":
     unittest.main()

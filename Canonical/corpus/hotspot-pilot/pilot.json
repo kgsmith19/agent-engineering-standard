@@ -1,0 +1,503 @@
+{
+  "_frozen": true,
+  "_provenance": "T16 #213 (hotspot-pilot). Hand-authored, adjudicated oracle: every entry expected fragment reproduces the contract checkers exactly. Do not edit without a structured reopen.",
+  "entries": [
+    {
+      "id": "pi.hotspot.01",
+      "note": "Declared hotspot passes.",
+      "target": "hotspot",
+      "record": {
+        "hotspot": "tools/hotspot.py",
+        "scope": [
+          "tools/hotspot.py"
+        ],
+        "measured": [
+          "tools/hotspot.py"
+        ],
+        "edit_scope": [
+          "tools/hotspot.py"
+        ],
+        "edits": [
+          "tools/hotspot.py"
+        ],
+        "contracts_before": {
+          "mold-v1": "abc"
+        },
+        "contracts_after": {
+          "mold-v1": "abc"
+        },
+        "measurement": {
+          "before": {
+            "warm": false,
+            "matched_tasks": [
+              "task-local"
+            ],
+            "repeats": 3,
+            "total_effort": "4h"
+          },
+          "after": {
+            "warm": false,
+            "matched_tasks": [
+              "task-local"
+            ],
+            "repeats": 3,
+            "total_effort": "4h"
+          }
+        },
+        "verdict": "NO_CHANGE",
+        "data": "before=4h after=4h, no significant benefit",
+        "changed_files": [
+          "tools/hotspot.py"
+        ]
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "pi.hotspot.02",
+      "note": "Undeclared area fails.",
+      "target": "hotspot",
+      "record": {
+        "hotspot": "tools/hotspot.py",
+        "scope": [
+          "tools/hotspot.py"
+        ],
+        "measured": [
+          "elsewhere.py"
+        ],
+        "edit_scope": [
+          "tools/hotspot.py"
+        ],
+        "edits": [
+          "tools/hotspot.py"
+        ],
+        "contracts_before": {
+          "mold-v1": "abc"
+        },
+        "contracts_after": {
+          "mold-v1": "abc"
+        },
+        "measurement": {
+          "before": {
+            "warm": false,
+            "matched_tasks": [
+              "task-local"
+            ],
+            "repeats": 3,
+            "total_effort": "4h"
+          },
+          "after": {
+            "warm": false,
+            "matched_tasks": [
+              "task-local"
+            ],
+            "repeats": 3,
+            "total_effort": "4h"
+          }
+        },
+        "verdict": "NO_CHANGE",
+        "data": "before=4h after=4h, no significant benefit",
+        "changed_files": [
+          "tools/hotspot.py"
+        ]
+      },
+      "expected_violation_fragment": "undeclared area measured"
+    },
+    {
+      "id": "pi.scope.01",
+      "note": "In-scope edits pass.",
+      "target": "scope",
+      "record": {
+        "hotspot": "tools/hotspot.py",
+        "scope": [
+          "tools/hotspot.py"
+        ],
+        "measured": [
+          "tools/hotspot.py"
+        ],
+        "edit_scope": [
+          "tools/hotspot.py"
+        ],
+        "edits": [
+          "tools/hotspot.py"
+        ],
+        "contracts_before": {
+          "mold-v1": "abc"
+        },
+        "contracts_after": {
+          "mold-v1": "abc"
+        },
+        "measurement": {
+          "before": {
+            "warm": false,
+            "matched_tasks": [
+              "task-local"
+            ],
+            "repeats": 3,
+            "total_effort": "4h"
+          },
+          "after": {
+            "warm": false,
+            "matched_tasks": [
+              "task-local"
+            ],
+            "repeats": 3,
+            "total_effort": "4h"
+          }
+        },
+        "verdict": "NO_CHANGE",
+        "data": "before=4h after=4h, no significant benefit",
+        "changed_files": [
+          "tools/hotspot.py"
+        ]
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "pi.scope.02",
+      "note": "Out-of-scope edit fails.",
+      "target": "scope",
+      "record": {
+        "hotspot": "tools/hotspot.py",
+        "scope": [
+          "tools/hotspot.py"
+        ],
+        "measured": [
+          "tools/hotspot.py"
+        ],
+        "edit_scope": [
+          "tools/hotspot.py"
+        ],
+        "edits": [
+          "other.py"
+        ],
+        "contracts_before": {
+          "mold-v1": "abc"
+        },
+        "contracts_after": {
+          "mold-v1": "abc"
+        },
+        "measurement": {
+          "before": {
+            "warm": false,
+            "matched_tasks": [
+              "task-local"
+            ],
+            "repeats": 3,
+            "total_effort": "4h"
+          },
+          "after": {
+            "warm": false,
+            "matched_tasks": [
+              "task-local"
+            ],
+            "repeats": 3,
+            "total_effort": "4h"
+          }
+        },
+        "verdict": "NO_CHANGE",
+        "data": "before=4h after=4h, no significant benefit",
+        "changed_files": [
+          "tools/hotspot.py"
+        ]
+      },
+      "expected_violation_fragment": "out-of-scope edit"
+    },
+    {
+      "id": "pi.contracts.01",
+      "note": "Frozen contracts pass.",
+      "target": "contracts",
+      "record": {
+        "mold-v1": "abc"
+      },
+      "after": {
+        "mold-v1": "abc"
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "pi.contracts.02",
+      "note": "Contract drift fails.",
+      "target": "contracts",
+      "record": {
+        "mold-v1": "abc"
+      },
+      "after": {
+        "mold-v1": "CHANGED"
+      },
+      "expected_violation_fragment": "contract drift"
+    },
+    {
+      "id": "pi.cold.01",
+      "note": "Cold matched legs pass.",
+      "target": "cold",
+      "record": {
+        "before": {
+          "warm": false,
+          "matched_tasks": [
+            "task-local"
+          ],
+          "repeats": 3,
+          "total_effort": "4h"
+        },
+        "after": {
+          "warm": false,
+          "matched_tasks": [
+            "task-local"
+          ],
+          "repeats": 3,
+          "total_effort": "4h"
+        }
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "pi.cold.02",
+      "note": "Warm leg fails.",
+      "target": "cold",
+      "record": {
+        "before": {
+          "warm": true,
+          "matched_tasks": [
+            "task-local"
+          ],
+          "repeats": 3,
+          "total_effort": "4h"
+        },
+        "after": {
+          "warm": false,
+          "matched_tasks": [
+            "task-local"
+          ],
+          "repeats": 3,
+          "total_effort": "4h"
+        }
+      },
+      "expected_violation_fragment": "cold start required"
+    },
+    {
+      "id": "pi.cold.03",
+      "note": "Unmatched sets fail.",
+      "target": "cold",
+      "record": {
+        "before": {
+          "warm": false,
+          "matched_tasks": [
+            "a"
+          ],
+          "repeats": 3,
+          "total_effort": "4h"
+        },
+        "after": {
+          "warm": false,
+          "matched_tasks": [
+            "b"
+          ],
+          "repeats": 3,
+          "total_effort": "4h"
+        }
+      },
+      "expected_violation_fragment": "unmatched"
+    },
+    {
+      "id": "pi.verdict.01",
+      "note": "NO_CHANGE with data passes.",
+      "target": "verdict",
+      "record": {
+        "hotspot": "tools/hotspot.py",
+        "scope": [
+          "tools/hotspot.py"
+        ],
+        "measured": [
+          "tools/hotspot.py"
+        ],
+        "edit_scope": [
+          "tools/hotspot.py"
+        ],
+        "edits": [
+          "tools/hotspot.py"
+        ],
+        "contracts_before": {
+          "mold-v1": "abc"
+        },
+        "contracts_after": {
+          "mold-v1": "abc"
+        },
+        "measurement": {
+          "before": {
+            "warm": false,
+            "matched_tasks": [
+              "task-local"
+            ],
+            "repeats": 3,
+            "total_effort": "4h"
+          },
+          "after": {
+            "warm": false,
+            "matched_tasks": [
+              "task-local"
+            ],
+            "repeats": 3,
+            "total_effort": "4h"
+          }
+        },
+        "verdict": "NO_CHANGE",
+        "data": "before=4h after=4h, no significant benefit",
+        "changed_files": [
+          "tools/hotspot.py"
+        ]
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "pi.verdict.02",
+      "note": "Re-run until green fails.",
+      "target": "verdict",
+      "record": {
+        "hotspot": "tools/hotspot.py",
+        "scope": [
+          "tools/hotspot.py"
+        ],
+        "measured": [
+          "tools/hotspot.py"
+        ],
+        "edit_scope": [
+          "tools/hotspot.py"
+        ],
+        "edits": [
+          "tools/hotspot.py"
+        ],
+        "contracts_before": {
+          "mold-v1": "abc"
+        },
+        "contracts_after": {
+          "mold-v1": "abc"
+        },
+        "measurement": {
+          "before": {
+            "warm": false,
+            "matched_tasks": [
+              "task-local"
+            ],
+            "repeats": 3,
+            "total_effort": "4h"
+          },
+          "after": {
+            "warm": false,
+            "matched_tasks": [
+              "task-local"
+            ],
+            "repeats": 3,
+            "total_effort": "4h"
+          }
+        },
+        "verdict": "NO_CHANGE",
+        "data": "before=4h after=4h, no significant benefit",
+        "changed_files": [
+          "tools/hotspot.py"
+        ],
+        "rerun_until_green": true
+      },
+      "expected_violation_fragment": "re-run until green forbidden"
+    },
+    {
+      "id": "pi.contain.01",
+      "note": "Contained change passes.",
+      "target": "containment",
+      "record": {
+        "hotspot": "tools/hotspot.py",
+        "scope": [
+          "tools/hotspot.py"
+        ],
+        "measured": [
+          "tools/hotspot.py"
+        ],
+        "edit_scope": [
+          "tools/hotspot.py"
+        ],
+        "edits": [
+          "tools/hotspot.py"
+        ],
+        "contracts_before": {
+          "mold-v1": "abc"
+        },
+        "contracts_after": {
+          "mold-v1": "abc"
+        },
+        "measurement": {
+          "before": {
+            "warm": false,
+            "matched_tasks": [
+              "task-local"
+            ],
+            "repeats": 3,
+            "total_effort": "4h"
+          },
+          "after": {
+            "warm": false,
+            "matched_tasks": [
+              "task-local"
+            ],
+            "repeats": 3,
+            "total_effort": "4h"
+          }
+        },
+        "verdict": "NO_CHANGE",
+        "data": "before=4h after=4h, no significant benefit",
+        "changed_files": [
+          "tools/hotspot.py"
+        ]
+      },
+      "expected_violation_fragment": ""
+    },
+    {
+      "id": "pi.contain.02",
+      "note": "Repo-wide copy fails.",
+      "target": "containment",
+      "record": {
+        "hotspot": "tools/hotspot.py",
+        "scope": [
+          "tools/hotspot.py"
+        ],
+        "measured": [
+          "tools/hotspot.py"
+        ],
+        "edit_scope": [
+          "tools/hotspot.py"
+        ],
+        "edits": [
+          "tools/hotspot.py"
+        ],
+        "contracts_before": {
+          "mold-v1": "abc"
+        },
+        "contracts_after": {
+          "mold-v1": "abc"
+        },
+        "measurement": {
+          "before": {
+            "warm": false,
+            "matched_tasks": [
+              "task-local"
+            ],
+            "repeats": 3,
+            "total_effort": "4h"
+          },
+          "after": {
+            "warm": false,
+            "matched_tasks": [
+              "task-local"
+            ],
+            "repeats": 3,
+            "total_effort": "4h"
+          }
+        },
+        "verdict": "NO_CHANGE",
+        "data": "before=4h after=4h, no significant benefit",
+        "changed_files": [
+          "other/repo.py"
+        ]
+      },
+      "expected_violation_fragment": "escaped scope"
+    }
+  ]
+}
