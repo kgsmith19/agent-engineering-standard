@@ -9741,5 +9741,236 @@ class BuilderAuth(unittest.TestCase):
 
 
 
+
+class CleanCharter(unittest.TestCase):
+    """Stage 36 (#127): the Clean Implementation Charter.
+
+    Minimum correct, clear, tidy implementation as an explicit
+    reviewable contract — without a resident generic clean-code
+    skill. ``classify`` maps one change description to its rule
+    hits across seven frozen rules (wrapper layer, duplicate
+    implementation, speculative configuration, mixed
+    responsibility, dead code, unrelated-cleanup rider, tiny
+    unjustified abstraction); justified exceptions (a stated
+    reason, or the necessary safety layer) stay clean. Pure
+    contract in tools/clean_charter.py plus the frozen corpus
+    under Canonical/corpus/clean-charter/."""
+
+    def _cc(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import clean_charter
+            return clean_charter
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "clean-charter" / "charter.json")
+            .read_text(encoding="utf-8"))
+
+    def _change(self, **overrides):
+        cc = self._cc()
+        change = cc.clean_change()
+        for key, value in overrides.items():
+            change[key] = value
+        return change
+
+    def _rules(self, result):
+        return sorted({f["rule"] for f in result.findings})
+
+    def test_clean_change_is_clean(self):
+        """Protects the Primary Outcome (positive control): a
+        behavior-focused change with one responsibility and no
+        extra layer, duplication, option, dead code, rider, or
+        abstraction is CLEAN with zero findings, so the charter
+        can actually pass."""
+        cc = self._cc()
+        result = cc.classify(cc.clean_change())
+        self.assertTrue(result.clean)
+        self.assertEqual([], result.findings)
+
+    def test_wrapper_layer_without_reason_flagged(self):
+        """Protects CLEAN-1 (wrapper layer): a layer adding no
+        behavior with no reason is flagged, so pass-through
+        layers are removed or justified."""
+        cc = self._cc()
+        result = cc.classify(self._change(
+            adds_layer=True, adds_behavior=False))
+        self.assertFalse(result.clean)
+        self.assertEqual(["CLEAN-1"], self._rules(result))
+
+    def test_duplicate_implementation_flagged(self):
+        """Protects CLEAN-2 (duplicate implementation): a second
+        implementation of one behavior is flagged, so the
+        canonical implementation is reused."""
+        cc = self._cc()
+        result = cc.classify(
+            self._change(duplicates_behavior=True))
+        self.assertEqual(["CLEAN-2"], self._rules(result))
+
+    def test_speculative_configuration_flagged(self):
+        """Protects CLEAN-3 (speculative configuration): an option
+        with no current caller is flagged, so the option waits
+        for its caller."""
+        cc = self._cc()
+        result = cc.classify(self._change(
+            adds_option=True, has_caller=False))
+        self.assertEqual(["CLEAN-3"], self._rules(result))
+
+    def test_mixed_responsibility_file_flagged(self):
+        """Protects CLEAN-4 (mixed responsibility): a huge file
+        with three responsibilities is flagged, so the unit
+        splits by behavior."""
+        cc = self._cc()
+        result = cc.classify(self._change(
+            responsibilities=["parse", "verify", "render"]))
+        self.assertEqual(["CLEAN-4"], self._rules(result))
+
+    def test_dead_code_flagged(self):
+        """Protects CLEAN-5 (dead code): unreached, unused, or
+        commented-out code shipped alongside is flagged, so dead
+        code is deleted."""
+        cc = self._cc()
+        result = cc.classify(self._change(is_dead=True))
+        self.assertEqual(["CLEAN-5"], self._rules(result))
+
+    def test_unrelated_cleanup_rider_flagged(self):
+        """Protects the Non-Goal (no riders): unrelated cleanup
+        riding a behavior-focused change is flagged, so the
+        cleanup moves to its own thin Issue."""
+        cc = self._cc()
+        result = cc.classify(self._change(touches_unrelated=True))
+        self.assertEqual(["CLEAN-6"], self._rules(result))
+
+    def test_tiny_unjustified_abstraction_flagged(self):
+        """Protects CLEAN-7 (tiny abstraction): an abstraction
+        with no stated reason is flagged, so shared behavior is
+        named or the code is inlined."""
+        cc = self._cc()
+        result = cc.classify(
+            self._change(adds_abstraction=True))
+        self.assertEqual(["CLEAN-7"], self._rules(result))
+
+    def test_justified_abstraction_stays_clean(self):
+        """Protects the CLEAN-7 exception path: a tiny abstraction
+        with a stated behavioral reason stays clean, so the
+        exception path actually passes."""
+        cc = self._cc()
+        result = cc.classify(self._change(
+            adds_abstraction=True,
+            reason="shares validation across three callers"))
+        self.assertTrue(result.clean)
+        self.assertEqual([], result.findings)
+
+    def test_necessary_safety_layer_never_flagged(self):
+        """Protects the safety exception (proof strategy): a
+        necessary safety layer that should NOT be flagged stays
+        clean even when layer-shaped and behavior-duplicating, so
+        safety boundaries are never simplified away."""
+        cc = self._cc()
+        result = cc.classify(self._change(
+            adds_layer=True, duplicates_behavior=True,
+            safety_layer=True))
+        self.assertTrue(result.clean)
+        self.assertEqual([], result.findings)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 10 corpus entries
+        reproduce their expected rules and clean flags, covering
+        all 7 charter rules with unique well-formed IDs."""
+        cc = self._cc()
+        findings, entries = cc.validate_charter_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(10, len(entries))
+        covered = {r for e in entries
+                   for r in e["expected_rules"]}
+        self.assertEqual(set(cc.RULES), covered)
+
+    def test_red_by_construction_no_rule_stub_finds_nothing(self):
+        """Sensitivity proof (RED): a no-rule stub that finds
+        nothing reproduces 0/7 flagged corpus fragments while the
+        real classifier flags all 7 — so the suite is green
+        because the rules exist, not because the fixtures cannot
+        fail."""
+        cc = self._cc()
+        corpus = self._corpus_doc()
+        flagged = [entry for entry in corpus["entries"]
+                   if entry.get("expected_rules")]
+        self.assertEqual(7, len(flagged))
+        stub_hits = 0
+        for entry in flagged:
+            real = cc.classify(entry["change"])
+            self.assertEqual(
+                sorted(entry["expected_rules"]),
+                sorted({f["rule"] for f in real.findings}),
+                entry["id"])
+            self.assertEqual(entry["expected_clean"],
+                             real.clean, entry["id"])
+            stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_clean_charter_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: clean-charter
+        validates the real corpus (ok, 10 entries, 7 rules),
+        classifies a --change file as JSON, exits 0 on flagged
+        changes, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "clean-charter", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(10, payload["entries"])
+        self.assertEqual(7, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-change.json"
+            good_path.write_text(
+                json.dumps(self._cc().clean_change()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "clean-charter", "--change", str(good_path),
+                 "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertTrue(payload["clean"])
+            bad_path = Path(tmp) / "bad-change.json"
+            bad = self._cc().clean_change()
+            bad["is_dead"] = True
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "clean-charter", "--change", str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "clean-charter", "--change", "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "clean-charter", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()

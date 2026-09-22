@@ -1,0 +1,242 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 36 #127 Clean Implementation Charter frozen oracle \u2014 hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "clean-charter.clean.01",
+   "note": "Clean behavior-focused change: adds behavior in place with one responsibility \u2014 CLEAN with zero findings, so the charter can actually pass.",
+   "change": {
+    "unit": "tools/clean_charter.py",
+    "adds_layer": false,
+    "adds_behavior": true,
+    "duplicates_behavior": false,
+    "adds_option": false,
+    "has_caller": true,
+    "responsibilities": [
+     "one-outcome"
+    ],
+    "is_dead": false,
+    "touches_unrelated": false,
+    "adds_abstraction": false,
+    "reason": "",
+    "safety_layer": false
+   },
+   "expected_rules": [],
+   "expected_clean": true
+  },
+  {
+   "id": "clean-charter.wrapper.01",
+   "note": "Wrapper layer with no behavioral reason: CLEAN-1 trips, so pass-through layers are removed or justified.",
+   "change": {
+    "unit": "tools/shim.py",
+    "adds_layer": true,
+    "adds_behavior": false,
+    "duplicates_behavior": false,
+    "adds_option": false,
+    "has_caller": true,
+    "responsibilities": [
+     "one-outcome"
+    ],
+    "is_dead": false,
+    "touches_unrelated": false,
+    "adds_abstraction": false,
+    "reason": "",
+    "safety_layer": false
+   },
+   "expected_rules": [
+    "CLEAN-1"
+   ],
+   "expected_clean": false
+  },
+  {
+   "id": "clean-charter.duplicate.01",
+   "note": "Second implementation of one behavior: CLEAN-2 trips, so the canonical implementation is reused.",
+   "change": {
+    "unit": "tools/helpers2.py",
+    "adds_layer": false,
+    "adds_behavior": true,
+    "duplicates_behavior": true,
+    "adds_option": false,
+    "has_caller": true,
+    "responsibilities": [
+     "one-outcome"
+    ],
+    "is_dead": false,
+    "touches_unrelated": false,
+    "adds_abstraction": false,
+    "reason": "",
+    "safety_layer": false
+   },
+   "expected_rules": [
+    "CLEAN-2"
+   ],
+   "expected_clean": false
+  },
+  {
+   "id": "clean-charter.speculative.01",
+   "note": "Speculative option with no current caller: CLEAN-3 trips, so the option waits for its caller.",
+   "change": {
+    "unit": "tools/config.py",
+    "adds_layer": false,
+    "adds_behavior": false,
+    "duplicates_behavior": false,
+    "adds_option": true,
+    "has_caller": false,
+    "responsibilities": [
+     "one-outcome"
+    ],
+    "is_dead": false,
+    "touches_unrelated": false,
+    "adds_abstraction": false,
+    "reason": "",
+    "safety_layer": false
+   },
+   "expected_rules": [
+    "CLEAN-3"
+   ],
+   "expected_clean": false
+  },
+  {
+   "id": "clean-charter.mixed.01",
+   "note": "Huge file with three responsibilities and no reason: CLEAN-4 trips, so the unit splits by behavior.",
+   "change": {
+    "unit": "tools/mega.py",
+    "adds_layer": false,
+    "adds_behavior": true,
+    "duplicates_behavior": false,
+    "adds_option": false,
+    "has_caller": true,
+    "responsibilities": [
+     "parse",
+     "verify",
+     "render"
+    ],
+    "is_dead": false,
+    "touches_unrelated": false,
+    "adds_abstraction": false,
+    "reason": "",
+    "safety_layer": false
+   },
+   "expected_rules": [
+    "CLEAN-4"
+   ],
+   "expected_clean": false
+  },
+  {
+   "id": "clean-charter.dead.01",
+   "note": "Dead commented-out block shipped alongside: CLEAN-5 trips, so dead code is deleted.",
+   "change": {
+    "unit": "tools/old.py",
+    "adds_layer": false,
+    "adds_behavior": false,
+    "duplicates_behavior": false,
+    "adds_option": false,
+    "has_caller": true,
+    "responsibilities": [
+     "one-outcome"
+    ],
+    "is_dead": true,
+    "touches_unrelated": false,
+    "adds_abstraction": false,
+    "reason": "",
+    "safety_layer": false
+   },
+   "expected_rules": [
+    "CLEAN-5"
+   ],
+   "expected_clean": false
+  },
+  {
+   "id": "clean-charter.rider.01",
+   "note": "Unrelated cleanup riding a behavior change: CLEAN-6 trips, so the cleanup moves to its own thin Issue.",
+   "change": {
+    "unit": "tools/fix.py",
+    "adds_layer": false,
+    "adds_behavior": true,
+    "duplicates_behavior": false,
+    "adds_option": false,
+    "has_caller": true,
+    "responsibilities": [
+     "one-outcome"
+    ],
+    "is_dead": false,
+    "touches_unrelated": true,
+    "adds_abstraction": false,
+    "reason": "behavior fix",
+    "safety_layer": false
+   },
+   "expected_rules": [
+    "CLEAN-6"
+   ],
+   "expected_clean": false
+  },
+  {
+   "id": "clean-charter.abstraction.01",
+   "note": "Tiny abstraction with no stated reason: CLEAN-7 trips, so shared behavior is named or the code is inlined.",
+   "change": {
+    "unit": "tools/tiny.py",
+    "adds_layer": false,
+    "adds_behavior": true,
+    "duplicates_behavior": false,
+    "adds_option": false,
+    "has_caller": true,
+    "responsibilities": [
+     "one-outcome"
+    ],
+    "is_dead": false,
+    "touches_unrelated": false,
+    "adds_abstraction": true,
+    "reason": "",
+    "safety_layer": false
+   },
+   "expected_rules": [
+    "CLEAN-7"
+   ],
+   "expected_clean": false
+  },
+  {
+   "id": "clean-charter.justified.01",
+   "note": "Tiny justified abstraction with a stated reason: CLEAN with zero findings, so the exception path actually passes.",
+   "change": {
+    "unit": "tools/small.py",
+    "adds_layer": false,
+    "adds_behavior": true,
+    "duplicates_behavior": false,
+    "adds_option": false,
+    "has_caller": true,
+    "responsibilities": [
+     "one-outcome"
+    ],
+    "is_dead": false,
+    "touches_unrelated": false,
+    "adds_abstraction": true,
+    "reason": "shares validation across three callers",
+    "safety_layer": false
+   },
+   "expected_rules": [],
+   "expected_clean": true
+  },
+  {
+   "id": "clean-charter.safety.01",
+   "note": "Necessary safety layer adding no direct behavior: CLEAN with zero findings, so safety boundaries are never flagged.",
+   "change": {
+    "unit": "tools/auth_gate.py",
+    "adds_layer": true,
+    "adds_behavior": false,
+    "duplicates_behavior": true,
+    "adds_option": false,
+    "has_caller": true,
+    "responsibilities": [
+     "one-outcome"
+    ],
+    "is_dead": false,
+    "touches_unrelated": false,
+    "adds_abstraction": false,
+    "reason": "",
+    "safety_layer": true
+   },
+   "expected_rules": [],
+   "expected_clean": true
+  }
+ ]
+}

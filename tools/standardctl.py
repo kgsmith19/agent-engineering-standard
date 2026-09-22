@@ -4871,6 +4871,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_builder.add_argument("--json", action="store_true")
     p_builder.set_defaults(func=cmd_builder_auth)
 
+    p_clean = sub.add_parser(
+        "clean-charter",
+        help="Clean Implementation Charter readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_clean.add_argument(
+        "--change", default="",
+        help="path to a JSON change-description file; without "
+             "it, validates the frozen charter fixture set")
+    p_clean.add_argument(
+        "--corpus", default="Canonical/corpus/clean-charter",
+        help="frozen corpus dir holding charter.json for "
+             "validation mode")
+    p_clean.add_argument("--json", action="store_true")
+    p_clean.set_defaults(func=cmd_clean_charter)
+
     return parser
 
 
@@ -6100,6 +6116,88 @@ def cmd_builder_auth(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("builder-auth: %s%s" % (
+            args.corpus, " — OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_clean_charter(args: argparse.Namespace) -> int:
+    """Advisory Clean Charter readout. With --change,
+    classifies that change file; without it, validates the frozen
+    charter oracle (every entry's computed rules ==
+    expected_rules, clean == expected_clean, IDs unique, all
+    7 charter rules covered) and prints findings. Always exits 0
+    on findings — advisory never gates; only an unreadable file
+    exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import clean_charter
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.change:
+        try:
+            change = json.loads(
+                _Path(args.change).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("clean-charter: cannot load change: %s" % exc)
+            return 2
+        if not isinstance(change, dict):
+            print("clean-charter: change must be a JSON object")
+            return 2
+        result = clean_charter.classify(change)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "classify",
+                "change": args.change,
+                "clean": result.clean,
+                "ok": result.clean,
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("clean-charter: %s — %s" % (
+                args.change,
+                "CLEAN" if result.clean else "FLAGGED"))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "charter.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("clean-charter: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        clean_charter.validate_charter_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(r)
+                    for e in entries if isinstance(e, dict)
+                    for r in (e.get("expected_rules") or [])})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("clean-charter: %s%s" % (
             args.corpus, " — OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)
