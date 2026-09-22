@@ -5130,6 +5130,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_deny.add_argument("--json", action="store_true")
     p_deny.set_defaults(func=cmd_deny_guards)
 
+    p_equiv = sub.add_parser(
+        "provider-equivalence",
+        help="Provider equivalence readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_equiv.add_argument(
+        "--case", default="",
+        help="path to a JSON case file to decide; without "
+             "it, validates the frozen equivalence fixture set")
+    p_equiv.add_argument(
+        "--corpus", default="Canonical/corpus/provider-equivalence",
+        help="frozen corpus dir holding equivalence.json for "
+             "validation mode")
+    p_equiv.add_argument("--json", action="store_true")
+    p_equiv.set_defaults(func=cmd_provider_equivalence)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -8092,6 +8108,87 @@ def cmd_deny_guards(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("deny-guards: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_provider_equivalence(args: argparse.Namespace) -> int:
+    """Advisory provider-equivalence readout. With --case,
+    decides that case file; without it, validates the frozen
+    equivalence oracle (every entry's computed rule ==
+    expected_rule and outcome == expected_outcome, IDs unique,
+    all 10 equivalence rules covered) and prints findings.
+    Always exits 0 on findings: advisory never gates; only an
+    unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import provider_equivalence
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.case:
+        try:
+            case = json.loads(
+                _Path(args.case).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("provider-equivalence: cannot load case: %s" % exc)
+            return 2
+        if not isinstance(case, dict):
+            print("provider-equivalence: case must be a JSON object")
+            return 2
+        result = provider_equivalence.decide(case)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "decide",
+                "case": args.case,
+                "outcome": result.outcome,
+                "rule": result.rule,
+                "ok": True,
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("provider-equivalence: %s -- %s (%s)" % (
+                args.case, result.outcome, result.rule))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "equivalence.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("provider-equivalence: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        provider_equivalence.validate_equivalence_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(e.get("expected_rule", ""))
+                    for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("provider-equivalence: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)
