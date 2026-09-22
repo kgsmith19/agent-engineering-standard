@@ -5034,6 +5034,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_par.add_argument("--json", action="store_true")
     p_par.set_defaults(func=cmd_safe_parallelism)
 
+    p_orch = sub.add_parser(
+        "orchestrator",
+        help="Autonomous orchestrator readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_orch.add_argument(
+        "--tick", default="",
+        help="path to a JSON tick file to decide; without "
+             "it, validates the frozen orchestrator fixture set")
+    p_orch.add_argument(
+        "--corpus", default="Canonical/corpus/autonomous-orchestrator",
+        help="frozen corpus dir holding orchestrator.json for "
+             "validation mode")
+    p_orch.add_argument("--json", action="store_true")
+    p_orch.set_defaults(func=cmd_orchestrator)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -7503,6 +7519,88 @@ def cmd_safe_parallelism(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("safe-parallelism: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_orchestrator(args: argparse.Namespace) -> int:
+    """Advisory orchestrator readout. With --tick, decides
+    that tick file; without it, validates the frozen
+    orchestrator oracle (every entry's computed rule ==
+    expected_rule and verdict == expected_verdict, IDs unique,
+    all 13 orchestrator rules covered) and prints findings.
+    Always exits 0 on findings: advisory never gates; only an
+    unreadable file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import autonomous_orchestrator
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.tick:
+        try:
+            tick = json.loads(
+                _Path(args.tick).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("orchestrator: cannot load tick: %s" % exc)
+            return 2
+        if not isinstance(tick, dict):
+            print("orchestrator: tick must be a JSON object")
+            return 2
+        result = autonomous_orchestrator.next(tick)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "decide",
+                "tick": args.tick,
+                "verdict": result.verdict,
+                "rule": result.rule,
+                "action": result.action,
+                "ok": result.verdict in ("NEXT", "COMPLETE"),
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("orchestrator: %s -- %s (%s)" % (
+                args.tick, result.verdict, result.rule))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "orchestrator.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("orchestrator: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        autonomous_orchestrator.validate_orchestrator_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(e.get("expected_rule", ""))
+                    for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("orchestrator: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)

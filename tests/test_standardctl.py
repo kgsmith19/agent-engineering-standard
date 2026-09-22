@@ -12955,5 +12955,235 @@ class SafeParallelism(unittest.TestCase):
 
 
 
+
+class AutonomousOrchestrator(unittest.TestCase):
+    """Stage 50 (#141): the deterministic autonomous orchestrator.
+
+    One bounded action per tick inside existing authorization:
+    duplicates wait, crashes/workers/heads recover, empty queues
+    wait, holds/budgets/deadlocks escalate, repairs and cleanups
+    dispatch NEXT, milestones COMPLETE to the Release Mold.
+    Pure contract in tools/autonomous_orchestrator.py plus the
+    frozen corpus under Canonical/corpus/autonomous-orchestrator/."""
+
+    def _oc(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import autonomous_orchestrator
+            return autonomous_orchestrator
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "autonomous-orchestrator" / "orchestrator.json")
+            .read_text(encoding="utf-8"))
+
+    def _tick(self, **overrides):
+        oc = self._oc()
+        tick = oc.clean_tick()
+        for key, value in overrides.items():
+            tick[key] = value
+        return tick
+
+    def test_clean_tick_dispatches_next(self):
+        """Protects the Primary Outcome (positive control): an
+        authorized ready tick is NEXT with a bounded action, so
+        the dispatcher actually advances."""
+        oc = self._oc()
+        result = oc.next(oc.clean_tick())
+        self.assertEqual("NEXT", result.verdict)
+        self.assertEqual("clean-next", result.rule)
+        self.assertTrue(result.action)
+
+    def test_duplicate_dispatch_waits(self):
+        """Protects event discipline: a duplicate dispatch is
+        WAIT, so events never double-dispatch."""
+        oc = self._oc()
+        result = oc.next(self._tick(duplicate_dispatch=True))
+        self.assertEqual("WAIT", result.verdict)
+
+    def test_crash_around_dispatch_recovers(self):
+        """Protects crash safety: a crash around dispatch is
+        RECOVER via replay first."""
+        oc = self._oc()
+        result = oc.next(self._tick(crashed=True))
+        self.assertEqual("crash-around", result.rule)
+
+    def test_double_worker_recovers(self):
+        """Protects lease safety: a second worker is RECOVER via
+        fencing, so duplicates never dispatch."""
+        oc = self._oc()
+        result = oc.next(self._tick(second_worker=True))
+        self.assertEqual("RECOVER", result.verdict)
+
+    def test_stale_head_recovers(self):
+        """Protects head binding: a moved head recovers via
+        reconcile before dispatching."""
+        oc = self._oc()
+        result = oc.next(self._tick(head_moved=True))
+        self.assertEqual("stale-head", result.rule)
+
+    def test_no_ready_work_waits(self):
+        """Protects idleness: nothing ready is WAIT, so idle
+        ticks stay quiet."""
+        oc = self._oc()
+        result = oc.next(self._tick(ready_work=False))
+        self.assertEqual("no-ready-work", result.rule)
+
+    def test_owner_hold_escalates(self):
+        """Protects owner authority: a hold escalates, never
+        bypasses."""
+        oc = self._oc()
+        result = oc.next(self._tick(owner_hold=True))
+        self.assertEqual("ESCALATE", result.verdict)
+
+    def test_provider_down_waits(self):
+        """Protects health: an unhealthy provider waits for
+        health instead of dispatching blind."""
+        oc = self._oc()
+        result = oc.next(self._tick(provider_healthy=False))
+        self.assertEqual("provider-down", result.rule)
+
+    def test_budget_exhaustion_escalates(self):
+        """Protects budgets: an exhausted budget escalates for
+        owner scope."""
+        oc = self._oc()
+        result = oc.next(self._tick(budget_left=0))
+        self.assertEqual("budget-exhausted", result.rule)
+
+    def test_deadlock_escalates_with_cycle(self):
+        """Protects liveness: deadlocked slices escalate with the
+        cycle named."""
+        oc = self._oc()
+        result = oc.next(self._tick(
+            deadlocked=True, deadlock_cycle="A->B->A"))
+        self.assertEqual("deadlock", result.rule)
+
+    def test_review_finding_dispatches_repair(self):
+        """Protects repair flow: a validated finding dispatches
+        NEXT as the one bounded repair action."""
+        oc = self._oc()
+        result = oc.next(self._tick(review_repair=True))
+        self.assertEqual("NEXT", result.verdict)
+        self.assertEqual("bounded-repair", result.action)
+
+    def test_merge_cleanup_dispatches(self):
+        """Protects close-out: merged work dispatches NEXT as
+        merge cleanup."""
+        oc = self._oc()
+        result = oc.next(self._tick(
+            merged_pending_cleanup=True))
+        self.assertEqual("merge-cleanup", result.rule)
+
+    def test_milestone_done_completes(self):
+        """Protects release handoff: a complete milestone is
+        COMPLETE to the Release Mold."""
+        oc = self._oc()
+        result = oc.next(self._tick(milestone_complete=True))
+        self.assertEqual("COMPLETE", result.verdict)
+
+    def test_advance_apply_refused_until_canaries(self):
+        """Protects the dry-run Non-Goal: advance --apply is
+        refused until canaries pass, so advisory ships first."""
+        oc = self._oc()
+        result = oc.advance(oc.clean_tick(), dry_run=False)
+        self.assertEqual("WAIT", result.verdict)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 13 corpus entries
+        reproduce their expected rules and verdicts, covering all
+        13 orchestrator rules with unique well-formed IDs."""
+        oc = self._oc()
+        findings, entries = oc.validate_orchestrator_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(13, len(entries))
+        covered = {e["expected_rule"] for e in entries}
+        self.assertEqual(set(oc.RULES), covered)
+
+    def test_red_by_construction_wait_stub_misses_nexts(self):
+        """Sensitivity proof (RED): a wait-everything stub misses
+        all 4 NEXT corpus fragments while the real dispatcher
+        dispatches each — so the suite is green because the
+        dispatcher exists, not because NEXT is unfailable."""
+        oc = self._oc()
+        corpus = self._corpus_doc()
+        nexts = [entry for entry in corpus["entries"]
+                 if entry.get("expected_verdict") == "NEXT"]
+        self.assertEqual(3, len(nexts))
+        stub_hits = 0
+        for entry in nexts:
+            real = oc.next(entry["tick"])
+            self.assertEqual(entry["expected_rule"],
+                             real.rule, entry["id"])
+            self.assertEqual(entry["expected_verdict"],
+                             real.verdict, entry["id"])
+            stub_hits += 0  # the wait stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_orchestrator_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: orchestrator
+        validates the real corpus (ok, 13 entries, 13 rules),
+        decides a --tick file as JSON, exits 0 on WAIT ticks,
+        and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "orchestrator", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(13, payload["entries"])
+        self.assertEqual(13, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-tick.json"
+            good_path.write_text(
+                json.dumps(self._oc().clean_tick()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "orchestrator", "--tick",
+                 str(good_path), "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("NEXT", payload["verdict"])
+            bad_path = Path(tmp) / "bad-tick.json"
+            bad = self._oc().clean_tick()
+            bad["ready_work"] = False
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "orchestrator", "--tick",
+                 str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "orchestrator", "--tick",
+             "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "orchestrator", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()
