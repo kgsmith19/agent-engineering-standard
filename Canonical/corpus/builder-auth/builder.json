@@ -1,0 +1,986 @@
+{
+  "_frozen": true,
+  "_provenance": "Stage 35 #126 (builder-auth). Hand-authored, adjudicated oracle: every entry's expected rules and granted flag reproduce tools/builder_auth.authorize exactly. IDs (builder-auth.<class>.<nn>) are stable; never renumber, never repurpose.",
+  "entries": [
+    {
+      "expected_granted": true,
+      "expected_rules": [],
+      "id": "builder-auth.clean.01",
+      "note": "Clean request holds all twelve gates: GRANTED with zero findings, so the gate can actually authorize a minimal implementation.",
+      "request": {
+        "agent": "builder-1",
+        "allowed_scope": {
+          "claims": [
+            "claim-total",
+            "claim-extra"
+          ]
+        },
+        "context_missing": false,
+        "context_polluted": false,
+        "disposition": "IMPLEMENT",
+        "files": [
+          "tools/builder_auth.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "frozen_ok": true,
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "lease": {
+          "exclusive": true,
+          "generation": 3,
+          "holder": "builder-1",
+          "min_generation": 3
+        },
+        "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "observation_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner_hold": false,
+        "phase": "IMPLEMENT_AUTHORIZED",
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "qualified_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "qualified_run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "receipts": [
+          {
+            "agent": "builder-1",
+            "granted_by": "builder-1",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "provider": "anthropic/claude",
+            "role": "builder",
+            "seq": 1
+          }
+        ],
+        "role": "builder",
+        "run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "scope": {
+          "claims": [
+            "claim-total"
+          ]
+        }
+      }
+    },
+    {
+      "expected_granted": false,
+      "expected_rules": [
+        "phase-not-authorized"
+      ],
+      "id": "builder-auth.phase.01",
+      "note": "Arc A still at CHECKPOINTED: the grant reopens to Arc A instead of proceeding.",
+      "request": {
+        "agent": "builder-1",
+        "allowed_scope": {
+          "claims": [
+            "claim-total",
+            "claim-extra"
+          ]
+        },
+        "context_missing": false,
+        "context_polluted": false,
+        "disposition": "IMPLEMENT",
+        "files": [
+          "tools/builder_auth.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "frozen_ok": true,
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "lease": {
+          "exclusive": true,
+          "generation": 3,
+          "holder": "builder-1",
+          "min_generation": 3
+        },
+        "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "observation_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner_hold": false,
+        "phase": "CHECKPOINTED",
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "qualified_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "qualified_run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "receipts": [
+          {
+            "agent": "builder-1",
+            "granted_by": "builder-1",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "provider": "anthropic/claude",
+            "role": "builder",
+            "seq": 1
+          }
+        ],
+        "role": "builder",
+        "run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "scope": {
+          "claims": [
+            "claim-total"
+          ]
+        }
+      }
+    },
+    {
+      "expected_granted": false,
+      "expected_rules": [
+        "role-not-builder"
+      ],
+      "id": "builder-auth.role.01",
+      "note": "Requesting role is verifier while only a builder grant authorizes production mutation: the role gate fires before any receipt is consulted.",
+      "request": {
+        "agent": "builder-1",
+        "allowed_scope": {
+          "claims": [
+            "claim-total",
+            "claim-extra"
+          ]
+        },
+        "context_missing": false,
+        "context_polluted": false,
+        "disposition": "IMPLEMENT",
+        "files": [
+          "tools/builder_auth.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "frozen_ok": true,
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "lease": {
+          "exclusive": true,
+          "generation": 3,
+          "holder": "builder-1",
+          "min_generation": 3
+        },
+        "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "observation_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner_hold": false,
+        "phase": "IMPLEMENT_AUTHORIZED",
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "qualified_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "qualified_run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "receipts": [
+          {
+            "agent": "builder-1",
+            "granted_by": "builder-1",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "provider": "anthropic/claude",
+            "role": "builder",
+            "seq": 1
+          }
+        ],
+        "role": "verifier",
+        "run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "scope": {
+          "claims": [
+            "claim-total"
+          ]
+        }
+      }
+    },
+    {
+      "expected_granted": false,
+      "expected_rules": [
+        "receipt-missing"
+      ],
+      "id": "builder-auth.receipt.01",
+      "note": "No receipt at all: the grant is refused until a fresh builder receipt is presented at the exact head.",
+      "request": {
+        "agent": "builder-1",
+        "allowed_scope": {
+          "claims": [
+            "claim-total",
+            "claim-extra"
+          ]
+        },
+        "context_missing": false,
+        "context_polluted": false,
+        "disposition": "IMPLEMENT",
+        "files": [
+          "tools/builder_auth.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "frozen_ok": true,
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "lease": {
+          "exclusive": true,
+          "generation": 3,
+          "holder": "builder-1",
+          "min_generation": 3
+        },
+        "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "observation_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner_hold": false,
+        "phase": "IMPLEMENT_AUTHORIZED",
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "qualified_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "qualified_run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "receipts": [],
+        "role": "builder",
+        "run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "scope": {
+          "claims": [
+            "claim-total"
+          ]
+        }
+      }
+    },
+    {
+      "expected_granted": false,
+      "expected_rules": [
+        "receipt-missing"
+      ],
+      "id": "builder-auth.receipt-stale.02",
+      "note": "Builder receipt bound to an older head: stale receipts never authorize the current head.",
+      "request": {
+        "agent": "builder-1",
+        "allowed_scope": {
+          "claims": [
+            "claim-total",
+            "claim-extra"
+          ]
+        },
+        "context_missing": false,
+        "context_polluted": false,
+        "disposition": "IMPLEMENT",
+        "files": [
+          "tools/builder_auth.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "frozen_ok": true,
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "lease": {
+          "exclusive": true,
+          "generation": 3,
+          "holder": "builder-1",
+          "min_generation": 3
+        },
+        "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "observation_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner_hold": false,
+        "phase": "IMPLEMENT_AUTHORIZED",
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "qualified_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "qualified_run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "receipts": [
+          {
+            "agent": "builder-1",
+            "granted_by": "builder-1",
+            "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "provider": "anthropic/claude",
+            "role": "builder",
+            "seq": 1
+          }
+        ],
+        "role": "builder",
+        "run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "scope": {
+          "claims": [
+            "claim-total"
+          ]
+        }
+      }
+    },
+    {
+      "expected_granted": false,
+      "expected_rules": [
+        "lease-conflict"
+      ],
+      "id": "builder-auth.lease.01",
+      "note": "Second writer holds the lease: the grant is refused rather than sharing production mutation.",
+      "request": {
+        "agent": "builder-1",
+        "allowed_scope": {
+          "claims": [
+            "claim-total",
+            "claim-extra"
+          ]
+        },
+        "context_missing": false,
+        "context_polluted": false,
+        "disposition": "IMPLEMENT",
+        "files": [
+          "tools/builder_auth.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "frozen_ok": true,
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "lease": {
+          "exclusive": true,
+          "generation": 3,
+          "holder": "builder-2",
+          "min_generation": 3
+        },
+        "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "observation_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner_hold": false,
+        "phase": "IMPLEMENT_AUTHORIZED",
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "qualified_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "qualified_run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "receipts": [
+          {
+            "agent": "builder-1",
+            "granted_by": "builder-1",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "provider": "anthropic/claude",
+            "role": "builder",
+            "seq": 1
+          }
+        ],
+        "role": "builder",
+        "run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "scope": {
+          "claims": [
+            "claim-total"
+          ]
+        }
+      }
+    },
+    {
+      "expected_granted": false,
+      "expected_rules": [
+        "lease-conflict"
+      ],
+      "id": "builder-auth.lease-stale.02",
+      "note": "Fencing generation behind the minimum: the stale writer is fenced and refused.",
+      "request": {
+        "agent": "builder-1",
+        "allowed_scope": {
+          "claims": [
+            "claim-total",
+            "claim-extra"
+          ]
+        },
+        "context_missing": false,
+        "context_polluted": false,
+        "disposition": "IMPLEMENT",
+        "files": [
+          "tools/builder_auth.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "frozen_ok": true,
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "lease": {
+          "exclusive": true,
+          "generation": 1,
+          "holder": "builder-1",
+          "min_generation": 3
+        },
+        "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "observation_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner_hold": false,
+        "phase": "IMPLEMENT_AUTHORIZED",
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "qualified_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "qualified_run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "receipts": [
+          {
+            "agent": "builder-1",
+            "granted_by": "builder-1",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "provider": "anthropic/claude",
+            "role": "builder",
+            "seq": 1
+          }
+        ],
+        "role": "builder",
+        "run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "scope": {
+          "claims": [
+            "claim-total"
+          ]
+        }
+      }
+    },
+    {
+      "expected_granted": false,
+      "expected_rules": [
+        "head-stale"
+      ],
+      "id": "builder-auth.head.01",
+      "note": "Observation binds an older head: re-observe at the current head before mutating.",
+      "request": {
+        "agent": "builder-1",
+        "allowed_scope": {
+          "claims": [
+            "claim-total",
+            "claim-extra"
+          ]
+        },
+        "context_missing": false,
+        "context_polluted": false,
+        "disposition": "IMPLEMENT",
+        "files": [
+          "tools/builder_auth.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "frozen_ok": true,
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "lease": {
+          "exclusive": true,
+          "generation": 3,
+          "holder": "builder-1",
+          "min_generation": 3
+        },
+        "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "observation_head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "owner_hold": false,
+        "phase": "IMPLEMENT_AUTHORIZED",
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "qualified_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "qualified_run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "receipts": [
+          {
+            "agent": "builder-1",
+            "granted_by": "builder-1",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "provider": "anthropic/claude",
+            "role": "builder",
+            "seq": 1
+          }
+        ],
+        "role": "builder",
+        "run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "scope": {
+          "claims": [
+            "claim-total"
+          ]
+        }
+      }
+    },
+    {
+      "expected_granted": false,
+      "expected_rules": [
+        "digest-drift"
+      ],
+      "id": "builder-auth.digest.01",
+      "note": "Mold digest moved after qualification: an altered expected value reopens to Arc A.",
+      "request": {
+        "agent": "builder-1",
+        "allowed_scope": {
+          "claims": [
+            "claim-total",
+            "claim-extra"
+          ]
+        },
+        "context_missing": false,
+        "context_polluted": false,
+        "disposition": "IMPLEMENT",
+        "files": [
+          "tools/builder_auth.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "frozen_ok": true,
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "lease": {
+          "exclusive": true,
+          "generation": 3,
+          "holder": "builder-1",
+          "min_generation": 3
+        },
+        "mold_digest": "dddddddddddddddddddddddddddddddddddddddd",
+        "observation_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner_hold": false,
+        "phase": "IMPLEMENT_AUTHORIZED",
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "qualified_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "qualified_run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "receipts": [
+          {
+            "agent": "builder-1",
+            "granted_by": "builder-1",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "provider": "anthropic/claude",
+            "role": "builder",
+            "seq": 1
+          }
+        ],
+        "role": "builder",
+        "run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "scope": {
+          "claims": [
+            "claim-total"
+          ]
+        }
+      }
+    },
+    {
+      "expected_granted": false,
+      "expected_rules": [
+        "protected-path"
+      ],
+      "id": "builder-auth.protected.01",
+      "note": "Grant would write a protected path: no Builder alters a protected Mold even after authorization.",
+      "request": {
+        "agent": "builder-1",
+        "allowed_scope": {
+          "claims": [
+            "claim-total",
+            "claim-extra"
+          ]
+        },
+        "context_missing": false,
+        "context_polluted": false,
+        "disposition": "IMPLEMENT",
+        "files": [
+          "tools/builder_auth.py",
+          "src/protected-impl.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "frozen_ok": true,
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "lease": {
+          "exclusive": true,
+          "generation": 3,
+          "holder": "builder-1",
+          "min_generation": 3
+        },
+        "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "observation_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner_hold": false,
+        "phase": "IMPLEMENT_AUTHORIZED",
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "qualified_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "qualified_run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "receipts": [
+          {
+            "agent": "builder-1",
+            "granted_by": "builder-1",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "provider": "anthropic/claude",
+            "role": "builder",
+            "seq": 1
+          }
+        ],
+        "role": "builder",
+        "run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "scope": {
+          "claims": [
+            "claim-total"
+          ]
+        }
+      }
+    },
+    {
+      "expected_granted": false,
+      "expected_rules": [
+        "scope-expansion"
+      ],
+      "id": "builder-auth.scope.01",
+      "note": "Grant names a claim outside the authorized scope: no scope broadening after authorization.",
+      "request": {
+        "agent": "builder-1",
+        "allowed_scope": {
+          "claims": [
+            "claim-total",
+            "claim-extra"
+          ]
+        },
+        "context_missing": false,
+        "context_polluted": false,
+        "disposition": "IMPLEMENT",
+        "files": [
+          "tools/builder_auth.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "frozen_ok": true,
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "lease": {
+          "exclusive": true,
+          "generation": 3,
+          "holder": "builder-1",
+          "min_generation": 3
+        },
+        "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "observation_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner_hold": false,
+        "phase": "IMPLEMENT_AUTHORIZED",
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "qualified_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "qualified_run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "receipts": [
+          {
+            "agent": "builder-1",
+            "granted_by": "builder-1",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "provider": "anthropic/claude",
+            "role": "builder",
+            "seq": 1
+          }
+        ],
+        "role": "builder",
+        "run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "scope": {
+          "claims": [
+            "claim-other"
+          ]
+        }
+      }
+    },
+    {
+      "expected_granted": false,
+      "expected_rules": [
+        "context-overrun"
+      ],
+      "id": "builder-auth.context.01",
+      "note": "Polluted history trips recovery: rotate from the capsule before production mutation.",
+      "request": {
+        "agent": "builder-1",
+        "allowed_scope": {
+          "claims": [
+            "claim-total",
+            "claim-extra"
+          ]
+        },
+        "context_missing": false,
+        "context_polluted": true,
+        "disposition": "IMPLEMENT",
+        "files": [
+          "tools/builder_auth.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "frozen_ok": true,
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "lease": {
+          "exclusive": true,
+          "generation": 3,
+          "holder": "builder-1",
+          "min_generation": 3
+        },
+        "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "observation_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner_hold": false,
+        "phase": "IMPLEMENT_AUTHORIZED",
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "qualified_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "qualified_run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "receipts": [
+          {
+            "agent": "builder-1",
+            "granted_by": "builder-1",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "provider": "anthropic/claude",
+            "role": "builder",
+            "seq": 1
+          }
+        ],
+        "role": "builder",
+        "run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "scope": {
+          "claims": [
+            "claim-total"
+          ]
+        }
+      }
+    },
+    {
+      "expected_granted": false,
+      "expected_rules": [
+        "disposition-blocked"
+      ],
+      "id": "builder-auth.disposition.01",
+      "note": "NO_CHANGE disposition: the verdict terminates the grant the same way it terminates Arc A advancement.",
+      "request": {
+        "agent": "builder-1",
+        "allowed_scope": {
+          "claims": [
+            "claim-total",
+            "claim-extra"
+          ]
+        },
+        "context_missing": false,
+        "context_polluted": false,
+        "disposition": "NO_CHANGE",
+        "files": [
+          "tools/builder_auth.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "frozen_ok": true,
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "lease": {
+          "exclusive": true,
+          "generation": 3,
+          "holder": "builder-1",
+          "min_generation": 3
+        },
+        "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "observation_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner_hold": false,
+        "phase": "IMPLEMENT_AUTHORIZED",
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "qualified_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "qualified_run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "receipts": [
+          {
+            "agent": "builder-1",
+            "granted_by": "builder-1",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "provider": "anthropic/claude",
+            "role": "builder",
+            "seq": 1
+          }
+        ],
+        "role": "builder",
+        "run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "scope": {
+          "claims": [
+            "claim-total"
+          ]
+        }
+      }
+    },
+    {
+      "expected_granted": false,
+      "expected_rules": [
+        "owner-hold"
+      ],
+      "id": "builder-auth.hold.01",
+      "note": "Owner hold set with every other condition valid: the grant waits for the owner.",
+      "request": {
+        "agent": "builder-1",
+        "allowed_scope": {
+          "claims": [
+            "claim-total",
+            "claim-extra"
+          ]
+        },
+        "context_missing": false,
+        "context_polluted": false,
+        "disposition": "IMPLEMENT",
+        "files": [
+          "tools/builder_auth.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "frozen_ok": true,
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "lease": {
+          "exclusive": true,
+          "generation": 3,
+          "holder": "builder-1",
+          "min_generation": 3
+        },
+        "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "observation_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner_hold": true,
+        "phase": "IMPLEMENT_AUTHORIZED",
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "qualified_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "qualified_run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "receipts": [
+          {
+            "agent": "builder-1",
+            "granted_by": "builder-1",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "provider": "anthropic/claude",
+            "role": "builder",
+            "seq": 1
+          }
+        ],
+        "role": "builder",
+        "run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "scope": {
+          "claims": [
+            "claim-total"
+          ]
+        }
+      }
+    },
+    {
+      "expected_granted": false,
+      "expected_rules": [
+        "frozen-policy"
+      ],
+      "id": "builder-auth.frozen.01",
+      "note": "Freeze drifted without reopen-and-requalify: the frozen-oracle policy refuses the grant.",
+      "request": {
+        "agent": "builder-1",
+        "allowed_scope": {
+          "claims": [
+            "claim-total",
+            "claim-extra"
+          ]
+        },
+        "context_missing": false,
+        "context_polluted": false,
+        "disposition": "IMPLEMENT",
+        "files": [
+          "tools/builder_auth.py"
+        ],
+        "footprint": {
+          "capsule": 1000,
+          "files": 1000,
+          "mcp": 100,
+          "rules": 1000,
+          "skills": 500,
+          "tool_output": 500
+        },
+        "frozen_ok": false,
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "lease": {
+          "exclusive": true,
+          "generation": 3,
+          "holder": "builder-1",
+          "min_generation": 3
+        },
+        "mold_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "observation_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "owner_hold": false,
+        "phase": "IMPLEMENT_AUTHORIZED",
+        "protected_paths": [
+          "src/protected-impl.py"
+        ],
+        "provider": "anthropic/claude",
+        "qualified_digest": "aebc4e7beecafd257a8329577e5234955bae455f5033fdb525e6e78f66469fc6",
+        "qualified_run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "receipts": [
+          {
+            "agent": "builder-1",
+            "granted_by": "builder-1",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "provider": "anthropic/claude",
+            "role": "builder",
+            "seq": 1
+          }
+        ],
+        "role": "builder",
+        "run_digest": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "scope": {
+          "claims": [
+            "claim-total"
+          ]
+        }
+      }
+    }
+  ]
+}

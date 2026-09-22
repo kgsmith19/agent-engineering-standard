@@ -4855,6 +4855,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_arc.add_argument("--json", action="store_true")
     p_arc.set_defaults(func=cmd_arc_a)
 
+    p_builder = sub.add_parser(
+        "builder-auth",
+        help="Builder implementation authorization readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_builder.add_argument(
+        "--request", default="",
+        help="path to a JSON authorization-request file; without "
+             "it, validates the frozen builder fixture set")
+    p_builder.add_argument(
+        "--corpus", default="Canonical/corpus/builder-auth",
+        help="frozen corpus dir holding builder.json for "
+             "validation mode")
+    p_builder.add_argument("--json", action="store_true")
+    p_builder.set_defaults(func=cmd_builder_auth)
+
     return parser
 
 
@@ -6001,6 +6017,89 @@ def cmd_arc_a(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("arc-a: %s%s" % (
+            args.corpus, " — OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_builder_auth(args: argparse.Namespace) -> int:
+    """Advisory Builder authorization readout. With --request,
+    decides that request file; without it, validates the frozen
+    builder oracle (every entry's computed rules ==
+    expected_rules, granted == expected_granted, IDs unique, all
+    12 builder rules covered) and prints findings. Always exits 0
+    on findings — advisory never gates; only an unreadable file
+    exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import builder_auth
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.request:
+        try:
+            request = json.loads(
+                _Path(args.request).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("builder-auth: cannot load request: %s" % exc)
+            return 2
+        if not isinstance(request, dict):
+            print("builder-auth: request must be a JSON object")
+            return 2
+        result = builder_auth.authorize(request)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "decide",
+                "request": args.request,
+                "allowed": result.allowed,
+                "granted": result.granted,
+                "ok": result.granted,
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("builder-auth: %s — %s" % (
+                args.request,
+                "GRANTED" if result.granted else "REFUSED"))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "builder.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("builder-auth: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        builder_auth.validate_builder_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(r)
+                    for e in entries if isinstance(e, dict)
+                    for r in (e.get("expected_rules") or [])})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("builder-auth: %s%s" % (
             args.corpus, " — OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)
