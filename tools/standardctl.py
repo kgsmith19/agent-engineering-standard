@@ -5162,6 +5162,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_lane.add_argument("--json", action="store_true")
     p_lane.set_defaults(func=cmd_gate_compliance)
 
+    p_triage = sub.add_parser(
+        "triage",
+        help="Failure triage readout and "
+             "frozen-corpus validation (advisory)",
+    )
+    p_triage.add_argument(
+        "--report", default="",
+        help="path to a JSON failure-report file to triage; without "
+             "it, validates the frozen failure fixture set")
+    p_triage.add_argument(
+        "--corpus", default="Canonical/corpus/recovery-loop",
+        help="frozen corpus dir holding failures.json for "
+             "validation mode")
+    p_triage.add_argument("--json", action="store_true")
+    p_triage.set_defaults(func=cmd_triage)
+
     p_qe = sub.add_parser(
         "quality-eval",
         help="Quality evaluation readout and "
@@ -8287,6 +8303,89 @@ def cmd_gate_compliance(args: argparse.Namespace) -> int:
         }, indent=2))
     else:
         print("gate-compliance: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries, rules %s"
+              % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_triage(args: argparse.Namespace) -> int:
+    """Advisory failure-triage readout. With --report, triages
+    that report file; without it, validates the frozen failure
+    oracle (every entry's computed rule == expected_rule, class
+    == expected_class, route == expected_route, IDs unique, all
+    10 triage rules covered) and prints findings. Always exits 0
+    on findings: advisory never gates; only an unreadable file
+    exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import recovery_loop
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    if args.report:
+        try:
+            report = json.loads(
+                _Path(args.report).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("triage: cannot load report: %s" % exc)
+            return 2
+        if not isinstance(report, dict):
+            print("triage: report must be a JSON object")
+            return 2
+        result = recovery_loop.triage(report)
+        findings = [
+            {"id": f["id"], "rule": f["rule"],
+             "finding": f["finding"],
+             "severity": f["severity"], "excerpt": f["excerpt"]}
+            for f in result.findings]
+        if args.json:
+            print(json.dumps({
+                "advisory": True,
+                "mode": "triage",
+                "report": args.report,
+                "class": result.failure_class,
+                "route": result.route,
+                "rule": result.rule,
+                "ok": True,
+                "findings": findings,
+            }, indent=2))
+        else:
+            print("triage: %s -- %s via %s (%s)" % (
+                args.report, result.failure_class,
+                result.route, result.rule))
+            for item in findings:
+                print("  - [%s] %s: %s" % (
+                    item["severity"], item["rule"],
+                    item["finding"]))
+        return 0
+    corpus_path = _Path(args.corpus) / "failures.json"
+    try:
+        corpus = json.loads(
+            corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("triage: cannot load corpus: %s" % exc)
+        return 2
+    findings, entries = \
+        recovery_loop.validate_failure_corpus(corpus)
+    ok = not findings
+    rules = sorted({str(e.get("expected_rule", ""))
+                    for e in entries if isinstance(e, dict)})
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "rules": rules,
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("triage: %s%s" % (
             args.corpus, " -- OK" if ok else " (findings)"))
         for line in findings:
             print("  - %s" % line)

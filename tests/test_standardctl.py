@@ -14743,5 +14743,215 @@ class GateCompliance(unittest.TestCase):
 
 
 
+
+class RecoveryLoop(unittest.TestCase):
+    """Stage 58 (#149): the operational recovery loop and systematic
+    debugging router.
+
+    Preserved evidence, explicit classes, smallest responsible
+    routes: blind loops refused, non-idempotent retries gated,
+    partial green never complete, misclassifications rerouted,
+    budgets honored, infra separated from product, UNKNOWN never
+    mutates, lanes always named, history replayed. Pure contract
+    in tools/recovery_loop.py plus the frozen corpus under
+    Canonical/corpus/recovery-loop/."""
+
+    def _rl(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import recovery_loop
+            return recovery_loop
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "recovery-loop" / "failures.json")
+            .read_text(encoding="utf-8"))
+
+    def _report(self, **overrides):
+        rl = self._rl()
+        report = rl.clean_report()
+        for key, value in overrides.items():
+            report[key] = value
+        return report
+
+    def test_clean_defect_triages_to_repair(self):
+        """Protects the Primary Outcome (positive control): a
+        filed product defect with evidence and lane triages to
+        repair, so clean failures actually route."""
+        rl = self._rl()
+        result = rl.triage(rl.clean_report())
+        self.assertEqual("product-defect", result.failure_class)
+        self.assertEqual("repair", result.route)
+        self.assertEqual("clean-triage", result.rule)
+
+    def test_blind_rerun_refused(self):
+        """Protects debugging discipline: a retry with no
+        hypothesis routes systematic-debugging first, never a
+        blind loop."""
+        rl = self._rl()
+        result = rl.triage(self._report(retry_proposed=True,
+                                        hypothesis=""))
+        self.assertEqual("blind-rerun", result.rule)
+
+    def test_non_idempotent_retry_refused(self):
+        """Protects side effects: a non-idempotent retry without
+        confirmation refuses."""
+        rl = self._rl()
+        result = rl.triage(self._report(
+            retry_proposed=True, hypothesis="transient",
+            idempotent=False))
+        self.assertEqual("non-idempotent", result.rule)
+
+    def test_partial_green_never_complete(self):
+        """Protects completeness: partial green never counts as
+        complete."""
+        rl = self._rl()
+        result = rl.triage(self._report(partial_green=True))
+        self.assertEqual("partial-green", result.rule)
+
+    def test_misclassified_failure_rerouted(self):
+        """Protects classification: an infra flake filed as
+        product reclassifies before routing."""
+        rl = self._rl()
+        result = rl.triage(self._report(
+            filed_class="product-defect",
+            true_class="infra-flake"))
+        self.assertEqual("infra-flake", result.failure_class)
+        self.assertEqual("reconcile", result.route)
+
+    def test_exhausted_budget_escalates(self):
+        """Protects budgets: a spent retry budget escalates, so
+        retry-to-green loops end."""
+        rl = self._rl()
+        result = rl.triage(self._report(
+            retry_proposed=True, hypothesis="transient",
+            retries_left=0))
+        self.assertEqual("exhausted-budget", result.rule)
+
+    def test_infra_treated_as_product_rerouted(self):
+        """Protects separation: an infra fault with product filing
+        reroutes to infra recovery."""
+        rl = self._rl()
+        result = rl.triage(self._report(infra_signal=True))
+        self.assertEqual("infra-flake", result.failure_class)
+
+    def test_unknown_mutation_refused(self):
+        """Protects the UNKNOWN rule: UNKNOWN with mutation
+        refuses until the class is known."""
+        rl = self._rl()
+        result = rl.triage(self._report(
+            filed_class="unknown", true_class="unknown",
+            unknown_mutation=True))
+        self.assertEqual("unknown-mutation", result.rule)
+
+    def test_unowned_lane_escalates_named(self):
+        """Protects ownership: a laneness failure escalates with
+        the lane named."""
+        rl = self._rl()
+        result = rl.triage(self._report(owning_lane=""))
+        self.assertEqual("unowned-lane", result.rule)
+
+    def test_historical_failure_replays_route(self):
+        """Protects history: a historical workflow failure
+        reproduces its route and repairs from history."""
+        rl = self._rl()
+        result = rl.triage(self._report(historical_match=True))
+        self.assertEqual("historical-replay", result.rule)
+        self.assertEqual("repair", result.route)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 10 corpus entries
+        reproduce their expected rules, classes, and routes,
+        covering all 10 triage rules with unique well-formed
+        IDs."""
+        rl = self._rl()
+        findings, entries = rl.validate_failure_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(10, len(entries))
+        covered = {e["expected_rule"] for e in entries}
+        self.assertEqual(set(rl.RULES), covered)
+
+    def test_red_by_construction_blind_stub_reroutes(self):
+        """Sensitivity proof (RED): a blind-retry stub trips
+        blind-rerun while the real router also guards nine other
+        rules — so the suite is green because debugging routes
+        exist, not because blind loops are absent."""
+        rl = self._rl()
+        blind = rl.triage(self._report(retry_proposed=True,
+                                       hypothesis=""))
+        self.assertEqual("blind-rerun", blind.rule)
+        guarded = rl.triage(self._report(
+            retry_proposed=True, hypothesis="transient",
+            idempotent=False))
+        self.assertEqual("non-idempotent", guarded.rule)
+        clean = rl.triage(rl.clean_report())
+        self.assertEqual("clean-triage", clean.rule)
+
+    def test_standardctl_triage_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: triage validates the
+        real corpus (ok, 10 entries, 10 rules), triages a
+        --report file as JSON, exits 0 on routed reports, and
+        exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "triage", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(10, payload["entries"])
+        self.assertEqual(10, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-report.json"
+            good_path.write_text(
+                json.dumps(self._rl().clean_report()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "triage", "--report", str(good_path),
+                 "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("product-defect",
+                             payload["class"])
+            bad_path = Path(tmp) / "bad-report.json"
+            bad = self._rl().clean_report()
+            bad["retry_proposed"] = True
+            bad["hypothesis"] = ""
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "triage", "--report", str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "triage", "--report", "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "triage", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()
