@@ -7,3 +7,7 @@
 .agent-extensions/
 .bootstrap-out/
 .agent-state/
+
+# Uncommitted local overlay (additive; never shadows a committed AGENTS.md)
+AGENTS.local.md
+AGENTS.override.md

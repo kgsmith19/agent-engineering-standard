@@ -20,6 +20,12 @@ modules. It only says how to load and use them.
    `verification-before-completion` before any success claim.
 5. **Fresh evidence.** Never claim completion without a fresh check at the exact
    head.
+6. **Committed vs uncommitted.** Own the repository? Adopt the standard committed
+   (`standardctl init`). Cannot commit it here (for example, a team repo)? Keep
+   the standard's process on the machine-global capability layer and put
+   repo-specific rules in a gitignored `AGENTS.local.md` — the capability layer
+   injects it at session start, additively, so the committed AGENTS.md still
+   governs.
 
 Edit the standard, not this copy: it is regenerated from the pinned commit in
 `standard.lock`.

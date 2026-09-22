@@ -11,6 +11,10 @@
 .bootstrap-out/
 .agent-state/
 
+# Uncommitted local overlay (additive; never shadows a committed AGENTS.md)
+AGENTS.local.md
+AGENTS.override.md
+
 # Python bytecode caches
 __pycache__/
 
