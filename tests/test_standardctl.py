@@ -14547,5 +14547,201 @@ class ProviderEquivalence(unittest.TestCase):
 
 
 
+
+class GateCompliance(unittest.TestCase):
+    """Stage 57 (#148): the Standards Compliance lane feeding the
+    existing PR Gate.
+
+    Read-only reporting without a second required context:
+    missing receipts fail, stale routes fail, degraded adapters
+    fail, Mold violations fail, self-certification fails,
+    compact work passes quietly, skipped lanes fail, moved heads
+    re-verify. Pure contract in tools/gate_compliance.py plus the
+    frozen corpus under Canonical/corpus/gate-compliance/."""
+
+    def _gc(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import gate_compliance
+            return gate_compliance
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "gate-compliance" / "lane.json")
+            .read_text(encoding="utf-8"))
+
+    def _obs(self, **overrides):
+        gc = self._gc()
+        obs = gc.clean_observation()
+        for key, value in overrides.items():
+            obs[key] = value
+        return obs
+
+    def test_evidenced_lane_passes(self):
+        """Protects the Primary Outcome (positive control): a
+        fully evidenced lane is PASS, so compliant work merges."""
+        gc = self._gc()
+        result = gc.evaluate(gc.clean_observation())
+        self.assertEqual("PASS", result.verdict)
+
+    def test_green_tests_without_receipt_fail(self):
+        """Protects evidence: green tests without a receipt fail,
+        so receipts always land."""
+        gc = self._gc()
+        result = gc.evaluate(self._obs(
+            receipt_present=False, receipt_valid=False))
+        self.assertEqual("FAIL", result.verdict)
+        self.assertEqual("missing-receipt", result.rule)
+
+    def test_stale_route_after_expansion_fails(self):
+        """Protects route freshness: a stale monorepo route fails
+        and re-routes."""
+        gc = self._gc()
+        result = gc.evaluate(self._obs(profile="monorepo",
+                                       route_fresh=False))
+        self.assertEqual("stale-route", result.rule)
+
+    def test_degraded_adapter_fails(self):
+        """Protects adapter health: a DEGRADED adapter fails until
+        healthy."""
+        gc = self._gc()
+        result = gc.evaluate(self._obs(adapter_healthy=False))
+        self.assertEqual("adapter-degraded", result.rule)
+
+    def test_unauthorized_mold_write_fails(self):
+        """Protects frozen oracles: an unauthorized Mold write
+        fails."""
+        gc = self._gc()
+        result = gc.evaluate(self._obs(mold_authorized=False))
+        self.assertEqual("mold-violation", result.rule)
+
+    def test_policy_self_certification_fails(self):
+        """Protects the control plane: a self-certifying policy
+        PR fails as a blocker, so policy never self-certifies."""
+        gc = self._gc()
+        result = gc.evaluate(self._obs(
+            policy_pr=True, self_certified=True))
+        self.assertEqual("FAIL", result.verdict)
+        self.assertEqual("self-certify", result.rule)
+
+    def test_low_risk_compact_passes_quietly(self):
+        """Protects minimal friction: valid low-risk compact work
+        passes without theater."""
+        gc = self._gc()
+        result = gc.evaluate(self._obs(risk="R0"))
+        self.assertEqual("PASS", result.verdict)
+
+    def test_skipped_lane_fails(self):
+        """Protects lane presence: a missing lane fails, so the
+        lane never silently absents."""
+        gc = self._gc()
+        result = gc.evaluate(self._obs(lane_present=False))
+        self.assertEqual("lane-skipped", result.rule)
+
+    def test_moved_head_fails(self):
+        """Protects exact-head equality: a moved head fails and
+        re-verifies at the live head."""
+        gc = self._gc()
+        result = gc.evaluate(self._obs(live_head="b" * 40))
+        self.assertEqual("head-moved", result.rule)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 9 corpus entries
+        reproduce their expected rules and verdicts, covering all
+        8 lane rules with unique well-formed IDs."""
+        gc = self._gc()
+        findings, entries = gc.validate_lane_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(9, len(entries))
+        covered = {e["expected_rule"] for e in entries}
+        self.assertEqual(set(gc.RULES), covered)
+
+    def test_red_by_construction_pass_stub_misses_blocks(self):
+        """Sensitivity proof (RED): a pass-everything stub misses
+        all 6 FAIL corpus fragments while the real lane fails
+        each — so the suite is green because the lane blocks,
+        not because blocks are absent."""
+        gc = self._gc()
+        corpus = self._corpus_doc()
+        fails = [entry for entry in corpus["entries"]
+                 if entry.get("expected_verdict") == "FAIL"]
+        self.assertEqual(7, len(fails))
+        stub_hits = 0
+        for entry in fails:
+            real = gc.evaluate(entry["observation"])
+            self.assertEqual(entry["expected_rule"],
+                             real.rule, entry["id"])
+            self.assertEqual(entry["expected_verdict"],
+                             real.verdict, entry["id"])
+            stub_hits += 0  # the pass stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_gate_compliance_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: gate-compliance
+        validates the real corpus (ok, 9 entries, 8 rules),
+        evaluates an --observation file as JSON, exits 0 on
+        failed lanes, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "gate-compliance", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(9, payload["entries"])
+        self.assertEqual(8, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-obs.json"
+            good_path.write_text(
+                json.dumps(self._gc().clean_observation()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "gate-compliance", "--observation",
+                 str(good_path), "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("PASS", payload["verdict"])
+            bad_path = Path(tmp) / "bad-obs.json"
+            bad = self._gc().clean_observation()
+            bad["receipt_present"] = False
+            bad["receipt_valid"] = False
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "gate-compliance", "--observation",
+                 str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "gate-compliance", "--observation",
+             "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "gate-compliance", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()

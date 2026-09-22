@@ -1,0 +1,204 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 57 #148 Gate compliance lane frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "gate-compliance.clean.01",
+   "note": "Fully evidenced lane: PASS to the aggregator (simple profile), so compliant work merges.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "tests_green": true,
+    "receipt_present": true,
+    "route_fresh": true,
+    "adapter_healthy": true,
+    "mold_authorized": true,
+    "policy_pr": false,
+    "self_certified": false,
+    "risk": "R2",
+    "receipt_valid": true,
+    "lane_present": true,
+    "evidence_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "compact-valid",
+   "expected_verdict": "PASS"
+  },
+  {
+   "id": "gate-compliance.receipt.01",
+   "note": "Green tests but missing receipt: FAIL until the receipt lands.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "tests_green": true,
+    "receipt_present": false,
+    "route_fresh": true,
+    "adapter_healthy": true,
+    "mold_authorized": true,
+    "policy_pr": false,
+    "self_certified": false,
+    "risk": "R2",
+    "receipt_valid": false,
+    "lane_present": true,
+    "evidence_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "missing-receipt",
+   "expected_verdict": "FAIL"
+  },
+  {
+   "id": "gate-compliance.stale.01",
+   "note": "Stale route after path expansion: FAIL and re-route (monorepo profile).",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "monorepo",
+    "tests_green": true,
+    "receipt_present": true,
+    "route_fresh": false,
+    "adapter_healthy": true,
+    "mold_authorized": true,
+    "policy_pr": false,
+    "self_certified": false,
+    "risk": "R2",
+    "receipt_valid": true,
+    "lane_present": true,
+    "evidence_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "stale-route",
+   "expected_verdict": "FAIL"
+  },
+  {
+   "id": "gate-compliance.adapter.01",
+   "note": "Adapter DEGRADED: FAIL until healthy.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "tests_green": true,
+    "receipt_present": true,
+    "route_fresh": true,
+    "adapter_healthy": false,
+    "mold_authorized": true,
+    "policy_pr": false,
+    "self_certified": false,
+    "risk": "R2",
+    "receipt_valid": true,
+    "lane_present": true,
+    "evidence_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "adapter-degraded",
+   "expected_verdict": "FAIL"
+  },
+  {
+   "id": "gate-compliance.mold.01",
+   "note": "Unauthorized Mold write: FAIL.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "tests_green": true,
+    "receipt_present": true,
+    "route_fresh": true,
+    "adapter_healthy": true,
+    "mold_authorized": false,
+    "policy_pr": false,
+    "self_certified": false,
+    "risk": "R2",
+    "receipt_valid": true,
+    "lane_present": true,
+    "evidence_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "mold-violation",
+   "expected_verdict": "FAIL"
+  },
+  {
+   "id": "gate-compliance.self.01",
+   "note": "Policy-PR self-certification: FAIL, so control-plane never self-certifies.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "tests_green": true,
+    "receipt_present": true,
+    "route_fresh": true,
+    "adapter_healthy": true,
+    "mold_authorized": true,
+    "policy_pr": true,
+    "self_certified": true,
+    "risk": "R2",
+    "receipt_valid": true,
+    "lane_present": true,
+    "evidence_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "self-certify",
+   "expected_verdict": "FAIL"
+  },
+  {
+   "id": "gate-compliance.compact.01",
+   "note": "Low-risk valid compact work: PASS without theater.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "tests_green": true,
+    "receipt_present": true,
+    "route_fresh": true,
+    "adapter_healthy": true,
+    "mold_authorized": true,
+    "policy_pr": false,
+    "self_certified": false,
+    "risk": "R0",
+    "receipt_valid": true,
+    "lane_present": true,
+    "evidence_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "compact-valid",
+   "expected_verdict": "PASS"
+  },
+  {
+   "id": "gate-compliance.skipped.01",
+   "note": "Missing lane: FAIL, so the lane never silently absents.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "tests_green": true,
+    "receipt_present": true,
+    "route_fresh": true,
+    "adapter_healthy": true,
+    "mold_authorized": true,
+    "policy_pr": false,
+    "self_certified": false,
+    "risk": "R2",
+    "receipt_valid": true,
+    "lane_present": false,
+    "evidence_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "expected_rule": "lane-skipped",
+   "expected_verdict": "FAIL"
+  },
+  {
+   "id": "gate-compliance.head.01",
+   "note": "Exact head moved: FAIL and re-verify at the live head.",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "tests_green": true,
+    "receipt_present": true,
+    "route_fresh": true,
+    "adapter_healthy": true,
+    "mold_authorized": true,
+    "policy_pr": false,
+    "self_certified": false,
+    "risk": "R2",
+    "receipt_valid": true,
+    "lane_present": true,
+    "evidence_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "expected_rule": "head-moved",
+   "expected_verdict": "FAIL"
+  }
+ ]
+}
