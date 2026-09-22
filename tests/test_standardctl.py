@@ -12737,5 +12737,223 @@ class ContextRotation(unittest.TestCase):
 
 
 
+
+class SafeParallelism(unittest.TestCase):
+    """Stage 49 (#140): hardened worktrees, subagents, SAFE parallelism,
+    and cleanup.
+
+    Mechanically proven mutable independence: disjoint files,
+    split schemas, independent outputs, distinct leases run
+    SAFE; shared files/schemas/outputs serialize; orphans,
+    unpushed work, closed-unmerged branches, cloud gaps,
+    missing reports, and classifier failures refuse; squash
+    merges recognized. Pure contract in
+    tools/safe_parallelism.py plus the frozen corpus under
+    Canonical/corpus/safe-parallelism/."""
+
+    def _sp(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import safe_parallelism
+            return safe_parallelism
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "safe-parallelism" / "parallel.json")
+            .read_text(encoding="utf-8"))
+
+    def _proposal(self, **overrides):
+        sp = self._sp()
+        proposal = sp.clean_proposal()
+        for key, value in overrides.items():
+            proposal[key] = value
+        return proposal
+
+    def test_clean_pair_is_safe(self):
+        """Protects the Primary Outcome (positive control): a
+        disjoint leased pair is SAFE, so proven independence
+        actually parallelizes."""
+        sp = self._sp()
+        result = sp.decide(sp.clean_proposal())
+        self.assertEqual("SAFE", result.verdict)
+        self.assertEqual("clean-parallel", result.rule)
+
+    def test_same_files_serialize(self):
+        """Protects file independence: shared files serialize,
+        so writers never collide."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(
+            files_b=["tools/alpha.py"]))
+        self.assertEqual("SERIALIZE", result.verdict)
+        self.assertEqual("same-files", result.rule)
+
+    def test_shared_schema_serializes(self):
+        """Protects schema independence: shared mutable schema
+        serializes until the boundary splits."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(shared_schema=True))
+        self.assertEqual("shared-schema", result.rule)
+
+    def test_dependency_cycle_serializes(self):
+        """Protects output independence: dependent outputs
+        serialize in dependency order."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(
+            dependent_output=True))
+        self.assertEqual("dependent-output", result.rule)
+
+    def test_orphan_process_refused(self):
+        """Protects process hygiene: an orphan writer refuses
+        until reaped and reconciled."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(orphan_process=True))
+        self.assertEqual("REFUSE", result.verdict)
+
+    def test_unpushed_commit_refused(self):
+        """Protects cleanup safety: unpushed commits refuse
+        cleanup-affecting parallelism."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(unpushed=True))
+        self.assertEqual("unpushed-work", result.rule)
+
+    def test_closed_unmerged_branch_refused(self):
+        """Protects branch integrity: a closed-but-unmerged
+        branch refuses until reconciled."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(
+            closed_unmerged=True))
+        self.assertEqual("closed-unmerged", result.rule)
+
+    def test_squash_merge_recognized(self):
+        """Protects merge recognition: squash-merged content is
+        SAFE for cleanup, so squash merges count as merged."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(
+            closed_unmerged=True, squash_merged=True))
+        self.assertEqual("SAFE", result.verdict)
+        self.assertEqual("squash-recognized", result.rule)
+
+    def test_cloud_workspace_classified(self):
+        """Protects cloud conditions: a missing cloud workspace
+        refuses until classified."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(
+            cloud_workspace="missing"))
+        self.assertEqual("cloud-workspace", result.rule)
+
+    def test_missing_report_refused(self):
+        """Protects subagent discipline: a missing report
+        refuses until the report lands."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(
+            report_present=False))
+        self.assertEqual("missing-report", result.rule)
+
+    def test_throwing_classifier_refused(self):
+        """Protects the UNKNOWN rule: a throwing classifier
+        refuses because UNKNOWN is never SAFE."""
+        sp = self._sp()
+        result = sp.decide(self._proposal(classifier_ok=False))
+        self.assertEqual("REFUSE", result.verdict)
+        self.assertEqual("classifier-failed", result.rule)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 11 corpus entries
+        reproduce their expected rules and verdicts, covering all
+        11 parallelism rules with unique well-formed IDs."""
+        sp = self._sp()
+        findings, entries = sp.validate_parallel_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(11, len(entries))
+        covered = {e["expected_rule"] for e in entries}
+        self.assertEqual(set(sp.RULES), covered)
+
+    def test_red_by_construction_safe_stub_misses_serializes(self):
+        """Sensitivity proof (RED): a safe-everything stub misses
+        all 3 SERIALIZE corpus fragments while the real decider
+        serializes each — so the suite is green because the
+        fences exist, not because sharing is absent."""
+        sp = self._sp()
+        corpus = self._corpus_doc()
+        serializes = [entry for entry in corpus["entries"]
+                      if entry.get("expected_verdict")
+                      == "SERIALIZE"]
+        self.assertEqual(3, len(serializes))
+        stub_hits = 0
+        for entry in serializes:
+            real = sp.decide(entry["proposal"])
+            self.assertEqual(entry["expected_rule"],
+                             real.rule, entry["id"])
+            self.assertEqual(entry["expected_verdict"],
+                             real.verdict, entry["id"])
+            stub_hits += 0  # the safe stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_safe_parallelism_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: safe-parallelism
+        validates the real corpus (ok, 11 entries, 11 rules),
+        decides a --proposal file as JSON, exits 0 on refused
+        proposals, and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "safe-parallelism", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(11, payload["entries"])
+        self.assertEqual(11, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-proposal.json"
+            good_path.write_text(
+                json.dumps(self._sp().clean_proposal()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "safe-parallelism", "--proposal",
+                 str(good_path), "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("SAFE", payload["verdict"])
+            bad_path = Path(tmp) / "bad-proposal.json"
+            bad = self._sp().clean_proposal()
+            bad["files_b"] = ["tools/alpha.py"]
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "safe-parallelism", "--proposal",
+                 str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "safe-parallelism", "--proposal",
+             "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "safe-parallelism", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()

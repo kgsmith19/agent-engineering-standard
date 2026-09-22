@@ -1,0 +1,292 @@
+{
+ "_frozen": true,
+ "_provenance": "Stage 49 #140 SAFE parallelism frozen oracle - hand-adjudicated 2026-09-22",
+ "entries": [
+  {
+   "id": "safe-parallelism.clean.01",
+   "note": "Disjoint leased slices: SAFE, so proven independence actually parallelizes.",
+   "proposal": {
+    "files_a": [
+     "tools/alpha.py"
+    ],
+    "files_b": [
+     "tools/beta.py"
+    ],
+    "shared_schema": false,
+    "dependent_output": false,
+    "orphan_process": false,
+    "unpushed": false,
+    "closed_unmerged": false,
+    "squash_merged": false,
+    "cloud_workspace": "present",
+    "report_present": true,
+    "classifier_ok": true,
+    "leases_distinct": true,
+    "open_pr": false,
+    "active_writer": false
+   },
+   "expected_rule": "clean-parallel",
+   "expected_verdict": "SAFE"
+  },
+  {
+   "id": "safe-parallelism.files.01",
+   "note": "Same files touched: SERIALIZE, so shared files never parallelize.",
+   "proposal": {
+    "files_a": [
+     "tools/alpha.py"
+    ],
+    "files_b": [
+     "tools/alpha.py"
+    ],
+    "shared_schema": false,
+    "dependent_output": false,
+    "orphan_process": false,
+    "unpushed": false,
+    "closed_unmerged": false,
+    "squash_merged": false,
+    "cloud_workspace": "present",
+    "report_present": true,
+    "classifier_ok": true,
+    "leases_distinct": true,
+    "open_pr": false,
+    "active_writer": false
+   },
+   "expected_rule": "same-files",
+   "expected_verdict": "SERIALIZE"
+  },
+  {
+   "id": "safe-parallelism.schema.01",
+   "note": "Shared mutable schema: SERIALIZE until the boundary splits.",
+   "proposal": {
+    "files_a": [
+     "tools/alpha.py"
+    ],
+    "files_b": [
+     "tools/beta.py"
+    ],
+    "shared_schema": true,
+    "dependent_output": false,
+    "orphan_process": false,
+    "unpushed": false,
+    "closed_unmerged": false,
+    "squash_merged": false,
+    "cloud_workspace": "present",
+    "report_present": true,
+    "classifier_ok": true,
+    "leases_distinct": true,
+    "open_pr": false,
+    "active_writer": false
+   },
+   "expected_rule": "shared-schema",
+   "expected_verdict": "SERIALIZE"
+  },
+  {
+   "id": "safe-parallelism.dependency.01",
+   "note": "Dependency cycle between slices: SERIALIZE in order.",
+   "proposal": {
+    "files_a": [
+     "tools/alpha.py"
+    ],
+    "files_b": [
+     "tools/beta.py"
+    ],
+    "shared_schema": false,
+    "dependent_output": true,
+    "orphan_process": false,
+    "unpushed": false,
+    "closed_unmerged": false,
+    "squash_merged": false,
+    "cloud_workspace": "present",
+    "report_present": true,
+    "classifier_ok": true,
+    "leases_distinct": true,
+    "open_pr": false,
+    "active_writer": false
+   },
+   "expected_rule": "dependent-output",
+   "expected_verdict": "SERIALIZE"
+  },
+  {
+   "id": "safe-parallelism.orphan.01",
+   "note": "Orphan writer process: REFUSE until reaped and reconciled.",
+   "proposal": {
+    "files_a": [
+     "tools/alpha.py"
+    ],
+    "files_b": [
+     "tools/beta.py"
+    ],
+    "shared_schema": false,
+    "dependent_output": false,
+    "orphan_process": true,
+    "unpushed": false,
+    "closed_unmerged": false,
+    "squash_merged": false,
+    "cloud_workspace": "present",
+    "report_present": true,
+    "classifier_ok": true,
+    "leases_distinct": true,
+    "open_pr": false,
+    "active_writer": false
+   },
+   "expected_rule": "orphan-process",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "safe-parallelism.unpushed.01",
+   "note": "Unpushed commits: REFUSE cleanup-affecting parallelism.",
+   "proposal": {
+    "files_a": [
+     "tools/alpha.py"
+    ],
+    "files_b": [
+     "tools/beta.py"
+    ],
+    "shared_schema": false,
+    "dependent_output": false,
+    "orphan_process": false,
+    "unpushed": true,
+    "closed_unmerged": false,
+    "squash_merged": false,
+    "cloud_workspace": "present",
+    "report_present": true,
+    "classifier_ok": true,
+    "leases_distinct": true,
+    "open_pr": false,
+    "active_writer": false
+   },
+   "expected_rule": "unpushed-work",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "safe-parallelism.closed.01",
+   "note": "Closed-but-unmerged branch: REFUSE until reconciled.",
+   "proposal": {
+    "files_a": [
+     "tools/alpha.py"
+    ],
+    "files_b": [
+     "tools/beta.py"
+    ],
+    "shared_schema": false,
+    "dependent_output": false,
+    "orphan_process": false,
+    "unpushed": false,
+    "closed_unmerged": true,
+    "squash_merged": false,
+    "cloud_workspace": "present",
+    "report_present": true,
+    "classifier_ok": true,
+    "leases_distinct": true,
+    "open_pr": false,
+    "active_writer": false
+   },
+   "expected_rule": "closed-unmerged",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "safe-parallelism.squash.01",
+   "note": "Squash-merged content recognized: SAFE cleanup may proceed.",
+   "proposal": {
+    "files_a": [
+     "tools/alpha.py"
+    ],
+    "files_b": [
+     "tools/beta.py"
+    ],
+    "shared_schema": false,
+    "dependent_output": false,
+    "orphan_process": false,
+    "unpushed": false,
+    "closed_unmerged": true,
+    "squash_merged": true,
+    "cloud_workspace": "present",
+    "report_present": true,
+    "classifier_ok": true,
+    "leases_distinct": true,
+    "open_pr": false,
+    "active_writer": false
+   },
+   "expected_rule": "squash-recognized",
+   "expected_verdict": "SAFE"
+  },
+  {
+   "id": "safe-parallelism.cloud.01",
+   "note": "Missing cloud workspace report: REFUSE until classified.",
+   "proposal": {
+    "files_a": [
+     "tools/alpha.py"
+    ],
+    "files_b": [
+     "tools/beta.py"
+    ],
+    "shared_schema": false,
+    "dependent_output": false,
+    "orphan_process": false,
+    "unpushed": false,
+    "closed_unmerged": false,
+    "squash_merged": false,
+    "cloud_workspace": "missing",
+    "report_present": true,
+    "classifier_ok": true,
+    "leases_distinct": true,
+    "open_pr": false,
+    "active_writer": false
+   },
+   "expected_rule": "cloud-workspace",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "safe-parallelism.report.01",
+   "note": "Missing subagent report: REFUSE until the report lands.",
+   "proposal": {
+    "files_a": [
+     "tools/alpha.py"
+    ],
+    "files_b": [
+     "tools/beta.py"
+    ],
+    "shared_schema": false,
+    "dependent_output": false,
+    "orphan_process": false,
+    "unpushed": false,
+    "closed_unmerged": false,
+    "squash_merged": false,
+    "cloud_workspace": "present",
+    "report_present": false,
+    "classifier_ok": true,
+    "leases_distinct": true,
+    "open_pr": false,
+    "active_writer": false
+   },
+   "expected_rule": "missing-report",
+   "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "safe-parallelism.classifier.01",
+   "note": "Throwing classifier: REFUSE because UNKNOWN is never SAFE.",
+   "proposal": {
+    "files_a": [
+     "tools/alpha.py"
+    ],
+    "files_b": [
+     "tools/beta.py"
+    ],
+    "shared_schema": false,
+    "dependent_output": false,
+    "orphan_process": false,
+    "unpushed": false,
+    "closed_unmerged": false,
+    "squash_merged": false,
+    "cloud_workspace": "present",
+    "report_present": true,
+    "classifier_ok": false,
+    "leases_distinct": true,
+    "open_pr": false,
+    "active_writer": false
+   },
+   "expected_rule": "classifier-failed",
+   "expected_verdict": "REFUSE"
+  }
+ ]
+}
