@@ -9469,5 +9469,277 @@ class ArcAGate(unittest.TestCase):
 
 
 
+class BuilderAuth(unittest.TestCase):
+    """Stage 35 (#126): Builder implementation authorization gate.
+
+    Arc A (Stage 34) decides whether one slice may advance toward
+    Builder authorization; this gate IS the authorization — the
+    irreversible seam between no-code Arc A and production
+    mutation. ``authorize`` denies until phase, role receipt,
+    exclusive lease, exact head, digests, paths, scope, context,
+    disposition, owner hold, and frozen-oracle policy are all
+    valid. Pure decision only: it never mutates, never writes,
+    never implements. Pure contract in tools/builder_auth.py plus
+    the frozen corpus under Canonical/corpus/builder-auth/."""
+
+    def _ba(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import builder_auth
+            return builder_auth
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "builder-auth" / "builder.json")
+            .read_text(encoding="utf-8"))
+
+    def _request(self, **overrides):
+        ba = self._ba()
+        request = ba.clean_request()
+        for key, value in overrides.items():
+            request[key] = value
+        return request
+
+    def _rules(self, result):
+        return sorted({f["rule"] for f in result.findings})
+
+    def test_clean_request_is_granted(self):
+        """Protects the Primary Outcome (positive control): a request
+        holding all twelve gates — IMPLEMENT_AUTHORIZED phase,
+        builder receipt at the exact head, exclusive current lease,
+        bound heads and digests, tools-only in-scope files, healthy
+        footprint, IMPLEMENT, no hold, binding freeze — is GRANTED
+        with zero findings, so a valid minimal implementation can
+        actually be authorized."""
+        ba = self._ba()
+        result = ba.authorize(ba.clean_request())
+        self.assertTrue(result.allowed)
+        self.assertTrue(result.granted)
+        self.assertEqual([], result.findings)
+
+    def test_early_phase_reopens_to_arc_a(self):
+        """Protects the phase axis: an Arc A phase below
+        IMPLEMENT_AUTHORIZED refuses with phase-not-authorized, so
+        the grant reopens to Arc A instead of proceeding."""
+        ba = self._ba()
+        result = ba.authorize(self._request(phase="CHECKPOINTED"))
+        self.assertFalse(result.granted)
+        self.assertEqual(["phase-not-authorized"],
+                         self._rules(result))
+
+    def test_non_builder_role_refused(self):
+        """Protects the role axis: a non-builder requesting role
+        refuses with role-not-builder, so only a builder receipt
+        authorizes production mutation."""
+        ba = self._ba()
+        result = ba.authorize(self._request(role="verifier"))
+        self.assertFalse(result.granted)
+        self.assertEqual(["role-not-builder"], self._rules(result))
+
+    def test_missing_or_stale_receipt_refused(self):
+        """Protects the receipt axis (missing qualification proof):
+        no receipt — or a receipt bound to an older head — refuses
+        with receipt-missing, so unqualified work never mutates."""
+        ba = self._ba()
+        result = ba.authorize(self._request(receipts=[]))
+        self.assertEqual(["receipt-missing"], self._rules(result))
+        stale = dict(self._request()["receipts"][0])
+        stale["head"] = "b" * 40
+        result = ba.authorize(self._request(receipts=[stale]))
+        self.assertEqual(["receipt-missing"], self._rules(result))
+
+    def test_second_writer_or_fenced_lease_refused(self):
+        """Protects the lease axis (one-writer rule): a lease held
+        by another builder, a shared lease, or a fenced (stale)
+        generation each refuse with lease-conflict, so a second
+        writer never mutates one slice."""
+        ba = self._ba()
+        base = self._request()
+        other = dict(base["lease"])
+        other["holder"] = "builder-2"
+        result = ba.authorize(self._request(lease=other))
+        self.assertEqual(["lease-conflict"], self._rules(result))
+        shared = dict(base["lease"])
+        shared["exclusive"] = False
+        result = ba.authorize(self._request(lease=shared))
+        self.assertEqual(["lease-conflict"], self._rules(result))
+        fenced = dict(base["lease"])
+        fenced["generation"] = 1
+        result = ba.authorize(self._request(lease=fenced))
+        self.assertEqual(["lease-conflict"], self._rules(result))
+
+    def test_stale_head_refused(self):
+        """Protects the exact-head axis: an observation binding an
+        older head refuses with head-stale, so the grant executes
+        only at the observed head."""
+        ba = self._ba()
+        result = ba.authorize(
+            self._request(observation_head="b" * 40))
+        self.assertEqual(["head-stale"], self._rules(result))
+
+    def test_altered_digest_refused(self):
+        """Protects the digest axis (altered expected value): a Mold
+        digest — or run digest — moved after qualification refuses
+        with digest-drift, so the defect reopens to Arc A."""
+        ba = self._ba()
+        result = ba.authorize(
+            self._request(mold_digest="d" * 40))
+        self.assertEqual(["digest-drift"], self._rules(result))
+        result = ba.authorize(
+            self._request(run_digest="z" * 40))
+        self.assertEqual(["digest-drift"], self._rules(result))
+
+    def test_protected_path_refused(self):
+        """Protects the Non-Goal (protected Mold): a grant touching
+        a protected path refuses with protected-path, so no Builder
+        alters a protected Mold even after authorization."""
+        ba = self._ba()
+        result = ba.authorize(self._request(
+            files=["tools/builder_auth.py",
+                   "src/protected-impl.py"]))
+        self.assertEqual(["protected-path"], self._rules(result))
+
+    def test_scope_expansion_refused(self):
+        """Protects the scope axis: a claim outside the authorized
+        scope refuses with scope-expansion, so the grant never
+        broadens after authorization."""
+        ba = self._ba()
+        result = ba.authorize(self._request(
+            scope={"claims": ["claim-other"]}))
+        self.assertEqual(["scope-expansion"], self._rules(result))
+
+    def test_context_overrun_refused(self):
+        """Protects the context axis: polluted history refuses with
+        context-overrun, so rotation precedes production mutation."""
+        ba = self._ba()
+        result = ba.authorize(
+            self._request(context_polluted=True))
+        self.assertEqual(["context-overrun"], self._rules(result))
+
+    def test_no_change_disposition_terminates_grant(self):
+        """Protects the termination axis: a NO_CHANGE disposition
+        refuses with disposition-blocked, so the verdict terminates
+        the grant exactly as it terminates Arc A advancement."""
+        ba = self._ba()
+        result = ba.authorize(
+            self._request(disposition="NO_CHANGE"))
+        self.assertEqual(["disposition-blocked"],
+                         self._rules(result))
+
+    def test_owner_hold_blocks_clean_grant(self):
+        """Protects the hold axis: an owner hold refuses with
+        owner-hold even when every other condition is valid, so
+        the grant waits for the owner."""
+        ba = self._ba()
+        result = ba.authorize(self._request(owner_hold=True))
+        self.assertEqual(["owner-hold"], self._rules(result))
+
+    def test_drifted_freeze_refused(self):
+        """Protects the frozen-oracle axis: freeze drift without
+        reopen-and-requalify refuses with frozen-policy, so stale
+        proof never authorizes mutation."""
+        ba = self._ba()
+        result = ba.authorize(self._request(frozen_ok=False))
+        self.assertEqual(["frozen-policy"], self._rules(result))
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 15 corpus entries
+        reproduce their expected rules and granted flags, covering
+        all 12 builder rules with unique well-formed IDs."""
+        ba = self._ba()
+        findings, entries = \
+            ba.validate_builder_corpus(self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(15, len(entries))
+        covered = {r for e in entries
+                   for r in e["expected_rules"]}
+        self.assertEqual(set(ba.RULES), covered)
+
+    def test_red_by_construction_no_rule_stub_passes(self):
+        """Sensitivity proof (RED): a no-rule stub that grants every
+        request reproduces 0/14 negative corpus fragments while the
+        real gate refuses all 14 — so the suite is green because
+        the gates exist, not because the fixtures cannot fail."""
+        ba = self._ba()
+        corpus = self._corpus_doc()
+        negatives = [entry for entry in corpus["entries"]
+                     if entry.get("expected_rules")]
+        self.assertEqual(14, len(negatives))
+        stub_hits = 0
+        for entry in negatives:
+            real = ba.authorize(entry["request"])
+            self.assertEqual(
+                sorted(entry["expected_rules"]),
+                sorted({f["rule"] for f in real.findings}),
+                entry["id"])
+            self.assertEqual(entry["expected_granted"],
+                             real.granted, entry["id"])
+            stub_hits += 0  # the no-rule stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_builder_auth_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: builder-auth validates
+        the real corpus (ok, 15 entries, 12 rules), decides a
+        --request file as JSON, exits 0 on refused requests, and
+        exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "builder-auth", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(15, payload["entries"])
+        self.assertEqual(12, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-request.json"
+            good_path.write_text(
+                json.dumps(self._ba().clean_request()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "builder-auth", "--request", str(good_path),
+                 "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertTrue(payload["granted"])
+            bad_path = Path(tmp) / "bad-request.json"
+            bad = self._ba().clean_request()
+            bad["receipts"] = []
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "builder-auth", "--request", str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "builder-auth", "--request", "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "builder-auth", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
+
 if __name__ == "__main__":
     unittest.main()
