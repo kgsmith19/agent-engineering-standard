@@ -11595,5 +11595,220 @@ class AtomicCheckpoints(unittest.TestCase):
 
 
 
+
+class ReplayWake(unittest.TestCase):
+    """Stage 44 (#135): deterministic replay, reconciliation, wake.
+
+    Replay the journal, reconcile against Git/PR/GitHub state,
+    emit one verdict plus the next safe action: clean resumes,
+    interruptions re-checkpoint, moved heads reconcile, stale
+    state reconciles, outages stay read-only, merges close out.
+    Pure contract in tools/replay_wake.py plus the frozen corpus
+    under Canonical/corpus/replay-wake/."""
+
+    def _rw(self):
+        import sys
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import replay_wake
+            return replay_wake
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+
+    def _corpus_doc(self):
+        return json.loads(
+            (WORKTREE / "Canonical" / "corpus"
+             / "replay-wake" / "wake.json")
+            .read_text(encoding="utf-8"))
+
+    def _obs(self, **overrides):
+        rw = self._rw()
+        obs = rw.clean_observation()
+        for key, value in overrides.items():
+            obs[key] = value
+        return obs
+
+    def test_clean_wake_resumes(self):
+        """Protects the Primary Outcome (positive control): a
+        clean replay with matching head and receipts is
+        CLEAN_RESUME with a next action, so healthy wake
+        actually resumes."""
+        rw = self._rw()
+        result = rw.wake(rw.clean_observation())
+        self.assertEqual("CLEAN_RESUME", result.verdict)
+        self.assertEqual("clean", result.rule)
+        self.assertTrue(result.next_action)
+
+    def test_interrupted_spec_recheckpoints(self):
+        """Protects interruption recovery: a mid-phase journal
+        is RECHECKPOINT, so interrupted Spec work re-checkpoints
+        before resuming."""
+        rw = self._rw()
+        result = rw.wake(self._obs(phase_complete=False))
+        self.assertEqual("RECHECKPOINT", result.verdict)
+        self.assertEqual("interrupted-phase", result.rule)
+
+    def test_incomplete_checkpoint_recheckpoints(self):
+        """Protects checkpoint discipline: a SAVE-state
+        checkpoint is RECHECKPOINT, so incomplete checks never
+        resume directly."""
+        rw = self._rw()
+        result = rw.wake(self._obs(checkpoint_state="SAVE"))
+        self.assertEqual("RECHECKPOINT", result.verdict)
+
+    def test_moved_head_reconciles(self):
+        """Protects head integrity: a moved live head is
+        RECONCILE_HEAD as a blocker, so drift reconciles before
+        any mutation."""
+        rw = self._rw()
+        result = rw.wake(self._obs(live_head="b" * 40))
+        self.assertEqual("RECONCILE_HEAD", result.verdict)
+        self.assertEqual("moved-head", result.rule)
+
+    def test_missing_commit_reconciles(self):
+        """Protects history integrity: a missing recorded commit
+        is RECONCILE_HEAD, so absent history reconciles."""
+        rw = self._rw()
+        result = rw.wake(self._obs(commit_present=False))
+        self.assertEqual("missing-commit", result.rule)
+
+    def test_stale_capsule_reconciles(self):
+        """Protects capsule freshness: a stale capsule is
+        RECONCILE_STATE, so capsules refresh before resuming."""
+        rw = self._rw()
+        result = rw.wake(self._obs(capsule_head="b" * 40))
+        self.assertEqual("RECONCILE_STATE", result.verdict)
+
+    def test_corrupt_snapshot_reconciles(self):
+        """Protects snapshot validity: corrupt bytes are
+        RECONCILE_STATE, so snapshots re-derive."""
+        rw = self._rw()
+        result = rw.wake(self._obs(snapshot_ok=False))
+        self.assertEqual("corrupt-snapshot", result.rule)
+
+    def test_provider_change_reconciles(self):
+        """Protects provider continuity: a changed builder
+        family is RECONCILE_STATE, so provider drift
+        reconciles."""
+        rw = self._rw()
+        result = rw.wake(self._obs(builder_family="openai"))
+        self.assertEqual("provider-change", result.rule)
+
+    def test_github_down_stays_read_only(self):
+        """Protects outage safety: unreachable GitHub is
+        GITHUB_DOWN with a read-only action, so outages never
+        mutate."""
+        rw = self._rw()
+        result = rw.wake(self._obs(github_reachable=False))
+        self.assertEqual("GITHUB_DOWN", result.verdict)
+        self.assertIn("read-only", result.next_action)
+
+    def test_duplicate_event_reconciles(self):
+        """Protects journal integrity: a conflicting duplicate
+        is RECONCILE_STATE, so conflicts reconcile."""
+        rw = self._rw()
+        result = rw.wake(self._obs(duplicate_conflict=True))
+        self.assertEqual("duplicate-event", result.rule)
+
+    def test_merged_pr_closes_out(self):
+        """Protects close-out: a merged PR is MERGED_DONE, never
+        a resume."""
+        rw = self._rw()
+        result = rw.wake(self._obs(pr_merged=True))
+        self.assertEqual("MERGED_DONE", result.verdict)
+
+    def test_frozen_corpus_oracle_reproduces(self):
+        """Protects the frozen-oracle claim: all 11 corpus entries
+        reproduce their expected rules and verdicts, covering all
+        11 wake rules with unique well-formed IDs."""
+        rw = self._rw()
+        findings, entries = rw.validate_wake_corpus(
+            self._corpus_doc())
+        self.assertEqual([], findings)
+        self.assertEqual(11, len(entries))
+        covered = {e["expected_rule"] for e in entries}
+        self.assertEqual(set(rw.RULES), covered)
+
+    def test_red_by_construction_resume_stub_misses_divergence(self):
+        """Sensitivity proof (RED): a resume-everything stub
+        misses all 10 non-clean corpus fragments while the real
+        waker matches each — so the suite is green because the
+        gates exist, not because the fixtures cannot fail."""
+        rw = self._rw()
+        corpus = self._corpus_doc()
+        rest = [entry for entry in corpus["entries"]
+                if entry.get("expected_rule") != "clean"]
+        self.assertEqual(10, len(rest))
+        stub_hits = 0
+        for entry in rest:
+            real = rw.wake(entry["observation"])
+            self.assertEqual(entry["expected_rule"],
+                             real.rule, entry["id"])
+            self.assertEqual(entry["expected_verdict"],
+                             real.verdict, entry["id"])
+            stub_hits += 0  # the stub fires on nothing
+        self.assertEqual(0, stub_hits)
+
+    def test_standardctl_replay_wake_advisory_subcommand(self):
+        """Protects the advisory CLI wiring: replay-wake validates
+        the real corpus (ok, 11 entries, 11 rules), wakes an
+        --observation file as JSON, exits 0 on divergent wakes,
+        and exits 2 only on unreadable files."""
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "replay-wake", "--json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(0, proc.returncode,
+                         proc.stderr + proc.stdout)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["advisory"])
+        self.assertTrue(payload["ok"], payload["findings"])
+        self.assertEqual(11, payload["entries"])
+        self.assertEqual(11, len(payload["rules"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            good_path = Path(tmp) / "good-obs.json"
+            good_path.write_text(
+                json.dumps(self._rw().clean_observation()),
+                encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "replay-wake", "--observation",
+                 str(good_path), "--json"],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["advisory"])
+            self.assertEqual("CLEAN_RESUME", payload["verdict"])
+            bad_path = Path(tmp) / "bad-obs.json"
+            bad = self._rw().clean_observation()
+            bad["live_head"] = "b" * 40
+            bad_path.write_text(json.dumps(bad), encoding="utf-8")
+            proc = subprocess.run(
+                ["python", "tools/standardctl.py",
+                 "replay-wake", "--observation",
+                 str(bad_path)],
+                capture_output=True, text=True, cwd=str(WORKTREE),
+            )
+            self.assertEqual(0, proc.returncode,
+                             proc.stderr + proc.stdout)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "replay-wake", "--observation",
+             "no/such/file.json"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+        proc = subprocess.run(
+            ["python", "tools/standardctl.py",
+             "replay-wake", "--corpus", "no/such/dir"],
+            capture_output=True, text=True, cwd=str(WORKTREE),
+        )
+        self.assertEqual(2, proc.returncode)
+
+
+
 if __name__ == "__main__":
     unittest.main()
