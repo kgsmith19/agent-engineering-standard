@@ -37,7 +37,7 @@ merge decision.
 | --- | --- |
 | Product purpose and quick start | `README.md` |
 | Agent and engineering rules | `AGENTS.md` |
-| Claude / Gemini compatibility | `CLAUDE.md` / `GEMINI.md` (import-only) |
+| Claude / Gemini compatibility | `GEMINI.md` (thin `@AGENTS.md` adapter; no root `CLAUDE.md` — Claude Code reads `AGENTS.md` natively) |
 | Repository facts and exact commands | `project.yaml` |
 | Release scope | GitHub Milestone |
 | Work intent and acceptance criteria | GitHub Issue |

@@ -188,9 +188,6 @@ mappings:
   - source: Canonical/schemas/INVENTORY.json
     dest: Canonical/schemas/INVENTORY.json
     mode: copy
-  - source: CLAUDE.md
-    dest: CLAUDE.md
-    mode: copy
   - source: GEMINI.md
     dest: GEMINI.md
     mode: copy

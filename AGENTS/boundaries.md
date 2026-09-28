@@ -161,9 +161,14 @@ render, and `check_template_pairs` byte-identity holds.
 
 ## Exception Adapters
 
-`CLAUDE.md` and `GEMINI.md` are **import-only exception adapters**:
-each contains only a heading plus the `@AGENTS.md` import pointer —
-no policy text, no code execution. They are preserved as-is. A new
+`GEMINI.md` is the sole **import-only exception adapter**: it
+contains only a heading plus the `@AGENTS.md` import pointer — no
+policy text, no code execution — and is retained solely because
+Antigravity/Gemini's native `AGENTS.md` read is unconfigured on the
+owner's harness (no `contextFileName`), so deleting it risks a
+harness silently losing instructions (Issue #268). There is no root
+`CLAUDE.md`: Claude Code >= 2.1.277 reads `AGENTS.md` natively, so
+the pointer is redundant and its reintroduction is forbidden. A new
 harness-specific exception is declared the same additive way: a
 documented adapter that points into the core, never a generalization
 of the exception into the core, never a weakening of the sole PR

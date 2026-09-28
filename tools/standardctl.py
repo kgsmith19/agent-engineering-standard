@@ -215,8 +215,12 @@ PINNED_ACTIONS = {
     "actions/upload-artifact": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
 }
 
+# Issue #268: AGENTS.md is the single canonical instruction file. No root
+# CLAUDE.md exists (Claude Code >= 2.1.277 reads AGENTS.md natively); only
+# GEMINI.md remains as the thin import-only adapter (native AGENTS.md read
+# unconfigured on the owner's harness). check_adapters enforces the adapter
+# contract below: CLAUDE.md forbidden, GEMINI.md exact.
 ADAPTERS = {
-    "CLAUDE.md": "# CLAUDE.md\n\n@AGENTS.md\n",
     "GEMINI.md": "# GEMINI.md\n\n@AGENTS.md\n",
 }
 
@@ -1318,8 +1322,19 @@ def check_harness_edition(model: RepoModel) -> List[Finding]:
 
 def check_adapters(model: RepoModel) -> List[Finding]:
     """Provider adapters must exist and contain exactly the import line;
-    any extra content is duplicated policy. Normalizes line endings to LF."""
+    any extra content is duplicated policy. Normalizes line endings to LF.
+    A root CLAUDE.md is forbidden (Issue #268): AGENTS.md is canonical."""
     findings: List[Finding] = []
+    if model.read_bytes("CLAUDE.md") is not None:
+        findings.append(
+            Finding(
+                "adapter-forbidden",
+                "error",
+                "CLAUDE.md",
+                "root CLAUDE.md must not exist: AGENTS.md is the single "
+                "canonical instruction file (Issue #268)",
+            )
+        )
     for name, expected in ADAPTERS.items():
         data = model.read_bytes(name)
         if data is None:

@@ -242,20 +242,31 @@ class StandardRepoRejections(FixtureCase):
         self.assertIn("issue-config-mismatch", check_ids(findings))
 
     def test_verify_rejects_missing_provider_adapter(self):
-        """Protects the presence of both provider adapters; catches an
+        """Protects the presence of the GEMINI.md adapter; catches an
         accidental deletion of GEMINI.md that would strand one provider
-        family without the policy import."""
+        family without the policy import (Issue #268: sole adapter)."""
         root = self.std_fixture()
         (root / "GEMINI.md").unlink()
         findings = standardctl.check_adapters(self.model(root))
         self.assertIn("adapter-missing", check_ids(findings))
 
+    def test_verify_rejects_reintroduced_claude_adapter(self):
+        """Protects Issue #268: a reintroduced root CLAUDE.md is rejected,
+        since AGENTS.md is the single canonical file Claude Code reads
+        natively. RED: fails with the file present."""
+        root = self.std_fixture()
+        (root / "CLAUDE.md").write_text(
+            "# CLAUDE.md\n\n@AGENTS.md\n", encoding="utf-8"
+        )
+        findings = standardctl.check_adapters(self.model(root))
+        self.assertIn("adapter-forbidden", check_ids(findings))
+
     def test_verify_rejects_policy_duplicated_into_adapter(self):
         """Protects the import-only adapter contract; catches policy text
-        pasted into CLAUDE.md, which would fork the single source of
+        pasted into GEMINI.md, which would fork the single source of
         truth in AGENTS.md."""
         root = self.std_fixture()
-        adapter = root / "CLAUDE.md"
+        adapter = root / "GEMINI.md"
         adapter.write_text(
             adapter.read_text(encoding="utf-8")
             + "\nAlways merge without review.\n",
@@ -6131,14 +6142,16 @@ class CoreGeneralization(FixtureCase):
             self.assertIn(fragment, text, fragment)
 
     def test_exception_adapters_section_preserves_import_only(self):
-        """Protects AC3: the Exception adapters section documents
-        CLAUDE.md/GEMINI.md as import-only and the adapters stay
-        import-only on disk (heading + @AGENTS.md pointer, no code
-        execution)."""
+        """Protects AC3 as amended by Issue #268: the Exception adapters
+        section documents GEMINI.md as the sole import-only adapter and
+        forbids a root CLAUDE.md; the adapter stays import-only on disk
+        (heading + @AGENTS.md pointer, no code execution)."""
         text = self._boundaries()
         self.assertIn("## Exception Adapters", text)
-        self.assertIn("import-only exception adapters", text)
-        for name in ("CLAUDE.md", "GEMINI.md"):
+        self.assertIn("import-only exception adapter", text)
+        self.assertNotIn("CLAUDE.md` and `GEMINI.md` are", text)
+        self.assertFalse((WORKTREE / "CLAUDE.md").exists())
+        for name in ("GEMINI.md",):
             content = (WORKTREE / name).read_text(
                 encoding="utf-8")
             self.assertIn("@AGENTS.md", content, name)

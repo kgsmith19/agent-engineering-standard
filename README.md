@@ -15,7 +15,7 @@ The standard turns agent work into small, verified, independently mergeable chan
 5. Native squash auto-merge executes the merge; the Merge Policy workflow keeps PR state honest without ever running PR code.
 6. A `VERIFY:` Issue proves each release before it is called done.
 
-The full rules live in [`AGENTS.md`](./AGENTS.md) — the single source of agent and engineering policy. `CLAUDE.md` and `GEMINI.md` are import-only pointers to it; repository facts and exact commands live in [`project.yaml`](./project.yaml).
+The full rules live in [`AGENTS.md`](./AGENTS.md) — the single source of agent and engineering policy. `GEMINI.md` is a thin import-only pointer to it (retained: the owner's Antigravity has no native `AGENTS.md` read configured); there is no `CLAUDE.md` (Claude Code reads `AGENTS.md` natively). Repository facts and exact commands live in [`project.yaml`](./project.yaml).
 
 ## 📚 Adoption by other repositories
 
