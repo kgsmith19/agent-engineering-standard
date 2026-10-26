@@ -13,6 +13,8 @@ and network allowlists, secret handles, owner-gated ops:
 
 - `foreign-read` / `foreign-write` — outside roots DENY.
 - `frozen-mold` / `direct-main` — regenerations and PRs only.
+- `execute-allowlist` — a sandboxed execute outside exec_allow
+  denies under its own rule, not the network rule.
 - `secret-mount` / `arbitrary-egress` — handles and
   allowlists only.
 - `focused-edit` / `test-command` — routine work ALLOWs.

@@ -67,6 +67,7 @@ RULES = (
     "path-expansion",
     "missing-capability",
     "registry-overload",
+    "route-overload",
     "malicious-task",
     "critical-demotion",
     "minimal-route",
@@ -286,9 +287,11 @@ def compile(task: Any,  # noqa: A001 - frozen Stage 52 name
 
     Resolves triggers (kind, path prefix, phase, risk) against
     the canonical index; critical rules keep at least ACK;
-    routes stay within ROUTE_MIN..ROUTE_MAX (low-risk minimal
-    tasks route few, high-risk cross-cutting tasks route more,
-    never the registry). Malicious task data, missing
+    a route above ROUTE_MAX keeps every routed rule and emits
+    route-overload (major): nothing is dropped to fit the bound.
+    Low-risk minimal tasks route few, high-risk cross-cutting
+    tasks route more, never the registry. Malicious task data,
+    missing
     capabilities, path over-expansion, and critical demotion
     refuse with findings. Pure function: no I/O, deterministic
     in its inputs.
@@ -355,6 +358,14 @@ def compile(task: Any,  # noqa: A001 - frozen Stage 52 name
             "route holds %d rules: the whole registry loaded "
             "accidentally; narrow the task" % len(route),
             tag, severity="blocker")])
+    if len(route) > ROUTE_MAX:
+        findings.append(_make_finding(
+            "route-overload",
+            "route holds %d rules: above ROUTE_MAX %d; every "
+            "routed rule is kept, so split the task or record "
+            "why it must stay this large" % (len(route),
+                                             ROUTE_MAX),
+            tag))
     if len(item["paths"]) > 20:
         findings.append(_make_finding(
             "path-expansion",
@@ -390,7 +401,7 @@ def validate_route_corpus(corpus: Any) -> Tuple[List[str],
     the corpus is a valid frozen oracle: frozen marker set,
     stable provenance, at least 11 entries, unique well-formed
     IDs, every entry's computed rules matching expected_rules
-    with route bounds and critical classes holding, and all 11
+    with route bounds and critical classes holding, and all
     route rules covered.
     """
     if isinstance(corpus, dict):
@@ -456,9 +467,12 @@ def validate_route_corpus(corpus: Any) -> Tuple[List[str],
                                                 len(result.route),
                                                 ROUTE_MIN,
                                                 ROUTE_MAX))
+            index_entries = _normalize_index(
+                custom if custom is not None
+                else default_index())
             for rid in result.route:
-                if rid in [e["id"] for e in _normalize_index(
-                        custom) if e["critical"]] \
+                if rid in [e["id"] for e in index_entries
+                           if e["critical"]] \
                         and result.classes.get(rid) == "AWARE":
                     findings.append("entry %s: critical rule %r "
                                     "at AWARE" % (cid, rid))
@@ -467,7 +481,7 @@ def validate_route_corpus(corpus: Any) -> Tuple[List[str],
             findings.append("entry %s: expected_route drifted" % cid)
     for rule in RULES:
         if rule not in covered:
-            findings.append("rule %r has no entries (all 11 "
+            findings.append("rule %r has no entries (all %d "
                             "route rules are required)"
-                            % rule)
+                            % (rule, len(RULES)))
     return findings, entries
