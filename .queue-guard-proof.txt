@@ -1,0 +1,1 @@
+Deliberately out-of-order PR: CI proof for #287 AC3. It closes an Issue on a later queue item, so the PR Gate's queue guard must refuse it. Never merged.
