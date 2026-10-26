@@ -13788,6 +13788,37 @@ class StandardsReceipt(unittest.TestCase):
             sat_passed=True))
         self.assertEqual("ISSUED", result.verdict)
 
+    def test_unrecognised_risk_quizzes_not_issues(self):
+        """Protects fail-closed risk: a risk label outside
+        R0/R1/empty (wrong case, trailing space, a word, an
+        unknown tier) is treated as high risk, so it QUIZZES
+        until SAT passes and never ISSUES as clean."""
+        sr = self._sr()
+        for risk in ("r3", "R2 ", "high", "R4"):
+            result = sr.issue(self._attempt(risk=risk))
+            self.assertEqual("QUIZ", result.verdict, risk)
+            self.assertEqual("r3-required", result.rule, risk)
+
+    def test_unrecognised_risk_issues_after_sat(self):
+        """Protects the SAT path for unrecognised risk: once SAT
+        passes, an unrecognised risk label issues with a digest,
+        so fail-closed never blocks a completed quiz."""
+        sr = self._sr()
+        for risk in ("r3", "R2 ", "high", "R4"):
+            result = sr.issue(self._attempt(
+                risk=risk, sat_passed=True))
+            self.assertEqual("ISSUED", result.verdict, risk)
+            self.assertTrue(result.digest, risk)
+
+    def test_low_risk_labels_still_skip_quiz(self):
+        """Protects the low-risk path: R0, R1 and an empty risk
+        label keep the no-quiz r0-no-quiz ISSUED path."""
+        sr = self._sr()
+        for risk in ("R0", "R1", ""):
+            result = sr.issue(self._attempt(risk=risk))
+            self.assertEqual("r0-no-quiz", result.rule, risk)
+            self.assertEqual("ISSUED", result.verdict, risk)
+
     def test_adapter_omission_refused(self):
         """Protects adapter honesty: a required-but-missing
         adapter refuses."""
@@ -13814,14 +13845,14 @@ class StandardsReceipt(unittest.TestCase):
         self.assertEqual("lower-trust", result.rule)
 
     def test_frozen_corpus_oracle_reproduces(self):
-        """Protects the frozen-oracle claim: all 12 corpus entries
+        """Protects the frozen-oracle claim: all 16 corpus entries
         reproduce their expected rules and verdicts, covering all
         12 receipt rules with unique well-formed IDs."""
         sr = self._sr()
         findings, entries = sr.validate_receipt_corpus(
             self._corpus_doc())
         self.assertEqual([], findings)
-        self.assertEqual(12, len(entries))
+        self.assertEqual(16, len(entries))
         covered = {e["expected_rule"] for e in entries}
         self.assertEqual(set(sr.RULES), covered)
 
@@ -13834,7 +13865,7 @@ class StandardsReceipt(unittest.TestCase):
         corpus = self._corpus_doc()
         quizzes = [entry for entry in corpus["entries"]
                    if entry.get("expected_verdict") == "QUIZ"]
-        self.assertEqual(1, len(quizzes))
+        self.assertEqual(5, len(quizzes))
         stub_hits = 0
         for entry in quizzes:
             real = sr.issue(entry["attempt"])
@@ -13847,7 +13878,7 @@ class StandardsReceipt(unittest.TestCase):
 
     def test_standardctl_standards_receipt_advisory_subcommand(self):
         """Protects the advisory CLI wiring: standards-receipt
-        validates the real corpus (ok, 12 entries, 12 rules),
+        validates the real corpus (ok, 16 entries, 12 rules),
         issues an --attempt file as JSON, exits 0 on refused
         attempts, and exits 2 only on unreadable files."""
         proc = subprocess.run(
@@ -13860,7 +13891,7 @@ class StandardsReceipt(unittest.TestCase):
         payload = json.loads(proc.stdout)
         self.assertTrue(payload["advisory"])
         self.assertTrue(payload["ok"], payload["findings"])
-        self.assertEqual(12, payload["entries"])
+        self.assertEqual(16, payload["entries"])
         self.assertEqual(12, len(payload["rules"]))
         with tempfile.TemporaryDirectory() as tmp:
             good_path = Path(tmp) / "good-attempt.json"

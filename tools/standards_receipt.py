@@ -7,7 +7,10 @@ route, receipt, and SAT hashes into Work State and evidence:
 R0/R1 work needs receipt plus capability/tests only (never a
 structured SAT quiz); new providers, R2/R3 work,
 privileged/policy/control-plane scope, and authority changes
-always require structured SAT. ``issue`` maps one receipt
+always require structured SAT. A risk label that is not R0,
+R1 or empty (wrong case, stray whitespace, a word, an unknown
+tier) is treated as high risk and fails closed into the SAT
+path. ``issue`` maps one receipt
 attempt to ISSUED / QUIZ / REFUSE; ``validate_receipt_corpus``
 checks the frozen oracle. Attempts are plain data; missing
 keys fall back to total defaults, never a crash.
@@ -240,8 +243,13 @@ def _decide(rule: str, message: str, tag: str,
 
 
 def _triggered(item: Dict[str, Any]) -> bool:
-    """True when structured SAT is required."""
-    if item["risk"] in ("R2", "R3"):
+    """True when structured SAT is required.
+
+    Every risk label other than R0, R1 and empty is high risk,
+    so an unrecognised spelling ('r3', 'R2 ', 'high', 'R4')
+    takes the SAT path and never issues as a clean receipt.
+    """
+    if item["risk"] not in ("R0", "R1", ""):
         return True
     return any(t in SAT_TRIGGERS for t in item["sat_triggers"])
 

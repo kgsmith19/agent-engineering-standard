@@ -471,6 +471,162 @@
    },
    "expected_rule": "lower-trust",
    "expected_verdict": "REFUSE"
+  },
+  {
+   "id": "standards-receipt.risk-case.01",
+   "note": "Unrecognised risk label lowercase 'r3': treated as high risk, so it QUIZZES until SAT passes instead of issuing clean.",
+   "expected_rule": "r3-required",
+   "expected_verdict": "QUIZ",
+   "attempt": {
+    "slice": "slice-1",
+    "risk": "r3",
+    "routed": [
+     "route-minimal",
+     "thin-outcome"
+    ],
+    "critical": [],
+    "acknowledged": [
+     "route-minimal",
+     "thin-outcome"
+    ],
+    "ack_text": "same",
+    "route_text": "same",
+    "spec_hash": "spec-1",
+    "routed_spec": "spec-1",
+    "paths": [
+     "tools/a.py"
+    ],
+    "routed_paths": [
+     "tools/a.py"
+    ],
+    "phase": "implement",
+    "routed_phase": "implement",
+    "standard_hash": "std-1",
+    "routed_standard": "std-1",
+    "sat_triggers": [],
+    "sat_passed": false,
+    "adapter_present": true,
+    "adapter_required": false,
+    "self_issued": false,
+    "instruction": "acknowledge the routed rules"
+   }
+  },
+  {
+   "id": "standards-receipt.risk-space.01",
+   "note": "Unrecognised risk label 'R2 ' with a trailing space: treated as high risk, so it QUIZZES until SAT passes instead of issuing clean.",
+   "expected_rule": "r3-required",
+   "expected_verdict": "QUIZ",
+   "attempt": {
+    "slice": "slice-1",
+    "risk": "R2 ",
+    "routed": [
+     "route-minimal",
+     "thin-outcome"
+    ],
+    "critical": [],
+    "acknowledged": [
+     "route-minimal",
+     "thin-outcome"
+    ],
+    "ack_text": "same",
+    "route_text": "same",
+    "spec_hash": "spec-1",
+    "routed_spec": "spec-1",
+    "paths": [
+     "tools/a.py"
+    ],
+    "routed_paths": [
+     "tools/a.py"
+    ],
+    "phase": "implement",
+    "routed_phase": "implement",
+    "standard_hash": "std-1",
+    "routed_standard": "std-1",
+    "sat_triggers": [],
+    "sat_passed": false,
+    "adapter_present": true,
+    "adapter_required": false,
+    "self_issued": false,
+    "instruction": "acknowledge the routed rules"
+   }
+  },
+  {
+   "id": "standards-receipt.risk-word.01",
+   "note": "Unrecognised risk label the word 'high': treated as high risk, so it QUIZZES until SAT passes instead of issuing clean.",
+   "expected_rule": "r3-required",
+   "expected_verdict": "QUIZ",
+   "attempt": {
+    "slice": "slice-1",
+    "risk": "high",
+    "routed": [
+     "route-minimal",
+     "thin-outcome"
+    ],
+    "critical": [],
+    "acknowledged": [
+     "route-minimal",
+     "thin-outcome"
+    ],
+    "ack_text": "same",
+    "route_text": "same",
+    "spec_hash": "spec-1",
+    "routed_spec": "spec-1",
+    "paths": [
+     "tools/a.py"
+    ],
+    "routed_paths": [
+     "tools/a.py"
+    ],
+    "phase": "implement",
+    "routed_phase": "implement",
+    "standard_hash": "std-1",
+    "routed_standard": "std-1",
+    "sat_triggers": [],
+    "sat_passed": false,
+    "adapter_present": true,
+    "adapter_required": false,
+    "self_issued": false,
+    "instruction": "acknowledge the routed rules"
+   }
+  },
+  {
+   "id": "standards-receipt.risk-unknown.01",
+   "note": "Unrecognised risk label unknown tier 'R4': treated as high risk, so it QUIZZES until SAT passes instead of issuing clean.",
+   "expected_rule": "r3-required",
+   "expected_verdict": "QUIZ",
+   "attempt": {
+    "slice": "slice-1",
+    "risk": "R4",
+    "routed": [
+     "route-minimal",
+     "thin-outcome"
+    ],
+    "critical": [],
+    "acknowledged": [
+     "route-minimal",
+     "thin-outcome"
+    ],
+    "ack_text": "same",
+    "route_text": "same",
+    "spec_hash": "spec-1",
+    "routed_spec": "spec-1",
+    "paths": [
+     "tools/a.py"
+    ],
+    "routed_paths": [
+     "tools/a.py"
+    ],
+    "phase": "implement",
+    "routed_phase": "implement",
+    "standard_hash": "std-1",
+    "routed_standard": "std-1",
+    "sat_triggers": [],
+    "sat_passed": false,
+    "adapter_present": true,
+    "adapter_required": false,
+    "self_issued": false,
+    "instruction": "acknowledge the routed rules"
+   }
   }
  ]
 }
