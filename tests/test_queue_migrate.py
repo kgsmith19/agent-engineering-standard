@@ -110,6 +110,34 @@ class OpMigrateTests(unittest.TestCase):
         self.assertIn("Q02", str(ctx.exception))
 
 
+    def test_text_that_would_change_or_overflow_refused(self):
+        """Lossless: whitespace that v2 would strip, or more refs than v2 holds, is refused."""
+        v1 = v1_state()
+        v1["items"][1]["title"] = "owner gated "
+        with self.assertRaises(core.QueueError):
+            core.op_migrate(v1, "kgsmith19")
+        v1 = v1_state()
+        v1["items"][1]["refs"] = ["o/r#%d" % n for n in range(core.LIMITS["refs"] + 1)]
+        with self.assertRaises(core.QueueError):
+            core.op_migrate(v1, "kgsmith19")
+
+    def test_reconstruction_needs_exactly_one_migrate_event(self):
+        """No migrate event, or two of them, makes the v1 origin ambiguous; fail closed."""
+        state, events = core.seal(*core.op_migrate(v1_state(), "kgsmith19"), CTX)
+        with self.assertRaises(core.HistoryError):
+            core.v1_from_history([e for e in events if e["op"] != "migrate"])
+        with self.assertRaises(core.HistoryError):
+            core.v1_from_history(events + events[:1])
+
+    def test_history_of_a_different_v1_detected(self):
+        """A history that reconstructs another v1 (e.g. a done item's evidence differs) is a loss."""
+        state, events = core.seal(*core.op_migrate(v1_state(), "kgsmith19"), CTX)
+        other = v1_state()
+        other["items"][0]["note"] = "different evidence"
+        with self.assertRaises(core.FormatError):
+            core.check_migration(other, state, events)
+
+
 class MigrateIssueTests(unittest.TestCase):
     """AC1-AC3 through the github-issue adapter."""
 
@@ -158,9 +186,37 @@ class MigrateIssueTests(unittest.TestCase):
         github = github_v1()
         migrate(github)
         body = github.body
-        with self.assertRaises(core.QueueError):
+        with self.assertRaisesRegex(core.QueueError, "already holds a v2 queue"):
             migrate(github)
         self.assertEqual(github.body, body)
+
+    def test_lossy_mapping_caught_before_writing(self):
+        """Defense in depth: even a faulty mapping is caught by the loss check before any write."""
+        github = github_v1()
+        original = core.op_migrate
+
+        def lossy(v1, owner):
+            state, events = original(v1, owner)
+            state["items"].pop()
+            return state, events
+
+        core.op_migrate = lossy
+        try:
+            with self.assertRaises(core.FormatError):
+                migrate(github)
+        finally:
+            core.op_migrate = original
+        self.assertEqual(github.writes(), [])
+
+    def test_over_limit_migration_refused_before_writing(self):
+        """AC2: a migrated body over the backend limit is refused with nothing written."""
+        github = github_v1()
+        adapter = store.GitHubIssueAdapter("o/r", 7, http=github)
+        adapter.body_limit = 100
+        with self.assertRaises(core.BudgetError):
+            store.migrate_issue(adapter, cli.parse, "kgsmith19", CTX,
+                                handoff_marker=HANDOFF_MARKER)
+        self.assertEqual(github.writes(), [])
 
     def test_refuses_on_concurrent_change(self):
         """AC2: compare-and-swap: a v1 write landing during migration aborts it."""
@@ -222,7 +278,7 @@ class MigrateCliTests(unittest.TestCase):
     def test_dry_run_prints_plan_and_writes_nothing(self):
         """AC1: the dry run prints every item's disposition, the v2 state and the handoff."""
         github = github_v1()
-        code, out, _ = self._run(github, "--dry-run")
+        code, out, _ = self._run(github, "--dry-run", "--owner", "kgsmith19")
         self.assertEqual(code, 0)
         self.assertEqual(github.writes(), [])
         for line in ("Q01 done -> archived", "Q02 blocked -> live #1",

@@ -38,6 +38,10 @@ import queue_core as core
 
 EVENTS_MARKER = "<!-- agent-engineering-standard:queue:v2:events -->"
 V1_MARKER = "<!-- agent-engineering-standard:queue:v1 -->"
+SUPERSEDED_BANNER = (
+    "> ⚠️ **Superseded by queue v2 (#285).** The live handoff is "
+    "`python3 tools/work_queue.py handoff show`, stored in the queue history. "
+    "This comment is frozen as of the migration; do not edit it.\n\n")
 EXPORT_FORMAT = "aes-work-queue-export"
 # GitHub caps an Issue body and a comment at 65,536 characters.
 BODY_LIMIT = 60000
@@ -234,9 +238,13 @@ class GitHubIssueAdapter:
     def _body(self):
         return self.http("GET", self._path).get("body") or ""
 
-    def load(self):
+    def raw(self):
+        """The Issue body and its compare-and-swap token, whatever it holds."""
         body = self._body()
-        token = hashlib.sha256(body.encode("utf-8")).hexdigest()
+        return body, hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+    def load(self):
+        body, token = self.raw()
         if core.MARKER in body:
             return core.parse_block(body), token
         if V1_MARKER in body:
@@ -294,24 +302,34 @@ class GitHubIssueAdapter:
         for body in self._comments(events):
             self.http("POST", self._path + "/comments", {"body": body})
 
-    def events(self):
+    def comments(self):
+        """Every comment on the Issue, oldest first, across all pages."""
         found, page = [], 1
         while True:
             batch = self.http("GET", "%s/comments?per_page=100&page=%d"
                               % (self._path, page))
-            for comment in batch:
-                match = _EVENTS_BLOCK.search(comment.get("body") or "")
-                if not match:
-                    continue
-                try:
-                    parsed = json.loads(match.group(1))
-                except ValueError:
-                    continue
-                if isinstance(parsed, list):
-                    found.extend(e for e in parsed if isinstance(e, dict))
+            found.extend(batch)
             if len(batch) < 100:
                 return found
             page += 1
+
+    def patch_comment(self, comment_id, body):
+        self.http("PATCH", "/repos/%s/issues/comments/%d" % (self.repo, comment_id),
+                  {"body": body})
+
+    def events(self):
+        found = []
+        for comment in self.comments():
+            match = _EVENTS_BLOCK.search(comment.get("body") or "")
+            if not match:
+                continue
+            try:
+                parsed = json.loads(match.group(1))
+            except ValueError:
+                continue
+            if isinstance(parsed, list):
+                found.extend(e for e in parsed if isinstance(e, dict))
+        return found
 
 
 # --------------------------------------------------------------------------
@@ -367,3 +385,49 @@ def import_bundle(adapter, bundle):
     adapter.append(events)
     adapter.save(state, token)
     return state
+
+
+def migrate_issue(adapter, v1_parse, owner, ctx, dry_run=False,
+                  handoff_marker=None):
+    """Migrate the v1 queue in a github-issue backend to v2, losslessly.
+
+    ``v1_parse`` reads the v1 body (the v1 code owns that format). The plan
+    (v2 state, sealed events, handoff) is built and checked by
+    ``check_migration`` first; a dry run returns it without writing. The
+    handoff is the single comment carrying ``handoff_marker`` written by
+    ``owner``; it is kept, prefixed with ``SUPERSEDED_BANNER``.
+    """
+    body, token = adapter.raw()
+    if core.MARKER in body:
+        raise core.QueueError("Issue #%d already holds a v2 queue; migrate "
+                              "refused" % adapter.issue)
+    try:
+        v1 = v1_parse(body)
+    except Exception as exc:
+        raise core.FormatError("the v1 queue cannot be read: %s" % exc)
+    state, events = core.seal(*core.op_migrate(v1, owner), ctx)
+    comment = None
+    if handoff_marker:
+        candidates = [c for c in adapter.comments()
+                      if handoff_marker in (c.get("body") or "")
+                      and (c.get("user") or {}).get("login") == owner]
+        if len(candidates) > 1:
+            raise core.QueueError(
+                "%d handoff comments by %s carry %s; keep one and re-run"
+                % (len(candidates), owner, handoff_marker))
+        if candidates:
+            comment = candidates[0]
+            state, sealed = core.seal(*core.op_handoff(state, comment["body"]), ctx)
+            events += sealed
+    core.check_migration(v1, state, events)
+    plan = {"v1": v1, "state": state, "events": events,
+            "handoff_text": comment["body"] if comment else None,
+            "handoff_comment": comment["id"] if comment else None}
+    if dry_run:
+        return plan
+    adapter.check(state, events)
+    adapter.append(events)
+    adapter.save(state, token)
+    if comment:
+        adapter.patch_comment(comment["id"], SUPERSEDED_BANNER + comment["body"])
+    return plan
