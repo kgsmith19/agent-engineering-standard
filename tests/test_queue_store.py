@@ -36,6 +36,7 @@ class FakeGitHub:
         self.suffix = suffix
         self.comments = []
         self.authors = {}
+        self.timeline = {}
         self.calls = []
         self.on_patch = None
 
@@ -56,6 +57,12 @@ class FakeGitHub:
             return [{"id": n, "body": b,
                      "user": {"login": self.authors.get(n, "kgsmith19")}}
                     for n, b in self.comments[(page - 1) * 100:page * 100]]
+        match = re.fullmatch(r"/repos/[^/]+/[^/]+/issues/(\d+)/timeline\?per_page=100&page=(\d+)",
+                             path)
+        if match and method == "GET":
+            events = self.timeline.get(int(match.group(1)), [])
+            page = int(match.group(2))
+            return events[(page - 1) * 100:page * 100]
         match = re.fullmatch(r"/repos/o/r/issues/comments/(\d+)", path)
         if match and method == "PATCH":
             number = int(match.group(1))
