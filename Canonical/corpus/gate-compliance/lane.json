@@ -199,6 +199,72 @@
    },
    "expected_rule": "head-moved",
    "expected_verdict": "FAIL"
+  },
+  {
+   "id": "gate-compliance.compact-lane.01",
+   "note": "Compact R1 work with an absent lane: FAIL lane-skipped, so compact PASS never hides a missing lane.",
+   "expected_rule": "lane-skipped",
+   "expected_verdict": "FAIL",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "tests_green": true,
+    "receipt_present": true,
+    "route_fresh": true,
+    "adapter_healthy": true,
+    "mold_authorized": true,
+    "policy_pr": false,
+    "self_certified": false,
+    "risk": "R1",
+    "receipt_valid": true,
+    "lane_present": false,
+    "evidence_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   }
+  },
+  {
+   "id": "gate-compliance.compact-head.01",
+   "note": "Compact R0 work with a moved head: FAIL head-moved, so compact PASS never hides a stale head.",
+   "expected_rule": "head-moved",
+   "expected_verdict": "FAIL",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "tests_green": true,
+    "receipt_present": true,
+    "route_fresh": true,
+    "adapter_healthy": true,
+    "mold_authorized": true,
+    "policy_pr": false,
+    "self_certified": false,
+    "risk": "R0",
+    "receipt_valid": true,
+    "lane_present": true,
+    "evidence_head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   }
+  },
+  {
+   "id": "gate-compliance.compact-risk.01",
+   "note": "Risk absent and lane absent: FAIL lane-skipped. A missing risk is not low risk.",
+   "expected_rule": "lane-skipped",
+   "expected_verdict": "FAIL",
+   "observation": {
+    "pr": "PR-1",
+    "profile": "simple",
+    "tests_green": true,
+    "receipt_present": true,
+    "route_fresh": true,
+    "adapter_healthy": true,
+    "mold_authorized": true,
+    "policy_pr": false,
+    "self_certified": false,
+    "risk": "",
+    "receipt_valid": true,
+    "lane_present": false,
+    "evidence_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   }
   }
  ]
 }

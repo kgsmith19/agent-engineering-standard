@@ -6637,7 +6637,7 @@ class TrackerPipelineGate(FixtureCase):
             any("docs-only" in v for v in violations), violations)
 
     def test_frozen_corpus_oracle_reproduces(self):
-        """Protects the frozen-oracle claim: all 13 corpus entries
+        """Protects the frozen-oracle claim: all 14 corpus entries
         reproduce their expected violation fragments across all six
         contract surfaces (tracker, gate, render, review, policy,
         azure)."""
@@ -6645,7 +6645,7 @@ class TrackerPipelineGate(FixtureCase):
         findings, entries = \
             tpg.validate_rendering_corpus(self._corpus_doc())
         self.assertEqual([], findings)
-        self.assertEqual(13, len(entries))
+        self.assertEqual(14, len(entries))
 
     def test_verify_merge_policy_shell_canary(self):
         """Protects AC5 end-to-end: a shell run: step appended to
@@ -6733,7 +6733,7 @@ class TrackerPipelineGate(FixtureCase):
         corpus = self._corpus_doc()
         negatives = [entry for entry in corpus["entries"]
                      if entry.get("expected_violation_fragment")]
-        self.assertEqual(11, len(negatives))
+        self.assertEqual(12, len(negatives))
         stub_hits = 0
         checkers = {
             "tracker": tpg.check_tracker_claim,
@@ -6751,6 +6751,21 @@ class TrackerPipelineGate(FixtureCase):
             stub_hits += 0  # the no-rule stub fires on nothing
         self.assertEqual(0, stub_hits)
 
+    def test_gate_aggregation_requires_tested_and_head_sha(self):
+        """Protects exact-head proof: a gate record missing either
+        tested_sha or head_sha reports an unproven exact head, so
+        the gate never passes on an unverified head."""
+        mod = self._tpg()
+        A = "a" * 40
+        full = {"jobs": {"build": "success"}, "summary": True,
+                "tested_sha": A, "head_sha": A}
+        for missing in ("tested_sha", "head_sha"):
+            record = dict(full)
+            del record[missing]
+            violations = mod.check_gate_aggregation(record)
+            self.assertTrue(any("exact head unproven" in v
+                                for v in violations), missing)
+        self.assertEqual([], mod.check_gate_aggregation(full))
 
 class OwnershipMap(FixtureCase):
     """T12 (#208): ownership map with read/edit/impact scopes per
@@ -8932,7 +8947,7 @@ class CompletionReceipts(FixtureCase):
             self.assertNotIn(marker, text, marker)
 
     def test_frozen_corpus_oracle_reproduces(self):
-        """Protects the frozen-oracle claim: all 16 corpus entries
+        """Protects the frozen-oracle claim: all 19 corpus entries
         reproduce their expected violation fragments across all
         seven receipt surfaces (merged, cleaned, exclusion,
         parent, duplicate, race, tracker)."""
@@ -8940,7 +8955,7 @@ class CompletionReceipts(FixtureCase):
         findings, entries = \
             cr.validate_receipt_corpus(self._corpus_doc())
         self.assertEqual([], findings)
-        self.assertEqual(16, len(entries))
+        self.assertEqual(19, len(entries))
 
     def test_red_by_construction_no_rule_stub_passes(self):
         """Sensitivity proof (RED): a no-rule stub that closes
@@ -8952,7 +8967,7 @@ class CompletionReceipts(FixtureCase):
         corpus = self._corpus_doc()
         negatives = [entry for entry in corpus["entries"]
                      if entry.get("expected_violation_fragment")]
-        self.assertEqual(8, len(negatives))
+        self.assertEqual(10, len(negatives))
         stub_hits = 0
         for entry in negatives:
             target = entry["target"]
@@ -8979,6 +8994,23 @@ class CompletionReceipts(FixtureCase):
             stub_hits += 0  # the no-rule stub fires on nothing
         self.assertEqual(0, stub_hits)
 
+    def test_merged_requires_merged_state(self):
+        """Protects remote merge truth: a closed, unmerged PR with
+        a test-merge commit is refused as MERGED, and merged_at with
+        a merge commit is accepted."""
+        cr = self._cr()
+        self.assertTrue(cr.check_merged_receipt(
+            {"pr_state": "closed", "merge_commit": "abc"}))
+        self.assertEqual([], cr.check_merged_receipt(
+            {"pr_state": "", "merged_at": "2026-10-26T00:00:00Z",
+             "merge_commit": "abc"}))
+
+    def test_not_planned_close_is_excluded(self):
+        """Protects exclusion: GitHub's not_planned close reason is
+        excluded, never counted delivered."""
+        cr = self._cr()
+        self.assertTrue(cr.check_exclusion(
+            {"close_reason": "not_planned", "counted_delivered": True}))
 
 class LifecycleBenchmark(FixtureCase):
     """T23 (#217): full parallel lifecycle benchmark (unit
@@ -14776,14 +14808,14 @@ class GateCompliance(unittest.TestCase):
         self.assertEqual("head-moved", result.rule)
 
     def test_frozen_corpus_oracle_reproduces(self):
-        """Protects the frozen-oracle claim: all 9 corpus entries
+        """Protects the frozen-oracle claim: all 12 corpus entries
         reproduce their expected rules and verdicts, covering all
         8 lane rules with unique well-formed IDs."""
         gc = self._gc()
         findings, entries = gc.validate_lane_corpus(
             self._corpus_doc())
         self.assertEqual([], findings)
-        self.assertEqual(9, len(entries))
+        self.assertEqual(12, len(entries))
         covered = {e["expected_rule"] for e in entries}
         self.assertEqual(set(gc.RULES), covered)
 
@@ -14796,7 +14828,7 @@ class GateCompliance(unittest.TestCase):
         corpus = self._corpus_doc()
         fails = [entry for entry in corpus["entries"]
                  if entry.get("expected_verdict") == "FAIL"]
-        self.assertEqual(7, len(fails))
+        self.assertEqual(10, len(fails))
         stub_hits = 0
         for entry in fails:
             real = gc.evaluate(entry["observation"])
@@ -14809,7 +14841,7 @@ class GateCompliance(unittest.TestCase):
 
     def test_standardctl_gate_compliance_advisory_subcommand(self):
         """Protects the advisory CLI wiring: gate-compliance
-        validates the real corpus (ok, 9 entries, 8 rules),
+        validates the real corpus (ok, 12 entries, 8 rules),
         evaluates an --observation file as JSON, exits 0 on
         failed lanes, and exits 2 only on unreadable files."""
         proc = subprocess.run(
@@ -14822,7 +14854,7 @@ class GateCompliance(unittest.TestCase):
         payload = json.loads(proc.stdout)
         self.assertTrue(payload["advisory"])
         self.assertTrue(payload["ok"], payload["findings"])
-        self.assertEqual(9, payload["entries"])
+        self.assertEqual(12, payload["entries"])
         self.assertEqual(8, len(payload["rules"]))
         with tempfile.TemporaryDirectory() as tmp:
             good_path = Path(tmp) / "good-obs.json"
@@ -14867,8 +14899,13 @@ class GateCompliance(unittest.TestCase):
         )
         self.assertEqual(2, proc.returncode)
 
-
-
+    def test_compact_lane_absent_is_not_a_pass(self):
+        """Protects lane presence: compact R1 work with an absent
+        lane fails lane-skipped, so the lane never silently absents."""
+        gc = self._gc()
+        decision = gc.evaluate(self._obs(risk="R1", lane_present=False))
+        self.assertEqual("FAIL", decision.verdict)
+        self.assertEqual("lane-skipped", decision.rule)
 
 class RecoveryLoop(unittest.TestCase):
     """Stage 58 (#149): the operational recovery loop and systematic

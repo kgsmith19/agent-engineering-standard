@@ -31,9 +31,10 @@ RECEIPT_STATES = (
 def check_merged_receipt(receipt: Any) -> List[str]:
     """Return violations for a non-remote MERGED receipt.
 
-    MERGED records only on remote merge truth (PR state + merge
-    commit via API); a local-only or squash-aware-local receipt
-    never produces MERGED.
+    MERGED records only on remote merge truth: the PR state is
+    merged (or merged_at is set) and a merge commit is present. A
+    closed, unmerged PR with a test-merge commit is refused, and so
+    is a local-only or squash-aware-local receipt.
     """
     violations: List[str] = []
     if not isinstance(receipt, dict):
@@ -42,9 +43,12 @@ def check_merged_receipt(receipt: Any) -> List[str]:
         return ["MERGED from local-only evidence refused: "
                 "remote merge truth (PR state + merge commit via "
                 "API) only"]
-    if not receipt.get("pr_state") or not receipt.get("merge_commit"):
+    merged = str(receipt.get("pr_state", "") or "").lower() == "merged" \
+        or bool(receipt.get("merged_at"))
+    if not merged or not receipt.get("merge_commit"):
         violations.append(
-            "MERGED needs PR state + merge commit via API")
+            "MERGED needs a merged PR state (or merged_at) + merge "
+            "commit via API")
     return violations
 
 
@@ -92,7 +96,8 @@ def check_exclusion(item: Any) -> List[str]:
             violations.append(
                 "excluded item counted delivered: excluded is "
                 "never delivered")
-    if item.get("close_reason") in ("duplicate", "not-planned"):
+    reason = str(item.get("close_reason", "") or "").replace("_", "-")
+    if reason in ("duplicate", "not-planned"):
         if item.get("counted_delivered"):
             violations.append(
                 "%s closes are excluded, never delivered"
