@@ -213,8 +213,9 @@ class GitHubIssueAdapter:
     """State rendered in an Issue body; events in marked Issue comments.
 
     GitHub offers no conditional PATCH, so ``save`` re-reads the body and
-    compares its sha256 immediately before the PATCH, then reads it back
-    and raises ``ConflictError`` if another writer landed in between.
+    compares its sha256 immediately before the PATCH, then reads the state
+    block back and raises ``ConflictError`` if another writer's state
+    landed in between.
     Comments are trusted only through the hash chain from the committed
     head, so anyone's comment is harmless.
     """
@@ -277,9 +278,14 @@ class GitHubIssueAdapter:
         if hashlib.sha256(current.encode("utf-8")).hexdigest() != token:
             raise ConflictError("Issue #%d changed since it was read; nothing "
                                 "written, re-run" % self.issue)
-        body = core.render_markdown(state)
-        self.http("PATCH", self._path, {"body": body})
-        if self._body() != body:
+        self.http("PATCH", self._path, {"body": core.render_markdown(state)})
+        # Compare the state block, not bytes: a harness proxy may decorate
+        # the body (an attribution footer), which is not another writer.
+        try:
+            landed = core.parse_block(self._body())
+        except core.FormatError:
+            landed = None
+        if landed != state:
             raise ConflictError("Issue #%d was written by another session "
                                 "during this write; re-read it with show and "
                                 "re-run" % self.issue)
