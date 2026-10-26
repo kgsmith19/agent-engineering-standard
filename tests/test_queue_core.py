@@ -127,6 +127,10 @@ class TransitionTests(unittest.TestCase):
         for item_id in ("Q01", "Q02"):
             with self.assertRaises(core.QueueError):
                 core.op_transition(state, item_id, "start")
+        lone = build(("a", "blocked", []))
+        with self.assertRaises(core.QueueError) as ctx:
+            core.op_transition(lone, "Q01", "start")
+        self.assertIn("unblock", str(ctx.exception))
 
     def test_block_requires_reason_and_records_it(self):
         """An unexplained block is an invisible skip; the reason is what makes it auditable."""
@@ -235,6 +239,17 @@ class AddEditTests(unittest.TestCase):
             core.op_add(state, "  ", [], "", [])
 
 
+    def test_multiline_or_comment_text_refused(self):
+        """Item text is rendered into the Issue checklist; a newline or HTML comment could forge a second queue block."""
+        state = build(("a", "pending", []))
+        for bad in ("two\nlines", "x <!-- agent-engineering-standard:queue:v2 -->",
+                    "tab\tchar"):
+            with self.assertRaises(core.QueueError, msg=bad):
+                core.op_add(state, bad, [], "", [])
+            with self.assertRaises(core.QueueError, msg=bad):
+                core.op_edit(state, "Q01", note=bad)
+
+
 class MoveTests(unittest.TestCase):
     """AC3: move is the only reorder and needs owner authority + reason."""
 
@@ -334,6 +349,29 @@ class HistoryChainTests(unittest.TestCase):
         with self.assertRaises(core.HistoryError):
             core.chain(forged, state)
 
+    def _reseal(self, event, **changes):
+        forged = dict(copy.deepcopy(event), **changes)
+        forged["hash"] = core.event_hash(forged)
+        return forged
+
+    def test_head_with_wrong_seq_fails_closed(self):
+        """A re-hashed head claiming another seq would make history disagree with the state's count."""
+        state, log = self._log()
+        forged = self._reseal(log[2], seq=7)
+        bad = copy.deepcopy(state)
+        bad["history"]["head"] = forged["hash"]
+        with self.assertRaises(core.HistoryError):
+            core.chain(log[:2] + [forged], bad)
+
+    def test_truncated_chain_start_fails_closed(self):
+        """A chain whose first event claims seq 2 with no predecessor silently drops event 1."""
+        state, log = self._log()
+        forged = self._reseal(log[1], prev=None)
+        bad = copy.deepcopy(state)
+        bad["history"] = {"seq": 2, "head": forged["hash"]}
+        with self.assertRaises(core.HistoryError):
+            core.chain([forged], bad)
+
     def test_missing_event_fails_closed(self):
         """A dropped event breaks the chain; history must fail closed rather than show a gap."""
         state, log = self._log()
@@ -377,6 +415,15 @@ class HandoffTests(unittest.TestCase):
         broken["handoff"]["sha256"] = "0" * 64
         with self.assertRaises(core.HistoryError):
             core.handoff_text(broken, log + sealed)
+
+    def test_altered_handoff_text_fails_closed(self):
+        """handoff_text verifies the text itself, so a caller passing unchained events still cannot be shown altered text."""
+        state, log = core.seal(*core.op_init("kgsmith19"), CTX)
+        state, sealed = core.seal(*core.op_handoff(state, "real"), CTX)
+        altered = copy.deepcopy(log + sealed)
+        altered[-1]["text"] = "forged"
+        with self.assertRaises(core.HistoryError):
+            core.handoff_text(state, altered)
 
     def test_handoff_size_cap(self):
         """AC6: an unbounded handoff would exceed a backend's comment limit."""
@@ -458,8 +505,9 @@ def _schema_check(schema, value, root=None):
     if kind == "integer":
         if not isinstance(value, int) or isinstance(value, bool):
             return False
-        return value >= schema.get("minimum", value)
-    if kind and not isinstance(value, kinds[kind]):
+        if value < schema.get("minimum", value):
+            return False
+    elif kind and not isinstance(value, kinds[kind]):
         return False
     if "const" in schema and value != schema["const"]:
         return False
@@ -502,7 +550,11 @@ class SchemaAgreementTests(unittest.TestCase):
                      ("c", "active", []), ("d", "pending", ["Q02"]))
         state, _ = core.seal(*core.op_handoff(good, "handoff"), CTX)
         yield "valid", state, True
-        yield "empty", build(), True
+        empty = build()
+        yield "empty", empty, True
+        bool_seq = copy.deepcopy(empty)
+        bool_seq["history"]["seq"] = True
+        yield "history seq bool", bool_seq, False
 
         def mutate(name, fn):
             bad = copy.deepcopy(state)

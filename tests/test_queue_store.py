@@ -140,6 +140,19 @@ class ContractMixin:
         add(self.adapter, "a")
         self.assertEqual(self.adapter.events()[:len(first)], first)
 
+    def test_failed_history_append_leaves_state_unchanged(self):
+        """Contract: history is written before the state that points at it, so a failed append can never commit state with missing history."""
+        init(self.adapter)
+        before = self.adapter.load()[0]
+
+        def broken(events):
+            raise IOError("history write failed")
+
+        self.adapter.append = broken
+        with self.assertRaises(IOError):
+            add(self.adapter, "a")
+        self.assertEqual(self.adapter.load()[0], before)
+
     def test_budget_checked_before_any_write(self):
         """Contract: AC6 an over-limit write is refused before history or state is touched."""
         init(self.adapter)

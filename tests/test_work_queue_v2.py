@@ -19,6 +19,7 @@ from pathlib import Path
 
 WORKTREE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(WORKTREE / "tools"))
+sys.path.insert(0, str(WORKTREE / "tests"))
 import queue_core as core  # noqa: E402
 import queue_store as store  # noqa: E402
 import work_queue as cli  # noqa: E402
