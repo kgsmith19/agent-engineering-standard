@@ -638,6 +638,103 @@ def handoff_text(state, events):
 
 
 # --------------------------------------------------------------------------
+# Guard: is this claim or pull request queue work? (#287)
+# --------------------------------------------------------------------------
+
+EXEMPT_LABEL = "owner:queue-exempt"
+_REF = re.compile(r"^(?:([A-Za-z0-9][A-Za-z0-9._-]*)/([A-Za-z0-9._-]+))?#([1-9][0-9]*)$")
+_CLOSING = re.compile(r"(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+"
+                      r"((?:[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9._-]+)?#[1-9][0-9]*)\b")
+
+
+def normalize_ref(ref, default_repo=None):
+    """``owner/repo#N`` in lower case; ``#N`` needs ``default_repo``."""
+    match = _REF.match((ref or "").strip())
+    if not match or (not match.group(1) and not default_repo):
+        raise QueueError("not an Issue reference: %r (want owner/repo#N)" % (ref,))
+    repo = "%s/%s" % match.group(1, 2) if match.group(1) else default_repo
+    return "%s#%s" % (repo.lower(), match.group(3))
+
+
+def closing_refs(body, repo):
+    """Issues a PR body closes (GitHub's closing keywords), in order, once each."""
+    refs = []
+    for raw in _CLOSING.findall(body or ""):
+        ref = normalize_ref(raw, repo)
+        if ref not in refs:
+            refs.append(ref)
+    return refs
+
+
+def owner_label_authorized(events, label, owner):
+    """True iff the latest ``labeled`` event for ``label`` is by ``owner`` and
+    no later ``unlabeled`` removed it. Mirrors standardctl.owner_label_authorized
+    (a test holds them equal), so queue guard and merge policy share one rule."""
+    authorized = False
+    for event in events:
+        label_obj = event.get("label") or {}
+        name = (label_obj.get("name") if isinstance(label_obj, dict) else None) \
+            or event.get("label_name")
+        if name != label:
+            continue
+        if event.get("event") == "labeled":
+            actor = event.get("actor") or {}
+            login = (actor.get("login") if isinstance(actor, dict) else None) \
+                or event.get("actor_login")
+            authorized = login == owner
+        elif event.get("event") == "unlabeled":
+            authorized = False
+    return authorized
+
+
+def _item_refs(item):
+    return {normalize_ref(ref) for ref in item["refs"] if _REF.match(ref.strip())
+            and "/" in ref}
+
+
+def _queue_position(state):
+    active = [i for i in state["items"] if i["status"] == "active"]
+    return active, next_item(state)
+
+
+def guard_claim(state, ref):
+    """Claiming ``ref`` is allowed only for an active item or the next item."""
+    ref = normalize_ref(ref)
+    active, upcoming = _queue_position(state)
+    for item in active + ([upcoming] if upcoming else []):
+        if ref in _item_refs(item):
+            return "guard: ok, %s is on %s (%s)" % (ref, item["id"], item["status"])
+    names = ", ".join(i["id"] for i in active) or "none"
+    raise QueueError(
+        "guard: claim of %s refused, it is not on the active or next queue item "
+        "(active: %s, next: %s). Work the queue in order; only the owner adds or "
+        "moves items." % (ref, names, upcoming["id"] if upcoming else "none"))
+
+
+def guard_pr(state, refs, exempt):
+    """A PR passes only if every Issue it closes is on an active item, or the
+    owner exempted it with ``EXEMPT_LABEL``."""
+    if exempt:
+        return "guard: ok, exempt by the owner's %s label" % EXEMPT_LABEL
+    if not refs:
+        raise QueueError("guard: this PR closes no Issue, so it cannot be matched "
+                         "to the queue")
+    active, _ = _queue_position(state)
+    owned = {}
+    for item in active:
+        for ref in _item_refs(item):
+            owned[ref] = item["id"]
+    off = [ref for ref in refs if ref not in owned]
+    if off:
+        raise QueueError(
+            "guard: %s not on an active queue item (active: %s). Claim it through "
+            "the queue first, or ask the owner for the %s label."
+            % (", ".join(off) + (" is" if len(off) == 1 else " are"),
+               ", ".join(i["id"] for i in active) or "none", EXEMPT_LABEL))
+    return "guard: ok, %s on %s" % (", ".join(refs), ", ".join(sorted(set(owned[r] for r in refs))))
+
+
+# --------------------------------------------------------------------------
 # Markdown rendering (used by document-style backends such as an Issue)
 # --------------------------------------------------------------------------
 

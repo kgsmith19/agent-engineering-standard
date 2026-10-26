@@ -23,6 +23,7 @@ public comment.
 
 **Claim protocol** (labels are not an atomic lock):
 
+0. Run `python3 tools/work_queue.py guard --claim <owner/repo#n>` (agent-engineering-standard; `ae queue guard …` from any repo). It exits non-zero unless the Issue is on the active or next item of the owner's execution queue. Stop and ask the owner instead of claiming out of order. PR Gates run the same guard on every PR (`guard --pr-event`), and only the owner's `owner:queue-exempt` label overrides it.
 1. Confirm the Issue is open, `status:ready`, not `status:blocked`, and has no open PR
    implementing it.
 2. Resolve the exact current default-branch SHA.

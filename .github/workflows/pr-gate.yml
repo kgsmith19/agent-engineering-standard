@@ -107,6 +107,14 @@ jobs:
               print("ERROR:", problem)
           sys.exit(1 if problems else 0)
           CHECK
+      # Queue v2 guard (#287): every Issue this PR closes must belong to the
+      # active item of the owner's execution queue (#277), unless the owner
+      # applied owner:queue-exempt. Read-only; fails closed.
+      - name: Policy · Work matches the execution queue
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/work_queue.py guard --pr-event "$GITHUB_EVENT_PATH"
 
   lint:
     name: Agent Engineering Standard · Lint & Lean
