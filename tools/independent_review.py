@@ -118,6 +118,13 @@ _INJECTION_RE = _re.compile(
     _re.IGNORECASE)
 
 
+def _numbered(findings: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """Give each finding of one rule its own id: rule-1, rule-2, ..."""
+    for index, finding in enumerate(findings, start=1):
+        finding["id"] = "%s-%d" % (finding["rule"], index)
+    return findings
+
+
 def _make_finding(rule: str, message: str, excerpt: str,
                   severity: str = "major") -> Dict[str, str]:
     """Build one structured review finding dict."""
@@ -332,10 +339,10 @@ def review(request: Any) -> ReviewDecision:
                 tag, severity="minor"))
     if blockers:
         return ReviewDecision(verdict="BLOCK", rule="p1-block",
-                              findings=blockers)
+                              findings=_numbered(blockers))
     if advisories:
         return ReviewDecision(verdict="PASS", rule="p2-advisory",
-                              findings=advisories)
+                              findings=_numbered(advisories))
     return ReviewDecision(
         verdict="PASS", rule="clean",
         findings=[_make_finding(
@@ -543,6 +550,12 @@ def validate_review_corpus(corpus: Any) -> Tuple[List[str],
                             "review %r" % (cid, entry.get(
                                 "expected_verdict"),
                                 result.verdict))
+        if "expected_ids" in entry:
+            ids = [f["id"] for f in result.findings]
+            if ids != entry["expected_ids"]:
+                findings.append("entry %s: expected_ids %r != "
+                                "review %r" % (cid, entry["expected_ids"],
+                                               ids))
     for rule in RULES:
         if rule not in covered:
             findings.append("rule %r has no entries (all 15 "

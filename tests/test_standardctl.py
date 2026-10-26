@@ -3517,6 +3517,36 @@ class SpecCriticGate(unittest.TestCase):
         finally:
             sys.path.remove(str(WORKTREE / "tools"))
 
+    def test_order_substring_does_not_suppress_blocker(self):
+        """Protects the whole-word order check: 'border',
+        'afternoon' and 'emphases' contain order words only as
+        substrings, so a multi-step migration still raises
+        hidden_migration_order."""
+        mod = self._mod()
+        entry = next(e for e in self._entries()
+                     if e["id"] == "spec-critic.migration-order.01")
+        for statement in ("The border is red.",
+                          "Runs in the afternoon.",
+                          "Both emphases hold."):
+            spec = json.loads(json.dumps(entry["spec"]))
+            spec["statements"] = [statement,
+                                  spec["statements"][1]]
+            rules = [f["rule"] for f in mod.critique(spec).findings]
+            self.assertIn("hidden_migration_order", rules, statement)
+
+    def test_whole_order_word_still_suppresses(self):
+        """Protects the positive control: a whole order word
+        ('before') still satisfies the order check, so the
+        whole-word fix does not over-fire."""
+        mod = self._mod()
+        entry = next(e for e in self._entries()
+                     if e["id"] == "spec-critic.migration-order.01")
+        spec = json.loads(json.dumps(entry["spec"]))
+        spec["statements"] = ["Copy user records before the switch.",
+                              spec["statements"][1]]
+        rules = [f["rule"] for f in mod.critique(spec).findings]
+        self.assertNotIn("hidden_migration_order", rules)
+
     def _eval(self):
         return json.loads(
             (WORKTREE / "Canonical" / "corpus" / "spec-critic"
@@ -15224,7 +15254,7 @@ class IndependentReview(unittest.TestCase):
         self.assertEqual("FIXED", result.outcome)
 
     def test_frozen_corpus_oracle_reproduces(self):
-        """Protects the frozen-oracle claim: all 15 corpus entries
+        """Protects the frozen-oracle claim: all 17 corpus entries
         reproduce their expected rules, verdicts, and outcomes,
         covering all 15 review rules with unique well-formed
         IDs."""
@@ -15232,7 +15262,7 @@ class IndependentReview(unittest.TestCase):
         findings, entries = ir.validate_review_corpus(
             self._corpus_doc())
         self.assertEqual([], findings)
-        self.assertEqual(15, len(entries))
+        self.assertEqual(17, len(entries))
         covered = {e["expected_rule"] for e in entries}
         self.assertEqual(set(ir.RULES), covered)
 
@@ -15245,7 +15275,7 @@ class IndependentReview(unittest.TestCase):
         corpus = self._corpus_doc()
         blocks = [entry for entry in corpus["entries"]
                   if entry.get("expected_verdict") == "BLOCK"]
-        self.assertEqual(4, len(blocks))
+        self.assertEqual(5, len(blocks))
         stub_hits = 0
         for entry in blocks:
             real = ir.review(entry["request"])
@@ -15256,9 +15286,33 @@ class IndependentReview(unittest.TestCase):
             stub_hits += 0  # the pass stub fires on nothing
         self.assertEqual(0, stub_hits)
 
+    def test_two_blockers_get_unique_ids(self):
+        """Protects finding identity: two blocking findings in one
+        review get unique ids (p1-block-1, p1-block-2), as
+        spec_critic numbers its findings, so each can be
+        addressed."""
+        ir = self._ir()
+        blocker = self._finding(severity="blocker")
+        decision = ir.review(self._request(
+            findings=[blocker, dict(blocker, excerpt="y")]))
+        self.assertEqual("BLOCK", decision.verdict)
+        self.assertEqual(["p1-block-1", "p1-block-2"],
+                         [f["id"] for f in decision.findings])
+
+    def test_two_advisories_get_unique_ids(self):
+        """Protects advisory identity: two P2 findings in one
+        review get unique ids (p2-advisory-1, p2-advisory-2)."""
+        ir = self._ir()
+        minor = self._finding(severity="minor")
+        decision = ir.review(self._request(
+            findings=[minor, dict(minor, excerpt="y")]))
+        self.assertEqual("PASS", decision.verdict)
+        self.assertEqual(["p2-advisory-1", "p2-advisory-2"],
+                         [f["id"] for f in decision.findings])
+
     def test_standardctl_independent_review_advisory_subcommand(self):
         """Protects the advisory CLI wiring: independent-review
-        validates the real corpus (ok, 15 entries, 15 rules),
+        validates the real corpus (ok, 17 entries, 15 rules),
         reviews a --request file as JSON, remediates a --round
         file, exits 0 on non-pass verdicts, and exits 2 only on
         unreadable files."""
@@ -15272,7 +15326,7 @@ class IndependentReview(unittest.TestCase):
         payload = json.loads(proc.stdout)
         self.assertTrue(payload["advisory"])
         self.assertTrue(payload["ok"], payload["findings"])
-        self.assertEqual(15, payload["entries"])
+        self.assertEqual(17, payload["entries"])
         self.assertEqual(15, len(payload["rules"]))
         with tempfile.TemporaryDirectory() as tmp:
             good_path = Path(tmp) / "good-request.json"

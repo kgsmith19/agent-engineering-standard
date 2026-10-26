@@ -332,12 +332,19 @@ def _check_missing_timeout(spec: Dict[str, Any]) -> List[Dict[str, str]]:
 
 def _check_hidden_migration_order(
         spec: Dict[str, Any]) -> List[Dict[str, str]]:
+    """Multi-step migrations need ordering wording.
+
+    ORDER_WORDS match as whole words only, so 'border',
+    'afternoon' and 'emphases' do not count as 'order', 'after'
+    and 'phase'.
+    """
     if len(spec["migration_steps"]) <= 1:
         return []
     texts = list(spec["statements"]) + list(spec["criteria"])
     for text in texts:
         lower = text.lower()
-        if any(word in lower for word in ORDER_WORDS):
+        if any(re.search(r"\b%s\b" % re.escape(word), lower)
+               for word in ORDER_WORDS):
             return []
     return [{
         "id": "hidden_migration_order-1",
