@@ -83,7 +83,7 @@ One Issue = **one observable outcome:** cohesive behavioral boundary, independen
 
 Split an Issue when it contains multiple independently valuable outcomes, crosses unrelated domains, needs multiple writers in same files, could be part-approved, can partly ship independently, exceeds ~5 behavior claims, defeats one evidence strategy, or cannot be reviewed in one focused pass. Prefer vertical behavior slices over horizontal layer-only Issues.
 
-**Claim protocol** — 6 steps: (1) confirm Issue open, `status:ready`, not `status:blocked`, (2) resolve current SHA, (3) construct branch/worktree names, (4) atomically create remote branch via API (fail if exists), (5) add `status:active`, remove `status:ready`, (6) post work-state comment with Issue, milestone, branch, base/head SHA, providers, task, status, blocker.
+**Claim protocol** — first `python3 tools/work_queue.py guard --claim <owner/repo#n>` must pass (the Issue is on the active or next queue item); then 6 steps: (1) confirm Issue open, `status:ready`, not `status:blocked`, (2) resolve current SHA, (3) construct branch/worktree names, (4) atomically create remote branch via API (fail if exists), (5) add `status:active`, remove `status:ready`, (6) post work-state comment with Issue, milestone, branch, base/head SHA, providers, task, status, blocker.
 
 [Full rules: AGENTS/work.md#thin-issues-and-work-claiming](./AGENTS/work.md#thin-issues-and-work-claiming)
 

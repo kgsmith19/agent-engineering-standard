@@ -34,6 +34,9 @@ Subcommands
 ``init [--owner LOGIN]``       create an empty v2 queue in an empty backend
 ``migrate [--dry-run] [--owner LOGIN]``  v1 Issue + handoff comment -> v2,
                                losslessly (the dry run writes nothing)
+``guard --claim OWNER/REPO#N`` / ``guard --pr-event PATH``
+                               read-only: exit 1 when a claim or a PR does not
+                               match the queue (owner:queue-exempt aside)
 
 History records who (``AES_QUEUE_ACTOR``, else ``GITHUB_ACTOR``/``USER``),
 when, the harness (``AES_QUEUE_HARNESS``, else detected) and the provider
@@ -407,6 +410,14 @@ def build_parser(env=None):
                      help="print exactly what would be written; write nothing")
     mig.add_argument("--owner", help="the login allowed to reorder "
                      "(default: the --repo owner)")
+    guard = sub.add_parser("guard", help="exit non-zero when work does not match "
+                           "the queue (read-only)")
+    what = guard.add_mutually_exclusive_group(required=True)
+    what.add_argument("--claim", metavar="OWNER/REPO#N",
+                      help="refuse claiming an Issue not on the active or next item")
+    what.add_argument("--pr-event", metavar="PATH",
+                      help="a pull_request event payload ($GITHUB_EVENT_PATH): refuse "
+                      "unless every Issue it closes is on an active item")
     return parser
 
 
@@ -578,6 +589,45 @@ def _run_migrate(args, adapter, ctx):
     return EXIT_OK
 
 
+def _timeline(http, repo, number):
+    events, page = [], 1
+    while True:
+        batch = http("GET", "/repos/%s/issues/%d/timeline?per_page=100&page=%d"
+                     % (repo, number, page))
+        events.extend(batch)
+        if len(batch) < 100:
+            return events
+        page += 1
+
+
+def _run_guard(args, adapter, http):
+    state, _ = adapter.load()
+    if state is None:
+        raise core.FormatError("no queue found in the %s backend" % adapter.name)
+    if args.claim:
+        print(core.guard_claim(state, args.claim))
+        return EXIT_OK
+    try:
+        with open(args.pr_event, encoding="utf-8") as handle:
+            event = json.load(handle)
+        pr, repo = event["pull_request"], event["repository"]["full_name"]
+        number = int(pr["number"])
+        labels = [label.get("name") for label in pr.get("labels") or []]
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+        raise core.FormatError("not a readable pull_request event: %s" % exc)
+    exempt = False
+    if core.EXEMPT_LABEL in labels:
+        exempt = core.owner_label_authorized(
+            _timeline(http or getattr(adapter, "http", None) or queue_store._default_http(),
+                      repo, number), core.EXEMPT_LABEL, state["owner"])
+        if not exempt:
+            print("guard: the %s label is present but was not applied by the owner "
+                  "(%s); it is ignored" % (core.EXEMPT_LABEL, state["owner"]),
+                  file=sys.stderr)
+    print(core.guard_pr(state, core.closing_refs(pr.get("body"), repo), exempt))
+    return EXIT_OK
+
+
 def _adapter_for(args, env, http):
     backend = args.backend or env.get("AES_QUEUE_BACKEND") or "github-issue"
     if backend not in BACKENDS:
@@ -604,6 +654,8 @@ def main(argv=None, transport=None, adapter=None, http=None, env=None, now=None)
         ctx = detect_context(env, now or _utc_now())
         if args.command == "migrate":
             return _run_migrate(args, adapter, ctx)
+        if args.command == "guard":
+            return _run_guard(args, adapter, http)
         try:
             return _run_v2(args, adapter, ctx)
         except queue_store.LegacyQueueError:

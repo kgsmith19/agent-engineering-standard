@@ -223,6 +223,15 @@ class GuardCliTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("exempt", out)
 
+    def test_exemption_found_past_the_first_timeline_page(self):
+        """A busy PR has more than 100 timeline events; the owner's label must still be found."""
+        chatter = [{"event": "commented", "actor": {"login": "someone"}}] * 130
+        self.github.timeline = {5: chatter + [{"event": "labeled",
+                                               "label": {"name": core.EXEMPT_LABEL},
+                                               "actor": {"login": "kgsmith19"}}]}
+        path = _event_file(self, "Closes #3", labels=[core.EXEMPT_LABEL])
+        self.assertEqual(self.run_guard("--pr-event", path)[0], 0)
+
     def test_guard_fails_closed_without_a_queue(self):
         """No readable queue means the guard cannot vouch for the work: exit 2, never 0."""
         github = FakeGitHub("no queue here")
