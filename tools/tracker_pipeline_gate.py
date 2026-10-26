@@ -102,8 +102,9 @@ def check_gate_aggregation(results: Any) -> List[str]:
     Every dependency must conclude exactly "success"; failure,
     cancelled, skipped, neutral, or a missing entry fails the gate.
     A stale tested SHA (tested != head) fails with the SHA mismatch
-    named. The summary flag must be set: a gate without a published
-    summary is rejected.
+    named. A record missing tested_sha or head_sha leaves the exact
+    head unproven and fails. The summary flag must be set: a gate
+    without a published summary is rejected.
     """
     violations: List[str] = []
     if not isinstance(results, dict):
@@ -119,7 +120,11 @@ def check_gate_aggregation(results: Any) -> List[str]:
                 "or missing)" % (job, conclusion))
     tested = results.get("tested_sha")
     head = results.get("head_sha")
-    if tested is not None and head is not None and tested != head:
+    if tested is None or head is None:
+        violations.append(
+            "exact head unproven: tested_sha and head_sha are both "
+            "required")
+    elif tested != head:
         violations.append(
             "stale tested SHA: tested %s != head %s; a fresh run "
             "gates the new head" % (tested, head))

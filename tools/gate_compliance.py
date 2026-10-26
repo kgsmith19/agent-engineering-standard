@@ -223,13 +223,7 @@ def evaluate(observation: Any) -> LaneDecision:
             "policy-PR self-certifying its own control-plane "
             "change: FAIL",
             tag, severity="blocker")
-    low_risk = item["risk"] in ("R0", "R1", "")
-    if low_risk and item["receipt_present"] and item[
-            "receipt_valid"] and item["route_fresh"]:
-        return _decide(
-            "compact-valid",
-            "low-risk valid compact work: PASS without theater",
-            tag, severity="minor")
+    low_risk = item["risk"] in ("R0", "R1")
     if not item["lane_present"]:
         return _decide(
             "lane-skipped",
@@ -243,6 +237,12 @@ def evaluate(observation: Any) -> LaneDecision:
             "exact head moved since evidence: FAIL and "
             "re-verify at the live head",
             tag, severity="blocker")
+    if low_risk and item["receipt_present"] and item[
+            "receipt_valid"] and item["route_fresh"]:
+        return _decide(
+            "compact-valid",
+            "low-risk valid compact work: PASS without theater",
+            tag, severity="minor")
     if not item["receipt_present"] or not item["receipt_valid"]:
         return _decide(
             "missing-receipt",
