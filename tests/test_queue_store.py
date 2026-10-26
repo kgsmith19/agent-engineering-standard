@@ -35,6 +35,7 @@ class FakeGitHub:
         self.body = body
         self.suffix = suffix
         self.comments = []
+        self.authors = {}
         self.calls = []
         self.on_patch = None
 
@@ -52,8 +53,15 @@ class FakeGitHub:
                              path)
         if match and method == "GET":
             page = int(match.group(1))
-            return [{"id": n, "body": b}
+            return [{"id": n, "body": b,
+                     "user": {"login": self.authors.get(n, "kgsmith19")}}
                     for n, b in self.comments[(page - 1) * 100:page * 100]]
+        match = re.fullmatch(r"/repos/o/r/issues/comments/(\d+)", path)
+        if match and method == "PATCH":
+            number = int(match.group(1))
+            self.comments = [(n, payload["body"] if n == number else b)
+                             for n, b in self.comments]
+            return {"id": number}
         if path == "/repos/o/r/issues/7/comments" and method == "POST":
             self.comments.append((len(self.comments) + 1, payload["body"]))
             return {"id": len(self.comments)}

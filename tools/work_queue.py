@@ -32,6 +32,8 @@ Subcommands
 ``handoff show`` / ``handoff set --file PATH|-``   the session handoff
 ``export [--out F]`` / ``import --file F``          lossless bundles
 ``init [--owner LOGIN]``       create an empty v2 queue in an empty backend
+``migrate [--dry-run] [--owner LOGIN]``  v1 Issue + handoff comment -> v2,
+                               losslessly (the dry run writes nothing)
 
 History records who (``AES_QUEUE_ACTOR``, else ``GITHUB_ACTOR``/``USER``),
 when, the harness (``AES_QUEUE_HARNESS``, else detected) and the provider
@@ -327,6 +329,7 @@ def _utc_now():
 V1_COMMANDS = ("show", "next", "init", "add", "edit", "start", "unblock",
                "done", "block")
 BACKENDS = ("github-issue", "git-file")
+HANDOFF_V1_MARKER = "<!-- agent-engineering-standard:handoff:v1 -->"
 MIGRATE_HINT = ("holds a v1 queue; this needs v2, so migrate it first "
                 "(phase 2, kgsmith19/agent-engineering-standard#285)")
 
@@ -398,6 +401,12 @@ def build_parser(env=None):
     export.add_argument("--out", help="file (default: stdout)")
     imp = sub.add_parser("import", help="load an export bundle into an empty backend")
     imp.add_argument("--file", required=True)
+    mig = sub.add_parser("migrate", help="migrate a v1 Issue (and its handoff "
+                         "comment) to v2 losslessly")
+    mig.add_argument("--dry-run", action="store_true",
+                     help="print exactly what would be written; write nothing")
+    mig.add_argument("--owner", help="the login allowed to reorder "
+                     "(default: the --repo owner)")
     return parser
 
 
@@ -536,6 +545,39 @@ def _run_v2(args, adapter, ctx):
     return EXIT_OK
 
 
+def _run_migrate(args, adapter, ctx):
+    if not isinstance(adapter, queue_store.GitHubIssueAdapter):
+        raise core.QueueError("migrate reads a v1 queue, which only exists in "
+                              "the github-issue backend")
+    owner = args.owner or args.repo.split("/")[0]
+    plan = queue_store.migrate_issue(adapter, parse, owner, ctx,
+                                     dry_run=args.dry_run,
+                                     handoff_marker=HANDOFF_V1_MARKER)
+    state, live = plan["state"], [i["id"] for i in plan["state"]["items"]]
+    print("migrate: Issue #%d v1 -> v2 (%s)" % (
+        args.issue, "dry run, nothing written" if args.dry_run else "written"))
+    for item in plan["v1"]["items"]:
+        print("%s %s -> %s" % (item["id"], item["status"], "archived"
+                               if item["id"] in state["archived"]
+                               else "live #%d" % (live.index(item["id"]) + 1)))
+    print("lossless: v1 state reconstructs exactly from the migrate event")
+    text = plan["handoff_text"]
+    if text is None:
+        print("handoff: no owner-authored v1 handoff comment found")
+    else:
+        print("handoff: comment %s, %d chars, sha256 %s" % (
+            plan["handoff_comment"], len(text), core.text_digest(text)))
+    print("events: %d (seq 1..%d)" % (len(plan["events"]),
+                                      state["history"]["seq"]))
+    print("--- v2 state ---")
+    print(json.dumps(state, indent=1, ensure_ascii=False))
+    if text is not None:
+        print("--- handoff (%d chars) ---" % len(text))
+        print(text)
+    print("--- end ---")
+    return EXIT_OK
+
+
 def _adapter_for(args, env, http):
     backend = args.backend or env.get("AES_QUEUE_BACKEND") or "github-issue"
     if backend not in BACKENDS:
@@ -559,8 +601,11 @@ def main(argv=None, transport=None, adapter=None, http=None, env=None, now=None)
         return _main_v1(args, transport)
     try:
         adapter = adapter or _adapter_for(args, env, http)
+        ctx = detect_context(env, now or _utc_now())
+        if args.command == "migrate":
+            return _run_migrate(args, adapter, ctx)
         try:
-            return _run_v2(args, adapter, detect_context(env, now or _utc_now()))
+            return _run_v2(args, adapter, ctx)
         except queue_store.LegacyQueueError:
             return _main_v1(args, GitHubTransport(args.repo, http=http))
     except core.FormatError as exc:

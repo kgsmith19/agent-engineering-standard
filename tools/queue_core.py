@@ -453,6 +453,65 @@ def op_handoff(state, text):
     return copy.deepcopy(state), [event]
 
 
+def _exact(value, label, limit, required=True):
+    """``_text`` that refuses rather than alters: migration must be lossless."""
+    if _text(value, label, limit, required) != value:
+        raise QueueError("%s has surrounding whitespace" % label)
+    return value
+
+
+def op_migrate(v1, owner):
+    """A v1 queue as v2 state. Done items are archived with their records,
+    and the ``migrate`` event holds the whole v1 state verbatim, so the
+    history alone reconstructs it (``v1_from_history``)."""
+    if not isinstance(v1, dict) or v1.get("version") != 1:
+        raise FormatError("migrate needs a version 1 queue")
+    state, _ = op_init(owner)
+    state["next_id"] = v1["next_id"]
+    events = [_event("migrate", None, copy.deepcopy(v1),
+                     {"version": VERSION, "owner": owner}, "v1 -> v2")]
+    for item in v1["items"]:
+        label = "cannot migrate %s:" % item["id"]
+        if not _ID.match(item["id"]):
+            raise QueueError("%s its id is not a v2 id" % label)
+        if item["status"] == "done":
+            state["archived"].append(item["id"])
+            events.append(_event("archive", item["id"], copy.deepcopy(item),
+                                 "archived"))
+            continue
+        state["items"].append({
+            "id": item["id"],
+            "title": _exact(item["title"], label + " title", LIMITS["title"]),
+            "refs": [_exact(r, label + " ref", LIMITS["ref"]) for r in item["refs"]],
+            "status": item["status"],
+            "note": _exact(item["note"], label + " note", LIMITS["note"],
+                           required=False),
+            "depends_on": []})
+        if len(item["refs"]) > LIMITS["refs"]:
+            raise QueueError("%s more than %d refs" % (label, LIMITS["refs"]))
+    return state, events
+
+
+def v1_from_history(events):
+    """The v1 state a migrated queue started from, from its history."""
+    found = [e for e in events if e["op"] == "migrate"]
+    if len(found) != 1:
+        raise HistoryError("history holds %d migrate events, want 1" % len(found))
+    return copy.deepcopy(found[0]["from"])
+
+
+def check_migration(v1, state, events):
+    """Fail closed unless ``state`` + history are exactly ``v1`` in v2 form."""
+    if v1_from_history(chain(events, state)) != v1:
+        raise FormatError("history does not reconstruct the v1 queue exactly")
+    live = [dict(item, depends_on=[]) for item in v1["items"]
+            if item["status"] != "done"]
+    done = [item["id"] for item in v1["items"] if item["status"] == "done"]
+    if state["items"] != live or state["archived"] != done \
+            or state["next_id"] != v1["next_id"]:
+        raise FormatError("migrated state does not mirror the v1 queue")
+
+
 # --------------------------------------------------------------------------
 # Sealing and history
 # --------------------------------------------------------------------------
