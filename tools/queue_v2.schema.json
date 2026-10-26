@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kgsmith19/agent-engineering-standard/tools/queue_v2.schema.json",
+  "title": "Execution queue state, version 2",
+  "description": "Live state of the ordered execution queue (tools/queue_core.py). Rules a schema cannot express are enforced by queue_core.validate: unique live ids, ids below next_id, live and archived ids disjoint, dependencies naming earlier or archived items only, head null exactly when seq is 0, handoff seq not beyond the head, and the STATE_BUDGET byte limit.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "owner", "next_id", "items", "archived", "history", "handoff"],
+  "properties": {
+    "version": {"type": "integer", "const": 2},
+    "owner": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"},
+    "next_id": {"type": "integer", "minimum": 1},
+    "items": {"type": "array", "items": {"$ref": "#/$defs/item"}},
+    "archived": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+    "history": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seq", "head"],
+      "properties": {
+        "seq": {"type": "integer", "minimum": 0},
+        "head": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]}
+      }
+    },
+    "handoff": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["seq", "sha256"],
+          "properties": {
+            "seq": {"type": "integer", "minimum": 1},
+            "sha256": {"$ref": "#/$defs/sha256"}
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^Q[0-9]{2,6}$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "refs", "status", "note", "depends_on"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "title": {"type": "string", "minLength": 1, "maxLength": 200},
+        "refs": {"type": "array", "maxItems": 12, "items": {"type": "string", "minLength": 1, "maxLength": 120}},
+        "status": {"type": "string", "enum": ["pending", "active", "blocked"]},
+        "note": {"type": "string", "maxLength": 600},
+        "depends_on": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}
+      }
+    }
+  }
+}
