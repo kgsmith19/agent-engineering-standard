@@ -13576,15 +13576,15 @@ class StandardsRoute(unittest.TestCase):
         self.assertEqual("ACK", result.classes.get("one-writer"))
 
     def test_frozen_corpus_oracle_reproduces(self):
-        """Protects the frozen-oracle claim: all 12 corpus entries
+        """Protects the frozen-oracle claim: all 13 corpus entries
         reproduce their expected rules with bounded routes and
-        held critical classes, covering all 11 route rules with
+        held critical classes, covering all 12 route rules with
         unique well-formed IDs."""
         sr = self._sr()
         findings, entries = sr.validate_route_corpus(
             self._corpus_doc())
         self.assertEqual([], findings)
-        self.assertEqual(12, len(entries))
+        self.assertEqual(13, len(entries))
         covered = {r for e in entries
                    for r in e["expected_rules"]}
         self.assertEqual(set(sr.RULES), covered)
@@ -13614,7 +13614,7 @@ class StandardsRoute(unittest.TestCase):
 
     def test_standardctl_standards_route_advisory_subcommand(self):
         """Protects the advisory CLI wiring: standards-route
-        validates the real corpus (ok, 12 entries, 11 rules),
+        validates the real corpus (ok, 13 entries, 12 rules),
         compiles a --task file as JSON, exits 0 on refused
         tasks, and exits 2 only on unreadable files."""
         proc = subprocess.run(
@@ -13627,8 +13627,8 @@ class StandardsRoute(unittest.TestCase):
         payload = json.loads(proc.stdout)
         self.assertTrue(payload["advisory"])
         self.assertTrue(payload["ok"], payload["findings"])
-        self.assertEqual(12, payload["entries"])
-        self.assertEqual(11, len(payload["rules"]))
+        self.assertEqual(13, payload["entries"])
+        self.assertEqual(12, len(payload["rules"]))
         with tempfile.TemporaryDirectory() as tmp:
             good_path = Path(tmp) / "good-task.json"
             good_path.write_text(
@@ -13670,7 +13670,47 @@ class StandardsRoute(unittest.TestCase):
         )
         self.assertEqual(2, proc.returncode)
 
+    def test_route_over_route_max_surfaces_finding(self):
+        """Protects the route bound: an R2 implement route holds
+        20 IDs, above ROUTE_MAX, so compile surfaces
+        route-overload and keeps every routed rule. No required
+        rule is dropped to fit the bound."""
+        sr = self._sr()
+        result = sr.compile({"kind": "implement", "paths": [],
+                             "phase": "", "risk": "R2",
+                             "capabilities": []})
+        self.assertIn("route-overload",
+                      [f["rule"] for f in result.findings])
+        self.assertGreater(len(result.route), sr.ROUTE_MAX)
+        critical = {e["id"] for e in sr.default_index()
+                    if e["critical"]}
+        self.assertTrue(critical <= set(result.route))
 
+    def test_critical_aware_check_uses_default_index(self):
+        """Protects the critical-at-AWARE check: an entry without a
+        custom index is checked against the default index, so a
+        critical rule routed at AWARE is flagged, not skipped as
+        vacuous. compile demotes critical rules before they can
+        route at AWARE, so the routed result is injected."""
+        import unittest.mock
+        sr = self._sr()
+        critical = sorted(e["id"] for e in sr.default_index()
+                          if e["critical"])
+        routed = sr.RouteResult(route=critical[:5],
+                                classes={critical[0]: "AWARE"},
+                                findings=[])
+        entry = {
+            "id": "standards-route.aware.01",
+            "note": "Injected critical rule at AWARE on a "
+                    "default-index entry.",
+            "expected_rules": [],
+            "task": {"kind": "implement", "risk": "R1"},
+        }
+        with unittest.mock.patch.object(sr, "compile",
+                                        return_value=routed):
+            findings, _ = sr.validate_route_corpus([entry])
+        self.assertTrue(any("at AWARE" in f for f in findings),
+                        findings)
 
 
 class StandardsReceipt(unittest.TestCase):
@@ -14031,6 +14071,18 @@ class CapabilityCompiler(unittest.TestCase):
             endpoint="https://evil.example.com"))
         self.assertEqual("arbitrary-egress", result.rule)
 
+    def test_sandboxed_unlisted_execute_names_allowlist_rule(self):
+        """Protects the execute allowlist: a sandboxed command
+        outside exec_allow denies under its own rule, not the
+        network rule arbitrary-egress."""
+        cc = self._cc()
+        result = cc.check(self._action(
+            kind="execute", target="tools/demo.py",
+            command="custom-tool", sandbox=True,
+            exec_allow=["python tools/standardctl.py verify"]))
+        self.assertEqual("execute-allowlist", result.rule)
+        self.assertEqual("DENY", result.verdict)
+
     def test_allowlisted_test_command_allowed(self):
         """Protects verification: an allowlisted test command
         allows, so verification runs."""
@@ -14073,27 +14125,27 @@ class CapabilityCompiler(unittest.TestCase):
         self.assertEqual("owner-escalation", result.rule)
 
     def test_frozen_corpus_oracle_reproduces(self):
-        """Protects the frozen-oracle claim: all 11 corpus entries
+        """Protects the frozen-oracle claim: all 12 corpus entries
         reproduce their expected rules and verdicts, covering all
-        11 capability rules with unique well-formed IDs."""
+        12 capability rules with unique well-formed IDs."""
         cc = self._cc()
         findings, entries = cc.validate_capability_corpus(
             self._corpus_doc())
         self.assertEqual([], findings)
-        self.assertEqual(11, len(entries))
+        self.assertEqual(12, len(entries))
         covered = {e["expected_rule"] for e in entries}
         self.assertEqual(set(cc.RULES), covered)
 
     def test_red_by_construction_allow_stub_misses_denies(self):
         """Sensitivity proof (RED): an allow-everything stub
-        misses all 7 DENY corpus fragments while the real
+        misses all 8 DENY corpus fragments while the real
         compiler denies each — so the suite is green because
         sharp edges exist, not because overreach is absent."""
         cc = self._cc()
         corpus = self._corpus_doc()
         denies = [entry for entry in corpus["entries"]
                   if entry.get("expected_verdict") == "DENY"]
-        self.assertEqual(7, len(denies))
+        self.assertEqual(8, len(denies))
         stub_hits = 0
         for entry in denies:
             real = cc.check(entry["action"])
@@ -14106,7 +14158,7 @@ class CapabilityCompiler(unittest.TestCase):
 
     def test_standardctl_capability_compiler_advisory_subcommand(self):
         """Protects the advisory CLI wiring: capability-compiler
-        validates the real corpus (ok, 11 entries, 11 rules),
+        validates the real corpus (ok, 12 entries, 12 rules),
         checks an --action file as JSON, exits 0 on denied
         actions, and exits 2 only on unreadable files."""
         proc = subprocess.run(
@@ -14119,8 +14171,8 @@ class CapabilityCompiler(unittest.TestCase):
         payload = json.loads(proc.stdout)
         self.assertTrue(payload["advisory"])
         self.assertTrue(payload["ok"], payload["findings"])
-        self.assertEqual(11, payload["entries"])
-        self.assertEqual(11, len(payload["rules"]))
+        self.assertEqual(12, payload["entries"])
+        self.assertEqual(12, len(payload["rules"]))
         with tempfile.TemporaryDirectory() as tmp:
             good_path = Path(tmp) / "good-action.json"
             good_path.write_text(

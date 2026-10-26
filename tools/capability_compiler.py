@@ -26,6 +26,9 @@ Frozen rules, in check order (first hit decides)::
   mcp-research-write — MCP write during research phase: DENY.
   no-sandbox         — provider without sandbox nor wrapper:
                        ESCALATE with dry-run/report.
+  execute-allowlist  — sandboxed execute outside exec_allow:
+                       DENY under its own rule, not the network
+                       rule arbitrary-egress.
   owner-escalation   — owner-approved escalation: ALLOW with
                        the approval recorded.
   focused-edit       — allowed focused edit inside roots: ALLOW.
@@ -73,6 +76,7 @@ RULES = (
     "arbitrary-egress",
     "mcp-research-write",
     "no-sandbox",
+    "execute-allowlist",
     "owner-escalation",
     "focused-edit",
     "test-command",
@@ -88,6 +92,7 @@ RULE_VERDICTS = {
     "arbitrary-egress": "DENY",
     "mcp-research-write": "DENY",
     "no-sandbox": "ESCALATE",
+    "execute-allowlist": "DENY",
     "owner-escalation": "ALLOW",
     "focused-edit": "ALLOW",
     "test-command": "ALLOW",
@@ -303,7 +308,7 @@ def check(action: Any) -> CapabilityDecision:
                 tag)
         if item["command"] not in item["exec_allow"]:
             return _decide(
-                "arbitrary-egress",
+                "execute-allowlist",
                 "command %r outside the execute allowlist: "
                 "DENY" % item["command"],
                 tag)
@@ -384,7 +389,7 @@ def validate_capability_corpus(corpus: Any) -> Tuple[List[str],
     the corpus is a valid frozen oracle: frozen marker set,
     stable provenance, at least 11 entries, unique well-formed
     IDs, every entry computing its expected rule and verdict,
-    and all 11 capability rules covered.
+    and all capability rules covered.
     """
     if isinstance(corpus, dict):
         if corpus.get("_frozen") is not True:
@@ -449,7 +454,7 @@ def validate_capability_corpus(corpus: Any) -> Tuple[List[str],
                                 result.verdict))
     for rule in RULES:
         if rule not in covered:
-            findings.append("rule %r has no entries (all 11 "
+            findings.append("rule %r has no entries (all %d "
                             "capability rules are required)"
-                            % rule)
+                            % (rule, len(RULES)))
     return findings, entries

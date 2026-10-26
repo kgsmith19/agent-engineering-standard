@@ -2582,6 +2582,20 @@
    "expected_rules": [
     "registry-overload"
    ]
+  },
+  {
+   "id": "standards-route.route-overload.01",
+   "note": "R2 implement routes 20 IDs (12 implement plus 8 critical), above ROUTE_MAX=15: route-overload surfaces it (major) and no required rule is dropped.",
+   "expected_rules": [
+    "route-overload"
+   ],
+   "task": {
+    "kind": "implement",
+    "paths": [],
+    "phase": "",
+    "risk": "R2",
+    "capabilities": []
+   }
   }
  ]
 }

@@ -7889,7 +7889,7 @@ def cmd_standards_route(args: argparse.Namespace) -> int:
     that task file; without it, validates the frozen route
     oracle (every entry's computed rules == expected_rules,
     clean entries route 5-15 IDs with critical classes held,
-    IDs unique, all 11 route rules covered) and prints findings.
+    IDs unique, all 12 route rules covered) and prints findings.
     Always exits 0 on findings: advisory never gates; only an
     unreadable file exits 2."""
     import sys as _sys
@@ -8059,7 +8059,7 @@ def cmd_capability_compiler(args: argparse.Namespace) -> int:
     checks that action file; without it, validates the frozen
     capability oracle (every entry's computed rule ==
     expected_rule and verdict == expected_verdict, IDs unique,
-    all 11 capability rules covered) and prints findings.
+    all 12 capability rules covered) and prints findings.
     Always exits 0 on findings: advisory never gates; only an
     unreadable file exits 2."""
     import sys as _sys

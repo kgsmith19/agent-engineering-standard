@@ -19,6 +19,8 @@ per task — never the whole registry:
 - `path-expansion` — bounded focus envelopes.
 - `missing-capability` — provider gaps refuse before routing.
 - `registry-overload` — accidental whole-registry loads refuse.
+- `route-overload` — a route above ROUTE_MAX keeps every rule
+  and surfaces the overload (major); nothing is dropped.
 - `malicious-task` — hostile input refused before routing.
 - `critical-demotion` — critical rules keep at least ACK.
 - `minimal-route` — low-risk tasks confirm minimal routes.

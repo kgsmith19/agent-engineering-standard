@@ -385,6 +385,41 @@
    },
    "expected_rule": "owner-escalation",
    "expected_verdict": "ALLOW"
+  },
+  {
+   "id": "capability-compiler.execute.01",
+   "note": "Sandboxed execute outside exec_allow: DENY under execute-allowlist, not the network rule arbitrary-egress.",
+   "expected_rule": "execute-allowlist",
+   "expected_verdict": "DENY",
+   "action": {
+    "kind": "execute",
+    "target": "tools/demo.py",
+    "command": "custom-tool",
+    "endpoint": "",
+    "phase": "implement",
+    "direct_main": false,
+    "raw_secret": false,
+    "handle": "",
+    "sandbox": true,
+    "wrapper": false,
+    "owner_approved": false,
+    "test_command": false,
+    "mcp_write": false,
+    "read_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "write_roots": [
+     "tools/",
+     "tests/"
+    ],
+    "exec_allow": [
+     "python tools/standardctl.py verify"
+    ],
+    "net_allow": [
+     "api.github.com"
+    ]
+   }
   }
  ]
 }
