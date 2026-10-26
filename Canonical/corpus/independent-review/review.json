@@ -354,6 +354,78 @@
     "criterion": "AC-1"
    },
    "expected_outcome": "FIXED"
+  },
+  {
+   "id": "independent-review.two-blockers.01",
+   "note": "Two blocking findings in one review get unique ids p1-block-1 and p1-block-2.",
+   "request": {
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "builder_family": "anthropic",
+    "reviewer_family": "openai",
+    "reviewer_available": true,
+    "malformed": false,
+    "tainted": false,
+    "findings": [
+     {
+      "finding": "x",
+      "severity": "blocker",
+      "citation": "AC-1",
+      "excerpt": "x"
+     },
+     {
+      "finding": "x",
+      "severity": "blocker",
+      "citation": "AC-1",
+      "excerpt": "y"
+     }
+    ],
+    "criteria": [
+     "AC-1"
+    ]
+   },
+   "expected_rule": "p1-block",
+   "expected_verdict": "BLOCK",
+   "expected_ids": [
+    "p1-block-1",
+    "p1-block-2"
+   ]
+  },
+  {
+   "id": "independent-review.two-advisories.01",
+   "note": "Two advisory findings in one review get unique ids p2-advisory-1 and p2-advisory-2.",
+   "request": {
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "builder_family": "anthropic",
+    "reviewer_family": "openai",
+    "reviewer_available": true,
+    "malformed": false,
+    "tainted": false,
+    "findings": [
+     {
+      "finding": "x",
+      "severity": "minor",
+      "citation": "AC-1",
+      "excerpt": "x"
+     },
+     {
+      "finding": "x",
+      "severity": "minor",
+      "citation": "AC-1",
+      "excerpt": "y"
+     }
+    ],
+    "criteria": [
+     "AC-1"
+    ]
+   },
+   "expected_rule": "p2-advisory",
+   "expected_verdict": "PASS",
+   "expected_ids": [
+    "p2-advisory-1",
+    "p2-advisory-2"
+   ]
   }
  ]
 }

@@ -543,6 +543,12 @@ def validate_review_corpus(corpus: Any) -> Tuple[List[str],
                             "review %r" % (cid, entry.get(
                                 "expected_verdict"),
                                 result.verdict))
+        if "expected_ids" in entry:
+            ids = [f["id"] for f in result.findings]
+            if ids != entry["expected_ids"]:
+                findings.append("entry %s: expected_ids %r != "
+                                "review %r" % (cid, entry["expected_ids"],
+                                               ids))
     for rule in RULES:
         if rule not in covered:
             findings.append("rule %r has no entries (all 15 "
