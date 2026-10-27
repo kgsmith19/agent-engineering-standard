@@ -6262,6 +6262,52 @@ class AgentsTiers(FixtureCase):
         self.assertEqual("opus", agents["profiles"]["anthropic"]["planning"])
         self.assertEqual("haiku", agents["profiles"]["anthropic"]["fast"])
 
+    def test_adopter_template_agents_block_validates(self):
+        """Protects the adopter template: TEMPLATES/project.yaml carries
+        the same agents: block as the live project.yaml and it passes
+        agents_tier_violations, so every rendered repository starts
+        from a complete tier configuration."""
+        template = standardctl.parse_restricted_yaml(
+            (WORKTREE / "TEMPLATES" / "project.yaml").read_text(
+                encoding="utf-8"),
+            "TEMPLATES/project.yaml")
+        agents = template.get("agents")
+        self.assertIsNotNone(agents)
+        self.assertEqual([], standardctl.agents_tier_violations(agents))
+        self.assertEqual(
+            standardctl.parse_restricted_yaml(
+                (WORKTREE / "project.yaml").read_text(encoding="utf-8"),
+                "project.yaml").get("agents"),
+            agents)
+
+    def test_missing_roles_and_empty_profiles_rejected(self):
+        """Protects role resolution at the function level: a block with
+        no roles, or with an empty profiles mapping, is an error. An
+        empty profiles mapping is not expressible in the restricted
+        YAML grammar, so this drives agents_tier_violations directly."""
+        no_roles = standardctl.agents_tier_violations(
+            {"profiles": {"anthropic": {"planning": "opus"}},
+             "fallback": "harness-default"})
+        self.assertIn("roles", " | ".join(no_roles))
+        empty_profiles = standardctl.agents_tier_violations(
+            {"roles": {"orchestrator": "planning"},
+             "profiles": {},
+             "fallback": "harness-default"})
+        self.assertIn("profiles", " | ".join(empty_profiles))
+
+    def test_check_is_registered_and_surfaces_bad_block(self):
+        """Protects the verify wiring: check_agents_tiers is in the
+        policy group of standardctl.CHECKS, and an incomplete block in
+        a fixture produces an agents-tiers error, so a bad tier
+        config cannot pass verify unnoticed."""
+        registered = [fn for group, fn in standardctl.CHECKS
+                      if group == "policy"]
+        self.assertIn(standardctl.check_agents_tiers, registered)
+        findings = self._findings(
+            self.VALID.replace("      fast: haiku\n", ""))
+        self.assertIn("agents-tiers", [
+            f.check_id for f in findings if f.severity == "error"])
+
 
 class CoreGeneralization(FixtureCase):
     """T03 (#200): core generalized by addition with Exception
