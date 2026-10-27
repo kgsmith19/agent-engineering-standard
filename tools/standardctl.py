@@ -5385,6 +5385,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_wake.add_argument("--json", action="store_true")
     p_wake.set_defaults(func=cmd_replay_wake)
 
+    p_crb = sub.add_parser(
+        "clean-room-benchmark",
+        help="Clean-room benchmark trial scoring and report "
+             "with frozen-corpus validation (advisory)",
+    )
+    p_crb.add_argument(
+        "--trials", default="",
+        help="path to a JSON array of trials to score into a report; "
+             "without it, validates the frozen clean-room corpus")
+    p_crb.add_argument(
+        "--corpus", default="Canonical/corpus/clean-room-benchmark",
+        help="frozen corpus dir holding benchmark.json")
+    p_crb.add_argument("--json", action="store_true")
+    p_crb.set_defaults(func=cmd_clean_room_benchmark)
+
     p_lease = sub.add_parser(
         "writer-lease",
         help="Writer lease readout and "
@@ -7790,6 +7805,63 @@ def cmd_replay_wake(args: argparse.Namespace) -> int:
             print("  - %s" % line)
         print("  corpus: %d entries, rules %s"
               % (len(entries), ", ".join(rules)))
+    return 0
+
+
+def cmd_clean_room_benchmark(args: argparse.Namespace) -> int:
+    """Advisory clean-room benchmark. With --trials, scores the trial
+    array into a deterministic report (markdown, or JSON with --json);
+    without it, validates the frozen clean-room corpus (28 checkpoints,
+    12 adversarial fixtures, every expectation reproduced by
+    handoff_acceptance). Always exits 0 on findings; only an unreadable
+    file exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import clean_room_benchmark
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    corpus_path = _Path(args.corpus) / "benchmark.json"
+    try:
+        corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("clean-room-benchmark: cannot load corpus: %s" % exc)
+        return 2
+    if args.trials:
+        try:
+            trials = json.loads(
+                _Path(args.trials).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print("clean-room-benchmark: cannot load trials: %s" % exc)
+            return 2
+        if not isinstance(trials, list):
+            print("clean-room-benchmark: trials must be a JSON array")
+            return 2
+        markdown, json_text = clean_room_benchmark.report(trials, corpus)
+        print(json_text, end="") if args.json else print(
+            markdown, end="")
+        return 0
+    findings, entries = clean_room_benchmark.validate_clean_room_corpus(
+        corpus)
+    ok = not findings
+    if args.json:
+        print(json.dumps({
+            "advisory": True,
+            "mode": "corpus",
+            "corpus": args.corpus,
+            "ok": ok,
+            "entries": len(entries),
+            "checkpoints": len(corpus.get("checkpoints") or []),
+            "adversarial": len(corpus.get("adversarial") or []),
+            "findings": findings,
+        }, indent=2))
+    else:
+        print("clean-room-benchmark: %s%s" % (
+            args.corpus, " -- OK" if ok else " (findings)"))
+        for line in findings:
+            print("  - %s" % line)
+        print("  corpus: %d entries" % len(entries))
     return 0
 
 
