@@ -412,9 +412,8 @@ def op_transition(state, item_id, action, reason=""):
         for earlier in new["items"]:
             if earlier is item:
                 break
-            if earlier["status"] == "blocked" or waiting_on(new, earlier):
-                continue
-            if earlier["status"] == "active" and cap > 1:
+            # Active items are bounded by the cap check below, not by order.
+            if earlier["status"] in ("blocked", "active") or waiting_on(new, earlier):
                 continue
             raise QueueError(
                 "cannot start %s: earlier item %s is %s (finish it, or "
