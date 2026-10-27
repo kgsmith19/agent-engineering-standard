@@ -1406,6 +1406,8 @@ CONTEXT_AGENTS_MAX_LINES_DEFAULT = 120
 CONTEXT_SKIP_SEGMENTS = (
     ".git", ".worktrees", "node_modules", "__pycache__", ".evidence",
 )
+# The adopter skeleton carries <placeholder> values and is never a live context.
+CONTEXT_TEMPLATE_DIR = "TEMPLATES/context"
 _CONTEXT_NAME_RE = re.compile(CONTEXT_NAME_PATTERN)
 _CONTEXT_SECOND_SENTENCE_RE = re.compile(r"[.!?] +[A-Z]")
 
@@ -1516,6 +1518,8 @@ def _context_manifest_paths(model: RepoModel) -> List[str]:
         if parts[-1] != BOUNDED_CONTEXT_MANIFEST:
             continue
         if any(seg in CONTEXT_SKIP_SEGMENTS for seg in parts[:-1]):
+            continue
+        if rel.startswith(CONTEXT_TEMPLATE_DIR + "/"):
             continue
         out.append(rel)
     return sorted(out)

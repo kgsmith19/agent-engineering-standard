@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Bounded context manifest (context.yaml)",
+  "description": "Manifest for a bounded-context folder. Rules: AGENTS/contexts.md. Enforced by standardctl check bounded-contexts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "purpose", "public", "depends_on", "commands"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "One sentence describing what the context is for."
+    },
+    "public": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "not": {"pattern": "^/|(^|/)\\.\\.(/|$)"}
+      },
+      "description": "Relative paths inside the context folder that other contexts may use."
+    },
+    "depends_on": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "description": "Names of other bounded contexts this context may use through their public paths."
+    },
+    "commands": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "test": {"type": "string", "minLength": 1},
+        "lint": {"type": "string", "minLength": 1},
+        "build": {"type": "string", "minLength": 1}
+      }
+    },
+    "invariants": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "owners": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "children": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "not": {"pattern": "^/|(^|/)\\.\\.(/|$)"}
+      },
+      "description": "Relative paths of nested bounded contexts inside this folder."
+    }
+  }
+}

@@ -1,0 +1,9 @@
+# Bounded-context manifest. Rules: AGENTS/contexts.md. Replace each <placeholder>.
+# Optional keys: invariants, owners, children (see context.schema.json).
+name: <kebab-case-name>
+purpose: <one sentence, 200 characters or fewer>
+public:
+  - <relative/path/inside/this/folder>
+depends_on: []
+commands:
+  test: <test command, run from the repository root>
