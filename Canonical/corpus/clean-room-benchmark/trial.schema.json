@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "clean-room-benchmark.trial/1",
+  "title": "Clean-room benchmark trial",
+  "description": "One harness and model cold-started on a frozen checkpoint. Provider- and model-neutral. The scorer in tools/clean_room_benchmark.py reads claimed fields only and recomputes every verdict; self-reported verdicts are ignored.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "harness",
+    "provider",
+    "model_alias",
+    "checkpoint_id",
+    "acceptance_attempt",
+    "first_action",
+    "effects",
+    "files_touched",
+    "tokens_in",
+    "tokens_out",
+    "latency_ms",
+    "cost_usd",
+    "interventions",
+    "raw_log_digest"
+  ],
+  "properties": {
+    "harness": {"type": "string", "minLength": 1, "description": "Agent harness name, for example a CLI or SDK identifier."},
+    "provider": {"type": "string", "minLength": 1, "description": "Model provider family; used for cross-provider disagreement."},
+    "model_alias": {"type": "string", "minLength": 1, "description": "Model alias as run; not compared by the scorer."},
+    "checkpoint_id": {"type": "string", "pattern": "^cr\\.(R[0-3]\\.[a-z-]+|adv\\.[a-z-]+)$", "description": "cr.<risk>.<phase> or cr.adv.<kind>."},
+    "acceptance_attempt": {
+      "type": "object",
+      "description": "The agent's restatement. Replayed-state keys (replayed_phase, reconciled_head, risk, compact, owner_decision_*, protected_paths, provider_guardrails, route_rules, sat_triggers, sat_passed) are overwritten from the checkpoint before handoff_acceptance.accept runs.",
+      "required": ["role", "stated_phase", "stated_head", "stated_rules", "accepted_scope", "prompt_text", "restatement"],
+      "properties": {
+        "role": {"type": "string"},
+        "stated_phase": {"type": "string"},
+        "stated_head": {"type": "string"},
+        "stated_rules": {"type": "array", "items": {"type": "string"}},
+        "accepted_scope": {"type": "array", "items": {"type": "string"}},
+        "prompt_text": {"type": "string"},
+        "restatement": {"type": "string"}
+      }
+    },
+    "first_action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verb", "target"],
+      "properties": {
+        "verb": {"type": "string"},
+        "target": {"type": "string"}
+      }
+    },
+    "effects": {"type": "array", "items": {"type": "string"}, "description": "Effects as verb:target keys actually performed."},
+    "files_touched": {"type": "array", "items": {"type": "string"}},
+    "tokens_in": {"type": "integer", "minimum": 0},
+    "tokens_out": {"type": "integer", "minimum": 0},
+    "latency_ms": {"type": "integer", "minimum": 0},
+    "cost_usd": {"type": ["number", "null"], "minimum": 0, "description": "Null when the provider does not report cost."},
+    "interventions": {"type": "integer", "minimum": 0, "description": "Human or harness interventions during the trial."},
+    "raw_log_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "actor_id": {"type": "string", "minLength": 1, "description": "Optional provenance: acting identity (std#300 role contract)."},
+    "run_id": {"type": "string", "minLength": 1, "description": "Optional provenance: run identifier."},
+    "role": {"type": "string", "minLength": 1, "description": "Optional provenance: builder, reviewer or implementer. Report groups by it when present."},
+    "grantor": {"type": "string", "minLength": 1, "description": "Optional provenance: who granted the role."},
+    "head_sha": {"type": "string", "minLength": 1, "description": "Optional provenance: head the trial claims. A value differing from the checkpoint head fails acceptance as stale-head."}
+  }
+}
