@@ -56,6 +56,11 @@ reason on the Issue.
   open PRs, write the queue, or touch secrets or production. Tiers resolve to
   models through `project.yaml` `agents:`; no provider is mandatory
   ([Full rules: AGENTS/work.md#orchestrator-and-implementer-tiers](./AGENTS/work.md#orchestrator-and-implementer-tiers)).
+- **Agentic Domain-Driven Development.** Work runs inside bounded-context
+  folders (`context.yaml`, `AGENTS.md`, `README.md`) that split finer as they
+  grow. An agent `cd`s into its context and relies on its local files; the
+  policy check `bounded-contexts` enforces the layout
+  ([Full rules: AGENTS/contexts.md#bounded-contexts](./AGENTS/contexts.md#bounded-contexts)).
 - **Baseline before specifics.** This file is the baseline; the repository's own
   AGENTS.md is project-specific and takes precedence where they differ.
 
@@ -139,6 +144,7 @@ For complete normative rules and procedures:
 | [governance.md](./AGENTS/governance.md) | Owner authority, bootstrap, roles, risk tiers |
 | [work.md](./AGENTS/work.md) | Issues, claiming, worktrees, recovery |
 | [verification.md](./AGENTS/verification.md) | Intent, tests, flow, evidence, completion |
+| [contexts.md](./AGENTS/contexts.md) | Bounded contexts (ADDD): folders, manifests, budgets, layering |
 | [boundaries.md](./AGENTS/boundaries.md) | PR Gate, LLM Review, corrective action |
 
 ## Stable Anchor IDs for Tools and Scripts
@@ -159,6 +165,7 @@ Use these anchors to reference specific rules and procedures in implementations:
 - `boundaries#pr-gate-and-merge-behavior` — sole required check, aggregator design, merge automation
 - `boundaries#independent-llm-review` — provider separation enforcement, review protocol, findings
 - `boundaries#agent-boundaries` — may/must-not action lists and adoption rules
+- `contexts#bounded-contexts` — context folder, manifest, AGENTS/README roles, layering, budget, split rule
 
 ## Completion Standard (Preview)
 

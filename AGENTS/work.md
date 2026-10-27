@@ -15,6 +15,12 @@ each assigned to the milestone; the parent owns no implementation commits and cl
 every required sub-Issue and final integration verification. Use the Issue template (canonical
 `TEMPLATES/ISSUE.md`, active `.github/ISSUE_TEMPLATE/work-item.md`).
 
+**Bounded context.** A thin Issue names the bounded context(s) it changes
+([contexts#bounded-contexts](./contexts.md#bounded-contexts)). Prefer one context per Issue.
+Cross-context work splits into one slice per context plus an integration slice that depends on
+them. Items in different contexts with no `depends_on` edge are safe to parallelize, up to the
+queue's `max_active`; items in the same context serialize.
+
 Standard labels (the only set): `status:ready`, `status:active`, `status:blocked`; `risk:R0`
 through `risk:R3`; `owner:allow-draft`, `owner:hold-merge`, `owner:policy-change`. Owner-prefixed
 labels are trusted only when applied by the owner; an unauthorized owner-prefixed label changes no
@@ -75,6 +81,7 @@ Two tiers, one configuration. The **orchestrator** runs on the planning tier (`a
 - **Scope:** the Issue number and the single outcome to deliver.
 - **Worktree and branch:** the exact `.worktrees/issue-<n>-<slug>` path and `issue/<n>-<slug>` branch.
 - **Files in scope:** the files the implementer may write. Everything else is read-only.
+- **Context:** the bounded-context folder the implementer `cd`s into. It works from that folder's `context.yaml`, `AGENTS.md`, and `README.md` and the root anchors they link, and reads nothing else unless the brief names it.
 - **Verification:** the exact commands to run, which the orchestrator re-runs.
 - **Report format:** branch; commit SHAs; commands and results; oracle or test changes (or "none"); open questions.
 

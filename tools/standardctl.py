@@ -177,6 +177,7 @@ import hashlib
 import json
 import os
 import platform
+import posixpath
 import re
 import shutil
 import subprocess
@@ -1388,6 +1389,333 @@ def check_agents_tiers(model: RepoModel) -> List[Finding]:
         Finding("agents-tiers", "error", "project.yaml", violation)
         for violation in agents_tier_violations(project.get("agents"))
     ]
+
+
+# ---------------------------------------------------------------------------
+# Bounded contexts (Issue #306, ADDD). Rules: AGENTS/contexts.md.
+# ---------------------------------------------------------------------------
+
+BOUNDED_CONTEXT_MANIFEST = "context.yaml"
+CONTEXT_REQUIRED_KEYS = ("name", "purpose", "public", "depends_on", "commands")
+CONTEXT_OPTIONAL_KEYS = ("invariants", "owners", "children")
+CONTEXT_COMMAND_KEYS = ("test", "lint", "build")
+CONTEXT_OVERRIDE_KEYS = ("agents_md_max_lines",)
+CONTEXT_NAME_PATTERN = r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+CONTEXT_PURPOSE_MAX = 200
+CONTEXT_AGENTS_MAX_LINES_DEFAULT = 120
+CONTEXT_SKIP_SEGMENTS = (
+    ".git", ".worktrees", "node_modules", "__pycache__", ".evidence",
+)
+# The adopter skeleton carries <placeholder> values and is never a live context.
+CONTEXT_TEMPLATE_DIR = "TEMPLATES/context"
+_CONTEXT_NAME_RE = re.compile(CONTEXT_NAME_PATTERN)
+_CONTEXT_SECOND_SENTENCE_RE = re.compile(r"[.!?] +[A-Z]")
+
+
+def _context_join(folder: str, rel: str) -> str:
+    return posixpath.normpath(posixpath.join(folder, rel))
+
+
+def _context_budget(model: RepoModel) -> Tuple[int, List[Finding]]:
+    """Resolve the AGENTS.md line budget. project.yaml contexts: may set
+    agents_md_max_lines to a positive integer; any other key or value is
+    a finding on project.yaml and the default applies."""
+    default = CONTEXT_AGENTS_MAX_LINES_DEFAULT
+    block = (model.project or {}).get("contexts")
+    if block is None:
+        return default, []
+
+    def error(message: str) -> Finding:
+        return Finding("bounded-contexts", "error", "project.yaml", message)
+
+    if not isinstance(block, dict):
+        return default, [error("contexts must be a mapping")]
+    findings = [
+        error("unknown contexts key %r" % key)
+        for key in block if key not in CONTEXT_OVERRIDE_KEYS
+    ]
+    limit = default
+    if "agents_md_max_lines" in block:
+        value = block["agents_md_max_lines"]
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            findings.append(
+                error("contexts.agents_md_max_lines must be a positive integer")
+            )
+        else:
+            limit = value
+    return limit, findings
+
+
+def _context_string_list(key: str, value: Any, relative: bool) -> List[str]:
+    if not isinstance(value, list):
+        return ["%s must be a list of strings" % key]
+    out = []
+    for item in value:
+        if not isinstance(item, str) or not item.strip():
+            out.append("%s entries must be non-empty strings" % key)
+        elif relative and (item.startswith("/") or ".." in item.split("/")):
+            out.append(
+                "%s entry %r must be a relative path inside the context folder"
+                % (key, item)
+            )
+    return out
+
+
+def _context_manifest_violations(data: Any) -> List[str]:
+    """Pure: contract violations for one parsed context.yaml. The closed
+    key set mirrors TEMPLATES/context/context.schema.json."""
+    if not isinstance(data, dict):
+        return ["manifest must be a mapping"]
+    allowed = set(CONTEXT_REQUIRED_KEYS) | set(CONTEXT_OPTIONAL_KEYS)
+    violations = [
+        "unknown key %r" % key for key in data if key not in allowed
+    ]
+    violations += [
+        "missing required key %r" % key
+        for key in CONTEXT_REQUIRED_KEYS if key not in data
+    ]
+    if "name" in data:
+        name = data["name"]
+        if not isinstance(name, str) or not _CONTEXT_NAME_RE.match(name):
+            violations.append(
+                "name must be kebab-case (lowercase letters, digits, hyphens)"
+            )
+    if "purpose" in data:
+        purpose = data["purpose"]
+        if not isinstance(purpose, str) or not purpose.strip():
+            violations.append("purpose must be a non-empty string")
+        elif len(purpose) > CONTEXT_PURPOSE_MAX:
+            violations.append(
+                "purpose exceeds %d characters" % CONTEXT_PURPOSE_MAX
+            )
+        elif _CONTEXT_SECOND_SENTENCE_RE.search(purpose):
+            violations.append("purpose must be one sentence")
+    for key in ("public", "children"):
+        if key in data:
+            violations += _context_string_list(key, data[key], relative=True)
+    for key in ("depends_on", "invariants", "owners"):
+        if key in data:
+            violations += _context_string_list(key, data[key], relative=False)
+    if "commands" in data:
+        commands = data["commands"]
+        if not isinstance(commands, dict):
+            violations.append("commands must be a mapping of test, lint, build")
+        else:
+            for key, value in commands.items():
+                if key not in CONTEXT_COMMAND_KEYS:
+                    violations.append("unknown commands key %r" % key)
+                elif not isinstance(value, str) or not value.strip():
+                    violations.append(
+                        "commands.%s must be a non-empty string" % key
+                    )
+    return violations
+
+
+def _context_manifest_paths(model: RepoModel) -> List[str]:
+    out = []
+    for rel in model.files():
+        parts = rel.split("/")
+        if parts[-1] != BOUNDED_CONTEXT_MANIFEST:
+            continue
+        if any(seg in CONTEXT_SKIP_SEGMENTS for seg in parts[:-1]):
+            continue
+        if rel.startswith(CONTEXT_TEMPLATE_DIR + "/"):
+            continue
+        out.append(rel)
+    return sorted(out)
+
+
+def _scan_bounded_contexts(
+    model: RepoModel,
+) -> Tuple[List[Dict[str, Any]], List[Finding]]:
+    """Parse every context manifest. Returns the records of manifests
+    that satisfy the contract, plus one finding per violation."""
+    findings: List[Finding] = []
+    records: List[Dict[str, Any]] = []
+    for rel in _context_manifest_paths(model):
+        try:
+            data = parse_restricted_yaml(model.read_text(rel) or "", rel)
+        except RestrictedYamlError as exc:
+            findings.append(
+                Finding("bounded-contexts", "error", rel,
+                        "manifest is unparseable: %s" % exc)
+            )
+            continue
+        violations = _context_manifest_violations(data)
+        for violation in violations:
+            findings.append(Finding("bounded-contexts", "error", rel, violation))
+        if violations:
+            continue
+        records.append({
+            "name": data["name"],
+            "folder": posixpath.dirname(rel) or ".",
+            "manifest": rel,
+            "purpose": data["purpose"],
+            "public": list(data["public"]),
+            "depends_on": list(data["depends_on"]),
+            "children": [
+                posixpath.normpath(child)
+                for child in data.get("children", [])
+            ],
+        })
+    return records, findings
+
+
+def bounded_context_records(model: RepoModel) -> List[Dict[str, Any]]:
+    """Valid bounded contexts in the repository, sorted by folder."""
+    records, _ = _scan_bounded_contexts(model)
+    return sorted(records, key=lambda record: record["folder"])
+
+
+def _dependency_cycle_findings(
+    known: Dict[str, Dict[str, Any]],
+) -> List[Finding]:
+    findings: List[Finding] = []
+    state: Dict[str, int] = {}  # 1 = on the DFS stack, 2 = finished
+    reported = set()
+
+    def visit(name: str, stack: List[str]) -> None:
+        state[name] = 1
+        stack.append(name)
+        for dep in known[name]["depends_on"]:
+            if dep not in known:
+                continue
+            if state.get(dep) == 1:
+                cycle = stack[stack.index(dep):] + [dep]
+                key = frozenset(cycle)
+                if key not in reported:
+                    reported.add(key)
+                    findings.append(
+                        Finding(
+                            "bounded-contexts", "error",
+                            known[name]["manifest"],
+                            "dependency cycle: %s" % " -> ".join(cycle),
+                        )
+                    )
+            elif dep not in state:
+                visit(dep, stack)
+        stack.pop()
+        state[name] = 2
+
+    for name in sorted(known):
+        if name not in state:
+            visit(name, [])
+    return findings
+
+
+def _nesting_findings(records: List[Dict[str, Any]]) -> List[Finding]:
+    """A context folder inside another context folder must be listed in
+    the parent's children; every listed child must be a context folder."""
+    findings: List[Finding] = []
+    folders = {record["folder"]: record for record in records}
+
+    def within(child: str, parent: str) -> bool:
+        return (parent == "." or child == parent
+                or child.startswith(parent + "/"))
+
+    for record in records:
+        ancestors = [
+            folders[folder] for folder in folders
+            if folder != record["folder"] and within(record["folder"], folder)
+        ]
+        if ancestors:
+            parent = max(ancestors, key=lambda rec: len(rec["folder"]))
+            rel = posixpath.relpath(record["folder"], parent["folder"])
+            if rel not in parent["children"]:
+                findings.append(
+                    Finding(
+                        "bounded-contexts", "error", record["manifest"],
+                        "context %r is nested inside context %r but %s does "
+                        "not list %r in children"
+                        % (record["name"], parent["name"],
+                           parent["manifest"], rel),
+                    )
+                )
+        for child in record["children"]:
+            if _context_join(record["folder"], child) not in folders:
+                findings.append(
+                    Finding(
+                        "bounded-contexts", "error", record["manifest"],
+                        "children entry %r is not a context folder" % child,
+                    )
+                )
+    return findings
+
+
+def check_bounded_contexts(model: RepoModel) -> List[Finding]:
+    """Issue #306 (ADDD): every folder holding a context.yaml is a bounded
+    context with its own AGENTS.md and README.md within the line budget.
+    Enforces the manifest contract, unique names, an acyclic depends_on
+    graph, existing public paths, and declared nesting. A repository with
+    no context.yaml is exempt (opt-in)."""
+    if not _context_manifest_paths(model):
+        return []
+    limit, findings = _context_budget(model)
+    records, scan_findings = _scan_bounded_contexts(model)
+    findings.extend(scan_findings)
+
+    names: Dict[str, List[Dict[str, Any]]] = {}
+    for record in records:
+        names.setdefault(record["name"], []).append(record)
+
+    for record in records:
+        folder = record["folder"]
+        for required in ("AGENTS.md", "README.md"):
+            rel = _context_join(folder, required)
+            if not model.exists(rel):
+                findings.append(
+                    Finding(
+                        "bounded-contexts", "error", rel,
+                        "context %r is missing %s (required beside "
+                        "context.yaml)" % (record["name"], required),
+                    )
+                )
+        agents_rel = _context_join(folder, "AGENTS.md")
+        agents_text = model.read_text(agents_rel)
+        if agents_text is not None:
+            count = len(agents_text.splitlines())
+            if count > limit:
+                findings.append(
+                    Finding(
+                        "bounded-contexts", "error", agents_rel,
+                        "%d lines exceeds the context budget of %d; split "
+                        "the context rather than adding rules (AGENTS/"
+                        "contexts.md)" % (count, limit),
+                    )
+                )
+        for public in record["public"]:
+            if not (model.root / _context_join(folder, public)).exists():
+                findings.append(
+                    Finding(
+                        "bounded-contexts", "error", record["manifest"],
+                        "public path %r does not exist inside the context "
+                        "folder" % public,
+                    )
+                )
+
+    for name, group in sorted(names.items()):
+        if len(group) > 1:
+            for record in group:
+                findings.append(
+                    Finding(
+                        "bounded-contexts", "error", record["manifest"],
+                        "duplicate context name %r (declared by %d "
+                        "contexts)" % (name, len(group)),
+                    )
+                )
+    known = {name: group[0] for name, group in names.items()}
+    for record in records:
+        for dep in record["depends_on"]:
+            if dep not in known:
+                findings.append(
+                    Finding(
+                        "bounded-contexts", "error", record["manifest"],
+                        "depends_on names unknown context %r" % dep,
+                    )
+                )
+    findings.extend(_dependency_cycle_findings(known))
+    findings.extend(_nesting_findings(records))
+    return findings
 
 
 def check_adapters(model: RepoModel) -> List[Finding]:
@@ -2899,6 +3227,7 @@ CHECKS: List[Tuple[str, Any]] = [
     ("policy", check_outcome_terms),
     ("policy", check_harness_edition),
     ("policy", check_agents_tiers),
+    ("policy", check_bounded_contexts),
     ("policy", check_adapters),
     ("policy", check_root_self_lock),
     ("policy", check_agents_authority),

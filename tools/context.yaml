@@ -1,0 +1,9 @@
+name: tools
+purpose: Standard tooling: the standardctl verifier and the owner work queue CLI with their shared primitives.
+public:
+  - standardctl.py
+  - work_queue.py
+depends_on: []
+commands:
+  test: python3 -m unittest discover -s tests -p "test_*.py"
+  lint: python3 -m compileall -q tools tests
