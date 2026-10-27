@@ -27,6 +27,17 @@ work:
   branch_pattern: "issue/{issue_number}-{slug}"
   worktree_pattern: ".worktrees/issue-{issue_number}-{slug}"
 
+agents:
+  roles:
+    orchestrator: planning
+    implementer: fast
+    reviewer: planning
+  profiles:
+    anthropic:
+      planning: opus
+      fast: haiku
+  fallback: harness-default
+
 providers:
   supported:
     - anthropic
