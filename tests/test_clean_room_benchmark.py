@@ -192,9 +192,10 @@ class CleanRoomBenchmark(unittest.TestCase):
         trial["acceptance_attempt"]["sat_passed"] = True
         trial["acceptance_attempt"]["sat_triggers"] = []
         result = m.score(trial, entry)
-        self.assertEqual("FAIL", result["dimensions"]["acceptance"]["status"])
-        self.assertIn("sat-required",
-                      result["dimensions"]["acceptance"]["reason"])
+        acceptance = result["dimensions"]["acceptance"]
+        self.assertEqual("REFUSE", acceptance["actual"]["verdict"])
+        self.assertEqual("sat-required", acceptance["actual"]["rule"])
+        self.assertEqual("PASS", acceptance["status"])
 
     def test_first_action_match_is_exact_not_substring(self):
         """Protects exact first-action matching: a verb that merely
@@ -276,8 +277,55 @@ class CleanRoomBenchmark(unittest.TestCase):
         schema = json.loads(
             (CORPUS / "trial.schema.json").read_text(encoding="utf-8"))
         self.assertEqual(sorted(m.TRIAL_FIELDS), sorted(schema["required"]))
-        self.assertEqual(sorted(m.TRIAL_FIELDS),
+        self.assertEqual(sorted(m.TRIAL_FIELDS + m.OPTIONAL_TRIAL_FIELDS),
                          sorted(schema["properties"]))
+        self.assertFalse(set(m.OPTIONAL_TRIAL_FIELDS) & set(
+            schema["required"]))
+
+    def test_optional_provenance_fields_accepted(self):
+        """Protects the runtime-neutral provenance contract: a trial
+        carrying optional actor_id, run_id, role, grantor and a matching
+        head_sha is valid and scores success, so provenance never makes a
+        correct trial fail and absence stays valid."""
+        m = self._m()
+        entry = _entry(self._doc(), "cr.R0.spec")
+        trial = m.oracle_trial(entry)
+        trial.update({"actor_id": "actor-1", "run_id": "run-1",
+                      "role": "builder", "grantor": "owner",
+                      "head_sha": entry["state"]["reconciled_head"]})
+        self.assertEqual([], m.validate_trial(trial))
+        self.assertTrue(m.score(trial, entry)["success"])
+
+    def test_stale_head_sha_fails_acceptance_as_stale_head(self):
+        """Protects the head binding: a trial whose head_sha differs from
+        the checkpoint head fails the acceptance dimension with the
+        handoff stale-head rule, reusing the frozen checker rather than a
+        second head comparison."""
+        m = self._m()
+        entry = _entry(self._doc(), "cr.R0.spec")
+        trial = m.oracle_trial(entry)
+        trial["head_sha"] = "f" * 40
+        result = m.score(trial, entry)
+        self.assertEqual("FAIL", result["dimensions"]["acceptance"]["status"])
+        self.assertIn("stale-head",
+                      result["dimensions"]["acceptance"]["reason"])
+
+    def test_report_labels_groups_by_role(self):
+        """Protects role labeling: trials carrying a role are grouped and
+        labeled by role, so builder and reviewer results never average
+        together, while trials without a role keep an empty role label."""
+        m = self._m()
+        doc = self._doc()
+        entry = _entry(doc, "cr.R0.spec")
+        builder = m.oracle_trial(entry, harness="h1", provider="p1")
+        builder["role"] = "builder"
+        reviewer = m.oracle_trial(entry, harness="h1", provider="p1")
+        reviewer["role"] = "reviewer"
+        plain = m.oracle_trial(entry, harness="h1", provider="p1")
+        groups = json.loads(m.report([builder, reviewer, plain], doc)[1])[
+            "groups"]
+        self.assertEqual(["", "builder", "reviewer"],
+                         [g["role"] for g in groups])
 
     def test_report_is_order_invariant(self):
         """Protects report determinism: the same trials in a different
