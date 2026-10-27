@@ -16111,5 +16111,368 @@ class ReleaseMold(unittest.TestCase):
 
 
 
+class BoundedContexts(FixtureCase):
+    """Issue #306 (ADDD): every folder holding a context.yaml is a bounded
+    context that carries its own AGENTS.md and README.md. The policy check
+    enforces the manifest contract, the AGENTS.md line budget, unique names,
+    an acyclic depends_on graph, existing public paths, and declared nesting.
+    A repository with no context.yaml is unaffected (opt-in)."""
+
+    def _manifest(self, name="billing", purpose="Owns invoice rules.",
+                  public=("api.py",), depends=(), children=None, extra=""):
+        lines = ["name: %s" % name, "purpose: %s" % purpose]
+        if public:
+            lines.append("public:")
+            lines += ["  - %s" % item for item in public]
+        else:
+            lines.append("public: []")
+        if depends:
+            lines.append("depends_on:")
+            lines += ["  - %s" % item for item in depends]
+        else:
+            lines.append("depends_on: []")
+        if children:
+            lines.append("children:")
+            lines += ["  - %s" % item for item in children]
+        lines += ["commands:", "  test: python3 -m unittest"]
+        return "\n".join(lines) + "\n" + extra
+
+    def _context(self, root, rel, manifest=None, agents_lines=3,
+                 readme=True, agents=True, public_files=("api.py",),
+                 **manifest_kwargs):
+        folder = Path(root) / rel
+        folder.mkdir(parents=True, exist_ok=True)
+        text = manifest if manifest is not None else self._manifest(
+            **manifest_kwargs)
+        (folder / "context.yaml").write_text(text, encoding="utf-8")
+        if agents:
+            body = "".join("- rule %d\n" % i for i in range(agents_lines))
+            (folder / "AGENTS.md").write_text(body, encoding="utf-8")
+        if readme:
+            (folder / "README.md").write_text("# Glossary\n", encoding="utf-8")
+        for rel_file in public_files:
+            target = folder / rel_file
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("# public\n", encoding="utf-8")
+        return folder
+
+    def _repo(self):
+        root = self.tmpdir()
+        _git_init(root)
+        return root
+
+    def _findings(self, root):
+        return standardctl.check_bounded_contexts(self.model(root))
+
+    def _messages(self, findings):
+        return " | ".join(f.message for f in findings)
+
+    def test_zero_contexts_is_a_no_op(self):
+        """Protects opt-in adoption: a repository with no context.yaml gets
+        zero bounded-context findings, so adopters are not blocked by the
+        new rule. Defect caught: a check that requires contexts everywhere."""
+        root = self._repo()
+        (root / "README.md").write_text("# Repo\n", encoding="utf-8")
+        self.assertEqual([], self._findings(root))
+
+    def test_valid_nested_tree_passes(self):
+        """Protects the happy path: a satisfied depends_on edge, a nested
+        child declared in its parent's children, budget-compliant AGENTS.md
+        files, and existing public paths produce zero findings. Defect
+        caught: false positives on a correct layout."""
+        root = self._repo()
+        self._context(root, "services/ledger", name="ledger",
+                      purpose="Records postings.")
+        self._context(root, "services/billing", name="billing",
+                      depends=["ledger"], children=["invoices"])
+        self._context(root, "services/billing/invoices", name="invoices",
+                      purpose="Builds invoices.")
+        self.assertEqual([], self._findings(root))
+
+    def test_missing_readme_is_reported(self):
+        """Protects the human/domain view: a context folder without
+        README.md is reported at the missing path. Defect caught: a README
+        requirement that is silently not enforced."""
+        root = self._repo()
+        self._context(root, "billing", readme=False)
+        findings = self._findings(root)
+        self.assertIn("billing/README.md", [f.path for f in findings])
+        self.assertTrue(all(f.check_id == "bounded-contexts" for f in findings))
+
+    def test_missing_agents_md_is_reported(self):
+        """Protects context-local rules: a context folder without AGENTS.md
+        is reported at the missing path. Defect caught: an AGENTS.md
+        requirement that is silently not enforced."""
+        root = self._repo()
+        self._context(root, "billing", agents=False)
+        self.assertIn("billing/AGENTS.md",
+                      [f.path for f in self._findings(root)])
+
+    def test_agents_md_over_budget_is_reported(self):
+        """Protects the context budget: an AGENTS.md past the default 120
+        lines is reported with the limit, pushing the author to split the
+        context instead of accreting rules. Defect caught: budget check off."""
+        root = self._repo()
+        self._context(root, "billing", agents_lines=121)
+        findings = self._findings(root)
+        self.assertIn("billing/AGENTS.md", [f.path for f in findings])
+        self.assertIn("120", self._messages(findings))
+
+    def test_agents_md_at_budget_passes(self):
+        """Protects the budget boundary: exactly 120 lines is within the
+        default budget. Defect caught: an off-by-one that rejects 120."""
+        root = self._repo()
+        self._context(root, "billing", agents_lines=120)
+        self.assertEqual([], self._findings(root))
+
+    def test_budget_override_from_project_yaml(self):
+        """Protects the owner-set override: project.yaml contexts.
+        agents_md_max_lines replaces the default, so a 10-line AGENTS.md
+        fails at a limit of 5 and passes at a limit of 10. Defect caught:
+        the override is ignored."""
+        root = self._repo()
+        self._context(root, "billing", agents_lines=10)
+        (root / "project.yaml").write_text(
+            "schema_version: 1\ncontexts:\n  agents_md_max_lines: 5\n",
+            encoding="utf-8")
+        self.assertIn("billing/AGENTS.md",
+                      [f.path for f in self._findings(root)])
+        (root / "project.yaml").write_text(
+            "schema_version: 1\ncontexts:\n  agents_md_max_lines: 10\n",
+            encoding="utf-8")
+        self.assertEqual([], self._findings(root))
+
+    def test_invalid_contexts_block_is_reported(self):
+        """Protects the config contract: an unknown key and a non-positive
+        budget in project.yaml contexts: are each reported on project.yaml
+        instead of being silently ignored. Defect caught: an unvalidated
+        override block."""
+        root = self._repo()
+        self._context(root, "billing")
+        (root / "project.yaml").write_text(
+            "schema_version: 1\ncontexts:\n  agents_md_max_lines: 0\n"
+            "  owners: 2\n", encoding="utf-8")
+        project_findings = [f for f in self._findings(root)
+                            if f.path == "project.yaml"]
+        self.assertEqual(2, len(project_findings))
+        messages = self._messages(project_findings)
+        self.assertIn("agents_md_max_lines", messages)
+        self.assertIn("owners", messages)
+
+    def test_missing_required_key_is_reported(self):
+        """Protects the manifest contract: a context.yaml without commands
+        is an error naming the missing key, so a context cannot omit its
+        scoped commands. Defect caught: required keys not enforced."""
+        root = self._repo()
+        text = self._manifest().replace(
+            "commands:\n  test: python3 -m unittest\n", "")
+        self._context(root, "billing", manifest=text)
+        self.assertIn("commands", self._messages(self._findings(root)))
+
+    def test_unknown_manifest_key_is_rejected(self):
+        """Protects the closed schema: an unrecognized top-level key fails
+        (additionalProperties false), so a typo cannot hide a missing field.
+        Defect caught: unknown keys accepted silently."""
+        root = self._repo()
+        self._context(root, "billing", extra="ownr: team\n")
+        self.assertIn("ownr", self._messages(self._findings(root)))
+
+    def test_unknown_command_key_is_rejected(self):
+        """Protects the commands object: only test, lint and build are
+        allowed, so a context cannot smuggle an unvetted command. Defect
+        caught: commands with unknown keys accepted."""
+        root = self._repo()
+        text = self._manifest().replace(
+            "  test: python3 -m unittest\n",
+            "  test: python3 -m unittest\n  deploy: ship\n")
+        self._context(root, "billing", manifest=text)
+        self.assertIn("deploy", self._messages(self._findings(root)))
+
+    def test_context_name_must_be_kebab_case(self):
+        """Protects addressability: names are kebab-case so depends_on and
+        children references stay unambiguous. Defect caught: a name pattern
+        that accepts underscores or capitals."""
+        root = self._repo()
+        self._context(root, "billing", name="Billing_Core")
+        self.assertIn("name", self._messages(self._findings(root)))
+
+    def test_overlong_purpose_is_rejected(self):
+        """Protects the purpose limit: 200 characters pass and 201 fail.
+        Defect caught: the length bound is missing or off by one."""
+        root = self._repo()
+        self._context(root, "billing", purpose="x" * 200)
+        self.assertEqual([], self._findings(root))
+        self._context(root, "billing", purpose="x" * 201)
+        self.assertIn("purpose", self._messages(self._findings(root)))
+
+    def test_multi_sentence_purpose_is_rejected(self):
+        """Protects the one-sentence purpose rule: a second sentence fails.
+        Defect caught: purpose used as a free-form paragraph."""
+        root = self._repo()
+        self._context(root, "billing",
+                      purpose="Owns invoices. Also owns tax rules.")
+        self.assertIn("purpose", self._messages(self._findings(root)))
+
+    def test_public_must_be_a_list(self):
+        """Protects the public interface shape: a scalar public value is a
+        type error naming the key. Defect caught: public accepted as a
+        string."""
+        root = self._repo()
+        text = ("name: billing\npurpose: Owns invoices.\npublic: api.py\n"
+                "depends_on: []\ncommands:\n  test: python3 -m unittest\n")
+        self._context(root, "billing", manifest=text)
+        self.assertIn("public", self._messages(self._findings(root)))
+
+    def test_public_path_escaping_context_is_rejected(self):
+        """Protects the context boundary: a public path that climbs out of
+        the folder with '..' is rejected. Defect caught: public entries that
+        expose files outside the context."""
+        root = self._repo()
+        self._context(root, "billing", public=("../secrets.py",),
+                      public_files=())
+        self.assertIn("../secrets.py", self._messages(self._findings(root)))
+
+    def test_missing_public_path_is_reported(self):
+        """Protects the public interface: a declared public path that does
+        not exist inside the context folder is reported by name. Defect
+        caught: public entries that point at nothing."""
+        root = self._repo()
+        self._context(root, "billing", public=("missing.py",),
+                      public_files=())
+        self.assertIn("missing.py", self._messages(self._findings(root)))
+
+    def test_unparseable_manifest_is_reported_by_path(self):
+        """Protects the parser boundary: a context.yaml outside the
+        restricted grammar is an error naming its path. Defect caught: a
+        parse failure that is swallowed."""
+        root = self._repo()
+        self._context(root, "billing", manifest="name: [billing\n")
+        self.assertIn("billing/context.yaml",
+                      [f.path for f in self._findings(root)])
+
+    def test_duplicate_context_names_are_reported(self):
+        """Protects name uniqueness: two contexts sharing a name are each
+        reported at their manifest path. Defect caught: duplicate names
+        resolved silently to one context."""
+        root = self._repo()
+        self._context(root, "a/one", name="billing")
+        self._context(root, "b/two", name="billing")
+        paths = sorted(f.path for f in self._findings(root)
+                       if "duplicate" in f.message)
+        self.assertEqual(["a/one/context.yaml", "b/two/context.yaml"], paths)
+
+    def test_unknown_depends_on_is_rejected(self):
+        """Protects the dependency graph: depends_on naming a context that
+        does not exist is an error naming the missing name. Defect caught:
+        dangling dependency edges accepted."""
+        root = self._repo()
+        self._context(root, "billing", depends=["ghost"])
+        findings = self._findings(root)
+        self.assertIn("billing/context.yaml", [f.path for f in findings])
+        self.assertIn("ghost", self._messages(findings))
+
+    def test_dependency_cycle_is_rejected(self):
+        """Protects acyclic layering: alpha depends on beta and beta on alpha
+        is reported as a cycle naming both. Defect caught: cycle detection
+        disabled."""
+        root = self._repo()
+        self._context(root, "a", name="alpha", depends=["beta"])
+        self._context(root, "b", name="beta", depends=["alpha"])
+        messages = self._messages(self._findings(root))
+        self.assertIn("cycle", messages)
+        self.assertIn("alpha", messages)
+        self.assertIn("beta", messages)
+
+    def test_undeclared_nested_context_is_rejected(self):
+        """Protects declared nesting: a context folder inside another context
+        that the parent does not list in children is an error on the nested
+        manifest. Defect caught: silent sprawl of undeclared sub-contexts."""
+        root = self._repo()
+        self._context(root, "billing", name="billing")
+        self._context(root, "billing/invoices", name="invoices")
+        findings = self._findings(root)
+        self.assertIn("billing/invoices/context.yaml",
+                      [f.path for f in findings])
+        self.assertIn("children", self._messages(findings))
+
+    def test_children_entry_must_name_a_context(self):
+        """Protects the children list: a listed child that is not a context
+        folder is reported. Defect caught: phantom children accepted."""
+        root = self._repo()
+        self._context(root, "billing", children=["ghost"])
+        self.assertIn("ghost", self._messages(self._findings(root)))
+
+    def test_vendored_and_generated_trees_are_skipped(self):
+        """Protects discovery scope: a malformed context.yaml under
+        node_modules/ or .evidence/ is not scanned. Defect caught: discovery
+        that walks vendored or generated output."""
+        root = self._repo()
+        self._context(root, "node_modules/pkg", manifest="name: [bad\n",
+                      agents=False, readme=False)
+        self._context(root, ".evidence/run", manifest="name: [bad\n",
+                      agents=False, readme=False)
+        self.assertEqual([], self._findings(root))
+
+    def test_check_is_registered_in_policy_group(self):
+        """Protects enforcement: the check is in the policy group of CHECKS,
+        so verify --select policy runs it. Defect caught: the check defined
+        but never registered."""
+        registered = [(group, fn.__name__) for group, fn in standardctl.CHECKS]
+        self.assertIn(("policy", "check_bounded_contexts"), registered)
+
+    def test_manifest_schema_agrees_with_checker(self):
+        """Protects the schema contract: TEMPLATES/context/context.schema.json
+        is draft 2020-12, closed (additionalProperties false), requires the
+        five required keys, and lists exactly the checker's keys. Defect
+        caught: schema and checker drifting apart."""
+        schema_path = WORKTREE / "TEMPLATES" / "context" / "context.schema.json"
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.assertEqual("https://json-schema.org/draft/2020-12/schema",
+                         schema["$schema"])
+        self.assertIs(False, schema["additionalProperties"])
+        self.assertEqual(sorted(standardctl.CONTEXT_REQUIRED_KEYS),
+                         sorted(schema["required"]))
+        self.assertEqual(
+            sorted(standardctl.CONTEXT_REQUIRED_KEYS
+                   + standardctl.CONTEXT_OPTIONAL_KEYS),
+            sorted(schema["properties"]))
+        self.assertEqual(standardctl.CONTEXT_NAME_PATTERN,
+                         schema["properties"]["name"]["pattern"])
+        self.assertEqual(standardctl.CONTEXT_PURPOSE_MAX,
+                         schema["properties"]["purpose"]["maxLength"])
+
+    def test_templates_exist_and_manifest_parses(self):
+        """Protects the adopter skeleton: TEMPLATES/context holds AGENTS.md,
+        README.md and context.yaml; the template manifest parses under the
+        restricted grammar with exactly the required keys; the template
+        AGENTS.md stays well under the default budget. Defect caught: a
+        template that is missing, unparseable, or over budget."""
+        base = WORKTREE / "TEMPLATES" / "context"
+        for name in ("AGENTS.md", "README.md", "context.yaml"):
+            self.assertTrue((base / name).is_file(), name)
+        data = standardctl.parse_restricted_yaml(
+            (base / "context.yaml").read_text(encoding="utf-8"),
+            "context.yaml")
+        self.assertEqual(sorted(standardctl.CONTEXT_REQUIRED_KEYS),
+                         sorted(data))
+        agents_lines = (base / "AGENTS.md").read_text(
+            encoding="utf-8").splitlines()
+        self.assertLess(len(agents_lines),
+                        standardctl.CONTEXT_AGENTS_MAX_LINES_DEFAULT // 2)
+
+    def test_live_repository_declares_tools_as_first_context(self):
+        """Protects the dogfood: the live repository passes the check with
+        exactly one bounded context, tools/, whose public entrypoints are
+        standardctl.py and work_queue.py. Defect caught: tools/ context
+        missing, mis-named, or exposing the wrong public paths."""
+        model = standardctl.RepoModel(WORKTREE)
+        self.assertEqual([], standardctl.check_bounded_contexts(model))
+        records = standardctl.bounded_context_records(model)
+        self.assertEqual(["tools"], [r["name"] for r in records])
+        self.assertEqual("tools", records[0]["folder"])
+        self.assertIn("standardctl.py", records[0]["public"])
+        self.assertIn("work_queue.py", records[0]["public"])
+
+
 if __name__ == "__main__":
     unittest.main()
