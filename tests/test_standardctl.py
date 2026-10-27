@@ -6132,6 +6132,137 @@ class HarnessEdition(FixtureCase):
 
 
 
+class AgentsTiers(FixtureCase):
+    """Issue #303 tiered orchestration: the optional project.yaml
+    agents: block maps roles to model tiers and tiers to provider
+    profiles. Absent block is valid (backward compatible); a present
+    block must be complete so no role resolves to a missing model."""
+
+    VALID = (
+        "agents:\n"
+        "  roles:\n"
+        "    orchestrator: planning\n"
+        "    implementer: fast\n"
+        "    reviewer: planning\n"
+        "  profiles:\n"
+        "    anthropic:\n"
+        "      planning: opus\n"
+        "      fast: haiku\n"
+        "  fallback: harness-default\n"
+    )
+
+    def _findings(self, agents_text=None):
+        root = self.std_fixture()
+        body = "schema_version: 1\n" + (agents_text or "")
+        (Path(root) / "project.yaml").write_text(body, encoding="utf-8")
+        return standardctl.check_agents_tiers(self.model(root))
+
+    def _errors(self, agents_text):
+        return " | ".join(
+            f.message for f in self._findings(agents_text)
+            if f.severity == "error")
+
+    def test_absent_agents_block_is_valid(self):
+        """Protects backward compatibility: a project.yaml without an
+        agents: block produces zero findings, so existing adopters are
+        not blocked by the new tier model."""
+        self.assertEqual([], self._findings(None))
+
+    def test_complete_block_is_valid(self):
+        """Protects the documented shape: roles mapped to tiers, every
+        tier present in each profile, and a string fallback produce
+        zero errors."""
+        self.assertEqual("", self._errors(self.VALID))
+
+    def test_role_tier_missing_from_profile_is_reported(self):
+        """Protects completeness: a role whose tier has no model in a
+        profile is reported incomplete naming the profile and tier, so
+        an orchestrator can never resolve to nothing."""
+        text = self.VALID.replace("      fast: haiku\n", "")
+        errors = self._errors(text)
+        self.assertIn("anthropic", errors)
+        self.assertIn("fast", errors)
+
+    def test_every_profile_is_checked(self):
+        """Protects per-profile completeness: a second profile missing
+        the planning tier is reported even when the first is complete,
+        so adding a provider cannot silently leave a tier unmapped."""
+        text = self.VALID.replace(
+            "  fallback: harness-default\n",
+            "    openai:\n"
+            "      fast: gpt-fast\n"
+            "  fallback: harness-default\n")
+        errors = self._errors(text)
+        self.assertIn("openai", errors)
+        self.assertIn("planning", errors)
+
+    def test_roles_without_profiles_rejected(self):
+        """Protects role resolution: roles that name tiers with no
+        profiles at all are an error, not a silent no-op."""
+        text = (
+            "agents:\n"
+            "  roles:\n"
+            "    orchestrator: planning\n"
+            "  fallback: harness-default\n")
+        errors = self._errors(text)
+        self.assertIn("profiles", errors)
+
+    def test_roles_must_be_a_mapping(self):
+        """Protects the role shape: roles given as a list instead of a
+        role-to-tier mapping is rejected, naming roles."""
+        text = (
+            "agents:\n"
+            "  roles:\n"
+            "    - orchestrator\n"
+            "  profiles:\n"
+            "    anthropic:\n"
+            "      planning: opus\n"
+            "  fallback: harness-default\n")
+        errors = self._errors(text)
+        self.assertIn("roles", errors)
+
+    def test_fallback_must_be_string(self):
+        """Protects the fallback contract: a fallback that is a mapping
+        instead of a string is rejected, naming fallback."""
+        text = self.VALID.replace(
+            "  fallback: harness-default\n",
+            "  fallback:\n    tier: fast\n")
+        errors = self._errors(text)
+        self.assertIn("fallback", errors)
+
+    def test_missing_fallback_rejected(self):
+        """Protects explicit fallback: a present agents block without a
+        fallback is rejected, so the behaviour on an unmapped tier is
+        always declared."""
+        text = self.VALID.replace("  fallback: harness-default\n", "")
+        errors = self._errors(text)
+        self.assertIn("fallback", errors)
+
+    def test_unknown_agents_key_rejected(self):
+        """Protects the fail-closed schema: an unknown key under
+        agents: is an error naming the key, so typos cannot silently
+        no-op."""
+        text = self.VALID + "  retries: 3\n"
+        errors = self._errors(text)
+        self.assertIn("retries", errors)
+
+    def test_live_project_yaml_declares_tiers(self):
+        """Protects the repository's own config: the live project.yaml
+        carries the Issue #303 agents block (orchestrator planning,
+        implementer fast, reviewer planning; anthropic profile opus and
+        haiku) and it validates clean."""
+        model = self.model(WORKTREE)
+        self.assertEqual([], [
+            f for f in standardctl.check_agents_tiers(model)
+            if f.severity == "error"])
+        agents = model.project.get("agents")
+        self.assertIsInstance(agents, dict)
+        self.assertEqual("planning", agents["roles"]["orchestrator"])
+        self.assertEqual("fast", agents["roles"]["implementer"])
+        self.assertEqual("opus", agents["profiles"]["anthropic"]["planning"])
+        self.assertEqual("haiku", agents["profiles"]["anthropic"]["fast"])
+
+
 class CoreGeneralization(FixtureCase):
     """T03 (#200): core generalized by addition with Exception
     adapters preserved. The generic capability contracts sit next
