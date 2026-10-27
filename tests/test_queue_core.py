@@ -507,6 +507,8 @@ def _schema_check(schema, value, root=None):
             return False
         if value < schema.get("minimum", value):
             return False
+        if value > schema.get("maximum", value):
+            return False
     elif kind and not isinstance(value, kinds[kind]):
         return False
     if "const" in schema and value != schema["const"]:
