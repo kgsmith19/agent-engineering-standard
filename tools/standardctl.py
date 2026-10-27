@@ -1320,6 +1320,76 @@ def check_harness_edition(model: RepoModel) -> List[Finding]:
     return findings
 
 
+# Issue #303 tiered orchestration: the optional project.yaml agents: block.
+AGENTS_TIER_KEYS = ("roles", "profiles", "fallback")
+
+
+def agents_tier_violations(agents: Any) -> List[str]:
+    """Validate the optional agents: block (pure). None (absent block)
+    is valid, so existing repositories are unchanged. A present block
+    maps roles to tiers; every profile maps each tier a role uses to a
+    model name; fallback is a string. Unknown keys fail closed."""
+    if agents is None:
+        return []
+    if not isinstance(agents, dict):
+        return ["agents must be a mapping of roles, profiles, and fallback"]
+    violations = [
+        "unknown agents key %r" % key
+        for key in agents if key not in AGENTS_TIER_KEYS
+    ]
+    tiers = set()
+    roles = agents.get("roles")
+    if roles is None:
+        violations.append("agents.roles is required")
+    elif not isinstance(roles, dict) or not roles:
+        violations.append("agents.roles must be a mapping of role to tier")
+    else:
+        for role, tier in roles.items():
+            if not isinstance(tier, str) or not tier:
+                violations.append("agents.roles.%s must name a tier" % role)
+            else:
+                tiers.add(tier)
+    profiles = agents.get("profiles")
+    if profiles is None:
+        violations.append("agents.profiles is required")
+    elif not isinstance(profiles, dict) or not profiles:
+        violations.append(
+            "agents.profiles must be a non-empty mapping of profile to tiers")
+    else:
+        for name, mapping in profiles.items():
+            if not isinstance(mapping, dict):
+                violations.append(
+                    "agents.profiles.%s must map tiers to models" % name)
+                continue
+            for tier in sorted(tiers):
+                model_name = mapping.get(tier)
+                if model_name is None:
+                    violations.append(
+                        "agents.profiles.%s is incomplete: no model for "
+                        "tier %s" % (name, tier))
+                elif not isinstance(model_name, str) or not model_name:
+                    violations.append(
+                        "agents.profiles.%s.%s must name a model"
+                        % (name, tier))
+    fallback = agents.get("fallback")
+    if not isinstance(fallback, str) or not fallback:
+        violations.append("agents.fallback must be a string")
+    return violations
+
+
+def check_agents_tiers(model: RepoModel) -> List[Finding]:
+    """Issue #303: a present project.yaml agents: block must be
+    complete (roles to tiers, every tier mapped in each profile,
+    string fallback). An absent block is a no-op."""
+    project = model.project
+    if not project or "agents" not in project:
+        return []
+    return [
+        Finding("agents-tiers", "error", "project.yaml", violation)
+        for violation in agents_tier_violations(project.get("agents"))
+    ]
+
+
 def check_adapters(model: RepoModel) -> List[Finding]:
     """Provider adapters must exist and contain exactly the import line;
     any extra content is duplicated policy. Normalizes line endings to LF.
@@ -2828,6 +2898,7 @@ CHECKS: List[Tuple[str, Any]] = [
     ("policy", check_issue_config),
     ("policy", check_outcome_terms),
     ("policy", check_harness_edition),
+    ("policy", check_agents_tiers),
     ("policy", check_adapters),
     ("policy", check_root_self_lock),
     ("policy", check_agents_authority),

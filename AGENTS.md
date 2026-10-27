@@ -46,6 +46,16 @@ reason on the Issue.
   executing-plans, systematic-debugging, test-driven-development,
   requesting-code-review, receiving-code-review, using-git-worktrees,
   subagent-driven-development — prefer the process skill over ad-hoc procedure.
+- **agent-extensions skills route by default.** Skills bootstrapped by
+  agent-extensions route across the whole lifecycle (plan, build, review,
+  verify, release), including high-value skills when applicable.
+- **Tiered orchestration.** The orchestrator runs on the planning tier: it
+  plans, decomposes, tracks (execution queue and Issue ledger), dispatches,
+  reviews, verifies, and owns pushes, PRs, and queue writes. Implementers run
+  on the fast tier, one per isolated worktree and branch, and never push,
+  open PRs, write the queue, or touch secrets or production. Tiers resolve to
+  models through `project.yaml` `agents:`; no provider is mandatory
+  ([Full rules: AGENTS/work.md#orchestrator-and-implementer-tiers](./AGENTS/work.md#orchestrator-and-implementer-tiers)).
 - **Baseline before specifics.** This file is the baseline; the repository's own
   AGENTS.md is project-specific and takes precedence where they differ.
 
@@ -141,6 +151,7 @@ Use these anchors to reference specific rules and procedures in implementations:
 - `governance#risk-classification` — R0–R3 risk tiers and verification scaling
 - `work#thin-issues-and-work-claiming` — scope, splitting rules, label set, 6-step protocol, work-state
 - `work#worktrees-and-parallel-work` — isolation rules, baseline, cleanup, safe parallelization
+- `work#orchestrator-and-implementer-tiers` — dispatch brief, implementer limits, escalation, parallel PR limits
 - `work#context-recovery-and-subagent-tracking` — recovery after restart, task states, ledger
 - `verification#test-quality` — oracle standards, empty-green prohibition, portfolio guidance
 - `verification#verification-flow` — end-to-end pipeline from owner intent through production

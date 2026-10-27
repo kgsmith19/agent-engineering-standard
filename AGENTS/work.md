@@ -66,6 +66,24 @@ automatically. `python tools/standardctl.py worktrees reconcile` reports; `workt
 removes only conclusively safe worktrees. When a cloud harness owns the workspace, use its native
 cleanup and record the disposition.
 
+## Orchestrator and Implementer Tiers
+
+Two tiers, one configuration. The **orchestrator** runs on the planning tier (`agents.roles.orchestrator` in `project.yaml`). It plans, decomposes Issues, tracks in the execution queue and the Issue ledger, dispatches, reviews, verifies, and owns every push, PR, and queue write. **Implementers** run on the fast tier, one per isolated worktree and branch. Profiles map tiers to models (for example `anthropic: {planning: opus, fast: haiku}`), and any combination is valid, including a high-tier planner with a fast, cheap implementer. No provider is mandatory.
+
+**Dispatch brief** (recorded in the ledger for every implementer):
+
+- **Scope:** the Issue number and the single outcome to deliver.
+- **Worktree and branch:** the exact `.worktrees/issue-<n>-<slug>` path and `issue/<n>-<slug>` branch.
+- **Files in scope:** the files the implementer may write. Everything else is read-only.
+- **Verification:** the exact commands to run, which the orchestrator re-runs.
+- **Report format:** branch; commit SHAs; commands and results; oracle or test changes (or "none"); open questions.
+
+**Implementer limits.** An implementer commits only on its own branch in its own worktree. It never pushes, opens or comments on PRs, runs queue write commands, touches secrets, or acts on production. On ambiguity, a design choice, or a repeated failure, it stops and returns the question to the orchestrator. Implementers never improvise scope.
+
+**Orchestrator verification.** The orchestrator reviews the reported commit range and overlapping files, then independently re-runs the verification commands at the exact reported head before any success claim. A subagent report is never evidence by itself.
+
+**Parallel PRs.** At most the queue's `max_active` items (owner-set, up to 5; see #302) are active at once. Claims follow queue order. Never run two writers on the same files, even in separate worktrees; when files overlap, serialize.
+
 ## Context Recovery and Subagent Tracking
 
 Do not rely on one ever-growing controller context. Use fresh task subagents with focused briefs,
