@@ -73,7 +73,7 @@ The owner **may override, replace, suspend, or delete any part of this standard 
 
 ### Session Bootstrap
 
-At session start: (1) invoke superpowers, (2) read AGENTS.md and project.yaml, (3) initialize dev/reviewer agents, (4) identify active Issue/milestone/branch/PR/head, (5) detect isolation, (6) reconcile local state with Git/GitHub, (7) run baseline verification. Use Superpowers skills. Resume first incomplete task. When the owner's execution queue exists, `python3 tools/work_queue.py next` names the item to resume; its order is binding (interruptions edit an item or append; only the owner reorders, via the logged `move`).
+At session start: (1) invoke superpowers, (2) read AGENTS.md and project.yaml, (3) initialize dev/reviewer agents, (4) identify active Issue/milestone/branch/PR/head, (5) detect isolation, (6) reconcile local state with Git/GitHub, (7) run baseline verification. Use Superpowers skills. Resume first incomplete task. When the owner's execution queue exists, `python3 tools/work_queue.py next` names the item to resume; its order is binding (interruptions edit an item or append; only the owner reorders, via the logged `move`). Up to the owner-set `max_active` items (at most 5, via the logged `limit`) may be active at once for independent work; they are still started in queue order.
 
 [Full procedure: AGENTS/governance.md#session-bootstrap](./AGENTS/governance.md#session-bootstrap)
 

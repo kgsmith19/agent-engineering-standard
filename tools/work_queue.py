@@ -393,6 +393,11 @@ def build_parser(env=None):
     anchor.add_argument("--before")
     move.add_argument("--authorized-by", required=True)
     move.add_argument("--reason", required=True)
+    limit = sub.add_parser("limit", help="owner-authorized cap on parallel "
+                           "active items, 1-%d (logged)" % core.MAX_PARALLEL)
+    limit.add_argument("n", type=int)
+    limit.add_argument("--authorized-by", required=True)
+    limit.add_argument("--reason", required=True)
     hist = sub.add_parser("history", help="print the hash-chained history")
     hist.add_argument("id", nargs="?")
     handoff = sub.add_parser("handoff", help="show or set the session handoff")
@@ -489,12 +494,15 @@ def _run_v2(args, adapter, ctx):
         if state is None:
             raise core.FormatError("no queue found in the %s backend" % adapter.name)
         if command == "show":
+            if core.max_active(state) > 1:
+                print("parallel: up to %d active (%d active now)" % (
+                    core.max_active(state), len(core.active_items(state))))
             for item in state["items"]:
                 print(_describe(item))
             if state["archived"]:
                 print("archived: %s" % ", ".join(state["archived"]))
         elif command == "next":
-            item = core.next_item(state)
+            item = core.upcoming(state)
             if item is None:
                 print("QUEUE EMPTY")
                 return EXIT_EMPTY
@@ -543,6 +551,9 @@ def _run_v2(args, adapter, ctx):
     elif command == "move":
         change = lambda s: core.op_move(s, args.id, args.after, args.before,  # noqa: E731
                                         args.authorized_by, args.reason)
+    elif command == "limit":
+        change = lambda s: core.op_limit(s, args.n, args.authorized_by,  # noqa: E731
+                                         args.reason)
     elif command == "handoff":
         text = _read_text(args.file)
         change = lambda s: core.op_handoff(s, text)  # noqa: E731

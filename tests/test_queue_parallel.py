@@ -202,17 +202,24 @@ class GuardTests(unittest.TestCase):
             core.guard_pr(self._three_active(), ["o/r#4"], False)
 
     def test_claim_guard_allows_active_and_next(self):
-        """AC4: a claim matches any active item, or the next startable one."""
-        state = self._three_active()
-        for ref in ("o/r#1", "o/r#2", "o/r#3", "o/r#4"):
-            self.assertIn("ok", core.guard_claim(state, ref))
+        """AC4: a claim matches any active item, or the next startable one while the cap has room."""
+        full = self._three_active()
+        for ref in ("o/r#1", "o/r#2", "o/r#3"):
+            self.assertIn("ok", core.guard_claim(full, ref))
+        # At the cap, the next item cannot start, so it cannot be claimed either
+        # (the same rule as a cap of 1 with one item active).
         with self.assertRaises(core.QueueError):
-            core.guard_claim(state, "o/r#9")
+            core.guard_claim(full, "o/r#4")
+        room = limited(full, 4)
+        self.assertIn("ok", core.guard_claim(room, "o/r#4"))
+        with self.assertRaises(core.QueueError):
+            core.guard_claim(room, "o/r#9")
 
     def test_claim_guard_next_skips_active_items(self):
         """AC4: with items already active, NEXT is the first item that can still be started, not an active one."""
-        state = self._three_active()
+        state = limited(self._three_active(), 4)
         self.assertEqual(core.next_startable(state)["id"], "Q04")
+        self.assertEqual(core.upcoming(state)["id"], "Q04")
         self.assertEqual(core.next_item(state)["id"], "Q01")
 
 

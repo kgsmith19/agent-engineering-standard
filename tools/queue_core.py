@@ -32,6 +32,10 @@ Rules
   by sha256, and advances ``history``. ``chain`` walks back from the
   committed head, so orphaned, junk or forged events are ignored and a
   missing or altered one fails closed.
+* At most ``max_active`` items are active at once (optional state key,
+  absent means 1, owner-set through ``op_limit`` up to ``MAX_PARALLEL``,
+  #302). Claims stay in queue order: a later item starts only when every
+  earlier live item is active, blocked or waiting on a dependency.
 * The handoff text is stored in its ``handoff`` event; state holds its
   digest. Text that looks like a credential is refused everywhere, and
   a state larger than ``STATE_BUDGET`` is refused rather than truncated.
@@ -55,6 +59,9 @@ STATE_BUDGET = 24576
 
 STATE_KEYS = ("version", "owner", "next_id", "items", "archived",
               "history", "handoff")
+OPTIONAL_STATE_KEYS = ("max_active",)
+# Owner ceiling for parallel active items (owner authorization, 2026-10-27, #302).
+MAX_PARALLEL = 5
 ITEM_KEYS = ("id", "title", "refs", "status", "note", "depends_on")
 EVENT_KEYS = ("op", "item", "from", "to", "reason", "seq", "prev", "at",
               "actor", "harness", "provider", "hash")
@@ -81,7 +88,8 @@ HEADER = """## 📋 Execution Queue
 
 Ordered queue of work across the owner's repositories (queue v2). **Order \
 is binding**: work the first item that is neither blocked nor waiting on a \
-dependency. Only the owner reorders, through `work_queue.py move`, and every \
+dependency; up to the owner-set cap of items may be active at once, started \
+in this order. Only the owner reorders, through `work_queue.py move`, and every \
 change is a hash-chained history event (`work_queue.py history`). The JSON \
 block below is the source of truth; this checklist is regenerated from it \
 on every write.
@@ -189,8 +197,13 @@ def _validate_item(item, next_id):
 
 def validate(state):
     """Fail closed unless ``state`` is a well-formed v2 queue."""
-    if not isinstance(state, dict) or set(state) != set(STATE_KEYS):
-        _fail("queue must be an object holding exactly %s" % ", ".join(STATE_KEYS))
+    if (not isinstance(state, dict) or not set(STATE_KEYS) <= set(state)
+            or set(state) - set(STATE_KEYS) - set(OPTIONAL_STATE_KEYS)):
+        _fail("queue must be an object holding exactly %s (optionally %s)"
+              % (", ".join(STATE_KEYS), ", ".join(OPTIONAL_STATE_KEYS)))
+    if "max_active" in state and not (
+            _is_int(state["max_active"]) and 1 <= state["max_active"] <= MAX_PARALLEL):
+        _fail("max_active must be an integer from 1 to %d" % MAX_PARALLEL)
     if state["version"] != VERSION or not _is_int(state["version"]):
         _fail("queue version must be %d" % VERSION)
     if not isinstance(state["owner"], str) or not _OWNER.match(state["owner"]):
@@ -259,6 +272,31 @@ def next_item(state):
         if item["status"] in ("pending", "active") and not waiting_on(state, item):
             return item
     return None
+
+
+def max_active(state):
+    """How many items may be active at once (absent means 1)."""
+    return state.get("max_active", 1)
+
+
+def active_items(state):
+    return [item for item in state["items"] if item["status"] == "active"]
+
+
+def next_startable(state):
+    """First pending item with every dependency met: the next one to start."""
+    for item in state["items"]:
+        if item["status"] == "pending" and not waiting_on(state, item):
+            return item
+    return None
+
+
+def upcoming(state):
+    """The item to work next: the next one to start while the cap has room,
+    otherwise (and always under a cap of 1) ``next_item``."""
+    if max_active(state) > 1 and len(active_items(state)) < max_active(state):
+        return next_startable(state) or next_item(state)
+    return next_item(state)
 
 
 def history(events, item_id=None):
@@ -370,14 +408,25 @@ def op_transition(state, item_id, action, reason=""):
             raise QueueError("cannot start %s: it is %s%s" % (
                 item_id, status,
                 " (unblock it first)" if status == "blocked" else ""))
+        cap = max_active(new)
         for earlier in new["items"]:
             if earlier is item:
                 break
-            if earlier["status"] != "blocked" and not waiting_on(new, earlier):
-                raise QueueError(
-                    "cannot start %s: earlier item %s is %s (finish it, or "
-                    "block it with a reason)" % (item_id, earlier["id"],
-                                                  earlier["status"]))
+            if earlier["status"] == "blocked" or waiting_on(new, earlier):
+                continue
+            if earlier["status"] == "active" and cap > 1:
+                continue
+            raise QueueError(
+                "cannot start %s: earlier item %s is %s (finish it, or "
+                "block it with a reason)" % (item_id, earlier["id"],
+                                              earlier["status"]))
+        running = active_items(new)
+        if len(running) >= cap:
+            raise QueueError(
+                "cannot start %s: %d of %d allowed items are already active (%s); "
+                "finish one first, or ask the owner to raise the cap with "
+                "`limit`" % (item_id, len(running), cap,
+                             ", ".join(i["id"] for i in running)))
         unmet = waiting_on(new, item)
         if unmet:
             raise QueueError("cannot start %s: it depends on %s, not done yet"
@@ -439,6 +488,29 @@ def op_move(state, item_id, after=None, before=None, authorized_by="",
     return new, [_event("move", item_id, {"after": old_after},
                         {"after": new_after, "authorized_by": authorized_by},
                         reason)]
+
+
+def op_limit(state, n, authorized_by="", reason=""):
+    """Owner-authorized change to how many items may be active at once."""
+    if authorized_by != state["owner"]:
+        raise QueueError("limit needs --authorized-by %s (the queue owner); "
+                         "an agent cannot raise its own concurrency"
+                         % state["owner"])
+    reason = _text(reason, "limit reason", LIMITS["reason"])
+    if not _is_int(n) or not 1 <= n <= MAX_PARALLEL:
+        raise QueueError("limit must be an integer from 1 to %d, got %r"
+                         % (MAX_PARALLEL, n))
+    before = max_active(state)
+    if n == before:
+        raise QueueError("limit is already %d" % n)
+    running = len(active_items(state))
+    if n < running:
+        raise QueueError("cannot lower the limit to %d: %d items are active; "
+                         "finish or block some first" % (n, running))
+    new = copy.deepcopy(state)
+    new["max_active"] = n
+    return new, [_event("limit", None, before,
+                        {"max_active": n, "authorized_by": authorized_by}, reason)]
 
 
 def op_handoff(state, text):
@@ -693,8 +765,7 @@ def _item_refs(item):
 
 
 def _queue_position(state):
-    active = [i for i in state["items"] if i["status"] == "active"]
-    return active, next_item(state)
+    return active_items(state), upcoming(state)
 
 
 def guard_claim(state, ref):
@@ -742,12 +813,16 @@ def guard_pr(state, refs, exempt):
 def render_markdown(state):
     """Human checklist followed by the marker and the JSON source of truth."""
     lines = [HEADER]
-    upcoming = next_item(state)
+    if max_active(state) > 1:
+        lines.append("**Parallel: up to %d active (%d active now).** The owner "
+                     "sets this with `work_queue.py limit`.\n"
+                     % (max_active(state), len(active_items(state))))
+    following = upcoming(state)
     for item in state["items"]:
         refs = ", ".join(item["refs"]) or "no refs"
         line = "- [ ] **%s** %s — %s · %s" % (item["id"], item["title"], refs,
                                              _BADGE[item["status"]])
-        if upcoming is not None and item["id"] == upcoming["id"]:
+        if following is not None and item["id"] == following["id"]:
             line += " · 👉 **NEXT**"
         if item["depends_on"]:
             line += "\n  - depends on %s" % ", ".join(item["depends_on"])

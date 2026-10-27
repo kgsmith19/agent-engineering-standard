@@ -10,6 +10,7 @@
     "version": {"type": "integer", "const": 2},
     "owner": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"},
     "next_id": {"type": "integer", "minimum": 1},
+    "max_active": {"type": "integer", "minimum": 1, "maximum": 5, "description": "How many items may be active at once (#302). Absent means 1. Owner-set through work_queue.py limit."},
     "items": {"type": "array", "items": {"$ref": "#/$defs/item"}},
     "archived": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
     "history": {
