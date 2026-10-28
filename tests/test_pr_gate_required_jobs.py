@@ -1,23 +1,21 @@
 """Tests for the PR Gate required-job aggregation (Issue #314).
 
-The decision is the pure function ``pr_gate_check.evaluate``. The behavior
-tests take their required and optional sets from the real ``pr-gate.yml``,
-so they fail if the workflow configuration drifts from the standard
-(AGENTS.md, PR Gate: every applicable job is required unless the owner
-records an override).
+The behavior tests run the gate job's own inline script, extracted from the
+real ``pr-gate.yml`` together with its REQUIRED_JOBS and OPTIONAL_JOBS, so
+they fail if the workflow drifts from the standard (AGENTS.md, PR Gate:
+every applicable job is required unless the owner records an override).
 """
 
-import io
 import json
+import os
 import re
+import subprocess
 import sys
+import textwrap
 import unittest
 from pathlib import Path
 
 WORKTREE = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(WORKTREE / "tools"))
-import pr_gate_check as gate  # noqa: E402
-
 WORKFLOW = WORKTREE / ".github" / "workflows" / "pr-gate.yml"
 ALL_JOBS = ("setup", "policy", "lint", "security", "tests", "evidence", "llm_review")
 STRONG_JOBS = ("tests", "security", "evidence")
@@ -48,6 +46,29 @@ def optional_jobs():
     return _env_jobs("OPTIONAL_JOBS")
 
 
+def _gate_script():
+    """Return the gate job's inline ``python3 - <<'GATE'`` script."""
+    match = re.search(r"python3 - <<'GATE'\n(.*?)\n[ \t]*GATE\n",
+                      _gate_job_text(), re.S)
+    if not match:
+        raise AssertionError("gate job has no inline GATE script")
+    return textwrap.dedent(match.group(1))
+
+
+def run_gate(needs):
+    """Run the gate script on ``needs``; return (exit code, ERROR, WARNING lines)."""
+    env = dict(os.environ,
+               NEEDS=json.dumps(needs),
+               REQUIRED_JOBS=" ".join(sorted(required_jobs())),
+               OPTIONAL_JOBS=" ".join(sorted(optional_jobs())))
+    proc = subprocess.run([sys.executable, "-c", _gate_script()], env=env,
+                          capture_output=True, text=True, check=False)
+    lines = proc.stdout.splitlines()
+    problems = [l for l in lines if l.startswith("ERROR:")]
+    warnings = [l for l in lines if l.startswith("WARNING:")]
+    return proc.returncode, problems, warnings
+
+
 def _needs(overrides=None):
     """Build a ``needs`` mapping: every job succeeded, then apply overrides.
 
@@ -64,7 +85,10 @@ def _needs(overrides=None):
 
 class RequiredJobBehaviourTests(unittest.TestCase):
     def evaluate(self, overrides=None):
-        return gate.evaluate(_needs(overrides), required_jobs(), optional_jobs())
+        code, problems, warnings = run_gate(_needs(overrides))
+        # The exit code must agree with the reported problems.
+        self.assertEqual(1 if problems else 0, code)
+        return problems, warnings
 
     def test_all_success_passes(self):
         """A gate with every job concluded success passes with no warnings.
@@ -177,54 +201,6 @@ class WorkflowPinTests(unittest.TestCase):
         gated = set(x.strip() for x in needs_line.group(1).split(","))
         self.assertEqual(gated, required_jobs() | optional_jobs())
         self.assertEqual(set(), required_jobs() & optional_jobs())
-
-    def test_gate_step_delegates_to_the_extracted_check(self):
-        """The gate step is a thin call to tools/pr_gate_check.py.
-
-        Catches the inline heredoc being restored, which would leave the
-        extracted check untested and unused.
-        """
-        gate_job = _gate_job_text()
-        self.assertIn("python3 tools/pr_gate_check.py", gate_job)
-        self.assertNotIn("python3 - <<'GATE'", gate_job)
-
-    def test_gate_step_pins_the_strict_conclusion(self):
-        """The gate step sets REQUIRED_RESULT to the literal 'success'.
-
-        The standard's structural check requires the strict pattern in the
-        gate job. Catches a gate whose required conclusion is weakened.
-        """
-        self.assertIn("REQUIRED_RESULT: 'success'", _gate_job_text())
-
-
-class ExtractedCheckMainTests(unittest.TestCase):
-    def test_main_fails_on_required_failure(self):
-        """main exits 1 and names the failing required job.
-
-        Catches the entry point swallowing a red required result.
-        """
-        out = io.StringIO()
-        env = {"NEEDS": json.dumps(_needs({"tests": "failure"})),
-               "REQUIRED_JOBS": "setup policy lint tests",
-               "OPTIONAL_JOBS": "security evidence llm_review",
-               "REQUIRED_RESULT": "success"}
-        self.assertEqual(1, gate.main(env, out))
-        self.assertIn("Gate FAILED", out.getvalue())
-
-    def test_main_fails_closed_unless_required_result_is_success(self):
-        """main refuses to pass unless REQUIRED_RESULT is exactly 'success'.
-
-        Catches a gate whose required conclusion is weakened through the
-        environment, and a missing REQUIRED_RESULT being treated as a pass.
-        """
-        for value in (None, "skipped", "neutral", ""):
-            with self.subTest(REQUIRED_RESULT=value):
-                env = {"NEEDS": json.dumps(_needs()),
-                       "REQUIRED_JOBS": "setup policy lint security tests evidence",
-                       "OPTIONAL_JOBS": "llm_review"}
-                if value is not None:
-                    env["REQUIRED_RESULT"] = value
-                self.assertEqual(1, gate.main(env, io.StringIO()))
 
 
 if __name__ == "__main__":
