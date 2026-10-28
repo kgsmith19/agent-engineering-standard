@@ -319,10 +319,10 @@ jobs:
       - name: Gate · Enforce essential dependencies succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-          # Only require high-ROI checks: setup, policy, lint
-          # Optional (informational only): security, tests, evidence
-          REQUIRED_JOBS: setup policy lint
-          OPTIONAL_JOBS: security tests evidence llm_review
+          # Every gated job is required except llm_review, which stays a
+          # warning (owner-bypassable, AGENTS/boundaries.md). Issue #314.
+          REQUIRED_JOBS: setup policy lint security tests evidence
+          OPTIONAL_JOBS: llm_review
         run: |
           python3 - <<'GATE'
           import json
