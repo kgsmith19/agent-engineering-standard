@@ -179,6 +179,50 @@ For R2/R3 work: prefer a different provider family for verifier versus builder, 
 exact-head verification, and record the provider family and model. The owner may waive provider
 separation.
 
+## Role and Authority Contract
+
+This contract defines **what MUST be proven** before an agent action is authorized. It does not define how an agent is hosted, which runtime runs it, or which personas exist. The machine reference is `tools/role_contract.py` (`decide`), pinned by the frozen fixtures in `Canonical/corpus/role-contract/`.
+
+**Grant.** An agent action that changes the repository or GitHub MUST be covered by a grant with these fields, all required except `github_identity`:
+
+- `actor_id`, `run_id`, `grantor`: non-empty strings.
+- `duty`: a role from `tools/role_authority.py` `ROLES` (for example `builder`, `verifier`, `reviewer`, `remediator`, `spec_author`, `spec_critic`). Duties are SDLC functions, never persona names.
+- `scope`: a non-empty list of path prefixes.
+- `head_sha`: the 40-character lowercase commit the grant is valid for.
+- `provider`: `{family, model}`. `provenance`: `{source, provider_observed}`.
+- `issued_at`, `expires_at`: ISO-8601 UTC with `Z`. The window MUST NOT exceed 3600 seconds.
+- `github_identity`: REQUIRED only for actions that post to or mutate GitHub.
+
+**Decision.** An action is allowed only when no rule refuses it. Refusals carry rule ids:
+
+| Rule | Refuses when |
+| --- | --- |
+| `grant-invalid` / `action-invalid` | a field is missing, extra, or mistyped, or the action kind is unknown. An unknown risk is treated as R3. |
+| `grant-expired` | `now` is outside `[issued_at, expires_at)`. |
+| `stale-head` | `head_sha` is not the current head. |
+| `self-grant` | the grantor is the actor, unless the grantor is the owner. |
+| `unverified-provenance` | `provider_observed` is empty or not the declared provider family. |
+| `out-of-scope` | the path is outside the grant scope or the duty's write roots, or it escapes its root. |
+| `forbidden-self-review` | a review or verify action is taken by the builder of the same head, by the same actor that built it, or (at R2/R3) by the same provider family that built it. |
+| `unauthorized-github-write` | a `post` or `mutate_github` action has no `github_identity`. |
+| `owner-override` | an override is supplied that is not an explicit owner decision: another owner, an empty decision or scope, or a different owner than the one decided for. |
+
+**Rules.**
+
+- Authorization MUST fail closed. Any missing or invalid field refuses; no default is inferred.
+- Reviewer and verifier independence MUST hold: a builder MUST NOT validate its own head, and at R2/R3 the reviewer's provider family MUST differ from the builder's. Advisory R0/R1 review remains advisory.
+- GitHub identity MUST NOT be required for local evidence writes, and MUST be present for every post or mutation of GitHub.
+- An owner override MUST be explicit: owner `kgsmith19`, a non-empty decision, and a non-empty scope. It MAY waive only `grant-expired` and `stale-head`. It MUST NOT waive `self-grant`, `forbidden-self-review`, `unverified-provenance`, or any other rule.
+- This contract MUST NOT loosen the PR Gate, independent LLM review, or owner authority defined elsewhere in this standard. A grant is evidence that the PR Gate checks; it never replaces the gate or any review.
+
+**Examples.**
+
+1. **Interactive subagent.** The orchestrator issues a `builder` grant scoped to `src/` for one head and a 30-minute window. The subagent writes locally with no `github_identity`. A later `verifier` grant of another provider family, at R2/R3, records its verdict under `evidence/verification/`. A `verify` by the same actor is refused as `forbidden-self-review`.
+2. **Isolated container worker (for example OpenHands).** The same grant fields are issued at container start and recorded in the run receipt. The container holds no GitHub credential, so it can only write local evidence. Any post goes through a GitHub App identity outside the container, and the post is refused without that identity.
+3. **Existing GitHub App path.** The reviewer GitHub App is the `github_identity` for its post to a PR. The grant's provider family MUST differ from the builder's at R2/R3, which is the existing Provider Separation rule. Nothing in this path changes.
+
+**Compatibility with external agent systems.** The contract names fields and rule ids, not runtimes, hosts, or personas, so an external agent system can emit grants that satisfy it. `hyper-agents` is an example consumer: it keeps its own personas, runtime, and role definitions, and it may emit grants in these fields to be checked here. This repository has no dependency on `hyper-agents` or any other agent system, and no external system defines this standard's duties or rules.
+
 ## Releases and Milestones
 
 A GitHub Milestone defines a release (for example `v1.4.0`, `vNext`). Use an existing open
