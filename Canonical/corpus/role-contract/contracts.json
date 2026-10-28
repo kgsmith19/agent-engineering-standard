@@ -1120,6 +1120,42 @@
           "forbidden-self-review"
         ]
       }
+    },
+    {
+      "id": "role-contract.refuse.duty-write-roots",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "verifier",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/module.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "out-of-scope"
+        ]
+      }
     }
   ]
 }
