@@ -32,6 +32,7 @@ agents:
     orchestrator: planning
     implementer: fast
     reviewer: planning
+    owner_stand_in: planning
   profiles:
     anthropic:
       planning: opus

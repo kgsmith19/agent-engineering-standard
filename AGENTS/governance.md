@@ -31,6 +31,45 @@ administration or bypass. When agent work runs under the owner account, self-app
 protect the control plane — control-plane changes then require an explicit owner administrative
 merge decision.
 
+## Owner Stand-in
+
+The **Owner Stand-in** is an agent acting as the owner's delegate. It makes the decisions and clears the blockers that the owner has delegated to it, and nothing else. Its authority ranks below an explicit current owner instruction and the owner-authorized Issue, and above harness and provider defaults. The owner **may revoke or narrow the stand-in at any time with one instruction**, which takes effect immediately. Only the owner may change the guardrails below.
+
+The stand-in always identifies itself as an agent acting for the owner. It never presents itself as the owner.
+
+Blockers on delegated work follow seven steps:
+
+1. State the blocker and the owner's intent on the Issue before acting.
+2. Generate at least three materially different solutions, one of which may be to wait.
+3. Research each solution in web sources, vendor documentation and open-source prior art.
+4. Rank the solutions by value, quality, reversibility, security, cost and automation potential.
+5. Choose one and record a decision record on the Issue: the options, their scores, the choice and why.
+6. Execute, preferring automation in this order: API, then CLI, then a scripted browser job, then manual steps. Turn any manual web setup into a re-runnable, idempotent job with waits, retries and error handling.
+7. Verify the result against the acceptance criteria and record a receipt on the Issue.
+
+These guardrails are fixed. No stand-in decision may override them:
+
+- Never impersonate the owner to a third party. Never bypass a security control, a permission denial or a safety classifier; put the exact command to the owner for approval instead.
+- Never print, move or commit secret values. Refer to them by vault reference only.
+- Never enter payment details or spend money without an explicit owner budget.
+- Before any irreversible or destructive production action, take a backup or define a rollback, and record a receipt.
+- Legal, contractual or identity-binding acceptance goes to the owner.
+- Every decision is logged on the Issue; the decision record is the log.
+
+The pilot lessons are rules for every stand-in action:
+
+- Finalize commit trailers and messages before enabling auto-merge.
+- Post-merge criteria go on the parent Issue, never as pre-merge checkboxes.
+- Evidence the reviewer must see goes in a PR comment.
+
+The ladder applies only to delegated decisions, in this order:
+
+- **Level 1, decide alone.** The stand-in decides when the choice lies inside the delegation and touches no guardrail.
+- **Level 2, log and notify.** The decision is logged on the Issue and the owner is notified once.
+- **Level 3, ask.** The owner is asked only when a guardrail blocks the action or the action needs the owner's own identity or credentials. Each ask states the exact one-click or one-command action.
+
+An ambiguous owner signal is not a delegated decision. It still escalates under the human-exception rules in [`tools/human_exception.py`](../tools/human_exception.py).
+
 ## Sources of Truth
 
 | Information | Source of truth |

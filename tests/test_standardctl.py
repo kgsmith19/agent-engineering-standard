@@ -6345,6 +6345,204 @@ class AgentsTiers(FixtureCase):
         self.assertIn("agents-tiers", [
             f.check_id for f in findings if f.severity == "error"])
 
+    def test_live_project_yaml_declares_owner_stand_in_role(self):
+        """Protects the Issue #308 AC5 role entry: the live project.yaml
+        declares owner_stand_in: planning under agents.roles, so the
+        delegated stand-in tier is configured and renderable. Dropping
+        the entry silently removes the role."""
+        agents = self.model(WORKTREE).project.get("agents") or {}
+        roles = agents.get("roles") or {}
+        self.assertEqual(
+            "planning", roles.get("owner_stand_in"),
+            "project.yaml agents.roles lacks owner_stand_in: planning")
+
+    def test_adopter_template_declares_owner_stand_in_role(self):
+        """Protects the Issue #308 AC5 role entry in the adopter
+        template: TEMPLATES/project.yaml declares owner_stand_in:
+        planning under agents.roles, matching the live project.yaml,
+        so rendered repositories inherit the stand-in tier."""
+        template = standardctl.parse_restricted_yaml(
+            (WORKTREE / "TEMPLATES" / "project.yaml").read_text(
+                encoding="utf-8"),
+            "TEMPLATES/project.yaml")
+        roles = (template.get("agents") or {}).get("roles") or {}
+        self.assertEqual(
+            "planning", roles.get("owner_stand_in"),
+            "TEMPLATES/project.yaml agents.roles lacks owner_stand_in: "
+            "planning")
+
+
+OWNER_STAND_IN_HEADING = "## Owner Stand-in"
+OWNER_STAND_IN_STEP_COUNT = 7
+
+
+def owner_stand_in_section(governance_text):
+    """Return the body of the ``## Owner Stand-in`` section, up to the
+    next level-2 heading, or None when the heading is absent."""
+    lines = governance_text.splitlines()
+    starts = [i for i, line in enumerate(lines)
+              if line.strip() == OWNER_STAND_IN_HEADING]
+    if not starts:
+        return None
+    body = []
+    for line in lines[starts[0] + 1:]:
+        if re.match(r"## ", line):
+            break
+        body.append(line)
+    return "\n".join(body)
+
+
+def _in_order(text, patterns):
+    """True when every pattern matches text and the first matches occur
+    in the given order (case-insensitive)."""
+    positions = []
+    for pattern in patterns:
+        match = re.search(pattern, text, re.I)
+        if match is None:
+            return False
+        positions.append(match.start())
+    return positions == sorted(set(positions))
+
+
+def owner_stand_in_gaps(governance_text):
+    """Return labelled gaps between the ``## Owner Stand-in`` section and
+    the Issue #308 acceptance criteria; an empty list means complete.
+    Matching is semantic (keywords, order), not exact sentences. Each
+    label starts with its AC id or 'section' / 'identity'."""
+    section = owner_stand_in_section(governance_text)
+    if section is None:
+        return ["section: '## Owner Stand-in' heading is missing"]
+    keyword_checks = [
+        ("AC1: scope of delegated decisions and blocker resolution",
+         r"delegat"),
+        ("AC1: precedence below an explicit current owner instruction",
+         r"below[^.\n]*owner instruction"),
+        ("AC1: owner can revoke or narrow the stand-in",
+         r"revok|narrow"),
+        ("AC2: blocker stated with the owner's intent",
+         r"\bblocker\b[^.]*\bintent\b|\bintent\b[^.]*\bblocker\b"),
+        ("AC2: at least three materially different solutions",
+         r"\b(3|three)\b[^.\n]*solution"),
+        ("AC2: research (web, vendor docs, open-source prior art)",
+         r"research"),
+        ("AC2: ranking by value, quality, reversibility, security, cost,"
+         " automation", r"\brank"),
+        ("AC2: decision record on the Issue", r"decision record"),
+        ("AC2: receipt after verification", r"receipt"),
+        ("AC3: never impersonate the owner", r"impersonat"),
+        ("AC3: never bypass a security control, permission denial or "
+         "safety classifier", r"classifier"),
+        ("AC3: never print, move or commit secret values", r"secret"),
+        ("AC3: no payment details or spend without an owner budget",
+         r"budget"),
+        ("AC3: backup or rollback before irreversible production action",
+         r"backup|rollback"),
+        ("AC3: legal, contractual or identity-binding acceptance goes to "
+         "the owner", r"legal"),
+        ("AC3: everything is logged", r"\blogged?\b"),
+        ("AC4: one-click or one-command ask", r"one-click|one-command"),
+        ("identity: stand-in identified as an agent or delegate",
+         r"identif[^.\n]*(agent|delegate)"),
+    ]
+    gaps = [label for label, pattern in keyword_checks
+            if not re.search(pattern, section, re.I)]
+    numbers = {int(n) for n in re.findall(r"^\s*(\d+)\.\s", section, re.M)}
+    missing_steps = [n for n in range(1, OWNER_STAND_IN_STEP_COUNT + 1)
+                     if n not in numbers]
+    if missing_steps:
+        gaps.append("AC2: numbered workflow steps missing: %s"
+                    % missing_steps)
+    if not _in_order(section, [r"\bAPI\b", r"\bCLI\b", r"\bbrowser\b"]):
+        gaps.append("AC2: automation order API, then CLI, then scripted "
+                    "browser job")
+    if not _in_order(section, [r"\bdecide\b", r"\bnotify\b", r"\bask\b"]):
+        gaps.append("AC4: escalation ladder in order decide, notify, ask")
+    return gaps
+
+
+class OwnerStandInRole(FixtureCase):
+    """Issue #308 Owner Stand-in role: AGENTS/governance.md carries a
+    ``## Owner Stand-in`` section defining scope, precedence, revocation,
+    the blocker-resolution workflow, fixed guardrails and the escalation
+    ladder. Real-file tests pin that wording; the fixture test proves
+    the checker itself reports gaps."""
+
+    def _assert_stand_in_has_no_gaps(self, prefix):
+        """Assert the real Owner Stand-in section has no gaps whose
+        label starts with prefix; a missing section is named first."""
+        text = (WORKTREE / "AGENTS" / "governance.md").read_text(
+            encoding="utf-8")
+        self.assertIsNotNone(
+            owner_stand_in_section(text),
+            "AGENTS/governance.md has no '## Owner Stand-in' section")
+        gaps = [g for g in owner_stand_in_gaps(text)
+                if g.startswith(prefix)]
+        self.assertEqual(
+            [], gaps,
+            "## Owner Stand-in is missing: " + "; ".join(gaps))
+
+    def test_owner_stand_in_defines_scope_precedence_and_revocation(self):
+        """Protects Issue #308 AC1: the Owner Stand-in section states the
+        delegated scope, ranks stand-in decisions below an explicit
+        current owner instruction, and lets the owner revoke or narrow
+        the role at any time."""
+        self._assert_stand_in_has_no_gaps("AC1")
+
+    def test_owner_stand_in_blocker_workflow_has_seven_steps(self):
+        """Protects Issue #308 AC2: the blocker-resolution workflow has
+        seven numbered steps covering the blocker and intent, at least
+        three solutions, research, ranking, a decision record, the
+        API, CLI, browser automation order, and a receipt. Missing a
+        step would let a stand-in skip research or the record."""
+        self._assert_stand_in_has_no_gaps("AC2")
+
+    def test_owner_stand_in_guardrails_are_fixed(self):
+        """Protects Issue #308 AC3: the fixed guardrails (no owner
+        impersonation, no classifier or permission bypass, no secret
+        handling, no spend without budget, backup or rollback first,
+        legal acceptance to owner, everything logged) are present, so no
+        stand-in decision can override them."""
+        self._assert_stand_in_has_no_gaps("AC3")
+
+    def test_owner_stand_in_escalation_ladder(self):
+        """Protects Issue #308 AC4: the escalation ladder runs decide
+        alone, then notify the owner once, then ask only on a guardrail
+        or identity block, and each ask gives a one-click or
+        one-command action."""
+        self._assert_stand_in_has_no_gaps("AC4")
+
+    def test_owner_stand_in_identifies_stand_in_as_agent_or_delegate(self):
+        """Protects the identity ruling: the section says the stand-in
+        acts as an identified agent or delegate, never as the owner
+        themselves, so third parties can tell who acted."""
+        self._assert_stand_in_has_no_gaps("identity")
+
+    def test_gap_checker_reports_missing_guardrails_in_fixture(self):
+        """Protects the checker's sensitivity: a fixture Owner Stand-in
+        section that names delegation, precedence and revocation but
+        omits the guardrails, workflow and ladder is reported with those
+        gaps, while the satisfied AC1 scope item is not; a governance
+        text with no section reports the missing heading."""
+        fixture = (
+            "# Governance\n\n"
+            "## Owner Stand-in\n\n"
+            "Delegated decisions rank below an explicit owner instruction, "
+            "and the owner may revoke this at any time.\n\n"
+            "## Risk Classification\n\n"
+            "Unrelated text with the word API and a secret budget.\n")
+        gaps = owner_stand_in_gaps(fixture)
+        self.assertTrue(gaps)
+        self.assertTrue(any("impersonate" in g for g in gaps), gaps)
+        self.assertTrue(any("AC2: blocker" in g for g in gaps), gaps)
+        self.assertTrue(any("AC4" in g for g in gaps), gaps)
+        self.assertFalse(
+            any(g.startswith("AC1: scope") for g in gaps), gaps)
+        self.assertFalse(
+            any("Unrelated" in g for g in gaps), gaps)
+        missing = owner_stand_in_gaps("# Governance\n\n## Other\n")
+        self.assertEqual(
+            ["section: '## Owner Stand-in' heading is missing"], missing)
+
 
 class CoreGeneralization(FixtureCase):
     """T03 (#200): core generalized by addition with Exception
