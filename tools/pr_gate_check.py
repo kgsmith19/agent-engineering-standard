@@ -45,6 +45,12 @@ def evaluate(needs, required, optional):
 def main(environ=None, out=None):
     env = os.environ if environ is None else environ
     out = sys.stdout if out is None else out
+    # Fail closed: the only accepted required conclusion is 'success'. The
+    # workflow pins it explicitly so the strict rule is visible in the gate.
+    if env.get("REQUIRED_RESULT") != "success":
+        print("ERROR: REQUIRED_RESULT must be 'success' (fail closed)", file=out)
+        return 1
+
     needs = json.loads(env["NEEDS"])
     required = set(env["REQUIRED_JOBS"].split())
     optional = set(env.get("OPTIONAL_JOBS", "").split())
