@@ -21,7 +21,7 @@ ARTIFACT_PATTERNS = ("Canonical/schemas/", "Canonical/capabilities.json",
 CACHE_PATTERNS = (".worktrees/", "__pycache__/", ".evidence/cache")
 EVIDENCE_PATTERNS = (".evidence/",)
 PROTECTED_PATTERNS = (".github/workflows/pr-gate.yml",
-                      ".github/workflows/merge-policy.yml", "main")
+                      ".github/workflows/merge-policy.yml")
 
 
 def plane_for(path: str) -> str:
