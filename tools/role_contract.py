@@ -320,8 +320,10 @@ def _record_malformed(specialty: Any, acceptance_ids: Any, claims: Any,
 
 
 def _unproven(acceptance_ids: Any, claims: Any, outputs: Any) -> bool:
-    """True when an acceptance id lacks a passing claim that lists an
-    output artifact path."""
+    """True when no acceptance id is named, or one lacks a passing claim
+    that lists an output artifact path."""
+    if not acceptance_ids:
+        return True
     produced = {artifact["path"] for artifact in outputs}
     return any(
         not any(claim["id"] == cid and claim["result"] == "pass"

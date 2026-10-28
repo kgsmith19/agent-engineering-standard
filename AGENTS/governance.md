@@ -233,7 +233,7 @@ This policy separates the guarantees every SDLC run must keep from the mechanism
 - **One writer per mutable worktree:** overlapping builder or remediator scopes on the same head never run in parallel.
 - **Independent review and verification:** a builder never validates its own head, and R2/R3 review or verification comes from a different provider family.
 - **No privilege escalation:** a delegated grant needs the owner or a grantor who holds the same duty.
-- **Exact-head evidence:** acceptance evidence names the tested head and is recorded on the Issue or PR.
+- **Exact-head evidence:** acceptance evidence names the tested head and is recorded on the Issue or PR. A reviewer or verifier receipt that names no acceptance id, or one without a passing claim that lists an output artifact, is refused (`missing-evidence`).
 - **PR Gate as the sole release path:** nothing reaches `main` except through the PR Gate.
 
 **Replaceable mechanisms (not mandated):**

@@ -377,6 +377,11 @@ class RoleContract(unittest.TestCase):
         proven = mod.record(verifier["grant"], verifier["action"],
                             claims=listed, **shared)
         self.assertEqual(("allow", []), (proven["decision"], proven["rules"]))
+        # A verifier or reviewer that names no acceptance id proves
+        # nothing, so it is refused rather than vacuously allowed.
+        vacuous = mod.record(verifier["grant"], verifier["action"],
+                             claims=listed, **dict(shared, acceptance_ids=[]))
+        self.assertEqual(["missing-evidence"], vacuous["rules"])
         builder = mod.record(
             base["grant"], base["action"], task="std#301",
             now=base["now"], current_head=base["current_head"],
