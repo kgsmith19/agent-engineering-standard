@@ -270,6 +270,34 @@ class RoleContract(unittest.TestCase):
         self.assertEqual((False, ["unverified-provenance"]),
                          _decide(mod, case))
 
+    def test_override_must_pass_owner_override_ok(self):
+        """Protected behavior: an override is honored only when it passes
+        role_authority.owner_override_ok (owner kgsmith19, non-empty
+        decision and scope) and names the owner the decision is made for.
+        Any other override refuses with owner-override and waives
+        nothing. Catches an empty-scope or unnamed-owner override being
+        treated as an explicit owner decision."""
+        mod = _mod()
+        expired = _case("role-contract.refuse.expired")
+        valid = {"owner": "kgsmith19", "decision": "extend once",
+                 "scope": "run-300-a"}
+        attempts = (
+            ("empty-scope", dict(valid, scope=""), None),
+            ("blank-decision", dict(valid, decision=" "), None),
+            ("wrong-owner-unnamed", dict(valid, owner="someone-else"),
+             None),
+            ("owner-param-mismatch", valid, "someone-else"),
+            ("not-a-mapping", "kgsmith19", None),
+        )
+        for label, override, owner in attempts:
+            with self.subTest(override=label):
+                case = copy.deepcopy(expired)
+                case["override"] = override
+                allowed, rules = _decide(mod, case, owner=owner)
+                self.assertEqual(
+                    (False, ["grant-expired", "owner-override"]),
+                    (allowed, rules))
+
 
 if __name__ == "__main__":
     unittest.main()
