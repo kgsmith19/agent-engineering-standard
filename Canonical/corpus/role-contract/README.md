@@ -16,5 +16,18 @@ The corpus pins:
 - Owner override: waives only expiry and stale head, and only when
   explicit.
 
+Std#301 adds:
+
+- Decide cases for same-agent verification, unscoped delegation,
+  stale-head receipts, parallel writes (prefix overlap), and privilege
+  escalation (`delegated: true`, owner or grantor holding the duty).
+- A top-level `flows` list. Each flow is an ordered list of `record(...)`
+  steps; each step's `expect` gives `decision` and `rules`. Covered:
+  a four-role planner, builder, reviewer and verifier flow (distinct
+  `provenance.source` per step, reviewer and verifier families differ
+  from the builder), a builder and reviewer flow, an R3 security
+  specialist (`specialty` on the receipt only), and a refusal for
+  `missing-evidence`.
+
 Ids are `role-contract.allow.<slug>` or `role-contract.refuse.<slug>`
-and are stable; never repurpose a case.
+and are stable; never repurpose a case. Flow ids are `flow.<slug>`.
