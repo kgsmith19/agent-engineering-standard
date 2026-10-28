@@ -340,6 +340,49 @@ class RoleContract(unittest.TestCase):
                                      receipt["decision"])
                     self.assertEqual(step["expect"]["rules"],
                                      receipt["rules"])
+                    self.assertEqual(step.get("specialty"),
+                                     receipt["specialty"])
+
+    def test_delegation_and_evidence_edges(self):
+        """Protected behavior: a delegated grant from a grantor who holds
+        the same duty is allowed; a passing claim proves acceptance only
+        when it lists an output artifact path; missing-evidence applies
+        to verifier and reviewer, never to a builder. Catches an
+        over-broad escalation check and a claim that proves nothing."""
+        mod = _mod()
+        self.assertTrue(hasattr(mod, "record"),
+                        "record() is missing from tools/role_contract.py")
+        base = _case("role-contract.allow.builder-write")
+        base["grant"]["grantor"] = "lead-1"
+        holder = dict(base["grant"], actor_id="lead-1", grantor="orchestrator-1",
+                      scope=["plans/"])
+        self.assertEqual(
+            (True, []),
+            mod.decide(base["grant"], base["action"], now=base["now"],
+                       current_head=base["current_head"],
+                       other_grants=[holder], delegated=True))
+        verifier = _case("role-contract.allow.local-evidence-no-identity")
+        out = [{"path": "evidence/verification/run-a.json",
+                "sha256": "5" * 64}]
+        unlisted = [{"id": "AC1", "result": "pass",
+                     "artifacts": ["evidence/verification/other.json"]}]
+        listed = [{"id": "AC1", "result": "pass",
+                   "artifacts": ["evidence/verification/run-a.json"]}]
+        shared = {"task": "std#301", "now": verifier["now"],
+                  "current_head": verifier["current_head"],
+                  "acceptance_ids": ["AC1"], "output_artifacts": out}
+        refused = mod.record(verifier["grant"], verifier["action"],
+                             claims=unlisted, **shared)
+        self.assertEqual(["missing-evidence"], refused["rules"])
+        proven = mod.record(verifier["grant"], verifier["action"],
+                            claims=listed, **shared)
+        self.assertEqual(("allow", []), (proven["decision"], proven["rules"]))
+        builder = mod.record(
+            base["grant"], base["action"], task="std#301",
+            now=base["now"], current_head=base["current_head"],
+            acceptance_ids=["AC1"])
+        self.assertEqual(("allow", []), (builder["decision"],
+                                         builder["rules"]))
 
     def test_four_role_flow_separates_harnesses_and_families(self):
         """Protected behavior: in flow.four-role every step names a
