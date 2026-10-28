@@ -155,6 +155,7 @@ Use these anchors to reference specific rules and procedures in implementations:
 - `governance#session-bootstrap` — 7-step bootstrap procedure, Superpowers integration, resume rules
 - `governance#agent-identities` — dev/reviewer GitHub Apps, credential flow, provider separation, CI setup
 - `governance#risk-classification` — R0–R3 risk tiers and verification scaling
+- `governance#role-and-authority-contract` — runtime-neutral grant fields, fail-closed rule ids, owner override
 - `work#thin-issues-and-work-claiming` — scope, splitting rules, label set, 6-step protocol, work-state
 - `work#worktrees-and-parallel-work` — isolation rules, baseline, cleanup, safe parallelization
 - `work#orchestrator-and-implementer-tiers` — dispatch brief, implementer limits, escalation, parallel PR limits
