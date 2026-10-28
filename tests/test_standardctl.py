@@ -2063,6 +2063,43 @@ class RepoMap(unittest.TestCase):
         self.assertLessEqual(len(built["entries"]), 60)
         self.assertTrue(all(e["reason"] for e in built["entries"]))
 
+    def test_main_prefixed_source_paths_are_not_protected(self):
+        """Protects #299: only the named protected files are protected;
+        a path that merely starts with the letters "main" is source."""
+        repo_map = self._mod()
+        for path in ("main.py", "maintenance.md", "mainline/x", "main",
+                     "maintainers", "src/main/x", "Main.py", ".github/main.yml"):
+            with self.subTest(path=path):
+                self.assertEqual("source", repo_map.plane_for(path))
+
+    def test_protected_workflow_files_stay_protected(self):
+        """Regression guard for #299: the PR gate and merge policy
+        workflows remain protected after the bare "main" pattern is removed."""
+        repo_map = self._mod()
+        for path in (".github/workflows/pr-gate.yml",
+                     ".github/workflows/merge-policy.yml"):
+            with self.subTest(path=path):
+                self.assertEqual("protected", repo_map.plane_for(path))
+
+    def test_main_prefixed_paths_agree_with_plane_enforcement(self):
+        """Protects #299 map agreement: repo_map.plane_for and
+        plane_enforcement.plane_for return the same plane for every
+        main-prefixed probe and for the protected workflow files."""
+        import sys
+        repo_map = self._mod()
+        sys.path.insert(0, str(WORKTREE / "tools"))
+        try:
+            import plane_enforcement as pe
+        finally:
+            sys.path.remove(str(WORKTREE / "tools"))
+        for path in ("main.py", "maintenance.md", "mainline/x", "main",
+                     "maintainers", "src/main/x", "Main.py", ".github/main.yml",
+                     ".github/workflows/pr-gate.yml",
+                     ".github/workflows/merge-policy.yml"):
+            with self.subTest(path=path):
+                self.assertEqual(pe.plane_for(path),
+                                 repo_map.plane_for(path))
+
 
 class ContextBudget(unittest.TestCase):
     """Stage 13: rotation happens before compaction, never by summary."""
