@@ -1,0 +1,1125 @@
+{
+  "_frozen": true,
+  "_provenance": "Std#300 role-contract conformance. Hand-adjudicated fixtures: each expect.allowed and expect.rules must equal tools/role_contract.decide(...). Ids are stable; never renumber, never repurpose.",
+  "cases": [
+    {
+      "id": "role-contract.allow.builder-write",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/module.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": true,
+        "rules": []
+      }
+    },
+    {
+      "id": "role-contract.allow.local-evidence-no-identity",
+      "grant": {
+        "actor_id": "verifier-1",
+        "run_id": "run-300-a",
+        "duty": "verifier",
+        "scope": [
+          "evidence/verification/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R2",
+        "path": "evidence/verification/run-a.json"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": true,
+        "rules": []
+      }
+    },
+    {
+      "id": "role-contract.allow.github-app-post",
+      "grant": {
+        "actor_id": "reviewer-3",
+        "run_id": "run-300-a",
+        "duty": "reviewer",
+        "scope": [
+          "evidence/review/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1",
+        "github_identity": "github-app:std-reviewer"
+      },
+      "action": {
+        "kind": "post",
+        "risk": "R2"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": true,
+        "rules": []
+      }
+    },
+    {
+      "id": "role-contract.allow.other-family-r3-review",
+      "grant": {
+        "actor_id": "reviewer-1",
+        "run_id": "run-300-a",
+        "duty": "reviewer",
+        "scope": [
+          "evidence/review/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "openai",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "openai/fast-tier-b"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "review",
+        "risk": "R3",
+        "path": "evidence/review/verdict.json"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "other_grants": [
+        {
+          "actor_id": "builder-1",
+          "run_id": "run-300-a",
+          "duty": "builder",
+          "scope": [
+            "src/"
+          ],
+          "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "provider": {
+            "family": "anthropic",
+            "model": "fast-tier-a"
+          },
+          "provenance": {
+            "source": "harness-event-log",
+            "provider_observed": "anthropic/fast-tier-a"
+          },
+          "issued_at": "2026-10-28T10:00:00Z",
+          "expires_at": "2026-10-28T10:30:00Z",
+          "grantor": "orchestrator-1"
+        }
+      ],
+      "expect": {
+        "allowed": true,
+        "rules": []
+      }
+    },
+    {
+      "id": "role-contract.allow.advisory-r1-same-family-review",
+      "grant": {
+        "actor_id": "reviewer-2",
+        "run_id": "run-300-a",
+        "duty": "reviewer",
+        "scope": [
+          "evidence/review/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "review",
+        "risk": "R1",
+        "path": "evidence/review/verdict.json"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "other_grants": [
+        {
+          "actor_id": "builder-1",
+          "run_id": "run-300-a",
+          "duty": "builder",
+          "scope": [
+            "src/"
+          ],
+          "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "provider": {
+            "family": "anthropic",
+            "model": "fast-tier-a"
+          },
+          "provenance": {
+            "source": "harness-event-log",
+            "provider_observed": "anthropic/fast-tier-a"
+          },
+          "issued_at": "2026-10-28T10:00:00Z",
+          "expires_at": "2026-10-28T10:30:00Z",
+          "grantor": "orchestrator-1"
+        }
+      ],
+      "expect": {
+        "allowed": true,
+        "rules": []
+      }
+    },
+    {
+      "id": "role-contract.allow.owner-override-expiry",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/module.py"
+      },
+      "now": "2026-10-28T10:45:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "owner": "kgsmith19",
+      "override": {
+        "owner": "kgsmith19",
+        "decision": "extend the run-300-a window once for owner review",
+        "scope": "run-300-a"
+      },
+      "expect": {
+        "allowed": true,
+        "rules": []
+      }
+    },
+    {
+      "id": "role-contract.allow.owner-override-stale-head",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/module.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+      "owner": "kgsmith19",
+      "override": {
+        "owner": "kgsmith19",
+        "decision": "extend the run-300-a window once for owner review",
+        "scope": "run-300-a"
+      },
+      "expect": {
+        "allowed": true,
+        "rules": []
+      }
+    },
+    {
+      "id": "role-contract.refuse.expired",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/module.py"
+      },
+      "now": "2026-10-28T10:45:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "grant-expired"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.before-issue",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/module.py"
+      },
+      "now": "2026-10-28T09:59:59Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "grant-expired"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.stale-head",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/module.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "stale-head"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.unknown-duty",
+      "grant": {
+        "actor_id": "planner-1",
+        "run_id": "run-300-a",
+        "duty": "planner",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/module.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "grant-invalid"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.window-over-one-hour",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T12:00:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/module.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "grant-invalid"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.provenance-empty",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": ""
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/module.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "unverified-provenance"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.provenance-family-mismatch",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "openai/fast-tier-b"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/module.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "unverified-provenance"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.review-same-family-r3",
+      "grant": {
+        "actor_id": "reviewer-2",
+        "run_id": "run-300-a",
+        "duty": "reviewer",
+        "scope": [
+          "evidence/review/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "review",
+        "risk": "R3",
+        "path": "evidence/review/verdict.json"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "other_grants": [
+        {
+          "actor_id": "builder-1",
+          "run_id": "run-300-a",
+          "duty": "builder",
+          "scope": [
+            "src/"
+          ],
+          "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "provider": {
+            "family": "anthropic",
+            "model": "fast-tier-a"
+          },
+          "provenance": {
+            "source": "harness-event-log",
+            "provider_observed": "anthropic/fast-tier-a"
+          },
+          "issued_at": "2026-10-28T10:00:00Z",
+          "expires_at": "2026-10-28T10:30:00Z",
+          "grantor": "orchestrator-1"
+        }
+      ],
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "forbidden-self-review"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.same-actor-builder-verifier",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "verifier",
+        "scope": [
+          "evidence/verification/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "verify",
+        "risk": "R1",
+        "path": "evidence/verification/run-a.json"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "other_grants": [
+        {
+          "actor_id": "builder-1",
+          "run_id": "run-300-a",
+          "duty": "builder",
+          "scope": [
+            "src/"
+          ],
+          "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "provider": {
+            "family": "anthropic",
+            "model": "fast-tier-a"
+          },
+          "provenance": {
+            "source": "harness-event-log",
+            "provider_observed": "anthropic/fast-tier-a"
+          },
+          "issued_at": "2026-10-28T10:00:00Z",
+          "expires_at": "2026-10-28T10:30:00Z",
+          "grantor": "orchestrator-1"
+        }
+      ],
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "forbidden-self-review"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.builder-verifies-own-head",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "verify",
+        "risk": "R1"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "forbidden-self-review"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.self-grant",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "builder-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/module.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "self-grant"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.github-post-no-identity",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "post",
+        "risk": "R1"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "unauthorized-github-write"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.github-empty-identity",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1",
+        "github_identity": ""
+      },
+      "action": {
+        "kind": "mutate_github",
+        "risk": "R1"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "unauthorized-github-write"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.scope-outside-grant",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "plans/notes.md"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "out-of-scope"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.scope-traversal",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/../../etc/passwd"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "out-of-scope"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.unknown-action-kind",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "delete",
+        "risk": "R1",
+        "path": "src/module.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "action-invalid"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.override-wrong-owner",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/module.py"
+      },
+      "now": "2026-10-28T10:45:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "owner": "kgsmith19",
+      "override": {
+        "owner": "someone-else",
+        "decision": "extend the run-300-a window once for owner review",
+        "scope": "run-300-a"
+      },
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "grant-expired",
+          "owner-override"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.override-cannot-waive-self-review",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "verifier",
+        "scope": [
+          "evidence/verification/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "verify",
+        "risk": "R1",
+        "path": "evidence/verification/run-a.json"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "owner": "kgsmith19",
+      "override": {
+        "owner": "kgsmith19",
+        "decision": "extend the run-300-a window once for owner review",
+        "scope": "run-300-a"
+      },
+      "other_grants": [
+        {
+          "actor_id": "builder-1",
+          "run_id": "run-300-a",
+          "duty": "builder",
+          "scope": [
+            "src/"
+          ],
+          "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "provider": {
+            "family": "anthropic",
+            "model": "fast-tier-a"
+          },
+          "provenance": {
+            "source": "harness-event-log",
+            "provider_observed": "anthropic/fast-tier-a"
+          },
+          "issued_at": "2026-10-28T10:00:00Z",
+          "expires_at": "2026-10-28T10:30:00Z",
+          "grantor": "orchestrator-1"
+        }
+      ],
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "forbidden-self-review"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.override-cannot-waive-self-grant",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-300-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "builder-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/module.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "owner": "kgsmith19",
+      "override": {
+        "owner": "kgsmith19",
+        "decision": "extend the run-300-a window once for owner review",
+        "scope": "run-300-a"
+      },
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "self-grant"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.unknown-risk-treated-as-r3",
+      "grant": {
+        "actor_id": "reviewer-2",
+        "run_id": "run-300-a",
+        "duty": "reviewer",
+        "scope": [
+          "evidence/review/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "fast-tier-a"
+        },
+        "provenance": {
+          "source": "harness-event-log",
+          "provider_observed": "anthropic/fast-tier-a"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "review",
+        "risk": "R9",
+        "path": "evidence/review/verdict.json"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "other_grants": [
+        {
+          "actor_id": "builder-1",
+          "run_id": "run-300-a",
+          "duty": "builder",
+          "scope": [
+            "src/"
+          ],
+          "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "provider": {
+            "family": "anthropic",
+            "model": "fast-tier-a"
+          },
+          "provenance": {
+            "source": "harness-event-log",
+            "provider_observed": "anthropic/fast-tier-a"
+          },
+          "issued_at": "2026-10-28T10:00:00Z",
+          "expires_at": "2026-10-28T10:30:00Z",
+          "grantor": "orchestrator-1"
+        }
+      ],
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "forbidden-self-review"
+        ]
+      }
+    }
+  ]
+}
