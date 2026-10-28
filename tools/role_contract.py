@@ -13,11 +13,18 @@ id. Rule ids are returned in ``RULES`` order; an empty list with
 ``owner-override`` are the two ids beyond the contract's grant rules:
 the first refuses a malformed action, the second an owner override that
 is not honored.
+
+Std#301 adds ``record``, which wraps ``decide`` in a collaboration
+receipt. The three ids appended to ``RULES`` are ``privilege-escalation``
+(a delegated grant from a grantor who holds no such duty), ``parallel-write``
+(overlapping builder or remediator scope on one head) and
+``missing-evidence`` (a verifier or reviewer with an unproven acceptance
+id). Specialty is recorded on the receipt only, never as authority.
 """
 
 import re
 from datetime import datetime, timezone
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import role_authority as ra
 
@@ -32,6 +39,9 @@ RULES = (
     "forbidden-self-review",
     "unauthorized-github-write",
     "owner-override",
+    "privilege-escalation",
+    "parallel-write",
+    "missing-evidence",
 )
 
 KINDS = ("write", "review", "verify", "post", "mutate_github")
@@ -58,6 +68,7 @@ OPTIONAL_GRANT_KEYS = ("github_identity",)
 
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _parse_ts(value: Any) -> Optional[datetime]:
@@ -165,9 +176,16 @@ def _owner_override_honored(override: Any, owner: Any) -> bool:
     return owner is None or str(override.get("owner")) == str(owner)
 
 
+def _overlaps(first: str, second: str) -> bool:
+    """True when one normalized scope prefix contains the other."""
+    return ra._matches_prefix(first, second) or ra._matches_prefix(
+        second, first)
+
+
 def decide(grant: Any, action: Any, *, now: Any, current_head: Any,
            owner: Any = None, override: Any = None,
-           other_grants: Any = ()) -> Tuple[bool, List[str]]:
+           other_grants: Any = (), delegated: bool = False
+           ) -> Tuple[bool, List[str]]:
     """Decide whether one grant authorizes one action right now.
 
     ``now`` is an ISO-8601 UTC 'Z' string; an unparseable clock cannot
@@ -240,6 +258,27 @@ def decide(grant: Any, action: Any, *, now: Any, current_head: Any,
             if other["actor_id"] == actor or not separated:
                 rules.add("forbidden-self-review")
 
+    if kind == "write":
+        # safe_parallelism's same-files rule is exact-path only; this
+        # contract compares scope prefixes, so src/ and src/api/ collide.
+        mine = _scope_prefixes(grant["scope"])
+        for other in other_grants:
+            if other["actor_id"] == actor or other["head_sha"] != head:
+                continue
+            if other["duty"] in ("builder", "remediator") and any(
+                    _overlaps(a, b) for a in mine
+                    for b in _scope_prefixes(other["scope"])):
+                rules.add("parallel-write")
+
+    if delegated:
+        # "controller" is not in ROLES, so the grantor must be the owner
+        # or hold a grant of the same duty in this run.
+        is_owner = owner == ra.OWNER_LOGIN and grantor == owner
+        held = any(other["actor_id"] == grantor and other["duty"] == duty
+                   for other in other_grants)
+        if not (is_owner or held):
+            rules.add("privilege-escalation")
+
     if kind in ("post", "mutate_github") \
             and not _text(grant.get("github_identity")):
         rules.add("unauthorized-github-write")
@@ -252,3 +291,93 @@ def decide(grant: Any, action: Any, *, now: Any, current_head: Any,
 
     ordered = [rule for rule in RULES if rule in rules]
     return not ordered, ordered
+
+
+def _artifacts_malformed(items: Any) -> bool:
+    """True unless items is a list of {path, sha256} artifacts."""
+    return not isinstance(items, (list, tuple)) or any(
+        not isinstance(item, dict) or set(item) != {"path", "sha256"}
+        or not _text(item["path"]) or not isinstance(item["sha256"], str)
+        or not _HASH_RE.match(item["sha256"]) for item in items)
+
+
+def _claim_malformed(claim: Any) -> bool:
+    """True unless a claim has id, result and a list of artifact paths."""
+    return (not isinstance(claim, dict) or not _text(claim.get("id"))
+            or not _text(claim.get("result"))
+            or not isinstance(claim.get("artifacts"), (list, tuple))
+            or not all(_text(path) for path in claim["artifacts"]))
+
+
+def _record_malformed(specialty: Any, acceptance_ids: Any, claims: Any,
+                      inputs: Any, outputs: Any) -> bool:
+    return ((specialty is not None and not _text(specialty))
+            or not isinstance(acceptance_ids, (list, tuple))
+            or not all(_text(item) for item in acceptance_ids)
+            or not isinstance(claims, (list, tuple))
+            or any(_claim_malformed(claim) for claim in claims)
+            or _artifacts_malformed(inputs) or _artifacts_malformed(outputs))
+
+
+def _unproven(acceptance_ids: Any, claims: Any, outputs: Any) -> bool:
+    """True when no acceptance id is named, or one lacks a passing claim
+    that lists an output artifact path."""
+    if not acceptance_ids:
+        return True
+    produced = {artifact["path"] for artifact in outputs}
+    return any(
+        not any(claim["id"] == cid and claim["result"] == "pass"
+                and produced & set(claim["artifacts"]) for claim in claims)
+        for cid in acceptance_ids)
+
+
+def _as_list(value: Any) -> list:
+    return list(value) if isinstance(value, (list, tuple)) else []
+
+
+def record(grant: Any, action: Any, *, task: Any, now: Any,
+           current_head: Any, acceptance_ids: Any = (), claims: Any = (),
+           input_artifacts: Any = (), output_artifacts: Any = (),
+           specialty: Any = None, owner: Any = None, override: Any = None,
+           other_grants: Any = (), delegated: bool = False
+           ) -> Dict[str, Any]:
+    """Decide one action and return its collaboration receipt.
+
+    ``decide`` supplies the grant rules. A verifier or reviewer that
+    would otherwise allow is refused as missing-evidence when an
+    acceptance id has no passing claim listing an output artifact.
+    Malformed record inputs refuse as action-invalid. ``specialty`` is
+    recorded on the receipt only; it never grants authority.
+    """
+    allowed, decided = decide(
+        grant, action, now=now, current_head=current_head, owner=owner,
+        override=override, other_grants=other_grants, delegated=delegated)
+    rules = set(decided)
+    if _record_malformed(specialty, acceptance_ids, claims,
+                         input_artifacts, output_artifacts):
+        rules.add("action-invalid")
+    elif allowed and grant["duty"] in ("verifier", "reviewer") \
+            and _unproven(acceptance_ids, claims, output_artifacts):
+        rules.add("missing-evidence")
+    ordered = [rule for rule in RULES if rule in rules]
+    fields = grant if isinstance(grant, dict) else {}
+    return {
+        "schema_version": 1,
+        "task": task,
+        "duty": fields.get("duty"),
+        "specialty": specialty,
+        "actor_id": fields.get("actor_id"),
+        "run_id": fields.get("run_id"),
+        "grantor": fields.get("grantor"),
+        "provider": fields.get("provider"),
+        "provenance": fields.get("provenance"),
+        "scope": fields.get("scope"),
+        "exact_sha": current_head,
+        "input_artifacts": _as_list(input_artifacts),
+        "output_artifacts": _as_list(output_artifacts),
+        "acceptance_ids": _as_list(acceptance_ids),
+        "claims": _as_list(claims),
+        "decision": "refuse" if ordered else "allow",
+        "rules": ordered,
+        "decided_at": now,
+    }

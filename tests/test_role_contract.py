@@ -27,11 +27,25 @@ REQUIRED_RULES = (
     "forbidden-self-review",
     "unauthorized-github-write",
     "owner-override",
+    "privilege-escalation",
+    "parallel-write",
+    "missing-evidence",
 )
 
 REQUIRED_KEYS = {"id", "grant", "action", "now", "current_head", "expect"}
 
-OPTIONAL_KEYS = {"owner", "override", "other_grants"}
+OPTIONAL_KEYS = {"owner", "override", "other_grants", "delegated"}
+
+FLOW_STEP_KEYS = {"grant", "action", "task", "now", "current_head",
+                  "acceptance_ids", "claims", "input_artifacts",
+                  "output_artifacts", "specialty", "owner", "override",
+                  "other_grants", "delegated", "expect"}
+
+RECEIPT_KEYS = {"schema_version", "task", "duty", "specialty", "actor_id",
+                "run_id", "grantor", "provider", "provenance", "scope",
+                "exact_sha", "input_artifacts", "output_artifacts",
+                "acceptance_ids", "claims", "decision", "rules",
+                "decided_at"}
 
 # Non-waivable refusals: an owner override must leave these standing.
 NON_WAIVABLE_IDS = (
@@ -81,6 +95,8 @@ def _decide(mod, case, **overrides):
         "override": case.get("override"),
         "other_grants": case.get("other_grants", []),
     }
+    if "delegated" in case:
+        kwargs["delegated"] = case["delegated"]
     kwargs.update(overrides)
     return mod.decide(case["grant"], case["action"], **kwargs)
 
@@ -122,6 +138,9 @@ class RoleContract(unittest.TestCase):
         self.assertTrue(any(not c["expect"]["allowed"] for c in cases))
         covered = {rule for case in cases
                    for rule in case["expect"]["rules"]}
+        covered |= {rule for flow in _doc()["flows"]
+                    for step in flow["steps"]
+                    for rule in step["expect"]["rules"]}
         self.assertEqual(set(REQUIRED_RULES), covered)
 
     def test_rule_vocabulary_is_pinned(self):
@@ -297,6 +316,132 @@ class RoleContract(unittest.TestCase):
                 self.assertEqual(
                     (False, ["grant-expired", "owner-override"]),
                     (allowed, rules))
+
+    def test_collaboration_flows_match_record(self):
+        """Protected behavior: every step of every collaboration flow
+        yields the expected decision and rule ids through record(), and
+        each allowed or refused step emits a receipt with exactly the
+        pinned keys. Catches a flow that stops proving its SDLC steps."""
+        mod = _mod()
+        self.assertTrue(hasattr(mod, "record"),
+                        "record() is missing from tools/role_contract.py")
+        self.assertTrue(_doc()["flows"])
+        for flow in _doc()["flows"]:
+            for index, step in enumerate(flow["steps"]):
+                label = "%s[%d]" % (flow["id"], index)
+                with self.subTest(step=label):
+                    self.assertLessEqual(set(step), FLOW_STEP_KEYS)
+                    kwargs = {k: v for k, v in step.items()
+                              if k != "expect"}
+                    receipt = mod.record(**kwargs)
+                    self.assertEqual(RECEIPT_KEYS, set(receipt))
+                    self.assertEqual(1, receipt["schema_version"])
+                    self.assertEqual(step["expect"]["decision"],
+                                     receipt["decision"])
+                    self.assertEqual(step["expect"]["rules"],
+                                     receipt["rules"])
+                    self.assertEqual(step.get("specialty"),
+                                     receipt["specialty"])
+
+    def test_delegation_and_evidence_edges(self):
+        """Protected behavior: a delegated grant from a grantor who holds
+        the same duty is allowed; a passing claim proves acceptance only
+        when it lists an output artifact path; missing-evidence applies
+        to verifier and reviewer, never to a builder. Catches an
+        over-broad escalation check and a claim that proves nothing."""
+        mod = _mod()
+        self.assertTrue(hasattr(mod, "record"),
+                        "record() is missing from tools/role_contract.py")
+        base = _case("role-contract.allow.builder-write")
+        base["grant"]["grantor"] = "lead-1"
+        holder = dict(base["grant"], actor_id="lead-1", grantor="orchestrator-1",
+                      scope=["plans/"])
+        self.assertEqual(
+            (True, []),
+            mod.decide(base["grant"], base["action"], now=base["now"],
+                       current_head=base["current_head"],
+                       other_grants=[holder], delegated=True))
+        verifier = _case("role-contract.allow.local-evidence-no-identity")
+        out = [{"path": "evidence/verification/run-a.json",
+                "sha256": "5" * 64}]
+        unlisted = [{"id": "AC1", "result": "pass",
+                     "artifacts": ["evidence/verification/other.json"]}]
+        listed = [{"id": "AC1", "result": "pass",
+                   "artifacts": ["evidence/verification/run-a.json"]}]
+        shared = {"task": "std#301", "now": verifier["now"],
+                  "current_head": verifier["current_head"],
+                  "acceptance_ids": ["AC1"], "output_artifacts": out}
+        refused = mod.record(verifier["grant"], verifier["action"],
+                             claims=unlisted, **shared)
+        self.assertEqual(["missing-evidence"], refused["rules"])
+        proven = mod.record(verifier["grant"], verifier["action"],
+                            claims=listed, **shared)
+        self.assertEqual(("allow", []), (proven["decision"], proven["rules"]))
+        # A verifier or reviewer that names no acceptance id proves
+        # nothing, so it is refused rather than vacuously allowed.
+        vacuous = mod.record(verifier["grant"], verifier["action"],
+                             claims=listed, **dict(shared, acceptance_ids=[]))
+        self.assertEqual(["missing-evidence"], vacuous["rules"])
+        builder = mod.record(
+            base["grant"], base["action"], task="std#301",
+            now=base["now"], current_head=base["current_head"],
+            acceptance_ids=["AC1"])
+        self.assertEqual(("allow", []), (builder["decision"],
+                                         builder["rules"]))
+
+    def test_four_role_flow_separates_harnesses_and_families(self):
+        """Protected behavior: in flow.four-role every step names a
+        different harness in provenance.source, and the reviewer and
+        verifier families differ from the builder family. Catches a
+        flow that reuses one harness or one family for independent
+        review."""
+        flow = [f for f in _doc()["flows"]
+                if f["id"] == "flow.four-role"][0]
+        grants = [step["grant"] for step in flow["steps"]]
+        self.assertEqual(4, len(grants))
+        sources = [g["provenance"]["source"] for g in grants]
+        self.assertEqual(4, len(set(sources)))
+        duties = [g["duty"] for g in grants]
+        self.assertEqual(["spec_author", "builder", "reviewer", "verifier"],
+                         duties)
+        builder = grants[1]["provider"]["family"]
+        self.assertNotEqual(builder, grants[2]["provider"]["family"])
+        self.assertNotEqual(builder, grants[3]["provider"]["family"])
+
+    def test_specialty_is_receipt_only(self):
+        """Protected behavior: a specialist carries specialty on the
+        receipt, never as a grant key; the security flow's reviewer
+        grant has the grant keys only. Catches a specialty leaking into
+        grant authority."""
+        flow = [f for f in _doc()["flows"]
+                if f["id"] == "flow.security-specialist"][0]
+        reviewer = flow["steps"][1]
+        self.assertEqual("security", reviewer["specialty"])
+        self.assertEqual("reviewer", reviewer["grant"]["duty"])
+        self.assertNotIn("specialty", reviewer["grant"])
+
+    def test_record_rejects_malformed_inputs_as_action_invalid(self):
+        """Protected behavior: a malformed artifact, claim or acceptance
+        list refuses with action-invalid and never raises; the receipt
+        still records the refusal. Catches fail-open artifact handling."""
+        mod = _mod()
+        self.assertTrue(hasattr(mod, "record"),
+                        "record() is missing from tools/role_contract.py")
+        base = _case("role-contract.allow.builder-write")
+        bad_inputs = (
+            {"input_artifacts": [{"path": "src/a.py"}]},
+            {"output_artifacts": [{"path": "", "sha256": "0" * 64}]},
+            {"acceptance_ids": "AC1"},
+            {"claims": [{"id": "AC1", "result": "pass"}]},
+        )
+        for extra in bad_inputs:
+            with self.subTest(extra=sorted(extra)):
+                receipt = mod.record(
+                    base["grant"], base["action"], task="std#301",
+                    now=base["now"], current_head=base["current_head"],
+                    **extra)
+                self.assertEqual("refuse", receipt["decision"])
+                self.assertEqual(["action-invalid"], receipt["rules"])
 
 
 if __name__ == "__main__":

@@ -1156,6 +1156,987 @@
           "out-of-scope"
         ]
       }
+    },
+    {
+      "id": "role-contract.refuse.self-verify",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-301-a",
+        "duty": "verifier",
+        "scope": [
+          "evidence/verification/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "openai",
+          "model": "openai-tier"
+        },
+        "provenance": {
+          "source": "harness.verifier-ci",
+          "provider_observed": "openai/openai-tier"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "verify",
+        "risk": "R2",
+        "path": "evidence/verification/301-run.json"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "forbidden-self-review"
+        ]
+      },
+      "other_grants": [
+        {
+          "actor_id": "builder-1",
+          "run_id": "run-301-a",
+          "duty": "builder",
+          "scope": [
+            "src/"
+          ],
+          "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "provider": {
+            "family": "anthropic",
+            "model": "anthropic-tier"
+          },
+          "provenance": {
+            "source": "harness.builder-container",
+            "provider_observed": "anthropic/anthropic-tier"
+          },
+          "issued_at": "2026-10-28T10:00:00Z",
+          "expires_at": "2026-10-28T10:30:00Z",
+          "grantor": "orchestrator-1"
+        }
+      ]
+    },
+    {
+      "id": "role-contract.refuse.unscoped-delegation",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-301-a",
+        "duty": "builder",
+        "scope": [],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "anthropic-tier"
+        },
+        "provenance": {
+          "source": "harness.builder-container",
+          "provider_observed": "anthropic/anthropic-tier"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R2",
+        "path": "src/policy.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "grant-invalid"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.stale-head-receipt",
+      "grant": {
+        "actor_id": "builder-1",
+        "run_id": "run-301-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "anthropic-tier"
+        },
+        "provenance": {
+          "source": "harness.builder-container",
+          "provider_observed": "anthropic/anthropic-tier"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R2",
+        "path": "src/policy.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "stale-head"
+        ]
+      }
+    },
+    {
+      "id": "role-contract.refuse.parallel-same-prefix",
+      "grant": {
+        "actor_id": "builder-2",
+        "run_id": "run-301-a",
+        "duty": "builder",
+        "scope": [
+          "src/api/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "anthropic-tier"
+        },
+        "provenance": {
+          "source": "harness.builder-container",
+          "provider_observed": "anthropic/anthropic-tier"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/api/routes.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "parallel-write"
+        ]
+      },
+      "other_grants": [
+        {
+          "actor_id": "builder-1",
+          "run_id": "run-301-a",
+          "duty": "builder",
+          "scope": [
+            "src/"
+          ],
+          "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "provider": {
+            "family": "anthropic",
+            "model": "anthropic-tier"
+          },
+          "provenance": {
+            "source": "harness.builder-container",
+            "provider_observed": "anthropic/anthropic-tier"
+          },
+          "issued_at": "2026-10-28T10:00:00Z",
+          "expires_at": "2026-10-28T10:30:00Z",
+          "grantor": "orchestrator-1"
+        }
+      ]
+    },
+    {
+      "id": "role-contract.allow.parallel-disjoint",
+      "grant": {
+        "actor_id": "builder-2",
+        "run_id": "run-301-a",
+        "duty": "builder",
+        "scope": [
+          "src/a/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "anthropic-tier"
+        },
+        "provenance": {
+          "source": "harness.builder-container",
+          "provider_observed": "anthropic/anthropic-tier"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "orchestrator-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/a/module.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": true,
+        "rules": []
+      },
+      "other_grants": [
+        {
+          "actor_id": "builder-1",
+          "run_id": "run-301-a",
+          "duty": "builder",
+          "scope": [
+            "docs/"
+          ],
+          "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "provider": {
+            "family": "anthropic",
+            "model": "anthropic-tier"
+          },
+          "provenance": {
+            "source": "harness.builder-container",
+            "provider_observed": "anthropic/anthropic-tier"
+          },
+          "issued_at": "2026-10-28T10:00:00Z",
+          "expires_at": "2026-10-28T10:30:00Z",
+          "grantor": "orchestrator-1"
+        }
+      ]
+    },
+    {
+      "id": "role-contract.refuse.escalated-duty",
+      "grant": {
+        "actor_id": "builder-2",
+        "run_id": "run-301-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "anthropic-tier"
+        },
+        "provenance": {
+          "source": "harness.builder-container",
+          "provider_observed": "anthropic/anthropic-tier"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "reviewer-1"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/policy.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": false,
+        "rules": [
+          "privilege-escalation"
+        ]
+      },
+      "delegated": true,
+      "other_grants": [
+        {
+          "actor_id": "reviewer-1",
+          "run_id": "run-301-a",
+          "duty": "reviewer",
+          "scope": [
+            "evidence/review/"
+          ],
+          "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "provider": {
+            "family": "openai",
+            "model": "openai-tier"
+          },
+          "provenance": {
+            "source": "harness.reviewer-headless",
+            "provider_observed": "openai/openai-tier"
+          },
+          "issued_at": "2026-10-28T10:00:00Z",
+          "expires_at": "2026-10-28T10:30:00Z",
+          "grantor": "orchestrator-1"
+        }
+      ]
+    },
+    {
+      "id": "role-contract.allow.delegated-by-owner",
+      "grant": {
+        "actor_id": "builder-2",
+        "run_id": "run-301-a",
+        "duty": "builder",
+        "scope": [
+          "src/"
+        ],
+        "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "provider": {
+          "family": "anthropic",
+          "model": "anthropic-tier"
+        },
+        "provenance": {
+          "source": "harness.builder-container",
+          "provider_observed": "anthropic/anthropic-tier"
+        },
+        "issued_at": "2026-10-28T10:00:00Z",
+        "expires_at": "2026-10-28T10:30:00Z",
+        "grantor": "kgsmith19"
+      },
+      "action": {
+        "kind": "write",
+        "risk": "R1",
+        "path": "src/policy.py"
+      },
+      "now": "2026-10-28T10:10:00Z",
+      "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "expect": {
+        "allowed": true,
+        "rules": []
+      },
+      "owner": "kgsmith19",
+      "delegated": true
+    }
+  ],
+  "flows": [
+    {
+      "id": "flow.four-role",
+      "steps": [
+        {
+          "grant": {
+            "actor_id": "planner-1",
+            "run_id": "run-301-a",
+            "duty": "spec_author",
+            "scope": [
+              "specs/"
+            ],
+            "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "provider": {
+              "family": "anthropic",
+              "model": "anthropic-tier"
+            },
+            "provenance": {
+              "source": "harness.planner-cli",
+              "provider_observed": "anthropic/anthropic-tier"
+            },
+            "issued_at": "2026-10-28T10:00:00Z",
+            "expires_at": "2026-10-28T10:30:00Z",
+            "grantor": "orchestrator-1"
+          },
+          "action": {
+            "kind": "write",
+            "risk": "R2",
+            "path": "specs/301-plan.md"
+          },
+          "acceptance_ids": [],
+          "output_artifacts": [
+            {
+              "path": "specs/301-plan.md",
+              "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+            }
+          ],
+          "task": "std#301",
+          "now": "2026-10-28T10:10:00Z",
+          "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "expect": {
+            "decision": "allow",
+            "rules": []
+          }
+        },
+        {
+          "grant": {
+            "actor_id": "builder-1",
+            "run_id": "run-301-a",
+            "duty": "builder",
+            "scope": [
+              "src/"
+            ],
+            "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "provider": {
+              "family": "anthropic",
+              "model": "anthropic-tier"
+            },
+            "provenance": {
+              "source": "harness.builder-container",
+              "provider_observed": "anthropic/anthropic-tier"
+            },
+            "issued_at": "2026-10-28T10:00:00Z",
+            "expires_at": "2026-10-28T10:30:00Z",
+            "grantor": "orchestrator-1"
+          },
+          "action": {
+            "kind": "write",
+            "risk": "R2",
+            "path": "src/policy.py"
+          },
+          "other_grants": [
+            {
+              "actor_id": "planner-1",
+              "run_id": "run-301-a",
+              "duty": "spec_author",
+              "scope": [
+                "specs/"
+              ],
+              "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+              "provider": {
+                "family": "anthropic",
+                "model": "anthropic-tier"
+              },
+              "provenance": {
+                "source": "harness.planner-cli",
+                "provider_observed": "anthropic/anthropic-tier"
+              },
+              "issued_at": "2026-10-28T10:00:00Z",
+              "expires_at": "2026-10-28T10:30:00Z",
+              "grantor": "orchestrator-1"
+            }
+          ],
+          "task": "std#301",
+          "now": "2026-10-28T10:10:00Z",
+          "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "expect": {
+            "decision": "allow",
+            "rules": []
+          }
+        },
+        {
+          "grant": {
+            "actor_id": "reviewer-1",
+            "run_id": "run-301-a",
+            "duty": "reviewer",
+            "scope": [
+              "evidence/review/"
+            ],
+            "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "provider": {
+              "family": "openai",
+              "model": "openai-tier"
+            },
+            "provenance": {
+              "source": "harness.reviewer-headless",
+              "provider_observed": "openai/openai-tier"
+            },
+            "issued_at": "2026-10-28T10:00:00Z",
+            "expires_at": "2026-10-28T10:30:00Z",
+            "grantor": "orchestrator-1"
+          },
+          "action": {
+            "kind": "review",
+            "risk": "R2",
+            "path": "evidence/review/301-verdict.json"
+          },
+          "acceptance_ids": [
+            "AC1",
+            "AC2"
+          ],
+          "claims": [
+            {
+              "id": "AC1",
+              "result": "pass",
+              "artifacts": [
+                "evidence/review/301-verdict.json"
+              ]
+            },
+            {
+              "id": "AC2",
+              "result": "pass",
+              "artifacts": [
+                "evidence/review/301-verdict.json"
+              ]
+            }
+          ],
+          "output_artifacts": [
+            {
+              "path": "evidence/review/301-verdict.json",
+              "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            }
+          ],
+          "other_grants": [
+            {
+              "actor_id": "planner-1",
+              "run_id": "run-301-a",
+              "duty": "spec_author",
+              "scope": [
+                "specs/"
+              ],
+              "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+              "provider": {
+                "family": "anthropic",
+                "model": "anthropic-tier"
+              },
+              "provenance": {
+                "source": "harness.planner-cli",
+                "provider_observed": "anthropic/anthropic-tier"
+              },
+              "issued_at": "2026-10-28T10:00:00Z",
+              "expires_at": "2026-10-28T10:30:00Z",
+              "grantor": "orchestrator-1"
+            },
+            {
+              "actor_id": "builder-1",
+              "run_id": "run-301-a",
+              "duty": "builder",
+              "scope": [
+                "src/"
+              ],
+              "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+              "provider": {
+                "family": "anthropic",
+                "model": "anthropic-tier"
+              },
+              "provenance": {
+                "source": "harness.builder-container",
+                "provider_observed": "anthropic/anthropic-tier"
+              },
+              "issued_at": "2026-10-28T10:00:00Z",
+              "expires_at": "2026-10-28T10:30:00Z",
+              "grantor": "orchestrator-1"
+            }
+          ],
+          "task": "std#301",
+          "now": "2026-10-28T10:10:00Z",
+          "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "expect": {
+            "decision": "allow",
+            "rules": []
+          }
+        },
+        {
+          "grant": {
+            "actor_id": "verifier-1",
+            "run_id": "run-301-a",
+            "duty": "verifier",
+            "scope": [
+              "evidence/verification/"
+            ],
+            "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "provider": {
+              "family": "google",
+              "model": "google-tier"
+            },
+            "provenance": {
+              "source": "harness.verifier-ci",
+              "provider_observed": "google/google-tier"
+            },
+            "issued_at": "2026-10-28T10:00:00Z",
+            "expires_at": "2026-10-28T10:30:00Z",
+            "grantor": "orchestrator-1"
+          },
+          "action": {
+            "kind": "verify",
+            "risk": "R2",
+            "path": "evidence/verification/301-run.json"
+          },
+          "acceptance_ids": [
+            "AC1",
+            "AC2"
+          ],
+          "claims": [
+            {
+              "id": "AC1",
+              "result": "pass",
+              "artifacts": [
+                "evidence/verification/301-run.json"
+              ]
+            },
+            {
+              "id": "AC2",
+              "result": "pass",
+              "artifacts": [
+                "evidence/verification/301-run.json"
+              ]
+            }
+          ],
+          "output_artifacts": [
+            {
+              "path": "evidence/verification/301-run.json",
+              "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+            }
+          ],
+          "other_grants": [
+            {
+              "actor_id": "planner-1",
+              "run_id": "run-301-a",
+              "duty": "spec_author",
+              "scope": [
+                "specs/"
+              ],
+              "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+              "provider": {
+                "family": "anthropic",
+                "model": "anthropic-tier"
+              },
+              "provenance": {
+                "source": "harness.planner-cli",
+                "provider_observed": "anthropic/anthropic-tier"
+              },
+              "issued_at": "2026-10-28T10:00:00Z",
+              "expires_at": "2026-10-28T10:30:00Z",
+              "grantor": "orchestrator-1"
+            },
+            {
+              "actor_id": "builder-1",
+              "run_id": "run-301-a",
+              "duty": "builder",
+              "scope": [
+                "src/"
+              ],
+              "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+              "provider": {
+                "family": "anthropic",
+                "model": "anthropic-tier"
+              },
+              "provenance": {
+                "source": "harness.builder-container",
+                "provider_observed": "anthropic/anthropic-tier"
+              },
+              "issued_at": "2026-10-28T10:00:00Z",
+              "expires_at": "2026-10-28T10:30:00Z",
+              "grantor": "orchestrator-1"
+            },
+            {
+              "actor_id": "reviewer-1",
+              "run_id": "run-301-a",
+              "duty": "reviewer",
+              "scope": [
+                "evidence/review/"
+              ],
+              "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+              "provider": {
+                "family": "openai",
+                "model": "openai-tier"
+              },
+              "provenance": {
+                "source": "harness.reviewer-headless",
+                "provider_observed": "openai/openai-tier"
+              },
+              "issued_at": "2026-10-28T10:00:00Z",
+              "expires_at": "2026-10-28T10:30:00Z",
+              "grantor": "orchestrator-1"
+            }
+          ],
+          "task": "std#301",
+          "now": "2026-10-28T10:10:00Z",
+          "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "expect": {
+            "decision": "allow",
+            "rules": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "flow.builder-reviewer",
+      "steps": [
+        {
+          "grant": {
+            "actor_id": "builder-1",
+            "run_id": "run-301-a",
+            "duty": "builder",
+            "scope": [
+              "src/"
+            ],
+            "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "provider": {
+              "family": "anthropic",
+              "model": "anthropic-tier"
+            },
+            "provenance": {
+              "source": "harness.builder-container",
+              "provider_observed": "anthropic/anthropic-tier"
+            },
+            "issued_at": "2026-10-28T10:00:00Z",
+            "expires_at": "2026-10-28T10:30:00Z",
+            "grantor": "orchestrator-1"
+          },
+          "action": {
+            "kind": "write",
+            "risk": "R2",
+            "path": "src/policy.py"
+          },
+          "task": "std#301",
+          "now": "2026-10-28T10:10:00Z",
+          "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "expect": {
+            "decision": "allow",
+            "rules": []
+          }
+        },
+        {
+          "grant": {
+            "actor_id": "reviewer-1",
+            "run_id": "run-301-a",
+            "duty": "reviewer",
+            "scope": [
+              "evidence/review/"
+            ],
+            "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "provider": {
+              "family": "openai",
+              "model": "openai-tier"
+            },
+            "provenance": {
+              "source": "harness.reviewer-headless",
+              "provider_observed": "openai/openai-tier"
+            },
+            "issued_at": "2026-10-28T10:00:00Z",
+            "expires_at": "2026-10-28T10:30:00Z",
+            "grantor": "orchestrator-1"
+          },
+          "action": {
+            "kind": "review",
+            "risk": "R2",
+            "path": "evidence/review/301-verdict.json"
+          },
+          "acceptance_ids": [
+            "AC1"
+          ],
+          "claims": [
+            {
+              "id": "AC1",
+              "result": "pass",
+              "artifacts": [
+                "evidence/review/301-verdict.json"
+              ]
+            }
+          ],
+          "output_artifacts": [
+            {
+              "path": "evidence/review/301-verdict.json",
+              "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            }
+          ],
+          "other_grants": [
+            {
+              "actor_id": "builder-1",
+              "run_id": "run-301-a",
+              "duty": "builder",
+              "scope": [
+                "src/"
+              ],
+              "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+              "provider": {
+                "family": "anthropic",
+                "model": "anthropic-tier"
+              },
+              "provenance": {
+                "source": "harness.builder-container",
+                "provider_observed": "anthropic/anthropic-tier"
+              },
+              "issued_at": "2026-10-28T10:00:00Z",
+              "expires_at": "2026-10-28T10:30:00Z",
+              "grantor": "orchestrator-1"
+            }
+          ],
+          "task": "std#301",
+          "now": "2026-10-28T10:10:00Z",
+          "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "expect": {
+            "decision": "allow",
+            "rules": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "flow.security-specialist",
+      "steps": [
+        {
+          "grant": {
+            "actor_id": "builder-1",
+            "run_id": "run-301-a",
+            "duty": "builder",
+            "scope": [
+              "src/"
+            ],
+            "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "provider": {
+              "family": "anthropic",
+              "model": "anthropic-tier"
+            },
+            "provenance": {
+              "source": "harness.builder-container",
+              "provider_observed": "anthropic/anthropic-tier"
+            },
+            "issued_at": "2026-10-28T10:00:00Z",
+            "expires_at": "2026-10-28T10:30:00Z",
+            "grantor": "orchestrator-1"
+          },
+          "action": {
+            "kind": "write",
+            "risk": "R3",
+            "path": "src/auth/login.py"
+          },
+          "task": "std#301",
+          "now": "2026-10-28T10:10:00Z",
+          "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "expect": {
+            "decision": "allow",
+            "rules": []
+          }
+        },
+        {
+          "grant": {
+            "actor_id": "security-1",
+            "run_id": "run-301-a",
+            "duty": "reviewer",
+            "scope": [
+              "evidence/review/"
+            ],
+            "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "provider": {
+              "family": "openai",
+              "model": "openai-tier"
+            },
+            "provenance": {
+              "source": "harness.security-headless",
+              "provider_observed": "openai/openai-tier"
+            },
+            "issued_at": "2026-10-28T10:00:00Z",
+            "expires_at": "2026-10-28T10:30:00Z",
+            "grantor": "orchestrator-1"
+          },
+          "action": {
+            "kind": "review",
+            "risk": "R3",
+            "path": "evidence/review/301-verdict.json"
+          },
+          "specialty": "security",
+          "acceptance_ids": [
+            "AC1"
+          ],
+          "claims": [
+            {
+              "id": "AC1",
+              "result": "pass",
+              "artifacts": [
+                "evidence/review/301-verdict.json"
+              ]
+            }
+          ],
+          "output_artifacts": [
+            {
+              "path": "evidence/review/301-verdict.json",
+              "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            }
+          ],
+          "other_grants": [
+            {
+              "actor_id": "builder-1",
+              "run_id": "run-301-a",
+              "duty": "builder",
+              "scope": [
+                "src/"
+              ],
+              "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+              "provider": {
+                "family": "anthropic",
+                "model": "anthropic-tier"
+              },
+              "provenance": {
+                "source": "harness.builder-container",
+                "provider_observed": "anthropic/anthropic-tier"
+              },
+              "issued_at": "2026-10-28T10:00:00Z",
+              "expires_at": "2026-10-28T10:30:00Z",
+              "grantor": "orchestrator-1"
+            }
+          ],
+          "task": "std#301",
+          "now": "2026-10-28T10:10:00Z",
+          "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "expect": {
+            "decision": "allow",
+            "rules": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "flow.refuse.missing-acceptance",
+      "steps": [
+        {
+          "grant": {
+            "actor_id": "verifier-1",
+            "run_id": "run-301-a",
+            "duty": "verifier",
+            "scope": [
+              "evidence/verification/"
+            ],
+            "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "provider": {
+              "family": "google",
+              "model": "google-tier"
+            },
+            "provenance": {
+              "source": "harness.verifier-ci",
+              "provider_observed": "google/google-tier"
+            },
+            "issued_at": "2026-10-28T10:00:00Z",
+            "expires_at": "2026-10-28T10:30:00Z",
+            "grantor": "orchestrator-1"
+          },
+          "action": {
+            "kind": "verify",
+            "risk": "R2",
+            "path": "evidence/verification/301-run.json"
+          },
+          "acceptance_ids": [
+            "AC1",
+            "AC2"
+          ],
+          "claims": [
+            {
+              "id": "AC1",
+              "result": "pass",
+              "artifacts": [
+                "evidence/verification/301-run.json"
+              ]
+            },
+            {
+              "id": "AC2",
+              "result": "fail",
+              "artifacts": [
+                "evidence/verification/301-run.json"
+              ]
+            }
+          ],
+          "output_artifacts": [
+            {
+              "path": "evidence/verification/301-run.json",
+              "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+            }
+          ],
+          "other_grants": [
+            {
+              "actor_id": "builder-1",
+              "run_id": "run-301-a",
+              "duty": "builder",
+              "scope": [
+                "src/"
+              ],
+              "head_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+              "provider": {
+                "family": "anthropic",
+                "model": "anthropic-tier"
+              },
+              "provenance": {
+                "source": "harness.builder-container",
+                "provider_observed": "anthropic/anthropic-tier"
+              },
+              "issued_at": "2026-10-28T10:00:00Z",
+              "expires_at": "2026-10-28T10:30:00Z",
+              "grantor": "orchestrator-1"
+            }
+          ],
+          "task": "std#301",
+          "now": "2026-10-28T10:10:00Z",
+          "current_head": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "expect": {
+            "decision": "refuse",
+            "rules": [
+              "missing-evidence"
+            ]
+          }
+        }
+      ]
     }
   ]
 }

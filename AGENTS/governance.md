@@ -223,6 +223,29 @@ This contract defines **what MUST be proven** before an agent action is authoriz
 
 **Compatibility with external agent systems.** The contract names fields and rule ids, not runtimes, hosts, or personas, so an external agent system can emit grants that satisfy it. `hyper-agents` is an example consumer: it keeps its own personas, runtime, and role definitions, and it may emit grants in these fields to be checked here. This repository has no dependency on `hyper-agents` or any other agent system, and no external system defines this standard's duties or rules.
 
+## Collaboration Policy
+
+This policy separates the guarantees every SDLC run must keep from the mechanisms that may change. It builds on the grant contract above; `tools/role_contract.py` (`record`) and its fixtures pin it.
+
+**Mandatory guarantees (binding):**
+
+- **Scope:** every write is covered by a grant whose path prefixes name what it may touch.
+- **One writer per mutable worktree:** overlapping builder or remediator scopes on the same head never run in parallel.
+- **Independent review and verification:** a builder never validates its own head, and R2/R3 review or verification comes from a different provider family.
+- **No privilege escalation:** a delegated grant needs the owner or a grantor who holds the same duty.
+- **Exact-head evidence:** acceptance evidence names the tested head and is recorded on the Issue or PR. A reviewer or verifier receipt that names no acceptance id, or one without a passing claim that lists an output artifact, is refused (`missing-evidence`).
+- **PR Gate as the sole release path:** nothing reaches `main` except through the PR Gate.
+
+**Replaceable mechanisms (not mandated):**
+
+- The agent harness, hosting, scheduler, and mint or discharge service.
+- Prompts and agent configuration.
+- Any product. A runtime such as OpenHands or TAKT may serve as an example, never as a requirement.
+
+**Collaboration receipt.** `record` returns one receipt per action: `schema_version`, `task`, `duty`, `specialty`, `actor_id`, `run_id`, `grantor`, `provider`, `provenance`, `scope`, `exact_sha`, input and output artifacts as `{path, sha256}`, `acceptance_ids`, `claims`, `decision` (`allow` or `refuse`), `rules`, and `decided_at`. A specialist such as security or DBA is a reviewer or verifier that sets `specialty` on its receipt; it is never a grant key. R2/R3 work that touches auth, secrets, or migration paths suggests a specialist; nothing enforces that choice.
+
+**Human approval** follows the existing risk and authority rules. It is required where those rules require it, not for every handoff.
+
 ## Releases and Milestones
 
 A GitHub Milestone defines a release (for example `v1.4.0`, `vNext`). Use an existing open
