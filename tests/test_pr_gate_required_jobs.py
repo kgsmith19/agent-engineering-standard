@@ -69,10 +69,11 @@ def run_gate(needs):
     return proc.returncode, problems, warnings
 
 
-def _needs(overrides=None):
+def _needs(overrides=None, builder="anthropic", reviewer="openai"):
     """Build a ``needs`` mapping: every job succeeded, then apply overrides.
 
-    An override value of ``None`` removes the job (a missing job).
+    An override value of ``None`` removes the job (a missing job). ``setup``
+    carries the provider outputs the real job publishes (Issue #319).
     """
     needs = {job: {"result": "success"} for job in ALL_JOBS}
     for job, result in (overrides or {}).items():
@@ -80,6 +81,9 @@ def _needs(overrides=None):
             needs.pop(job)
         else:
             needs[job] = {"result": result}
+    if "setup" in needs:
+        needs["setup"]["outputs"] = {"builder_provider": builder,
+                                     "reviewer_provider": reviewer}
     return needs
 
 
@@ -176,6 +180,79 @@ class RequiredJobBehaviourTests(unittest.TestCase):
         """
         problems, _ = self.evaluate({"llm_review": None})
         self.assertTrue(any("llm_review" in p for p in problems))
+
+
+class ProviderSeparationTests(unittest.TestCase):
+    """Issue #319: AGENTS.md says the gate fails closed when the builder and
+    reviewer families are equal. llm_review is optional, so the gate itself
+    checks setup's outputs."""
+
+    def evaluate(self, builder, reviewer, overrides=None):
+        code, problems, warnings = run_gate(_needs(overrides, builder, reviewer))
+        self.assertEqual(1 if problems else 0, code)
+        return problems, warnings
+
+    def test_separated_families_pass(self):
+        """anthropic -> openai with every job green passes cleanly.
+
+        Protects the happy path; catches a separation check that blocks a
+        correctly separated run.
+        """
+        problems, warnings = self.evaluate("anthropic", "openai")
+        self.assertEqual([], problems)
+        self.assertEqual([], warnings)
+
+    def test_equal_families_block_even_when_llm_review_is_only_a_warning(self):
+        """An equal pair blocks, whatever llm_review concluded.
+
+        Catches the #319 defect: the equal-family check lived only inside
+        optional llm_review, so a failure there was a warning and merged.
+        """
+        for review_result in ("success", "failure", "skipped"):
+            with self.subTest(review_result=review_result):
+                problems, _ = self.evaluate("openai", "openai",
+                                            {"llm_review": review_result})
+                self.assertTrue(any("provider separation" in p for p in problems),
+                                problems)
+
+    def test_gemini_is_the_google_family(self):
+        """setup names Gemini 'gemini'; it is the google family.
+
+        Catches a google builder reviewed by 'gemini' passing as separated.
+        """
+        problems, _ = self.evaluate("google", "gemini")
+        self.assertTrue(any("provider separation" in p for p in problems), problems)
+
+    def test_family_comparison_ignores_case_and_whitespace(self):
+        """Families compare case- and whitespace-insensitively.
+
+        Catches 'OpenAI ' slipping past an exact-string equality as if it
+        were a different family from 'openai'.
+        """
+        problems, _ = self.evaluate("OpenAI ", "openai")
+        self.assertTrue(any("provider separation" in p for p in problems), problems)
+
+    def test_unreported_family_fails_closed(self):
+        """An empty or missing builder/reviewer output never counts as separated.
+
+        Catches a broken setup that reports nothing being read as a pass.
+        """
+        for builder, reviewer in (("anthropic", ""), ("", "openai"), (None, None)):
+            with self.subTest(builder=builder, reviewer=reviewer):
+                problems, _ = self.evaluate(builder, reviewer)
+                self.assertTrue(any("provider separation" in p for p in problems),
+                                problems)
+
+    def test_review_failure_with_separated_families_stays_a_warning(self):
+        """#314 behavior kept: a down review never blocks on its own.
+
+        Catches promoting llm_review to required, which would let a review
+        outage block merges without an owner decision.
+        """
+        problems, warnings = self.evaluate("anthropic", "openai",
+                                           {"llm_review": "failure"})
+        self.assertEqual([], problems)
+        self.assertTrue(any("llm_review" in w for w in warnings))
 
 
 class WorkflowPinTests(unittest.TestCase):

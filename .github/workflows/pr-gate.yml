@@ -342,6 +342,26 @@ jobs:
                   % (sorted(needs), sorted(expected))
               )
 
+          # Provider separation is binding even though llm_review is not:
+          # AGENTS.md says the gate fails closed when the builder and
+          # reviewer families are equal, so read setup's own outputs rather
+          # than trust an optional job's result (Issue #319). Unreported
+          # families never count as separated. Gemini is the google family.
+          family_of = {"gemini": "google"}
+          outputs = (needs.get("setup") or {}).get("outputs") or {}
+          families = []
+          for key in ("builder_provider", "reviewer_provider"):
+              name = (outputs.get(key) or "").strip().lower()
+              families.append(family_of.get(name, name))
+          if not all(families):
+              problems.append(
+                  "provider separation: setup reported builder=%r reviewer=%r"
+                  % tuple(families))
+          elif families[0] == families[1]:
+              problems.append(
+                  "provider separation: builder and reviewer are both the %r family"
+                  % families[0])
+
           # Only REQUIRED jobs must succeed
           for job, info in sorted(needs.items()):
               result = info.get("result")
