@@ -9,9 +9,9 @@ canonical sources — the PR Gate compares each pair.
 
 | Canonical | Active copy | Byte-identical? |
 | --- | --- | --- |
-| [`ISSUE.md`](./ISSUE.md) | `.github/ISSUE_TEMPLATE/work-item.md` | ✅ enforced by the PR Gate |
-| [`ISSUE_CONFIG.yml`](./ISSUE_CONFIG.yml) | `.github/ISSUE_TEMPLATE/config.yml` | ✅ enforced by the PR Gate |
-| [`PULL_REQUEST.md`](./PULL_REQUEST.md) | `.github/PULL_REQUEST_TEMPLATE.md` | ✅ enforced by the PR Gate |
+| [`issue-template.md`](./issue-template.md) | `.github/ISSUE_TEMPLATE/work-item.md` | ✅ enforced by the PR Gate |
+| [`issue-config.yml`](./issue-config.yml) | `.github/ISSUE_TEMPLATE/config.yml` | ✅ enforced by the PR Gate |
+| [`pull-request-template.md`](./pull-request-template.md) | `.github/PULL_REQUEST_TEMPLATE.md` | ✅ enforced by the PR Gate |
 
 ## Starting points for consuming repositories
 
