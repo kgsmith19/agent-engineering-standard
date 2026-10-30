@@ -204,7 +204,7 @@ class StandardRepoRejections(FixtureCase):
     one way and asserts the specific check_id fires."""
 
     def test_verify_rejects_mismatched_pull_request_template_pair(self):
-        """Protects the byte-identity of TEMPLATES/PULL_REQUEST.md and
+        """Protects the byte-identity of TEMPLATES/pull-request-template.md and
         .github/PULL_REQUEST_TEMPLATE.md; catches an edit to the active
         copy that silently diverges from the canonical template."""
         root = self.std_fixture()
@@ -217,7 +217,7 @@ class StandardRepoRejections(FixtureCase):
         self.assertIn("template-pair-mismatch", check_ids(findings))
 
     def test_verify_rejects_mismatched_issue_template_pair(self):
-        """Protects the byte-identity of TEMPLATES/ISSUE.md and
+        """Protects the byte-identity of TEMPLATES/issue-template.md and
         .github/ISSUE_TEMPLATE/work-item.md; catches drift introduced by
         editing only the GitHub-active work-item copy."""
         root = self.std_fixture()
@@ -232,7 +232,7 @@ class StandardRepoRejections(FixtureCase):
         self.assertIn("template-pair-mismatch", check_ids(findings))
 
     def test_verify_rejects_mismatched_issue_config(self):
-        """Protects the byte-identity of TEMPLATES/ISSUE_CONFIG.yml and
+        """Protects the byte-identity of TEMPLATES/issue-config.yml and
         .github/ISSUE_TEMPLATE/config.yml; catches a config edit that
         bypasses the canonical source."""
         root = self.std_fixture()
@@ -5533,7 +5533,7 @@ class OutcomeTerms(unittest.TestCase):
     """T11 (#207): outcome-first titles and fixed defined terms.
     Pure contract in tools/outcome_terms.py plus the
     `outcome-terms-field-loss` verify check guarding
-    TEMPLATES/ISSUE.md. Every proof point below has a dedicated
+    TEMPLATES/issue-template.md. Every proof point below has a dedicated
     test with its own justification."""
 
     def _ot(self):
@@ -5546,7 +5546,7 @@ class OutcomeTerms(unittest.TestCase):
             sys.path.remove(str(WORKTREE / "tools"))
 
     def _full_body(self):
-        return (WORKTREE / "TEMPLATES" / "ISSUE.md").read_text(
+        return (WORKTREE / "TEMPLATES" / "issue-template.md").read_text(
             encoding="utf-8")
 
     def test_good_title_with_suffix_passes(self):
@@ -5615,7 +5615,7 @@ class OutcomeTerms(unittest.TestCase):
             violations)
 
     def test_all_template_fields_present_in_canonical(self):
-        """Protects AC3: the canonical TEMPLATES/ISSUE.md carries
+        """Protects AC3: the canonical TEMPLATES/issue-template.md carries
         every required field, so the field-loss check never
         false-positives on the real template."""
         ot = self._ot()
@@ -5646,10 +5646,10 @@ class OutcomeTermsRejections(FixtureCase):
 
     def test_verify_rejects_dropped_issue_template_field(self):
         """Protects AC3/AC5 end to end: a dropped ## Risk field in
-        TEMPLATES/ISSUE.md fails verify, catching template weakening
+        TEMPLATES/issue-template.md fails verify, catching template weakening
         that unit fixtures alone could miss."""
         root = self.std_fixture()
-        template = root / "TEMPLATES" / "ISSUE.md"
+        template = root / "TEMPLATES" / "issue-template.md"
         template.write_text(
             template.read_text(encoding="utf-8").replace(
                 "## Risk\n", ""),
