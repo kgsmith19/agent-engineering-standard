@@ -194,13 +194,13 @@ mappings:
   - source: GEMINI.md
     dest: GEMINI.md
     mode: copy
-  - source: TEMPLATES/ISSUE.md
+  - source: TEMPLATES/issue-template.md
     dest: .github/ISSUE_TEMPLATE/work-item.md
     mode: copy
-  - source: TEMPLATES/ISSUE_CONFIG.yml
+  - source: TEMPLATES/issue-config.yml
     dest: .github/ISSUE_TEMPLATE/config.yml
     mode: copy
-  - source: TEMPLATES/PULL_REQUEST.md
+  - source: TEMPLATES/pull-request-template.md
     dest: .github/PULL_REQUEST_TEMPLATE.md
     mode: copy
   - source: TEMPLATES/pr-gate.yml
