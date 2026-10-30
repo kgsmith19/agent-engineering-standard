@@ -34,4 +34,19 @@ python tools/standardctl.py worktrees reconcile
 git status --short && git diff --check
 ```
 
+## Conformance rollout
+
+Run a local, network-free adoption check from an AES checkout:
+
+```bash
+python tools/standardctl.py conformance --target ../your-repository
+python tools/standardctl.py conformance --target ../your-repository --json
+```
+
+This proves the adopter's required metadata, standard lock, configured final-gate
+workflow, and required-check identity. It does not replace product tests or the
+GitHub PR gate. Adoption is explicit and repository-by-repository: Core root,
+each Core app/service, agent-extensions, hyper-agents, then Deep Search before
+its Core import. Do not bulk-propagate changes.
+
 <!-- live-proof: workflow_run review-comment delivery (#180) -->
