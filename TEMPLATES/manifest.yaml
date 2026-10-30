@@ -47,6 +47,14 @@ schema_version: 1
 standard:
   repository: kgsmith19/agent-engineering-standard
 
+conformance:
+  required_files:
+    - AGENTS.md
+    - project.yaml
+    - standard.lock
+  workflow_from: ci.workflow
+  required_check_from: ci.required_check
+
 tokens:
   - __APP_DISPLAY_NAME__
   - __APP_SLUG__
