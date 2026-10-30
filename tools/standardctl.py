@@ -1192,6 +1192,62 @@ class RepoModel:
         return self._workflows
 
 
+def _dotted_value(data: Dict, path: str) -> Optional[str]:
+    """Resolve a dotted string value from the restricted project mapping."""
+    value: Any = data
+    for part in path.split("."):
+        if not isinstance(value, dict):
+            return None
+        value = value.get(part)
+    return value if isinstance(value, str) and value else None
+
+
+def conformance_findings(root: Path, contract: Dict) -> List[Dict[str, str]]:
+    """Return stable, network-free findings for one consuming repository."""
+    root = Path(root).resolve()
+    findings: List[Dict[str, str]] = []
+    for path in contract["required_files"]:
+        if not (root / path).is_file():
+            finding_id = "conformance-lock" if path == "standard.lock" else \
+                "conformance-metadata"
+            findings.append({
+                "id": finding_id,
+                "message": "required file is missing: %s" % path,
+            })
+    model = RepoModel(root)
+    project = model.project
+    if not isinstance(project, dict):
+        findings.append({
+            "id": "conformance-metadata",
+            "message": "project.yaml is missing or invalid",
+        })
+        return findings
+    workflow_path = _dotted_value(project, contract["workflow_from"])
+    required_check = _dotted_value(project, contract["required_check_from"])
+    if not workflow_path or not required_check:
+        findings.append({
+            "id": "conformance-metadata",
+            "message": "project.yaml lacks configured final-gate metadata",
+        })
+        return findings
+    workflow_text = model.read_text(workflow_path)
+    if workflow_text is None:
+        findings.append({
+            "id": "conformance-gate-workflow",
+            "message": "configured final-gate workflow is missing: %s"
+                       % workflow_path,
+        })
+        return findings
+    workflow = extract_workflow_structure(workflow_text)
+    if workflow["name"] != required_check:
+        findings.append({
+            "id": "conformance-required-check",
+            "message": "configured required check %r does not match workflow name %r"
+                       % (required_check, workflow["name"]),
+        })
+    return findings
+
+
 # ---------------------------------------------------------------------------
 # Check functions
 # ---------------------------------------------------------------------------
@@ -3387,6 +3443,32 @@ def cmd_verify(args: argparse.Namespace) -> int:
     return 0 if report.ok() else 1
 
 
+def cmd_conformance(args: argparse.Namespace) -> int:
+    """Check a consuming tree using this AES checkout's declared contract."""
+    standard_root = Path(__file__).resolve().parent.parent
+    try:
+        manifest = parse_manifest(
+            (standard_root / "TEMPLATES" / "manifest.yaml").read_text(
+                encoding="utf-8"))
+        contract = parse_conformance_contract(manifest)
+    except (OSError, RestrictedYamlError) as exc:
+        print("conformance: cannot load AES contract: %s" % exc)
+        return 2
+    target = Path(args.target).resolve()
+    findings = conformance_findings(target, contract)
+    payload = {"target": str(target), "ok": not findings,
+               "findings": findings}
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    elif findings:
+        print("conformance: %s (findings)" % target)
+        for finding in findings:
+            print("  - %s: %s" % (finding["id"], finding["message"]))
+    else:
+        print("conformance: %s -- OK" % target)
+    return 0 if not findings else 1
+
+
 def model_project(args: argparse.Namespace) -> Optional[Dict]:
     """Read the parsed project mapping for the verify root."""
     return RepoModel(Path(args.root)).project
@@ -4881,6 +4963,17 @@ def build_parser() -> argparse.ArgumentParser:
              "no behavior change (T08)",
     )
     p_verify.set_defaults(func=cmd_verify)
+
+    p_conformance = sub.add_parser(
+        "conformance",
+        help="verify one consuming repository against the AES contract",
+    )
+    p_conformance.add_argument(
+        "--target", required=True,
+        help="path to the consuming repository",
+    )
+    p_conformance.add_argument("--json", action="store_true")
+    p_conformance.set_defaults(func=cmd_conformance)
 
     p_set = sub.add_parser(
         "set",
