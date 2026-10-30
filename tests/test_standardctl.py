@@ -16740,5 +16740,87 @@ class ConformanceContract(unittest.TestCase):
             })
 
 
+class LocalConformance(unittest.TestCase):
+    """Network-free adopter checks use only the supplied target tree."""
+
+    def _contract(self):
+        return standardctl.parse_conformance_contract(
+            standardctl.parse_manifest(
+                (WORKTREE / "TEMPLATES" / "manifest.yaml").read_text(
+                    encoding="utf-8")))
+
+    def _target(self, root, workflow_name="Agent Engineering Standard PR Gate",
+                include_lock=True):
+        (root / ".github" / "workflows").mkdir(parents=True)
+        (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+        if include_lock:
+            (root / "standard.lock").write_text("standard: test\n",
+                                                encoding="utf-8")
+        (root / "project.yaml").write_text(
+            "ci:\n  workflow: .github/workflows/pr-gate.yml\n"
+            "  required_check: Agent Engineering Standard PR Gate\n",
+            encoding="utf-8")
+        (root / ".github" / "workflows" / "pr-gate.yml").write_text(
+            "name: %s\non:\n  pull_request:\njobs:\n  gate:\n"
+            "    runs-on: ubuntu-latest\n" % workflow_name,
+            encoding="utf-8")
+
+    def test_conformance_accepts_complete_target(self):
+        """Protects the happy path: root metadata and the configured final
+        gate produce no finding without network or product test execution."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._target(root)
+            self.assertEqual(
+                [], standardctl.conformance_findings(root, self._contract()))
+
+    def test_conformance_reports_missing_lock(self):
+        """Protects provenance: a target without standard.lock cannot be
+        called conformant even when its gate and instructions exist."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._target(root, include_lock=False)
+            ids = [f["id"] for f in standardctl.conformance_findings(
+                root, self._contract())]
+            self.assertIn("conformance-lock", ids)
+
+    def test_conformance_reports_missing_gate_workflow(self):
+        """Protects CI topology: a configured workflow path must exist in the
+        target, rather than being inferred from a workflow name."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._target(root)
+            (root / ".github" / "workflows" / "pr-gate.yml").unlink()
+            ids = [f["id"] for f in standardctl.conformance_findings(
+                root, self._contract())]
+            self.assertIn("conformance-gate-workflow", ids)
+
+    def test_conformance_reports_wrong_required_check(self):
+        """Protects merge safety: an existing workflow with the wrong display
+        name cannot satisfy the required check declared by project.yaml."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._target(root, workflow_name="Other check")
+            ids = [f["id"] for f in standardctl.conformance_findings(
+                root, self._contract())]
+            self.assertIn("conformance-required-check", ids)
+
+    def test_conformance_cli_emits_machine_readable_result(self):
+        """Protects automation callers: the CLI reports the target, boolean
+        result, and stable findings without needing a network credential."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._target(root)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                code = standardctl.main([
+                    "conformance", "--target", str(root), "--json"])
+            self.assertEqual(0, code)
+            payload = json.loads(output.getvalue())
+            self.assertEqual(str(root.resolve()), payload["target"])
+            self.assertTrue(payload["ok"])
+            self.assertEqual([], payload["findings"])
+
+
 if __name__ == "__main__":
     unittest.main()
