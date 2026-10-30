@@ -1201,9 +1201,9 @@ def check_template_pairs(model: RepoModel) -> List[Finding]:
 
 
 def check_issue_config(model: RepoModel) -> List[Finding]:
-    """TEMPLATES/ISSUE_CONFIG.yml and .github/ISSUE_TEMPLATE/config.yml
+    """TEMPLATES/issue-config.yml and .github/ISSUE_TEMPLATE/config.yml
     must be byte-identical."""
-    canonical = "TEMPLATES/ISSUE_CONFIG.yml"
+    canonical = "TEMPLATES/issue-config.yml"
     active = ".github/ISSUE_TEMPLATE/config.yml"
     if not model.exists(canonical):
         return []
@@ -1229,7 +1229,7 @@ def check_issue_config(model: RepoModel) -> List[Finding]:
 
 
 def check_outcome_terms(model: RepoModel) -> List[Finding]:
-    """T11 outcome/term firewall: TEMPLATES/ISSUE.md keeps every
+    """T11 outcome/term firewall: TEMPLATES/issue-template.md keeps every
     required template field (AC3 self-guard); term definitions stay
     fixed in tools/outcome_terms.py. Consuming repositories (no
     TEMPLATES dir) are exempt. Title/term/stage-ID rejection fixtures
@@ -1237,13 +1237,13 @@ def check_outcome_terms(model: RepoModel) -> List[Finding]:
     if not (model.root / "TEMPLATES").is_dir():
         return []
     findings: List[Finding] = []
-    body = model.read_text("TEMPLATES/ISSUE.md")
+    body = model.read_text("TEMPLATES/issue-template.md")
     if body is None:
         return [
             Finding(
                 "outcome-terms-field-loss",
                 "error",
-                "TEMPLATES/ISSUE.md",
+                "TEMPLATES/issue-template.md",
                 "canonical issue template is missing",
             )
         ]
@@ -1258,7 +1258,7 @@ def check_outcome_terms(model: RepoModel) -> List[Finding]:
                 Finding(
                     "outcome-terms-field-loss",
                     "error",
-                    "TEMPLATES/ISSUE.md",
+                    "TEMPLATES/issue-template.md",
                     "template field dropped: ## %s is missing" % field,
                 )
             )
