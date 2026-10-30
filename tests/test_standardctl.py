@@ -16709,5 +16709,36 @@ class BoundedContexts(FixtureCase):
         self.assertIn("work_queue.py", records[0]["public"])
 
 
+class ConformanceContract(unittest.TestCase):
+    """The distribution manifest declares the minimum local proof a consuming
+    repository needs before any repository-specific checks are considered."""
+
+    def test_manifest_declares_complete_conformance_contract(self):
+        """Protects the vNext adoption contract: the live manifest names root
+        metadata and the project-configured final gate, so an adopter has one
+        deterministic local conformance surface rather than inferred policy."""
+        manifest = standardctl.parse_manifest(
+            (WORKTREE / "TEMPLATES" / "manifest.yaml").read_text(
+                encoding="utf-8"))
+        contract = standardctl.parse_conformance_contract(manifest)
+        self.assertEqual(
+            ("AGENTS.md", "project.yaml", "standard.lock"),
+            contract["required_files"])
+        self.assertEqual("ci.workflow", contract["workflow_from"])
+        self.assertEqual("ci.required_check", contract["required_check_from"])
+
+    def test_conformance_contract_rejects_missing_required_key(self):
+        """Protects fail-closed adoption: a partial contract is rejected so a
+        future template edit cannot silently drop a required proof point."""
+        with self.assertRaisesRegex(
+                standardctl.RestrictedYamlError, "required_check_from"):
+            standardctl.parse_conformance_contract({
+                "conformance": {
+                    "required_files": ["AGENTS.md"],
+                    "workflow_from": "ci.workflow",
+                }
+            })
+
+
 if __name__ == "__main__":
     unittest.main()
