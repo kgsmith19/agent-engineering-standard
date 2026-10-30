@@ -8,7 +8,7 @@ unit fixtures (ambiguous/empty outcome, contradictory term use,
 dropped template field, inline stage ID).
 
 Template fields are never renamed here: REQUIRED_TEMPLATE_FIELDS
-mirrors the `TEMPLATES/ISSUE.md` section list verbatim, and the check
+mirrors the `TEMPLATES/issue-template.md` section list verbatim, and the check
 fails a body that drops any of them.
 """
 
