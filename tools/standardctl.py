@@ -795,6 +795,38 @@ def parse_manifest(text: str, origin: str = "TEMPLATES/manifest.yaml") -> Dict:
     return data
 
 
+CONFORMANCE_CONTRACT_KEYS = (
+    "required_files", "workflow_from", "required_check_from",
+)
+
+
+def parse_conformance_contract(manifest: Dict,
+                               origin: str = "TEMPLATES/manifest.yaml") -> Dict:
+    """Return the small, repository-local adoption contract or fail closed."""
+    contract = manifest.get("conformance")
+    if not isinstance(contract, dict):
+        raise RestrictedYamlError("%s: conformance must be a mapping" % origin)
+    for key in CONFORMANCE_CONTRACT_KEYS:
+        if key not in contract:
+            raise RestrictedYamlError(
+                "%s: conformance.%s is required" % (origin, key))
+    required_files = contract["required_files"]
+    if (not isinstance(required_files, list)
+            or not all(isinstance(path, str) and path for path in required_files)):
+        raise RestrictedYamlError(
+            "%s: conformance.required_files must be a non-empty list of paths"
+            % origin)
+    for key in ("workflow_from", "required_check_from"):
+        if not isinstance(contract[key], str) or not contract[key]:
+            raise RestrictedYamlError(
+                "%s: conformance.%s must be a non-empty string" % (origin, key))
+    return {
+        "required_files": tuple(required_files),
+        "workflow_from": contract["workflow_from"],
+        "required_check_from": contract["required_check_from"],
+    }
+
+
 def extract_workflow_structure(text: str) -> Dict:
     """Line/indentation-based structural extraction from workflow YAML.
 
@@ -2698,6 +2730,11 @@ def check_manifest_integrity(model: RepoModel) -> List[Finding]:
                 "schema_version must be 1",
             )
         )
+    try:
+        parse_conformance_contract(manifest)
+    except RestrictedYamlError as exc:
+        findings.append(
+            Finding("conformance-contract", "error", manifest_path, str(exc)))
     mappings = manifest.get("mappings")
     if not isinstance(mappings, list) or not mappings:
         findings.append(
