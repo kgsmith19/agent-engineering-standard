@@ -13,7 +13,7 @@ mixes unrelated cleanup, or cannot be reviewed in one focused pass. Prefer verti
 slices over layer-only Issues. Broad ideas get one parent Issue plus native GitHub sub-Issues,
 each assigned to the milestone; the parent owns no implementation commits and closes only after
 every required sub-Issue and final integration verification. Use the Issue template (canonical
-`TEMPLATES/ISSUE.md`, active `.github/ISSUE_TEMPLATE/work-item.md`).
+`TEMPLATES/issue-template.md`, active `.github/ISSUE_TEMPLATE/work-item.md`).
 
 **Bounded context.** A thin Issue names the bounded context(s) it changes
 ([contexts#bounded-contexts](./contexts.md#bounded-contexts)). Prefer one context per Issue.

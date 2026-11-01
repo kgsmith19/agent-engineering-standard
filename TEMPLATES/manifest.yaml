@@ -47,6 +47,14 @@ schema_version: 1
 standard:
   repository: kgsmith19/agent-engineering-standard
 
+conformance:
+  required_files:
+    - AGENTS.md
+    - project.yaml
+    - standard.lock
+  workflow_from: ci.workflow
+  required_check_from: ci.required_check
+
 tokens:
   - __APP_DISPLAY_NAME__
   - __APP_SLUG__
@@ -194,13 +202,13 @@ mappings:
   - source: GEMINI.md
     dest: GEMINI.md
     mode: copy
-  - source: TEMPLATES/ISSUE.md
+  - source: TEMPLATES/issue-template.md
     dest: .github/ISSUE_TEMPLATE/work-item.md
     mode: copy
-  - source: TEMPLATES/ISSUE_CONFIG.yml
+  - source: TEMPLATES/issue-config.yml
     dest: .github/ISSUE_TEMPLATE/config.yml
     mode: copy
-  - source: TEMPLATES/PULL_REQUEST.md
+  - source: TEMPLATES/pull-request-template.md
     dest: .github/PULL_REQUEST_TEMPLATE.md
     mode: copy
   - source: TEMPLATES/pr-gate.yml

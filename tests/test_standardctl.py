@@ -204,7 +204,7 @@ class StandardRepoRejections(FixtureCase):
     one way and asserts the specific check_id fires."""
 
     def test_verify_rejects_mismatched_pull_request_template_pair(self):
-        """Protects the byte-identity of TEMPLATES/PULL_REQUEST.md and
+        """Protects the byte-identity of TEMPLATES/pull-request-template.md and
         .github/PULL_REQUEST_TEMPLATE.md; catches an edit to the active
         copy that silently diverges from the canonical template."""
         root = self.std_fixture()
@@ -217,7 +217,7 @@ class StandardRepoRejections(FixtureCase):
         self.assertIn("template-pair-mismatch", check_ids(findings))
 
     def test_verify_rejects_mismatched_issue_template_pair(self):
-        """Protects the byte-identity of TEMPLATES/ISSUE.md and
+        """Protects the byte-identity of TEMPLATES/issue-template.md and
         .github/ISSUE_TEMPLATE/work-item.md; catches drift introduced by
         editing only the GitHub-active work-item copy."""
         root = self.std_fixture()
@@ -232,7 +232,7 @@ class StandardRepoRejections(FixtureCase):
         self.assertIn("template-pair-mismatch", check_ids(findings))
 
     def test_verify_rejects_mismatched_issue_config(self):
-        """Protects the byte-identity of TEMPLATES/ISSUE_CONFIG.yml and
+        """Protects the byte-identity of TEMPLATES/issue-config.yml and
         .github/ISSUE_TEMPLATE/config.yml; catches a config edit that
         bypasses the canonical source."""
         root = self.std_fixture()
@@ -5533,7 +5533,7 @@ class OutcomeTerms(unittest.TestCase):
     """T11 (#207): outcome-first titles and fixed defined terms.
     Pure contract in tools/outcome_terms.py plus the
     `outcome-terms-field-loss` verify check guarding
-    TEMPLATES/ISSUE.md. Every proof point below has a dedicated
+    TEMPLATES/issue-template.md. Every proof point below has a dedicated
     test with its own justification."""
 
     def _ot(self):
@@ -5546,7 +5546,7 @@ class OutcomeTerms(unittest.TestCase):
             sys.path.remove(str(WORKTREE / "tools"))
 
     def _full_body(self):
-        return (WORKTREE / "TEMPLATES" / "ISSUE.md").read_text(
+        return (WORKTREE / "TEMPLATES" / "issue-template.md").read_text(
             encoding="utf-8")
 
     def test_good_title_with_suffix_passes(self):
@@ -5615,7 +5615,7 @@ class OutcomeTerms(unittest.TestCase):
             violations)
 
     def test_all_template_fields_present_in_canonical(self):
-        """Protects AC3: the canonical TEMPLATES/ISSUE.md carries
+        """Protects AC3: the canonical TEMPLATES/issue-template.md carries
         every required field, so the field-loss check never
         false-positives on the real template."""
         ot = self._ot()
@@ -5646,10 +5646,10 @@ class OutcomeTermsRejections(FixtureCase):
 
     def test_verify_rejects_dropped_issue_template_field(self):
         """Protects AC3/AC5 end to end: a dropped ## Risk field in
-        TEMPLATES/ISSUE.md fails verify, catching template weakening
+        TEMPLATES/issue-template.md fails verify, catching template weakening
         that unit fixtures alone could miss."""
         root = self.std_fixture()
-        template = root / "TEMPLATES" / "ISSUE.md"
+        template = root / "TEMPLATES" / "issue-template.md"
         template.write_text(
             template.read_text(encoding="utf-8").replace(
                 "## Risk\n", ""),
@@ -16707,6 +16707,119 @@ class BoundedContexts(FixtureCase):
         self.assertEqual("tools", records[0]["folder"])
         self.assertIn("standardctl.py", records[0]["public"])
         self.assertIn("work_queue.py", records[0]["public"])
+
+
+class ConformanceContract(unittest.TestCase):
+    """The distribution manifest declares the minimum local proof a consuming
+    repository needs before any repository-specific checks are considered."""
+
+    def test_manifest_declares_complete_conformance_contract(self):
+        """Protects the vNext adoption contract: the live manifest names root
+        metadata and the project-configured final gate, so an adopter has one
+        deterministic local conformance surface rather than inferred policy."""
+        manifest = standardctl.parse_manifest(
+            (WORKTREE / "TEMPLATES" / "manifest.yaml").read_text(
+                encoding="utf-8"))
+        contract = standardctl.parse_conformance_contract(manifest)
+        self.assertEqual(
+            ("AGENTS.md", "project.yaml", "standard.lock"),
+            contract["required_files"])
+        self.assertEqual("ci.workflow", contract["workflow_from"])
+        self.assertEqual("ci.required_check", contract["required_check_from"])
+
+    def test_conformance_contract_rejects_missing_required_key(self):
+        """Protects fail-closed adoption: a partial contract is rejected so a
+        future template edit cannot silently drop a required proof point."""
+        with self.assertRaisesRegex(
+                standardctl.RestrictedYamlError, "required_check_from"):
+            standardctl.parse_conformance_contract({
+                "conformance": {
+                    "required_files": ["AGENTS.md"],
+                    "workflow_from": "ci.workflow",
+                }
+            })
+
+
+class LocalConformance(unittest.TestCase):
+    """Network-free adopter checks use only the supplied target tree."""
+
+    def _contract(self):
+        return standardctl.parse_conformance_contract(
+            standardctl.parse_manifest(
+                (WORKTREE / "TEMPLATES" / "manifest.yaml").read_text(
+                    encoding="utf-8")))
+
+    def _target(self, root, workflow_name="Agent Engineering Standard PR Gate",
+                include_lock=True):
+        (root / ".github" / "workflows").mkdir(parents=True)
+        (root / "AGENTS.md").write_text("# Rules\n", encoding="utf-8")
+        if include_lock:
+            (root / "standard.lock").write_text("standard: test\n",
+                                                encoding="utf-8")
+        (root / "project.yaml").write_text(
+            "ci:\n  workflow: .github/workflows/pr-gate.yml\n"
+            "  required_check: Agent Engineering Standard PR Gate\n",
+            encoding="utf-8")
+        (root / ".github" / "workflows" / "pr-gate.yml").write_text(
+            "name: %s\non:\n  pull_request:\njobs:\n  gate:\n"
+            "    runs-on: ubuntu-latest\n" % workflow_name,
+            encoding="utf-8")
+
+    def test_conformance_accepts_complete_target(self):
+        """Protects the happy path: root metadata and the configured final
+        gate produce no finding without network or product test execution."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._target(root)
+            self.assertEqual(
+                [], standardctl.conformance_findings(root, self._contract()))
+
+    def test_conformance_reports_missing_lock(self):
+        """Protects provenance: a target without standard.lock cannot be
+        called conformant even when its gate and instructions exist."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._target(root, include_lock=False)
+            ids = [f["id"] for f in standardctl.conformance_findings(
+                root, self._contract())]
+            self.assertIn("conformance-lock", ids)
+
+    def test_conformance_reports_missing_gate_workflow(self):
+        """Protects CI topology: a configured workflow path must exist in the
+        target, rather than being inferred from a workflow name."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._target(root)
+            (root / ".github" / "workflows" / "pr-gate.yml").unlink()
+            ids = [f["id"] for f in standardctl.conformance_findings(
+                root, self._contract())]
+            self.assertIn("conformance-gate-workflow", ids)
+
+    def test_conformance_reports_wrong_required_check(self):
+        """Protects merge safety: an existing workflow with the wrong display
+        name cannot satisfy the required check declared by project.yaml."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._target(root, workflow_name="Other check")
+            ids = [f["id"] for f in standardctl.conformance_findings(
+                root, self._contract())]
+            self.assertIn("conformance-required-check", ids)
+
+    def test_conformance_cli_emits_machine_readable_result(self):
+        """Protects automation callers: the CLI reports the target, boolean
+        result, and stable findings without needing a network credential."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._target(root)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                code = standardctl.main([
+                    "conformance", "--target", str(root), "--json"])
+            self.assertEqual(0, code)
+            payload = json.loads(output.getvalue())
+            self.assertEqual(str(root.resolve()), payload["target"])
+            self.assertTrue(payload["ok"])
+            self.assertEqual([], payload["findings"])
 
 
 if __name__ == "__main__":
