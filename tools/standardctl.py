@@ -5757,6 +5757,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_review.add_argument("--json", action="store_true")
     p_review.set_defaults(func=cmd_independent_review)
 
+    p_rc = sub.add_parser(
+        "review-contract",
+        help="Render the reviewer instructions, validate findings, or "
+             "classify a review result against Canonical/review-contract.json",
+    )
+    p_rc.add_argument("action", choices=("render", "validate", "classify"))
+    p_rc.add_argument(
+        "--file", default="",
+        help="validate: JSON list of findings; classify: JSON review result")
+    p_rc.add_argument("--contract", default="",
+                      help="override path to the review contract")
+    p_rc.add_argument("--json", action="store_true")
+    p_rc.set_defaults(func=cmd_review_contract)
+
     p_control = sub.add_parser(
         "control-plane",
         help="Control plane readout and "
@@ -9060,6 +9074,65 @@ def cmd_triage(args: argparse.Namespace) -> int:
         print("  corpus: %d entries, rules %s"
               % (len(entries), ", ".join(rules)))
     return 0
+
+
+def cmd_review_contract(args: argparse.Namespace) -> int:
+    """Independent review contract (AES #324). ``render`` prints the
+    reviewer instructions. ``validate`` exits 1 when any finding in
+    --file is invalid. ``classify`` prints the outcome of the review
+    result in --file and exits with the contract's exit code: 0 for
+    clean or findings, 1 for an infrastructure failure. An unreadable
+    contract is an infrastructure failure (exit 1); an unreadable
+    --file for validate exits 2."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    try:
+        import review_contract
+    finally:
+        _sys.path.remove(str(_Path(__file__).resolve().parent))
+    try:
+        contract = review_contract.load_contract(args.contract or None)
+    except (OSError, ValueError) as exc:
+        print("review-contract: cannot load contract: %s" % exc)
+        return 1
+    if args.action == "render":
+        print(review_contract.render_instructions(contract), end="")
+        return 0
+    payload = None
+    if args.file:
+        try:
+            payload = json.loads(
+                _Path(args.file).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            if args.action == "classify":
+                payload = {"status": "error",
+                           "error": "unreadable result: %s" % exc}
+            else:
+                print("review-contract: cannot load findings: %s" % exc)
+                return 2
+    if args.action == "validate":
+        findings = payload if isinstance(payload, list) else []
+        report = [{"index": i,
+                   "repairs": review_contract.validate_finding(f, contract)}
+                  for i, f in enumerate(findings)]
+        bad = [r for r in report if r["repairs"]]
+        if args.json:
+            print(json.dumps({"ok": not bad, "invalid": bad}, indent=2))
+        else:
+            for r in bad:
+                print("review-contract: finding %d: %s" % (
+                    r["index"], "; ".join(r["repairs"])))
+            print("review-contract: %d finding(s), %d invalid" % (
+                len(findings), len(bad)))
+        return 1 if bad else 0
+    result = review_contract.classify(payload, contract)
+    if args.json:
+        print(json.dumps(result._asdict(), indent=2))
+    else:
+        print("review-contract: outcome=%s finding_count=%d (%s)" % (
+            result.outcome, result.finding_count, result.reason))
+    return result.exit_code
 
 
 def cmd_independent_review(args: argparse.Namespace) -> int:

@@ -57,6 +57,19 @@ finding requires concrete evidence plus a citation to a specific acceptance crit
 `AGENTS.md` section — **uncited, evidence-free findings are invalid output and MUST NOT block**,
 so a confused model can never spuriously stop work.
 
+The machine-readable form of this rubric is the review contract,
+`Canonical/review-contract.json`, checked by `tools/review_contract.py` and exposed as
+`standardctl review-contract {render,validate,classify}`. The reviewer judges acceptance-criterion
+alignment, functional correctness, regression risk, architecture and boundary quality,
+maintainability, and lean implementation. It does not repeat deterministic CI: queue membership,
+metadata and format rules, action pinning, deterministic policy, and test execution stay with
+`standardctl verify` and the PR Gate. It may raise one of those only as a direct correctness or
+security risk. Each finding carries severity, category, path (and line where known), a rationale
+tied to the work item or a changed behavior path, the smallest suggested fix, and a verification
+step. Invalid findings are dropped and never counted. A completed review exits 0 and reports its
+`finding_count`; only a provider, transport, credential, or contract failure exits non-zero, so an
+infrastructure failure is never reported as a code defect.
+
 Fail-closed vs. fail-open is explicit, under harness ownership of reviewer
 configuration: once the harness invokes review, infrastructure failure
 (API error, timeout, harness-side credential failure) fails the gate,

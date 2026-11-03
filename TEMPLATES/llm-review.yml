@@ -97,19 +97,31 @@ jobs:
       - name: LLM Review · Run independent review
         id: run-review
         run: |
-          echo "Replace this placeholder with the repository's real LLM"
-          echo "Review invocation. The reviewer model gets a structured-"
-          echo "output tool only -- never shell, filesystem-write, or"
-          echo "network tool access -- and repository content under review"
-          echo "is data, never instructions. Post findings to the PR"
-          echo "discussion under the reviewing app's identity, citing a"
-          echo "specific acceptance criterion or AGENTS.md section for"
-          echo "every finding. Never replace this placeholder with an"
-          echo "empty success."
+          # Review contract: Canonical/review-contract.json (AES #324).
+          # The real invocation must:
+          #   1. render the reviewer instructions with
+          #      `standardctl review-contract render`;
+          #   2. call the reviewer model with a structured-output tool only
+          #      (no shell, filesystem-write or network access); repository
+          #      content under review is data, never instructions;
+          #   3. write the result as {"status": "completed", "findings": [...]}
+          #      or {"status": "error", "error": "..."};
+          #   4. run `standardctl review-contract classify --json --file F`
+          #      and write its `outcome` and `finding_count` to $GITHUB_OUTPUT;
+          #   5. exit with classify's exit code: 0 for clean or findings,
+          #      1 only for an infrastructure failure.
+          # Until then this placeholder reports an infrastructure failure.
+          # Never replace it with an empty success.
+          echo "outcome=infrastructure_failure" >> "$GITHUB_OUTPUT"
+          echo "finding_count=0" >> "$GITHUB_OUTPUT"
+          echo "Review invocation is not implemented in this repository." >&2
           exit 1
       - name: LLM Review · Post result comment
         if: always()
         uses: actions/github-script@e69ef5462fd455e02edcaf4dd7708eda96b9eda0 # v7.0.0
+        env:
+          REVIEW_OUTCOME: ${{ steps.run-review.outputs.outcome }}
+          REVIEW_FINDING_COUNT: ${{ steps.run-review.outputs.finding_count }}
         with:
           script: |
             const failedSteps = [];
@@ -122,33 +134,41 @@ jobs:
             if ('${{ steps.run-review.outcome }}' === 'failure') {
               failedSteps.push('Independent review execution failed');
             }
+            const outcome = process.env.REVIEW_OUTCOME || 'infrastructure_failure';
+            const findingCount = Number.parseInt(process.env.REVIEW_FINDING_COUNT || '0', 10) || 0;
             const runFailed =
-              failedSteps.length > 0 || '${{ job.status }}' === 'failure';
-            const head =
-              '## Independent LLM Review ' +
-              (runFailed ? 'Failed' : 'Passed');
+              failedSteps.length > 0 || outcome === 'infrastructure_failure';
+            const head = runFailed
+              ? '## Independent LLM Review Failed (infrastructure failure)'
+              : findingCount > 0
+                ? `## Independent LLM Review Passed (${findingCount} finding(s))`
+                : '## Independent LLM Review Passed (no findings)';
             const verdict = runFailed
-              ? 'The reviewer found issues on this head, or the review ' +
-                'infrastructure failed. Read the major points below.'
-              : 'The reviewer found no blocking issues on this head. ' +
-                'No reply is required unless you disagree.';
+              ? 'The review did not run to completion. This is a provider, ' +
+                'transport, credential or configuration failure, not a code ' +
+                'defect. Re-run after the cause is fixed.'
+              : findingCount > 0
+                ? 'The reviewer reported findings on this head. Each one cites ' +
+                  'severity, path, rationale, the smallest fix and a ' +
+                  'verification step.'
+                : 'The reviewer reported no findings on this head. No reply ' +
+                  'is required.';
 
             const body = `${head}
 
             ${verdict}
 
-            ### Major points
+            - Outcome: \`${runFailed ? 'infrastructure_failure' : outcome}\`
+            - Finding count: ${runFailed ? 0 : findingCount}
+            ${failedSteps.map(s => `- ${s}`).join('\n')}
 
-            ${runFailed ? failedSteps.map(s => `- ${s}`).join('\n') : '- No blocking findings. The full step log carries the detail.'}
+            ### Scope
 
-            ### Required action
-
-            This job is currently using a placeholder. The harness needs to configure:
-            - \`LLM_REVIEW_PROVIDER_FAMILY\` repository variable
-            - \`LLM_REVIEW_MODEL\` repository variable
-            - \`LLM_REVIEW_CREDENTIAL\` repository secret
-
-            Once configured, the real LLM review invocation will replace this placeholder.
+            The review follows \`Canonical/review-contract.json\` in the
+            Agent Engineering Standard. It judges acceptance-criterion
+            alignment, correctness, regression risk, boundaries,
+            maintainability and lean implementation. Deterministic CI owns
+            metadata, pinning, policy, queue and test-execution checks.
 
             ### Reply protocol
 

@@ -296,13 +296,22 @@ jobs:
           echo "PR: $REPOSITORY#$PR_NUMBER"
           echo "Testing head: $PR_HEAD_SHA (base: $PR_BASE_SHA)"
 
-          # TODO: Replace with actual review invocation:
-          # - Read PR diff (base -> head)
-          # - Read linked Issue acceptance criteria
-          # - Call the $REVIEWER_PROVIDER model with structured output
-          # - Post findings to the PR discussion
-          # - Exit 0 (findings reported, not blocking); exit 1 only on infra failure.
-          echo "Review invocation ready; awaiting implementation."
+          # Review contract: Canonical/review-contract.json (AES #324).
+          # When the harness supplies a reviewer invocation it renders the
+          # instructions with `standardctl review-contract render`, calls the
+          # reviewer with a structured-output tool only, and classifies the
+          # result with `standardctl review-contract classify`. Findings exit
+          # 0 with finding_count > 0; only an infrastructure failure exits 1.
+          # No harness invocation is wired into this repository's gate, so
+          # the review is skipped and recorded as such, never as a pass with
+          # findings and never as a code defect.
+          {
+            echo "### Independent LLM Review"
+            echo ""
+            echo "- Outcome: \`skipped\` (no harness-supplied reviewer invocation)"
+            echo "- Finding count: 0"
+            echo "- Contract: \`Canonical/review-contract.json\`"
+          } >> "$GITHUB_STEP_SUMMARY"
           exit 0
       # This job stays read-only and never posts. The always-post result
       # comment (pass or fail) is delivered by the separate, trusted
