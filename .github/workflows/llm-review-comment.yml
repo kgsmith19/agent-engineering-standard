@@ -71,15 +71,20 @@ jobs:
             const reviewConclusion = reviewJob ? reviewJob.conclusion : 'missing';
             const runFailed = reviewConclusion !== 'success' || failedSteps.length > 0;
 
-            const head = '## Independent LLM Review ' + (runFailed ? 'Failed' : 'Passed');
+            // Review contract (Canonical/review-contract.json): findings exit 0
+            // and are counted in the job summary; only an infrastructure
+            // failure fails the review job. A failed job is therefore never
+            // reported as a code defect.
+            const head = '## Independent LLM Review ' +
+              (runFailed ? 'Failed (infrastructure failure)' : 'Passed');
             const verdict = runFailed
-              ? 'The reviewer found issues on this head, or the review infrastructure failed. Read the major points below.'
-              : 'The reviewer found no blocking issues on this head. No reply is required unless you disagree.';
+              ? 'The review did not run to completion: a provider, transport, credential or configuration failure, not a code defect. Re-run after the cause is fixed.'
+              : 'The review completed on this head. The job summary carries the outcome and finding count; each finding cites severity, path, rationale, the smallest fix and a verification step.';
             const points = runFailed
               ? (failedSteps.length
                   ? failedSteps.map(s => `- ${s}`).join('\n')
                   : `- Review job concluded: ${reviewConclusion}`)
-              : '- No blocking findings. The full step log carries the detail.';
+              : '- See the job summary for findings. No reply is needed when the finding count is 0.';
 
             const marker = '<!-- llm-review-result -->';
             const body = [
