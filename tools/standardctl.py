@@ -1239,10 +1239,17 @@ def conformance_findings(root: Path, contract: Dict) -> List[Dict[str, str]]:
         })
         return findings
     workflow = extract_workflow_structure(workflow_text)
-    if workflow["name"] != required_check:
+    # A required status check is a check-run name: the workflow's display
+    # name for a single-job gate, or a job's name (its id when unnamed).
+    check_names = {workflow["name"]} | {
+        (job.get("name") or job_id)
+        for job_id, job in workflow.get("jobs", {}).items()
+    }
+    if required_check not in check_names:
         findings.append({
             "id": "conformance-required-check",
-            "message": "configured required check %r does not match workflow name %r"
+            "message": "configured required check %r matches neither workflow "
+                       "name %r nor any of its job names"
                        % (required_check, workflow["name"]),
         })
     return findings

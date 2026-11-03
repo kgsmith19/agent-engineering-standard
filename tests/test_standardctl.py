@@ -16805,6 +16805,37 @@ class LocalConformance(unittest.TestCase):
                 root, self._contract())]
             self.assertIn("conformance-required-check", ids)
 
+    def test_conformance_accepts_required_check_named_by_a_job(self):
+        """Protects real topologies (#327): GitHub required checks are job
+        check-run names, so a gate job named in a differently named
+        workflow must satisfy the declared required check."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._target(root, workflow_name="PR Verification")
+            (root / ".github" / "workflows" / "pr-gate.yml").write_text(
+                "name: PR Verification\non:\n  pull_request:\njobs:\n"
+                "  tests:\n    name: Tests\n    runs-on: ubuntu-latest\n"
+                "  gate:\n    name: Agent Engineering Standard PR Gate\n"
+                "    runs-on: ubuntu-latest\n",
+                encoding="utf-8")
+            self.assertEqual(
+                [], standardctl.conformance_findings(root, self._contract()))
+
+    def test_conformance_rejects_required_check_naming_no_job(self):
+        """Negative control (#327): a required check that names neither the
+        workflow nor any job is still a finding, so the widening cannot
+        accept a check that never reports."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._target(root, workflow_name="PR Verification")
+            (root / ".github" / "workflows" / "pr-gate.yml").write_text(
+                "name: PR Verification\non:\n  pull_request:\njobs:\n"
+                "  tests:\n    name: Tests\n    runs-on: ubuntu-latest\n",
+                encoding="utf-8")
+            ids = [f["id"] for f in standardctl.conformance_findings(
+                root, self._contract())]
+            self.assertIn("conformance-required-check", ids)
+
     def test_conformance_cli_emits_machine_readable_result(self):
         """Protects automation callers: the CLI reports the target, boolean
         result, and stable findings without needing a network credential."""
