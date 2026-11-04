@@ -103,65 +103,12 @@ At the start of every new, resumed, or post-compaction controller session:
 
 ## Agent Identities
 
-Two GitHub App identities back this repository. Both MUST be initialized at session start.
-
-| Agent | GitHub App | App ID | Installation | Role |
-| --- | --- | --- | --- | --- |
-| **Dev** | `hyperbolic-core-dev` | 4656454 | 155589222 | Builder — implements Issues, opens PRs |
-| **Reviewer** | `hyperbolic-core-reviewer` | 4656330 | 155589128 | Independent LLM Review — posts findings to PRs |
-
-Both apps are installed on `kgsmith19` with `issues: write`, `contents: write`, `pull_requests: write`, `metadata: read`.
-
-### Credentials
-
-Credentials live in Infisical at `https://app.infisical.com`, project `hyperbolic-core`, environment `production`. The harness resolves them; nothing is hardcoded in repository files.
-
-| Agent | App ID secret | Private key secret |
-| --- | --- | --- |
-| Dev | `/dev/DEV_GITHUB_APP_ID` | `/dev/DEV_GITHUB_APP_PRIVATE_KEY` |
-| Reviewer | `/review/REVIEW_GITHUB_APP_ID` | `/review/REVIEW_GITHUB_APP_PRIVATE_KEY` |
-
-### Authentication Flow
-
-1. Read the app ID and private key from Infisical.
-2. Generate a JWT signed with RS256: `iss` = app ID, `iat` = now − 60s, `exp` = now + 600s.
-3. `POST /app/installations/<installation_id>/access_tokens` with the JWT.
-4. Use the resulting installation token for all GitHub API requests.
-
-### Provider Separation
-
-The reviewer agent MUST use a different provider family than the dev agent (e.g., dev on `anthropic` → reviewer on `openai` or `gemini`). The harness configures both; the repository never hardcodes a provider or model.
-
-### CI Integration
-
-The Independent LLM Review CI job (see `.github/workflows/llm-review.yml`) uses the reviewer GitHub App to post review comments on PRs. Its provider family, model, and credential are supplied by the harness at dispatch time (for example from the same Infisical paths above) — the repository carries NO statically-configured reviewer variables or secrets for this job, and the gate never fails for their absence. **Owner directive (supersedes any older text in this repo or its templates): the harness owns reviewer configuration; no rule may require the repository to hold reviewer provider/model/credential values.**
-
-### Agent Communication Workflows
-
-All automated comments post via agent identities, never the repository token:
-
-**Work State comments** (merge-policy → post-work-state.yml):
-- Merge-policy reconciles PR state and builds Work State body
-- Dispatches `post-work-state.yml` with pr_number, issue_number, body
-- Dev-agent posts to both PR and linked Issue as `@hyperbolic-core-dev [bot]`
-- Includes metadata: `<!-- agent-metadata:dev-agent:EVENT:RUN_URL -->`
-
-**LLM Review failures** (pr-gate → dev-agent-post-v2.yml):
-- PR Gate llm_review job builds failure comment
-- Dispatches `dev-agent-post-v2.yml` with action=post_comment
-- Dev-agent posts failure details as `@hyperbolic-core-dev [bot]`
-- Includes same metadata marker for tracking
-
-**Body transmission safety:**
-- Complex markdown (backticks, multiline) passed via stdin with heredoc: `-f body@- << 'EOF'`
-- JavaScript uses `JSON.parse('${{ toJSON(...) }}')` to safely deserialize
-- Prevents shell interpretation of special characters
-
-**Collaboration framework** (see `.kilo/AGENT-COLLABORATION.md`):
-- Structured comment templates in `.github/COLLABORATION_TEMPLATE.md`
-- Reviewer-trigger.yml monitors PR commits and iteration counter
-- Auto-escalates to owner after 10 discussion rounds
-- Machine-readable markers: `<!-- agent-collaboration:review-round:N -->`
+**Retired (owner decision 2026-11-04, #329).** The reviewer and dev-agent GitHub Apps, and every
+workflow that posted as them (`llm-review-comment.yml`, `reviewer-trigger.yml`,
+`reviewer-agent-post*.yml`, `dev-agent-post*.yml`, `post-work-state.yml`), are removed from this
+repository. Agent work, independent review and Work State reporting move to
+`kgsmith19/hyper-agents`. Uninstalling the Apps and retiring their Infisical identities is an owner
+step in GitHub and Infisical settings.
 
 ## Provider-Neutral Roles
 

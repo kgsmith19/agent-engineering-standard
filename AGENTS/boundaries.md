@@ -34,6 +34,9 @@ never treat a write response or committed JSON template as verification of live 
 
 ## Independent LLM Review
 
+> **This repository runs no review lane (owner decision 2026-11-04, #329).** The rules in this
+> section remain the standard for adopters that choose to run one with `TEMPLATES/llm-review.yml`.
+
 The Independent LLM Review is a **status check**, never a GitHub-native approving review — it
 never uses the Review tab, Approve/Request-Changes, `required_approving_review_count`, or
 CODEOWNERS-triggered review requests. GitHub's role is identical to its role for a secret

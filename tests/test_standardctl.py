@@ -781,6 +781,19 @@ class StandardRepoRejections(FixtureCase):
         self.assertNotIn(
             "review-missing-always-comment", check_ids(findings))
 
+    def with_inline_review_job(self, root):
+        """Oracle change (#329): this repository no longer runs a review
+        lane, so the always-post delivery rule is exercised on a fixture
+        gate that inlines one, as an adopter's gate would."""
+        gate = Path(root) / ".github" / "workflows" / "pr-gate.yml"
+        text = gate.read_text(encoding="utf-8")
+        job = ("  llm_review:\n    name: Fixture Review\n"
+               "    runs-on: ubuntu-latest\n    steps:\n"
+               "      - run: echo review\n\n")
+        gate.write_text(text.replace("\n  gate:\n", "\n" + job + "  gate:\n", 1),
+                        encoding="utf-8")
+        return root
+
     def test_verify_rejects_missing_review_comment_consumer(self):
         """Protects the delivery half of the always-post guarantee: this
         repository's gate inlines a read-only review job that never posts,
@@ -788,8 +801,10 @@ class StandardRepoRejections(FixtureCase):
         thing that delivers the result comment. Deleting it must fail
         closed — otherwise a passing (or failing) review would silently
         never reach the PR conversation."""
-        root = self.std_fixture()
-        (root / ".github" / "workflows" / "llm-review-comment.yml").unlink()
+        root = self.with_inline_review_job(self.std_fixture())
+        consumer = root / ".github" / "workflows" / "llm-review-comment.yml"
+        if consumer.exists():
+            consumer.unlink()
         findings = standardctl.check_review_always_comments(
             self.model(root))
         self.assertIn("review-missing-always-comment", check_ids(findings))
@@ -799,7 +814,7 @@ class StandardRepoRejections(FixtureCase):
         that posts only on failure (no if: always() pass/fail body) would
         leave a passing review silent. Catches a consumer edit that drops
         the always-post result comment."""
-        root = self.std_fixture()
+        root = self.with_inline_review_job(self.std_fixture())
         self.write_workflow(
             root,
             "llm-review-comment.yml",
@@ -7101,8 +7116,9 @@ class TrackerPipelineGate(FixtureCase):
         review-input-not-required, so harness-ownership is wired
         on both halves."""
         root = self.std_fixture()
-        live = (Path(root) / ".github" / "workflows"
-                / "llm-review.yml")
+        # Oracle change (#329): the live llm-review.yml was removed with the
+        # review lane; the shipped template carries the same rule.
+        live = Path(root) / "TEMPLATES" / "llm-review.yml"
         live.write_text(
             live.read_text(encoding="utf-8").replace(
                 "on:\n  workflow_call:",
@@ -7112,6 +7128,9 @@ class TrackerPipelineGate(FixtureCase):
         findings = standardctl.check_llm_review_harness_ownership(
             self.model(root))
         self.assertIn("review-paths-filter", check_ids(findings))
+        live.write_text(live.read_text(encoding="utf-8").replace(
+            "on:\n  workflow_call:\n    paths:\n      - src/**",
+            "on:\n  workflow_call:"), encoding="utf-8")
         template = (Path(root) / "TEMPLATES" / "llm-review.yml")
         lines = template.read_text(encoding="utf-8").split("\n")
         lines = [line for line in lines
