@@ -117,7 +117,7 @@ Split an Issue when it contains multiple independently valuable outcomes, crosse
 
 ### Independent LLM Review (Status Check)
 
-Independent LLM Review is a **status check, never approving review.** Runs as one job feeding PR Gate; owner bypass always overrides red result. **Provider separation enforced in CI:** reviewer family MUST differ from builder's; gate fails closed when equal. No agent review blocks owner. Findings require evidence and citations.
+**Removed from this repository by owner decision (2026-11-04, #329).** The PR Gate runs no review lane; independent review moves to `kgsmith19/hyper-agents`. The rules below remain the standard for any adopter that runs a review lane, and the `TEMPLATES/llm-review.yml` template still ships. No agent review may block the owner.
 
 [Full rules: AGENTS/boundaries.md#independent-llm-review](./AGENTS/boundaries.md#independent-llm-review)
 

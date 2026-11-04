@@ -17,7 +17,7 @@ from pathlib import Path
 
 WORKTREE = Path(__file__).resolve().parent.parent
 WORKFLOW = WORKTREE / ".github" / "workflows" / "pr-gate.yml"
-ALL_JOBS = ("setup", "policy", "lint", "security", "tests", "evidence", "llm_review")
+ALL_JOBS = ("setup", "policy", "lint", "security", "tests", "evidence")
 STRONG_JOBS = ("tests", "security", "evidence")
 FAILING_RESULTS = ("failure", "cancelled", "skipped", "neutral")
 
@@ -35,7 +35,7 @@ def _env_jobs(key):
     matches = re.findall(r"^\s+%s:[ \t]*(.*?)[ \t]*$" % key, _gate_job_text(), re.M)
     if len(matches) != 1:
         raise AssertionError("expected exactly one %s line in the gate job" % key)
-    return set(matches[0].split())
+    return set(matches[0].strip("\"'").split())
 
 
 def required_jobs():
@@ -159,100 +159,14 @@ class RequiredJobBehaviourTests(unittest.TestCase):
                     "a missing %s job must block the gate, got problems=%r"
                     % (job, problems))
 
-    def test_llm_review_failure_is_a_warning_not_a_block(self):
-        """llm_review failure is reported as a warning and never blocks.
-
-        Kept as found: llm_review is optional and the owner can bypass it
-        (AGENTS/boundaries.md#independent-llm-review). Catches promoting it
-        to required without an owner decision.
-        """
-        for result in FAILING_RESULTS:
-            with self.subTest(result=result):
-                problems, warnings = self.evaluate({"llm_review": result})
-                self.assertEqual([], problems)
-                self.assertTrue(any("llm_review" in w for w in warnings))
-
-    def test_missing_llm_review_still_blocks_as_unexpected_set(self):
-        """A missing llm_review job is an unexpected gated set and blocks.
-
-        Catches a workflow that drops a gated job from needs, since the
-        expected set still includes it.
-        """
-        problems, _ = self.evaluate({"llm_review": None})
-        self.assertTrue(any("llm_review" in p for p in problems))
-
-
-class ProviderSeparationTests(unittest.TestCase):
-    """Issue #319: AGENTS.md says the gate fails closed when the builder and
-    reviewer families are equal. llm_review is optional, so the gate itself
-    checks setup's outputs."""
-
-    def evaluate(self, builder, reviewer, overrides=None):
-        code, problems, warnings = run_gate(_needs(overrides, builder, reviewer))
-        self.assertEqual(1 if problems else 0, code)
-        return problems, warnings
-
-    def test_separated_families_pass(self):
-        """anthropic -> openai with every job green passes cleanly.
-
-        Protects the happy path; catches a separation check that blocks a
-        correctly separated run.
-        """
-        problems, warnings = self.evaluate("anthropic", "openai")
-        self.assertEqual([], problems)
+    def test_no_optional_jobs_remain(self):
+        """Oracle change (#329): the optional llm_review lane was removed by
+        owner decision, so every gated job is required and none may only
+        warn. Catches a lane re-added as a silent optional warning."""
+        self.assertEqual(set(), optional_jobs())
+        problems, warnings = self.evaluate({"lint": "failure"})
+        self.assertTrue(problems)
         self.assertEqual([], warnings)
-
-    def test_equal_families_block_even_when_llm_review_is_only_a_warning(self):
-        """An equal pair blocks, whatever llm_review concluded.
-
-        Catches the #319 defect: the equal-family check lived only inside
-        optional llm_review, so a failure there was a warning and merged.
-        """
-        for review_result in ("success", "failure", "skipped"):
-            with self.subTest(review_result=review_result):
-                problems, _ = self.evaluate("openai", "openai",
-                                            {"llm_review": review_result})
-                self.assertTrue(any("provider separation" in p for p in problems),
-                                problems)
-
-    def test_gemini_is_the_google_family(self):
-        """setup names Gemini 'gemini'; it is the google family.
-
-        Catches a google builder reviewed by 'gemini' passing as separated.
-        """
-        problems, _ = self.evaluate("google", "gemini")
-        self.assertTrue(any("provider separation" in p for p in problems), problems)
-
-    def test_family_comparison_ignores_case_and_whitespace(self):
-        """Families compare case- and whitespace-insensitively.
-
-        Catches 'OpenAI ' slipping past an exact-string equality as if it
-        were a different family from 'openai'.
-        """
-        problems, _ = self.evaluate("OpenAI ", "openai")
-        self.assertTrue(any("provider separation" in p for p in problems), problems)
-
-    def test_unreported_family_fails_closed(self):
-        """An empty or missing builder/reviewer output never counts as separated.
-
-        Catches a broken setup that reports nothing being read as a pass.
-        """
-        for builder, reviewer in (("anthropic", ""), ("", "openai"), (None, None)):
-            with self.subTest(builder=builder, reviewer=reviewer):
-                problems, _ = self.evaluate(builder, reviewer)
-                self.assertTrue(any("provider separation" in p for p in problems),
-                                problems)
-
-    def test_review_failure_with_separated_families_stays_a_warning(self):
-        """#314 behavior kept: a down review never blocks on its own.
-
-        Catches promoting llm_review to required, which would let a review
-        outage block merges without an owner decision.
-        """
-        problems, warnings = self.evaluate("anthropic", "openai",
-                                           {"llm_review": "failure"})
-        self.assertEqual([], problems)
-        self.assertTrue(any("llm_review" in w for w in warnings))
 
 
 class WorkflowPinTests(unittest.TestCase):
