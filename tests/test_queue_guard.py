@@ -266,6 +266,22 @@ class GuardCliTests(unittest.TestCase):
         self.assertEqual(self.run_guard("--pr-event", handle.name)[0], cli.EXIT_FORMAT)
 
 
+class ConsumerFetchTests(unittest.TestCase):
+    """Consumers (hyperbolic-core's verify-queue-guard) fetch only the three queue
+    modules from std main and run them isolated; that must keep working."""
+
+    def test_guard_runs_with_only_the_three_queue_modules(self):
+        """A new hard import would break every consumer's guard; the three modules must stand alone."""
+        import shutil
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            for module in ("queue_core.py", "queue_store.py", "work_queue.py"):
+                shutil.copy(WORKTREE / "tools" / module, tmp)
+            result = subprocess.run([sys.executable, "-I", os.path.join(tmp, "work_queue.py"),
+                                     "--help"], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+
 class GateWiringTests(unittest.TestCase):
     """AC3: the guard runs in this repo's PR Gate, inside a required job."""
 

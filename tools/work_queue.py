@@ -68,7 +68,10 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import queue_core as core  # noqa: E402
 import queue_store  # noqa: E402
-import conventions  # noqa: E402
+try:  # #333; optional so consumers that fetch only the three queue modules keep working
+    import conventions  # noqa: E402
+except ImportError:  # pragma: no cover - exercised by the isolated-fetch test
+    conventions = None
 
 MARKER = "<!-- agent-engineering-standard:queue:v1 -->"
 STATUSES = ("pending", "active", "blocked", "done")
@@ -665,7 +668,7 @@ def _run_guard(args, adapter, http):
                   "(%s); it is ignored" % (core.EXEMPT_LABEL, state["owner"]),
                   file=sys.stderr)
     refs = core.closing_refs(pr.get("body"), repo)
-    if not refs:
+    if not refs and conventions is not None:
         # #333: an Issue derivable from the branch or title counts; the Merge
         # Policy workflow writes the 'Closes' line into the body.
         issue, _ = conventions.derive_issue(pr.get("body"), head_ref, pr.get("title") or "")
