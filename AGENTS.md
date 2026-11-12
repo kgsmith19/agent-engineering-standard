@@ -38,6 +38,15 @@ reason on the Issue.
   it: the gate needs only an Issue it can find. `tools/conventions.py pr-body` /
   `issue-body` print complete bodies from the templates, and the Merge Policy
   workflow adds a derivable `Closes #N` line (#333).
+- **Restart the branch after every merge.** Once a PR squash-merges, the next
+  work starts from a fresh branch off the default branch (same name is fine).
+  Never merge an already-squashed tip back in: the duplicated history conflicts,
+  and a host runs no CI on a conflicted PR. Fleet maintenance (hyper-agents
+  `repo.change_health`) labels any conflicted PR `needs-update`.
+- **Provider-neutral by default.** Name a concrete provider (code host, CI,
+  secrets vault, LLM, harness, server host, VPN) only in one config and in its
+  adapter; logic depends on interfaces. A CI file is a thin trigger for a
+  portable command.
 - **Git worktrees for isolation.** One worktree per active Issue
   (`.worktrees/issue-<n>-<slug>`); one writer per worktree.
 - **Subagents for independent work.** One focused writer per worktree;
