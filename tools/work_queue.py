@@ -21,13 +21,17 @@ Subcommands
 ===========
 
 ``show`` / ``next``            every item / the item to work now
-``add --title T [--ref R]... [--note N] [--depends-on ID]...``  append
+``claim OWNER/REPO#N [--title T] [--note N]``
+                               the quick path: put the Issue at the top,
+                               adding it first when it is not queued
+``add --title T [--ref R]... [--note N] [--depends-on ID]...
+    [--top | --after ID | --before ID]``   add (default: at the end)
 ``edit ID [--title] [--ref]... [--note] [--depends-on ID]... [--clear-depends-on]``
                                change details, never position
 ``start ID`` / ``done ID --evidence E`` / ``block ID --reason R`` /
 ``unblock ID``                 status transitions (done archives)
-``move ID --after ID|--before ID --authorized-by OWNER --reason R``
-                               the only reorder; owner-only and logged
+``move ID --top|--bottom|--after ID|--before ID [--reason R]``
+                               reorder any item; logged with who and when
 ``history [ID]``               the hash-chained event history
 ``handoff show`` / ``handoff set --file PATH|-``   the session handoff
 ``export [--out F]`` / ``import --file F``          lossless bundles
@@ -35,8 +39,9 @@ Subcommands
 ``migrate [--dry-run] [--owner LOGIN]``  v1 Issue + handoff comment -> v2,
                                losslessly (the dry run writes nothing)
 ``guard --claim OWNER/REPO#N`` / ``guard --pr-event PATH``
-                               read-only: exit 1 when a claim or a PR does not
-                               match the queue (owner:queue-exempt aside)
+                               read-only: exit 1 when the Issue (or an Issue
+                               the PR closes) is not on the queue at all
+                               (owner:queue-exempt aside); fix with ``claim``
 
 History records who (``AES_QUEUE_ACTOR``, else ``GITHUB_ACTOR``/``USER``),
 when, the harness (``AES_QUEUE_HARNESS``, else detected) and the provider
@@ -366,11 +371,20 @@ def build_parser(env=None):
     init = sub.add_parser("init", help="create an empty queue (v2) in an empty backend")
     init.add_argument("--owner", help="the login allowed to reorder "
                       "(default: the --repo owner)")
-    add = sub.add_parser("add", help="append an item to the end")
+    claim = sub.add_parser("claim", help="put an Issue at the top of the queue, "
+                           "adding it if it is not queued (v2)")
+    claim.add_argument("ref", metavar="OWNER/REPO#N")
+    claim.add_argument("--title", help="title for a new item (default: the ref)")
+    claim.add_argument("--note", default="")
+    add = sub.add_parser("add", help="add an item (default: at the end)")
     add.add_argument("--title", required=True)
     add.add_argument("--ref", action="append", default=[])
     add.add_argument("--note", default="")
     add.add_argument("--depends-on", action="append", default=[])
+    where = add.add_mutually_exclusive_group()
+    where.add_argument("--top", action="store_true", help="insert at the top")
+    where.add_argument("--after", metavar="ID")
+    where.add_argument("--before", metavar="ID")
     ed = sub.add_parser("edit", help="change an item's details (never its position)")
     ed.add_argument("id")
     ed.add_argument("--title")
@@ -386,13 +400,16 @@ def build_parser(env=None):
     block = sub.add_parser("block")
     block.add_argument("id")
     block.add_argument("--reason", required=True)
-    move = sub.add_parser("move", help="owner-authorized reorder (logged)")
+    move = sub.add_parser("move", help="reorder an item (logged)")
     move.add_argument("id")
     anchor = move.add_mutually_exclusive_group(required=True)
+    anchor.add_argument("--top", action="store_true")
+    anchor.add_argument("--bottom", action="store_true")
     anchor.add_argument("--after")
     anchor.add_argument("--before")
-    move.add_argument("--authorized-by", required=True)
-    move.add_argument("--reason", required=True)
+    move.add_argument("--authorized-by", default="",
+                      help="optional: who asked for the move")
+    move.add_argument("--reason", default="", help="optional")
     limit = sub.add_parser("limit", help="owner-authorized cap on parallel "
                            "active items, 1-%d (logged)" % core.MAX_PARALLEL)
     limit.add_argument("n", type=int)
@@ -419,10 +436,10 @@ def build_parser(env=None):
                            "the queue (read-only)")
     what = guard.add_mutually_exclusive_group(required=True)
     what.add_argument("--claim", metavar="OWNER/REPO#N",
-                      help="refuse claiming an Issue not on the active or next item")
+                      help="refuse claiming an Issue that is not on the queue")
     what.add_argument("--pr-event", metavar="PATH",
                       help="a pull_request event payload ($GITHUB_EVENT_PATH): refuse "
-                      "unless every Issue it closes is on an active item")
+                      "unless every Issue it closes is on the queue")
     return parser
 
 
@@ -543,14 +560,18 @@ def _run_v2(args, adapter, ctx):
         return EXIT_OK
     if command == "add":
         change = lambda s: core.op_add(s, args.title, args.ref, args.note,  # noqa: E731
-                                       args.depends_on)
+                                       args.depends_on, args.after, args.before,
+                                       args.top)
+    elif command == "claim":
+        change = lambda s: core.op_claim(s, args.ref, args.title, args.note)  # noqa: E731
     elif command == "edit":
         deps = [] if args.clear_depends_on else args.depends_on
         change = lambda s: core.op_edit(s, args.id, args.title, args.ref,  # noqa: E731
                                         args.note, deps)
     elif command == "move":
         change = lambda s: core.op_move(s, args.id, args.after, args.before,  # noqa: E731
-                                        args.authorized_by, args.reason)
+                                        args.authorized_by, args.reason,
+                                        args.top, args.bottom)
     elif command == "limit":
         change = lambda s: core.op_limit(s, args.n, args.authorized_by,  # noqa: E731
                                          args.reason)
@@ -560,9 +581,15 @@ def _run_v2(args, adapter, ctx):
     else:
         reason = getattr(args, "evidence", None) or getattr(args, "reason", None) or ""
         change = lambda s: core.op_transition(s, args.id, command, reason)  # noqa: E731
-    state = queue_store.commit(adapter, change, ctx)
+    try:
+        state = queue_store.commit(adapter, change, ctx)
+    except core.NoChange as exc:
+        print("ok, no change: %s" % exc)
+        return EXIT_OK
     if command == "add":
-        print("appended %s" % state["items"][-1]["id"])
+        print("added Q%02d" % (state["next_id"] - 1))
+    elif command == "claim":
+        print("top: %s" % state["items"][0]["id"])
     print("ok")
     return EXIT_OK
 

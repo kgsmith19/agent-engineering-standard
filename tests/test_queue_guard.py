@@ -75,7 +75,8 @@ class RefTests(unittest.TestCase):
 
 
 class GuardClaimTests(unittest.TestCase):
-    """AC1: claiming an Issue not on the active or next item is refused."""
+    """AC1 (#331): claiming is allowed for any queued Issue; an unqueued one is
+    refused with the one command that queues it."""
 
     def test_claim_on_active_item_ok(self):
         """The active item's Issues are the work in hand."""
@@ -88,17 +89,19 @@ class GuardClaimTests(unittest.TestCase):
         state = queue((["o/r#1"], "blocked"), (["o/r#2"], "pending"), (["o/r#3"], "pending"))
         self.assertIn("Q02", core.guard_claim(state, "o/r#2"))
 
-    def test_claim_out_of_order_refused_naming_the_right_item(self):
-        """Claiming later work is drift; the refusal must say what to work on instead."""
-        state = queue((["o/r#2"], "active"), (["o/r#3"], "pending"))
+    def test_claim_of_any_queued_issue_ok(self):
+        """#331: a later, pending or blocked item is still queue work."""
+        state = queue((["o/r#2"], "active"), (["o/r#3"], "pending"),
+                      (["o/r#4"], "blocked"))
+        self.assertIn("Q02", core.guard_claim(state, "o/r#3"))
+        self.assertIn("Q03", core.guard_claim(state, "o/r#4"))
+
+    def test_claim_off_queue_refused_with_the_fix(self):
+        """An Issue not on the queue is refused, and the refusal names the one command that queues it."""
+        state = queue((["o/r#2"], "pending"))
         with self.assertRaises(core.QueueError) as ctx:
-            core.guard_claim(state, "o/r#3")
-        self.assertIn("Q01", str(ctx.exception))
-        state = queue((["o/r#2"], "pending"), (["o/r#3"], "pending"))
-        with self.assertRaises(core.QueueError):
-            core.guard_claim(state, "o/r#3")
-        with self.assertRaises(core.QueueError):
             core.guard_claim(state, "o/r#404")
+        self.assertIn("work_queue.py claim o/r#404", str(ctx.exception))
 
     def test_claim_on_empty_queue_refused(self):
         """No queue item means no queue-backed work to claim."""
@@ -107,7 +110,7 @@ class GuardClaimTests(unittest.TestCase):
 
 
 class GuardPrTests(unittest.TestCase):
-    """AC2: a PR's closing Issues must belong to an active item."""
+    """AC2 (#331): a PR's closing Issues must all be on the queue."""
 
     def setUp(self):
         self.state = queue((["o/r#1"], "blocked"), (["o/r#2", "o/x#7"], "active"),
@@ -123,16 +126,16 @@ class GuardPrTests(unittest.TestCase):
             core.guard_pr(self.state, [], exempt=False)
 
     def test_pr_closing_any_off_queue_issue_refused(self):
-        """One off-queue closing Issue is enough to refuse: it would land unqueued work."""
-        for refs in (["o/r#3"], ["o/r#2", "o/r#3"], ["o/r#1"], ["o/r#99"]):
-            with self.assertRaises(core.QueueError, msg=str(refs)):
+        """One off-queue closing Issue is enough to refuse, and the message gives the fix."""
+        for refs in (["o/r#99"], ["o/r#2", "o/r#99"]):
+            with self.assertRaises(core.QueueError, msg=str(refs)) as ctx:
                 core.guard_pr(self.state, refs, exempt=False)
+            self.assertIn("work_queue.py claim o/r#99", str(ctx.exception))
 
-    def test_next_but_not_active_refused(self):
-        """A PR needs a claimed (active) item; pending work has not been started through the queue."""
-        state = queue((["o/r#2"], "pending"))
-        with self.assertRaises(core.QueueError):
-            core.guard_pr(state, ["o/r#2"], exempt=False)
+    def test_pr_closing_pending_or_blocked_queued_issue_ok(self):
+        """#331: being on the queue is enough; the item need not be active or first."""
+        for refs in (["o/r#3"], ["o/r#1"], ["o/r#2", "o/r#3"]):
+            self.assertIn("ok", core.guard_pr(self.state, refs, exempt=False))
 
     def test_owner_exemption_passes(self):
         """The owner's exemption label is the one escape hatch, and it is reported as such."""
@@ -196,24 +199,26 @@ class GuardCliTests(unittest.TestCase):
         return code, out.getvalue(), err.getvalue()
 
     def test_claim_modes(self):
-        """AC1 via the CLI: exit 0 on queue work, exit 1 naming the active item otherwise."""
+        """AC1 via the CLI: exit 0 on any queued Issue, exit 1 with the fix otherwise."""
         self.assertEqual(self.run_guard("--claim", "o/r#2")[0], 0)
-        code, _, err = self.run_guard("--claim", "o/r#3")
+        self.assertEqual(self.run_guard("--claim", "o/r#3")[0], 0)
+        code, _, err = self.run_guard("--claim", "o/r#9")
         self.assertEqual(code, cli.EXIT_REFUSED)
-        self.assertIn("Q01", err)
+        self.assertIn("claim o/r#9", err)
 
     def test_pr_event_modes(self):
         """AC2 via the CLI: the PR body's closing Issue decides, from the event payload."""
         self.assertEqual(self.run_guard("--pr-event", _event_file(self, "Closes #2"))[0], 0)
-        code, _, err = self.run_guard("--pr-event", _event_file(self, "Closes #3"))
+        self.assertEqual(self.run_guard("--pr-event", _event_file(self, "Closes #3"))[0], 0)
+        code, _, err = self.run_guard("--pr-event", _event_file(self, "Closes #9"))
         self.assertEqual(code, cli.EXIT_REFUSED)
-        self.assertIn("o/r#3", err)
+        self.assertIn("o/r#9", err)
 
     def test_exemption_needs_owner_provenance(self):
         """AC2: the exemption label passes only when the owner applied it, per the PR timeline."""
         self.github.timeline = {5: [{"event": "labeled", "label": {"name": core.EXEMPT_LABEL},
                                      "actor": {"login": "someone"}}]}
-        path = _event_file(self, "Closes #3", labels=[core.EXEMPT_LABEL])
+        path = _event_file(self, "Closes #9", labels=[core.EXEMPT_LABEL])
         code, _, err = self.run_guard("--pr-event", path)
         self.assertEqual(code, cli.EXIT_REFUSED)
         self.assertIn("not applied by the owner", err)
@@ -229,7 +234,7 @@ class GuardCliTests(unittest.TestCase):
         self.github.timeline = {5: chatter + [{"event": "labeled",
                                                "label": {"name": core.EXEMPT_LABEL},
                                                "actor": {"login": "kgsmith19"}}]}
-        path = _event_file(self, "Closes #3", labels=[core.EXEMPT_LABEL])
+        path = _event_file(self, "Closes #9", labels=[core.EXEMPT_LABEL])
         self.assertEqual(self.run_guard("--pr-event", path)[0], 0)
 
     def test_guard_fails_closed_without_a_queue(self):

@@ -18,8 +18,12 @@ State (version 2)::
 Rules
 =====
 
-* Order changes only through ``op_move``, which needs the recorded owner
-  as ``authorized_by`` plus a reason. ``op_add`` appends; ids are never
+* The order is a working plan, not a lock (#331). ``op_add`` inserts at
+  the end, the top, or before/after any item; ``op_move`` reorders any
+  item (to the top, the bottom, or before/after another); ``op_claim``
+  puts an Issue at the top, adding it first when it is not queued yet.
+  None of these needs the owner: every change is a logged, hash-chained
+  event with who and when, so the order stays auditable. Ids are never
   reused.
 * ``depends_on`` names earlier or archived items only, so dependencies
   never contradict the order and cannot form a cycle. ``op_transition``
@@ -34,8 +38,8 @@ Rules
   missing or altered one fails closed.
 * At most ``max_active`` items are active at once (optional state key,
   absent means 1, owner-set through ``op_limit`` up to ``MAX_PARALLEL``,
-  #302). Claims stay in queue order: a later item starts only when every
-  earlier live item is active, blocked or waiting on a dependency.
+  #302). Any pending item with its dependencies met may be started; the
+  order says what to do next, it does not forbid starting something else.
 * The handoff text is stored in its ``handoff`` event; state holds its
   digest. Text that looks like a credential is refused everywhere, and
   a state larger than ``STATE_BUDGET`` is refused rather than truncated.
@@ -86,18 +90,23 @@ _BADGE = {"pending": "⏳ pending", "active": "🔨 active",
           "blocked": "⛔ blocked"}
 HEADER = """## 📋 Execution Queue
 
-Ordered queue of work across the owner's repositories (queue v2). **Order \
-is binding**: work the first item that is neither blocked nor waiting on a \
-dependency; up to the owner-set cap of items may be active at once, started \
-in this order. Only the owner reorders, through `work_queue.py move`, and every \
-change is a hash-chained history event (`work_queue.py history`). The JSON \
-block below is the source of truth; this checklist is regenerated from it \
-on every write.
+Ordered queue of work across the owner's repositories (queue v2). The order \
+is the plan: work from the top, and change it whenever priorities change. \
+`work_queue.py claim OWNER/REPO#N` puts an Issue at the top (adding it if it \
+is not queued); `add --top|--before|--after` inserts anywhere; `move ID \
+--top|--bottom|--before|--after` reorders. Up to the owner-set cap of items \
+may be active at once. Every change is a hash-chained history event \
+(`work_queue.py history`). The JSON block below is the source of truth; this \
+checklist is regenerated from it on every write.
 """
 
 
 class QueueError(Exception):
     """An operation was refused by a queue rule."""
+
+
+class NoChange(QueueError):
+    """The operation would leave the queue exactly as it is."""
 
 
 class FormatError(QueueError):
@@ -361,7 +370,35 @@ def op_init(owner):
     return state, [_event("init", None, None, {"owner": owner})]
 
 
-def op_add(state, title, refs=(), note="", depends_on=()):
+def _anchor_index(items, after=None, before=None, top=False, bottom=False):
+    """Insertion index for one of top / bottom / after ID / before ID
+    (none of them means the end)."""
+    chosen = [x for x in (after is not None, before is not None, top, bottom) if x]
+    if len(chosen) > 1:
+        raise QueueError("pick one position: --top, --bottom, --after or --before")
+    if top:
+        return 0
+    if after is None and before is None:
+        return len(items)
+    anchor = after if after is not None else before
+    order = [i["id"] for i in items]
+    if anchor not in order:
+        raise QueueError("no live queue item %s to place against" % anchor)
+    index = order.index(anchor)
+    return index + 1 if after is not None else index
+
+
+def _place(new, item, index):
+    """Put ``item`` at ``index``; refuse an order that breaks a dependency."""
+    new["items"].insert(index, item)
+    problem = _dependency_problem(new["items"], new["archived"])
+    if problem:
+        raise QueueError("cannot place %s there: %s" % (item["id"], problem))
+
+
+def op_add(state, title, refs=(), note="", depends_on=(), after=None,
+           before=None, top=False):
+    """Add an item at the end, the top, or before/after a live item."""
     new = copy.deepcopy(state)
     item_id = "Q%02d" % new["next_id"]
     item = {"id": item_id,
@@ -370,7 +407,7 @@ def op_add(state, title, refs=(), note="", depends_on=()):
             "status": "pending",
             "note": _text(note, "note", LIMITS["note"], required=False),
             "depends_on": _deps(new, item_id, depends_on)}
-    new["items"].append(item)
+    _place(new, item, _anchor_index(new["items"], after, before, top))
     new["next_id"] += 1
     return new, [_event("add", item_id, None, copy.deepcopy(item))]
 
@@ -409,16 +446,6 @@ def op_transition(state, item_id, action, reason=""):
                 item_id, status,
                 " (unblock it first)" if status == "blocked" else ""))
         cap = max_active(new)
-        for earlier in new["items"]:
-            if earlier is item:
-                break
-            # Active items are bounded by the cap check below, not by order.
-            if earlier["status"] in ("blocked", "active") or waiting_on(new, earlier):
-                continue
-            raise QueueError(
-                "cannot start %s: earlier item %s is %s (finish it, or "
-                "block it with a reason)" % (item_id, earlier["id"],
-                                              earlier["status"]))
         running = active_items(new)
         if len(running) >= cap:
             raise QueueError(
@@ -456,37 +483,54 @@ def op_transition(state, item_id, action, reason=""):
 
 
 def op_move(state, item_id, after=None, before=None, authorized_by="",
-            reason=""):
-    """The only reorder: owner-authorized, reasoned, and logged."""
-    if authorized_by != state["owner"]:
-        raise QueueError("move needs --authorized-by %s (the queue owner); "
-                         "an agent cannot reorder on its own authority"
-                         % state["owner"])
-    reason = _text(reason, "move reason", LIMITS["reason"])
-    if (after is None) == (before is None):
-        raise QueueError("move needs exactly one of --after or --before")
-    anchor = after if after is not None else before
+            reason="", top=False, bottom=False):
+    """Reorder one item: to the top, the bottom, or before/after another.
+
+    Anyone working the queue may reorder (#331); the event records who did
+    it and when. ``authorized_by`` and ``reason`` are optional notes kept on
+    the event when given.
+    """
+    if not any((after is not None, before is not None, top, bottom)):
+        raise QueueError("move needs a position: --top, --bottom, --after or --before")
+    reason = _text(reason, "move reason", LIMITS["reason"], required=False)
     new = copy.deepcopy(state)
     item = find(new, item_id)
-    if anchor == item_id:
+    if item_id in (after, before):
         raise QueueError("cannot move %s relative to itself" % item_id)
-    find(new, anchor)
     order = [i["id"] for i in new["items"]]
     old_after = order[order.index(item_id) - 1] if order.index(item_id) else None
     new["items"].remove(item)
-    index = [i["id"] for i in new["items"]].index(anchor)
-    new["items"].insert(index + 1 if after is not None else index, item)
+    _place(new, item, _anchor_index(new["items"], after, before, top, bottom))
     reordered = [i["id"] for i in new["items"]]
     if reordered == order:
-        raise QueueError("move %s has no effect" % item_id)
-    problem = _dependency_problem(new["items"], new["archived"])
-    if problem:
-        raise QueueError("move refused: %s" % problem)
+        raise NoChange("%s is already there" % item_id)
     position = reordered.index(item_id)
     new_after = reordered[position - 1] if position else None
-    return new, [_event("move", item_id, {"after": old_after},
-                        {"after": new_after, "authorized_by": authorized_by},
-                        reason)]
+    to = {"after": new_after}
+    if authorized_by:
+        to["authorized_by"] = authorized_by
+    return new, [_event("move", item_id, {"after": old_after}, to, reason)]
+
+
+def op_claim(state, ref, title=None, note=""):
+    """Put the Issue ``ref`` at the top of the queue, adding it if needed.
+
+    The low-friction path (#331): one command, no owner sign-off. A queued
+    item moves to the top (or just after its last live dependency); an
+    Issue that is not queued becomes a new item at the top.
+    """
+    ref = normalize_ref(ref)
+    for item in state["items"]:
+        if ref in _item_refs(item):
+            order = [i["id"] for i in state["items"]]
+            deps = [order.index(d) for d in item["depends_on"] if d in order]
+            target = max(deps) + 1 if deps else 0
+            if order.index(item["id"]) <= target:
+                raise NoChange("%s is already at the top as %s" % (ref, item["id"]))
+            anchor = state["items"][target - 1]["id"] if target else None
+            return op_move(state, item["id"], after=anchor, top=anchor is None,
+                           reason="claim %s" % ref)
+    return op_add(state, title or ref, [ref], note, top=True)
 
 
 def op_limit(state, n, authorized_by="", reason=""):
@@ -767,40 +811,43 @@ def _queue_position(state):
     return active_items(state), upcoming(state)
 
 
+def _queued(state):
+    """Every ref on a live item (pending, active or blocked) -> its item id."""
+    owned = {}
+    for item in state["items"]:
+        for ref in _item_refs(item):
+            owned.setdefault(ref, item["id"])
+    return owned
+
+
 def guard_claim(state, ref):
-    """Claiming ``ref`` is allowed only for an active item or the next item."""
+    """Claiming ``ref`` is allowed when it is on any live queue item."""
     ref = normalize_ref(ref)
-    active, upcoming = _queue_position(state)
-    for item in active + ([upcoming] if upcoming else []):
-        if ref in _item_refs(item):
-            return "guard: ok, %s is on %s (%s)" % (ref, item["id"], item["status"])
-    names = ", ".join(i["id"] for i in active) or "none"
+    owned = _queued(state)
+    if ref in owned:
+        item = find(state, owned[ref])
+        return "guard: ok, %s is on %s (%s)" % (ref, item["id"], item["status"])
     raise QueueError(
-        "guard: claim of %s refused, it is not on the active or next queue item "
-        "(active: %s, next: %s). Work the queue in order; only the owner adds or "
-        "moves items." % (ref, names, upcoming["id"] if upcoming else "none"))
+        "guard: %s is not on the queue. Add it in one step: "
+        "`work_queue.py claim %s`" % (ref, ref))
 
 
 def guard_pr(state, refs, exempt):
-    """A PR passes only if every Issue it closes is on an active item, or the
-    owner exempted it with ``EXEMPT_LABEL``."""
+    """A PR passes when every Issue it closes is on a live queue item, or
+    the owner exempted it with ``EXEMPT_LABEL``."""
     if exempt:
         return "guard: ok, exempt by the owner's %s label" % EXEMPT_LABEL
     if not refs:
         raise QueueError("guard: this PR closes no Issue, so it cannot be matched "
                          "to the queue")
-    active, _ = _queue_position(state)
-    owned = {}
-    for item in active:
-        for ref in _item_refs(item):
-            owned[ref] = item["id"]
+    owned = _queued(state)
     off = [ref for ref in refs if ref not in owned]
     if off:
         raise QueueError(
-            "guard: %s not on an active queue item (active: %s). Claim it through "
-            "the queue first, or ask the owner for the %s label."
+            "guard: %s not on the queue. Add %s in one step: %s"
             % (", ".join(off) + (" is" if len(off) == 1 else " are"),
-               ", ".join(i["id"] for i in active) or "none", EXEMPT_LABEL))
+               "it" if len(off) == 1 else "them",
+               "; ".join("`work_queue.py claim %s`" % ref for ref in off)))
     return "guard: ok, %s on %s" % (", ".join(refs), ", ".join(sorted(set(owned[r] for r in refs))))
 
 

@@ -78,8 +78,9 @@ class V1SubcommandsOnV2Tests(unittest.TestCase):
         self.assertEqual((code, out.strip()), (cli.EXIT_EMPTY, "QUEUE EMPTY"))
 
     def test_refused_start_exits_1_and_writes_nothing(self):
-        """Order guard via the CLI: refused, names the blocker, nothing written."""
-        adapter = seeded("a", "b")
+        """A refused start (dependency not done) exits 1, names the blocker, writes nothing."""
+        adapter = seeded("a")
+        run("add", "--title", "b", "--depends-on", "Q01", adapter=adapter)
         before = store.export_bundle(adapter)
         code, _, err = run("start", "Q02", adapter=adapter)
         self.assertEqual(code, cli.EXIT_REFUSED)
@@ -101,21 +102,46 @@ class NewSubcommandTests(unittest.TestCase):
         self.assertIn("Q01", err)
         self.assertEqual(run("next", adapter=adapter)[0], cli.EXIT_EMPTY)
 
-    def test_move_requires_owner_and_is_logged(self):
-        """AC3: only an owner-authorized, reasoned move reorders, and history shows it."""
-        adapter = seeded("a", "b", "c")
-        code, _, _ = run("move", "Q03", "--after", "Q01", "--authorized-by",
-                         "someone", "--reason", "r", adapter=adapter)
-        self.assertEqual(code, cli.EXIT_REFUSED)
-        code, _, _ = run("move", "Q03", "--after", "Q01", "--authorized-by",
-                         "kgsmith19", "--reason", "owner said", adapter=adapter)
-        self.assertEqual(code, 0)
+    def _order(self, adapter):
         _, out, _ = run("show", adapter=adapter)
-        order = [line.split()[0] for line in out.splitlines() if line.startswith("Q")]
-        self.assertEqual(order, ["Q01", "Q03", "Q02"])
-        _, out, _ = run("history", "Q03", adapter=adapter)
+        return [line.split()[0] for line in out.splitlines() if line.startswith("Q")]
+
+    def test_move_needs_no_owner_and_is_logged(self):
+        """#331: anyone reorders with one flag, and history shows who moved what."""
+        adapter = seeded("a", "b", "c")
+        self.assertEqual(run("move", "Q03", "--after", "Q01", adapter=adapter)[0], 0)
+        self.assertEqual(self._order(adapter), ["Q01", "Q03", "Q02"])
+        self.assertEqual(run("move", "Q02", "--top", "--reason", "hotfix",
+                             adapter=adapter)[0], 0)
+        self.assertEqual(self._order(adapter), ["Q02", "Q01", "Q03"])
+        _, out, _ = run("history", "Q02", adapter=adapter)
         self.assertIn("move", out)
-        self.assertIn("owner said", out)
+        self.assertIn("hotfix", out)
+        code, out, _ = run("move", "Q02", "--top", adapter=adapter)
+        self.assertEqual(code, 0)
+        self.assertIn("no change", out)
+
+    def test_add_inserts_anywhere(self):
+        """#331: add takes --top, --after or --before; the default is still the end."""
+        adapter = seeded("a", "b")
+        run("add", "--title", "top", "--top", adapter=adapter)
+        run("add", "--title", "mid", "--after", "Q01", adapter=adapter)
+        run("add", "--title", "end", adapter=adapter)
+        self.assertEqual(self._order(adapter), ["Q03", "Q01", "Q04", "Q02", "Q05"])
+
+    def test_claim_adds_or_bumps_to_the_top(self):
+        """#331: one command queues an unqueued Issue at the top, or bumps a queued one."""
+        adapter = seeded("a", "b")
+        code, out, _ = run("claim", "o/r#7", "--title", "urgent", adapter=adapter)
+        self.assertEqual(code, 0)
+        self.assertIn("top: Q03", out)
+        self.assertEqual(self._order(adapter), ["Q03", "Q01", "Q02"])
+        run("add", "--title", "later", "--ref", "o/r#8", adapter=adapter)
+        run("claim", "O/R#8", adapter=adapter)
+        self.assertEqual(self._order(adapter)[0], "Q04")
+        code, out, _ = run("claim", "o/r#8", adapter=adapter)
+        self.assertEqual(code, 0)
+        self.assertIn("no change", out)
 
     def test_history_records_context(self):
         """AC5: history shows who, when, harness and provider for each event."""

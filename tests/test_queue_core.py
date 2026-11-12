@@ -92,12 +92,13 @@ class OrderAndNextTests(unittest.TestCase):
 class TransitionTests(unittest.TestCase):
     """Order guard, dependency guard, and status transitions."""
 
-    def test_start_refused_when_earlier_item_pending(self):
-        """Order is binding: starting past a pending item is out-of-order work and must name it."""
+    def test_start_allowed_past_an_earlier_pending_item(self):
+        """#331: the order is the plan, not a lock; a later pending item may be started."""
         state = build(("a", "pending", []), ("b", "pending", []))
-        with self.assertRaises(core.QueueError) as ctx:
-            core.op_transition(state, "Q02", "start")
-        self.assertIn("Q01", str(ctx.exception))
+        new, events = core.op_transition(state, "Q02", "start")
+        self.assertEqual(core.find(new, "Q02")["status"], "active")
+        self.assertEqual(core.find(new, "Q01")["status"], "pending")
+        self.assertEqual(events[0]["op"], "start")
 
     def test_start_refused_when_earlier_item_active(self):
         """Two active items would mean two writers on the queue."""
@@ -273,18 +274,25 @@ class MoveTests(unittest.TestCase):
             reason="r"))
         self.assertEqual(ids(new), ["Q03", "Q01", "Q02"])
 
-    def test_move_refused_without_owner_authority(self):
-        """AC3: an agent cannot reorder on its own authority."""
-        for who in ("", "claude", "KGSMITH19"):
-            with self.assertRaises(core.QueueError):
-                core.op_move(self.state, "Q03", after="Q01",
-                             authorized_by=who, reason="r")
+    def test_move_needs_no_owner_and_no_reason(self):
+        """#331: anyone may reorder; the event still records the move, and a given note is kept."""
+        new, events = core.op_move(self.state, "Q03", after="Q01")
+        self.assertEqual([i["id"] for i in new["items"]], ["Q01", "Q03", "Q02"])
+        self.assertEqual(events[0]["op"], "move")
+        self.assertEqual(events[0]["to"], {"after": "Q01"})
+        _, events = core.op_move(self.state, "Q03", after="Q01",
+                                 authorized_by="claude", reason="hotfix first")
+        self.assertEqual(events[0]["to"], {"after": "Q01", "authorized_by": "claude"})
+        self.assertEqual(events[0]["reason"], "hotfix first")
 
-    def test_move_refused_without_reason(self):
-        """AC3: an unexplained move is invisible drift."""
-        with self.assertRaises(core.QueueError):
-            core.op_move(self.state, "Q03", after="Q01",
-                         authorized_by="kgsmith19", reason=" ")
+    def test_move_to_top_and_bottom(self):
+        """#331: top and bottom are one flag each."""
+        top, _ = core.op_move(self.state, "Q03", top=True)
+        self.assertEqual([i["id"] for i in top["items"]], ["Q03", "Q01", "Q02"])
+        bottom, _ = core.op_move(self.state, "Q01", bottom=True)
+        self.assertEqual([i["id"] for i in bottom["items"]], ["Q02", "Q03", "Q01"])
+        with self.assertRaises(core.NoChange):
+            core.op_move(self.state, "Q01", top=True)
 
     def test_move_needs_exactly_one_anchor_and_a_real_change(self):
         """A move with no anchor, two anchors, a self anchor or no effect must be refused."""
@@ -292,8 +300,7 @@ class MoveTests(unittest.TestCase):
                dict(after="Q02"), dict(after="Q99")]
         for anchor in bad:
             with self.assertRaises(core.QueueError, msg=str(anchor)):
-                core.op_move(self.state, "Q03", authorized_by="kgsmith19",
-                             reason="r", **anchor)
+                core.op_move(self.state, "Q03", **anchor)
 
     def test_move_never_places_item_before_its_dependency(self):
         """AC3+AC4: a dependent ahead of its dependency would make order and dependencies disagree."""
@@ -304,6 +311,51 @@ class MoveTests(unittest.TestCase):
         with self.assertRaises(core.QueueError):
             core.op_move(state, "Q01", after="Q02",
                          authorized_by="kgsmith19", reason="r")
+
+
+class InsertAndClaimTests(unittest.TestCase):
+    """#331: insert anywhere and claim in one step, never breaking a dependency."""
+
+    def test_add_at_top_after_and_before(self):
+        """add places a new item at the top, after or before a live item."""
+        state = build(("a", "pending", []), ("b", "pending", []))
+        state, _ = core.op_add(state, "t", top=True)
+        state, _ = core.op_add(state, "x", after="Q01")
+        state, _ = core.op_add(state, "y", before="Q02")
+        self.assertEqual([i["id"] for i in state["items"]],
+                         ["Q03", "Q01", "Q04", "Q05", "Q02"])
+
+    def test_add_refuses_a_position_ahead_of_its_dependency(self):
+        """An item placed before what it depends on would make order and dependencies disagree."""
+        state = build(("a", "pending", []))
+        with self.assertRaises(core.QueueError):
+            core.op_add(state, "b", depends_on=["Q01"], top=True)
+        with self.assertRaises(core.QueueError):
+            core.op_add(state, "b", after="Q99")
+
+    def test_claim_adds_an_unqueued_issue_at_the_top(self):
+        """An Issue not on the queue becomes a new top item carrying its ref."""
+        state = build(("a", "pending", []))
+        new, events = core.op_claim(state, "O/R#5", title="urgent")
+        top = new["items"][0]
+        self.assertEqual((top["id"], top["title"], top["refs"]),
+                         ("Q02", "urgent", ["o/r#5"]))
+        self.assertEqual(events[0]["op"], "add")
+        new, _ = core.op_claim(state, "o/r#6")
+        self.assertEqual(new["items"][0]["title"], "o/r#6")
+
+    def test_claim_bumps_a_queued_issue_and_respects_dependencies(self):
+        """A queued Issue moves to the top, or to just after its last live dependency."""
+        state = build(("a", "pending", []), ("b", "pending", []))
+        state, _ = core.op_add(state, "c", refs=["o/r#9"])
+        new, events = core.op_claim(state, "o/r#9")
+        self.assertEqual([i["id"] for i in new["items"]], ["Q03", "Q01", "Q02"])
+        self.assertEqual(events[0]["op"], "move")
+        with self.assertRaises(core.NoChange):
+            core.op_claim(new, "o/r#9")
+        state, _ = core.op_add(state, "d", refs=["o/r#10"], depends_on=["Q02"])
+        new, _ = core.op_claim(state, "o/r#10")
+        self.assertEqual([i["id"] for i in new["items"]], ["Q01", "Q02", "Q04", "Q03"])
 
 
 class HistoryChainTests(unittest.TestCase):

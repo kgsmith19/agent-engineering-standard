@@ -145,7 +145,7 @@ class ContractMixin:
         before = (self.adapter.load()[0], len(self.adapter.events()))
         with self.assertRaises(core.QueueError):
             store.commit(self.adapter,
-                         lambda s: core.op_transition(s, "Q02", "start"), CTX)
+                         lambda s: core.op_transition(s, "Q02", "done", "x"), CTX)
         self.assertEqual((self.adapter.load()[0], len(self.adapter.events())),
                          before)
 
