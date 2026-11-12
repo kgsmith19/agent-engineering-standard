@@ -13,7 +13,7 @@ mixes unrelated cleanup, or cannot be reviewed in one focused pass. Prefer verti
 slices over layer-only Issues. Broad ideas get one parent Issue plus native GitHub sub-Issues,
 each assigned to the milestone; the parent owns no implementation commits and closes only after
 every required sub-Issue and final integration verification. Use the Issue template (canonical
-`TEMPLATES/issue-template.md`, active `.github/ISSUE_TEMPLATE/work-item.md`).
+`TEMPLATES/issue-template.md`, active `.github/ISSUE_TEMPLATE/work-item.md`); `python3 tools/conventions.py issue-body --outcome "..."` prints it filled in.
 
 **Bounded context.** A thin Issue names the bounded context(s) it changes
 ([contexts#bounded-contexts](./contexts.md#bounded-contexts)). Prefer one context per Issue.
@@ -29,11 +29,11 @@ public comment.
 
 **Claim protocol** (labels are not an atomic lock):
 
-0. Run `python3 tools/work_queue.py guard --claim <owner/repo#n>` (agent-engineering-standard; `ae queue guard …` from any repo). It exits non-zero unless the Issue is on the active or next item of the owner's execution queue. Stop and ask the owner instead of claiming out of order. PR Gates run the same guard on every PR (`guard --pr-event`), and only the owner's `owner:queue-exempt` label overrides it.
+0. Run `python3 tools/work_queue.py guard --claim <owner/repo#n>` (agent-engineering-standard; `ae queue guard …` from any repo). It exits non-zero only when the Issue is not on the owner's execution queue at all. Fix that in one step with `python3 tools/work_queue.py claim <owner/repo#n>`, which adds the Issue at the top (or bumps it there if it is already queued). The order is the working plan, not a lock (#331): `add --top|--after ID|--before ID` inserts anywhere and `move ID --top|--bottom|--after ID|--before ID` reorders, with no owner sign-off; every change is logged with who and when. PR Gates run the same guard on every PR (`guard --pr-event`): every Issue the PR closes must be on the queue. The owner's `owner:queue-exempt` label still overrides it.
 1. Confirm the Issue is open, `status:ready`, not `status:blocked`, and has no open PR
    implementing it.
 2. Resolve the exact current default-branch SHA.
-3. Construct branch `issue/<issue-number>-<short-slug>` and worktree
+3. Construct branch `issue/<issue-number>-<short-slug>` (`python3 tools/conventions.py branch --issue N --title T` prints it; a harness-chosen branch name is also accepted) and worktree
    `.worktrees/issue-<issue-number>-<short-slug>`.
 4. Atomically create the remote branch via the GitHub ref-creation API. "Reference already
    exists" is a failed claim — never overwrite or force-update an existing claim branch.
@@ -89,7 +89,7 @@ Two tiers, one configuration. The **orchestrator** runs on the planning tier (`a
 
 **Orchestrator verification.** The orchestrator reviews the reported commit range and overlapping files, then independently re-runs the verification commands at the exact reported head before any success claim. A subagent report is never evidence by itself.
 
-**Parallel PRs.** At most the queue's `max_active` items (owner-set, up to 5; see #302) are active at once. Claims follow queue order. Never run two writers on the same files, even in separate worktrees; when files overlap, serialize.
+**Parallel PRs.** At most the queue's `max_active` items (owner-set, up to 5; see #302) are active at once. Work from the top of the queue; reorder it when priorities change rather than working around it. Never run two writers on the same files, even in separate worktrees; when files overlap, serialize.
 
 ## Context Recovery and Subagent Tracking
 

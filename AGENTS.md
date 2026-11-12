@@ -33,7 +33,11 @@ Defaults, not suggestions. Deviating requires an owner instruction or a recorded
 reason on the Issue.
 
 - **Feature branch from the start.** Never work directly on the default branch:
-  claim the Issue and construct `issue/<n>-<slug>` before the first edit.
+  claim the Issue and construct `issue/<n>-<slug>` before the first edit
+  (`tools/conventions.py branch`). Where the harness picks the branch name, keep
+  it: the gate needs only an Issue it can find. `tools/conventions.py pr-body` /
+  `issue-body` print complete bodies from the templates, and the Merge Policy
+  workflow adds a derivable `Closes #N` line (#333).
 - **Git worktrees for isolation.** One worktree per active Issue
   (`.worktrees/issue-<n>-<slug>`); one writer per worktree.
 - **Subagents for independent work.** One focused writer per worktree;
@@ -88,7 +92,7 @@ The owner **may override, replace, suspend, or delete any part of this standard 
 
 ### Session Bootstrap
 
-At session start: (1) invoke superpowers, (2) read AGENTS.md and project.yaml, (3) initialize dev/reviewer agents, (4) identify active Issue/milestone/branch/PR/head, (5) detect isolation, (6) reconcile local state with Git/GitHub, (7) run baseline verification. Use Superpowers skills. Resume first incomplete task. When the owner's execution queue exists, `python3 tools/work_queue.py next` names the item to resume; its order is binding (interruptions edit an item or append; only the owner reorders, via the logged `move`). Up to the owner-set `max_active` items (at most 5, via the logged `limit`) may be active at once for independent work; they are still started in queue order.
+At session start: (1) invoke superpowers, (2) read AGENTS.md and project.yaml, (3) initialize dev/reviewer agents, (4) identify active Issue/milestone/branch/PR/head, (5) detect isolation, (6) reconcile local state with Git/GitHub, (7) run baseline verification. Use Superpowers skills. Resume first incomplete task. When the owner's execution queue exists, `python3 tools/work_queue.py next` names the item to resume. The order is the working plan, not a lock: anyone may insert (`add --top|--after|--before`), reorder (`move --top|--bottom|--after|--before`) or queue an Issue at the top in one step (`claim <owner/repo#n>`), and every change is logged with who and when. Up to the owner-set `max_active` items (at most 5, via the logged `limit`) may be active at once for independent work.
 
 [Full procedure: AGENTS/governance.md#session-bootstrap](./AGENTS/governance.md#session-bootstrap)
 
@@ -98,7 +102,7 @@ One Issue = **one observable outcome:** cohesive behavioral boundary, independen
 
 Split an Issue when it contains multiple independently valuable outcomes, crosses unrelated domains, needs multiple writers in same files, could be part-approved, can partly ship independently, exceeds ~5 behavior claims, defeats one evidence strategy, or cannot be reviewed in one focused pass. Prefer vertical behavior slices over horizontal layer-only Issues.
 
-**Claim protocol** — first `python3 tools/work_queue.py guard --claim <owner/repo#n>` must pass (the Issue is on the active or next queue item); then 6 steps: (1) confirm Issue open, `status:ready`, not `status:blocked`, (2) resolve current SHA, (3) construct branch/worktree names, (4) atomically create remote branch via API (fail if exists), (5) add `status:active`, remove `status:ready`, (6) post work-state comment with Issue, milestone, branch, base/head SHA, providers, task, status, blocker.
+**Claim protocol** — first `python3 tools/work_queue.py guard --claim <owner/repo#n>` must pass (the Issue is on the queue; if it is not, `python3 tools/work_queue.py claim <owner/repo#n>` adds it at the top in one step); then 6 steps: (1) confirm Issue open, `status:ready`, not `status:blocked`, (2) resolve current SHA, (3) construct branch/worktree names, (4) atomically create remote branch via API (fail if exists), (5) add `status:active`, remove `status:ready`, (6) post work-state comment with Issue, milestone, branch, base/head SHA, providers, task, status, blocker.
 
 [Full rules: AGENTS/work.md#thin-issues-and-work-claiming](./AGENTS/work.md#thin-issues-and-work-claiming)
 

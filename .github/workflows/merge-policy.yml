@@ -49,6 +49,41 @@ jobs:
     name: Agent Engineering Standard Merge Policy
     runs-on: ubuntu-latest
     steps:
+      # Conventions autofix (#333): when a PR body has no 'Closes #N' line but
+      # the Issue is derivable (an issue/<n>- branch, or a title ending in
+      # (#N)), write the line in so GitHub closes the Issue on merge. Mirrors
+      # tools/conventions.py derive_issue / repair_pr_body (a test holds the
+      # patterns equal). Payload data and the REST API only: no checkout, no
+      # shell, nothing PR-controlled is executed.
+      - name: Merge Policy · Add a derivable Closes line
+        if: github.event_name == 'pull_request_target'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+              const pr = context.payload.pull_request;
+              if (!pr || pr.state !== "open") return;
+              const CLOSES = /^\s*(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#([1-9][0-9]*)\b/im;
+              const BRANCH = /^issue\/([1-9][0-9]*)-[a-z0-9][a-z0-9-]*$/;
+              const TITLE_REF = /\(#([1-9][0-9]*)\)\s*$/;
+              const body = (pr.body || "").replace(/\s+$/, "");
+              if (CLOSES.test(body)) return;
+              const match = BRANCH.exec(pr.head.ref || "") || TITLE_REF.exec(pr.title || "");
+              if (!match) return;
+              const line = `Closes #${match[1]}`;
+              const lines = body.split("\n");
+              const at = lines.findIndex((l) => l.trim().toLowerCase().startsWith("## related"));
+              if (at >= 0) {
+                lines.splice(at + 1, 0, "", line);
+              } else {
+                lines.push("", line);
+              }
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                body: lines.join("\n").trim() + "\n",
+              });
+              core.info(`Added '${line}' to PR #${pr.number}`);
       - name: Merge Policy · Reconcile pull request state
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         id: reconcile

@@ -154,15 +154,15 @@ class AppendOnlyTests(unittest.TestCase):
         self.assertEqual(new["items"][1]["refs"], ["kgsmith19/y#1"])
 
     def test_cli_exposes_no_reorder_or_delete_command(self):
-        """AC2 (narrowed by #283 AC3): move is the only reorder entry point, it demands owner authority and a reason, and no delete exists."""
+        """#331: move and claim are the reorder entry points (no owner sign-off), and no delete exists."""
         choices = queue_tool.build_parser()._subparsers._group_actions[0].choices
         commands = set(choices)
         self.assertFalse(commands & {"reorder", "insert", "delete",
                                      "remove", "swap", "prioritize"})
-        self.assertIn("add", commands)
+        self.assertTrue({"add", "move", "claim"} <= commands)
         required = {action.dest for action in choices["move"]._actions
                     if action.required}
-        self.assertTrue({"authorized_by", "reason"} <= required)
+        self.assertFalse({"authorized_by", "reason"} & required)
 
     def test_cli_add_writes_once_and_appends(self):
         """AC2: add must produce exactly one write that lands the new item at the end."""

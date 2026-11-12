@@ -152,12 +152,14 @@ class ParallelStartTests(unittest.TestCase):
         with self.assertRaises(core.QueueError):
             core.op_transition(state, "Q04", "start")
 
-    def test_later_item_never_starts_ahead_of_an_earlier_pending_one(self):
-        """AC3: parallelism is not reordering; skipping a pending earlier item stays out-of-order work."""
-        state = limited(build(("a", "pending", []), ("b", "pending", [])), 5)
+    def test_later_item_may_start_ahead_of_an_earlier_pending_one(self):
+        """#331: the order is the plan, not a lock; the cap still bounds how many run."""
+        state = build(("a", "pending", []), ("b", "pending", []))  # default cap: 1
+        state = start(state, "Q02")
+        self.assertEqual(core.find(state, "Q02")["status"], "active")
         with self.assertRaises(core.QueueError) as ctx:
-            core.op_transition(state, "Q02", "start")
-        self.assertIn("Q01", str(ctx.exception))
+            core.op_transition(state, "Q01", "start")
+        self.assertIn("already active", str(ctx.exception))
 
     def test_blocked_and_waiting_items_are_still_skippable(self):
         """AC3: the existing legitimate skips keep working alongside active items."""
@@ -196,24 +198,19 @@ class GuardTests(unittest.TestCase):
             self.assertIn("ok", core.guard_pr(state, [ref], False))
         self.assertIn("ok", core.guard_pr(state, ["o/r#1", "o/r#3"], False))
 
-    def test_pr_guard_still_refuses_non_active_refs(self):
-        """AC4: the pending fourth item's Issue is not claimable through a PR yet."""
+    def test_pr_guard_accepts_queued_and_refuses_unqueued_refs(self):
+        """#331: a pending queued Issue passes; an Issue not on the queue does not."""
+        self.assertIn("ok", core.guard_pr(self._three_active(), ["o/r#4"], False))
         with self.assertRaises(core.QueueError):
-            core.guard_pr(self._three_active(), ["o/r#4"], False)
+            core.guard_pr(self._three_active(), ["o/r#9"], False)
 
     def test_claim_guard_allows_active_and_next(self):
-        """AC4: a claim matches any active item, or the next startable one while the cap has room."""
+        """#331: a claim matches any queued Issue, at or under the cap; unqueued is refused."""
         full = self._three_active()
-        for ref in ("o/r#1", "o/r#2", "o/r#3"):
+        for ref in ("o/r#1", "o/r#2", "o/r#3", "o/r#4"):
             self.assertIn("ok", core.guard_claim(full, ref))
-        # At the cap, the next item cannot start, so it cannot be claimed either
-        # (the same rule as a cap of 1 with one item active).
         with self.assertRaises(core.QueueError):
-            core.guard_claim(full, "o/r#4")
-        room = limited(full, 4)
-        self.assertIn("ok", core.guard_claim(room, "o/r#4"))
-        with self.assertRaises(core.QueueError):
-            core.guard_claim(room, "o/r#9")
+            core.guard_claim(full, "o/r#9")
 
     def test_claim_guard_next_skips_active_items(self):
         """AC4: with items already active, NEXT is the first item that can still be started, not an active one."""
