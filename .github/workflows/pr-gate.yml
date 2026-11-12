@@ -84,29 +84,13 @@ jobs:
           fetch-depth: 0
       - name: Policy · Verify repository invariants
         run: python3 tools/standardctl.py verify --select policy
+      # Conventions (#333): a PR fails only when no Issue can be found, from
+      # its 'Closes #N' line, an issue/<n>- branch, or a title ending (#N).
+      # The branch name itself is advice. Reads the event file; no shell
+      # interpolation of PR-controlled text.
       - name: Policy · Require linked thin Issue
         if: github.event_name == 'pull_request'
-        env:
-          PR_BODY: ${{ github.event.pull_request.body }}
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: |
-          python3 - <<'CHECK'
-          import os
-          import re
-          import sys
-          body = os.environ.get("PR_BODY") or ""
-          ref = os.environ.get("HEAD_REF") or ""
-          problems = []
-          if not re.search(r"(?im)^closes #\d+", body):
-              problems.append("PR body needs a 'Closes #<issue>' line")
-          if not re.match(r"^issue/\d+-[a-z0-9][a-z0-9-]*$", ref):
-              problems.append(
-                  "head branch %r does not match issue/<n>-<slug>" % ref
-              )
-          for problem in problems:
-              print("ERROR:", problem)
-          sys.exit(1 if problems else 0)
-          CHECK
+        run: python3 tools/conventions.py check-pr --event "$GITHUB_EVENT_PATH"
       # Queue v2 guard (#287, #331): every Issue this PR closes must be on the
       # owner's execution queue (#277) in any live status, unless the owner
       # applied owner:queue-exempt. Read-only; fails closed. Fix a refusal with

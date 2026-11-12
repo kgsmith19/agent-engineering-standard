@@ -214,6 +214,17 @@ class GuardCliTests(unittest.TestCase):
         self.assertEqual(code, cli.EXIT_REFUSED)
         self.assertIn("o/r#9", err)
 
+    def test_pr_without_closes_line_uses_the_derived_issue(self):
+        """#333: an issue/<n>- branch (or a (#N) title) stands in for a missing Closes line."""
+        for pr in ({"head": {"ref": "issue/2-x"}, "title": "t"},
+                   {"head": {"ref": "ccr-x"}, "title": "Fix (#2)"}):
+            handle = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+            json.dump({"pull_request": dict(pr, number=5, body="no link", labels=[]),
+                       "repository": {"full_name": "o/r"}}, handle)
+            handle.close()
+            self.addCleanup(os.unlink, handle.name)
+            self.assertEqual(self.run_guard("--pr-event", handle.name)[0], 0, pr)
+
     def test_exemption_needs_owner_provenance(self):
         """AC2: the exemption label passes only when the owner applied it, per the PR timeline."""
         self.github.timeline = {5: [{"event": "labeled", "label": {"name": core.EXEMPT_LABEL},

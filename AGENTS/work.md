@@ -13,7 +13,7 @@ mixes unrelated cleanup, or cannot be reviewed in one focused pass. Prefer verti
 slices over layer-only Issues. Broad ideas get one parent Issue plus native GitHub sub-Issues,
 each assigned to the milestone; the parent owns no implementation commits and closes only after
 every required sub-Issue and final integration verification. Use the Issue template (canonical
-`TEMPLATES/issue-template.md`, active `.github/ISSUE_TEMPLATE/work-item.md`).
+`TEMPLATES/issue-template.md`, active `.github/ISSUE_TEMPLATE/work-item.md`); `python3 tools/conventions.py issue-body --outcome "..."` prints it filled in.
 
 **Bounded context.** A thin Issue names the bounded context(s) it changes
 ([contexts#bounded-contexts](./contexts.md#bounded-contexts)). Prefer one context per Issue.
@@ -33,7 +33,7 @@ public comment.
 1. Confirm the Issue is open, `status:ready`, not `status:blocked`, and has no open PR
    implementing it.
 2. Resolve the exact current default-branch SHA.
-3. Construct branch `issue/<issue-number>-<short-slug>` and worktree
+3. Construct branch `issue/<issue-number>-<short-slug>` (`python3 tools/conventions.py branch --issue N --title T` prints it; a harness-chosen branch name is also accepted) and worktree
    `.worktrees/issue-<issue-number>-<short-slug>`.
 4. Atomically create the remote branch via the GitHub ref-creation API. "Reference already
    exists" is a failed claim — never overwrite or force-update an existing claim branch.

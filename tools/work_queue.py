@@ -68,6 +68,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import queue_core as core  # noqa: E402
 import queue_store  # noqa: E402
+import conventions  # noqa: E402
 
 MARKER = "<!-- agent-engineering-standard:queue:v1 -->"
 STATUSES = ("pending", "active", "blocked", "done")
@@ -651,6 +652,7 @@ def _run_guard(args, adapter, http):
         pr, repo = event["pull_request"], event["repository"]["full_name"]
         number = int(pr["number"])
         labels = [label.get("name") for label in pr.get("labels") or []]
+        head_ref = (pr.get("head") or {}).get("ref") or ""
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
         raise core.FormatError("not a readable pull_request event: %s" % exc)
     exempt = False
@@ -662,7 +664,14 @@ def _run_guard(args, adapter, http):
             print("guard: the %s label is present but was not applied by the owner "
                   "(%s); it is ignored" % (core.EXEMPT_LABEL, state["owner"]),
                   file=sys.stderr)
-    print(core.guard_pr(state, core.closing_refs(pr.get("body"), repo), exempt))
+    refs = core.closing_refs(pr.get("body"), repo)
+    if not refs:
+        # #333: an Issue derivable from the branch or title counts; the Merge
+        # Policy workflow writes the 'Closes' line into the body.
+        issue, _ = conventions.derive_issue(pr.get("body"), head_ref, pr.get("title") or "")
+        if issue:
+            refs = [core.normalize_ref("#%d" % issue, repo)]
+    print(core.guard_pr(state, refs, exempt))
     return EXIT_OK
 
 

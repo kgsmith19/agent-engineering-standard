@@ -33,7 +33,11 @@ Defaults, not suggestions. Deviating requires an owner instruction or a recorded
 reason on the Issue.
 
 - **Feature branch from the start.** Never work directly on the default branch:
-  claim the Issue and construct `issue/<n>-<slug>` before the first edit.
+  claim the Issue and construct `issue/<n>-<slug>` before the first edit
+  (`tools/conventions.py branch`). Where the harness picks the branch name, keep
+  it: the gate needs only an Issue it can find. `tools/conventions.py pr-body` /
+  `issue-body` print complete bodies from the templates, and the Merge Policy
+  workflow adds a derivable `Closes #N` line (#333).
 - **Git worktrees for isolation.** One worktree per active Issue
   (`.worktrees/issue-<n>-<slug>`); one writer per worktree.
 - **Subagents for independent work.** One focused writer per worktree;
