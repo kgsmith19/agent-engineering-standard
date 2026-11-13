@@ -29,7 +29,7 @@ public comment.
 
 **Claim protocol** (labels are not an atomic lock):
 
-0. Run `python3 tools/work_queue.py guard --claim <owner/repo#n>` (agent-engineering-standard; `ae queue guard …` from any repo). It exits non-zero only when the Issue is not on the owner's execution queue at all. Fix that in one step with `python3 tools/work_queue.py claim <owner/repo#n>`, which adds the Issue at the top (or bumps it there if it is already queued). The order is the working plan, not a lock (#331): `add --top|--after ID|--before ID` inserts anywhere and `move ID --top|--bottom|--after ID|--before ID` reorders, with no owner sign-off; every change is logged with who and when. PR Gates run the same guard on every PR (`guard --pr-event`): every Issue the PR closes must be on the queue. The owner's `owner:queue-exempt` label still overrides it.
+0. Run `python3 tools/work_queue.py guard --claim <owner/repo#n>` (agent-engineering-standard; `ae queue guard …` from any repo). It exits non-zero only when the Issue is not on the owner's execution queue at all. Fix that in one step with `python3 tools/work_queue.py claim <owner/repo#n>`, which adds the Issue at the top (or bumps it there if it is already queued). The order is the working plan, not a lock (#331): `add --top|--after ID|--before ID` inserts anywhere and `move ID --top|--bottom|--after ID|--before ID` reorders, with no owner sign-off; every change is logged with who and when. PR Gates run the same guard on every PR (`guard --pr-event`): every Issue the PR closes must be on the queue. A refusal is fixed by `claim`, which any agent runs. Any agent may also apply the `queue:exempt` label (the legacy `owner:queue-exempt` still works), and may change the `max_active` cap with `limit`; nothing about the queue needs the owner (owner decision 2026-11-13).
 1. Confirm the Issue is open, `status:ready`, not `status:blocked`, and has no open PR
    implementing it.
 2. Resolve the exact current default-branch SHA.
@@ -89,7 +89,7 @@ Two tiers, one configuration. The **orchestrator** runs on the planning tier (`a
 
 **Orchestrator verification.** The orchestrator reviews the reported commit range and overlapping files, then independently re-runs the verification commands at the exact reported head before any success claim. A subagent report is never evidence by itself.
 
-**Parallel PRs.** At most the queue's `max_active` items (owner-set, up to 5; see #302) are active at once. Work from the top of the queue; reorder it when priorities change rather than working around it. Never run two writers on the same files, even in separate worktrees; when files overlap, serialize.
+**Parallel PRs.** At most the queue's `max_active` items (any agent may change it, up to 5; see #302) are active at once. Work from the top of the queue; reorder it when priorities change rather than working around it. Never run two writers on the same files, even in separate worktrees; when files overlap, serialize.
 
 ## Context Recovery and Subagent Tracking
 

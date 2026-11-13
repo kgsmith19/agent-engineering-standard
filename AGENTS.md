@@ -101,7 +101,9 @@ The owner **may override, replace, suspend, or delete any part of this standard 
 
 ### Session Bootstrap
 
-At session start: (1) invoke superpowers, (2) read AGENTS.md and project.yaml, (3) initialize dev/reviewer agents, (4) identify active Issue/milestone/branch/PR/head, (5) detect isolation, (6) reconcile local state with Git/GitHub, (7) run baseline verification. Use Superpowers skills. Resume first incomplete task. When the owner's execution queue exists, `python3 tools/work_queue.py next` names the item to resume. The order is the working plan, not a lock: anyone may insert (`add --top|--after|--before`), reorder (`move --top|--bottom|--after|--before`) or queue an Issue at the top in one step (`claim <owner/repo#n>`), and every change is logged with who and when. Up to the owner-set `max_active` items (at most 5, via the logged `limit`) may be active at once for independent work.
+At session start: (1) invoke superpowers, (2) read AGENTS.md and project.yaml, (3) initialize dev/reviewer agents, (4) identify active Issue/milestone/branch/PR/head, (5) detect isolation, (6) reconcile local state with Git/GitHub, (7) run baseline verification. Use Superpowers skills. Resume first incomplete task. When the owner's execution queue exists, `python3 tools/work_queue.py next` names the item to resume. The order is the working plan, not a lock: anyone may insert (`add --top|--after|--before`), reorder (`move --top|--bottom|--after|--before`) or queue an Issue at the top in one step (`claim <owner/repo#n>`), and every change is logged with who and when. Agents may also change `max_active` (at most 5, via the logged `limit`) and exempt a PR with the `queue:exempt` label, at any time and without the owner. When the queue guard refuses a PR, claim the Issue (`claim <owner/repo#n>`); never route work elsewhere to avoid the queue (owner decision 2026-11-13).
+
+**Credentials and tools (owner decision 2026-11-13).** Agents use CLI tools and third-party credentials (PATs, API keys, OIDC) referenced from the single Infisical project, never GitHub Apps. Prefer full CLI or API access to every tool and app over bespoke integrations. Retired tools keep one CLI credential under Infisical `/retired/<tool>/`.
 
 [Full procedure: AGENTS/governance.md#session-bootstrap](./AGENTS/governance.md#session-bootstrap)
 
@@ -166,7 +168,7 @@ Use these anchors to reference specific rules and procedures in implementations:
 
 - `governance#owner-authority` — owner, precedence order, override authority, credentials, ID flow
 - `governance#session-bootstrap` — 7-step bootstrap procedure, Superpowers integration, resume rules
-- `governance#agent-identities` — dev/reviewer GitHub Apps, credential flow, provider separation, CI setup
+- `governance#agent-identities` — credential flow (CLI and third-party credentials; GitHub Apps retired), provider separation, CI setup
 - `governance#risk-classification` — R0–R3 risk tiers and verification scaling
 - `governance#role-and-authority-contract` — runtime-neutral grant fields, fail-closed rule ids, owner override
 - `work#thin-issues-and-work-claiming` — scope, splitting rules, label set, 6-step protocol, work-state
