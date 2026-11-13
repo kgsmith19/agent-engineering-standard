@@ -225,19 +225,17 @@ class GuardCliTests(unittest.TestCase):
             self.addCleanup(os.unlink, handle.name)
             self.assertEqual(self.run_guard("--pr-event", handle.name)[0], 0, pr)
 
-    def test_exemption_needs_owner_provenance(self):
-        """AC2: the exemption label passes only when the owner applied it, per the PR timeline."""
+    def test_any_agent_may_exempt_a_pr(self):
+        """Owner decision 2026-11-13: an exempt label passes whoever applied it; an unknown label does not."""
         self.github.timeline = {5: [{"event": "labeled", "label": {"name": core.EXEMPT_LABEL},
                                      "actor": {"login": "someone"}}]}
-        path = _event_file(self, "Closes #9", labels=[core.EXEMPT_LABEL])
-        code, _, err = self.run_guard("--pr-event", path)
-        self.assertEqual(code, cli.EXIT_REFUSED)
-        self.assertIn("not applied by the owner", err)
-        self.github.timeline = {5: [{"event": "labeled", "label": {"name": core.EXEMPT_LABEL},
-                                     "actor": {"login": "kgsmith19"}}]}
-        code, out, _ = self.run_guard("--pr-event", path)
-        self.assertEqual(code, 0)
-        self.assertIn("exempt", out)
+        for label in core.EXEMPT_LABELS:
+            path = _event_file(self, "Closes #9", labels=[label])
+            code, out, _ = self.run_guard("--pr-event", path)
+            self.assertEqual(code, 0, label)
+            self.assertIn("exempt", out)
+        path = _event_file(self, "Closes #9", labels=["queue:maybe"])
+        self.assertEqual(self.run_guard("--pr-event", path)[0], cli.EXIT_REFUSED)
 
     def test_exemption_found_past_the_first_timeline_page(self):
         """A busy PR has more than 100 timeline events; the owner's label must still be found."""

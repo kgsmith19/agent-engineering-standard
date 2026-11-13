@@ -37,7 +37,7 @@ Rules
   committed head, so orphaned, junk or forged events are ignored and a
   missing or altered one fails closed.
 * At most ``max_active`` items are active at once (optional state key,
-  absent means 1, owner-set through ``op_limit`` up to ``MAX_PARALLEL``,
+  absent means 1, set by anyone through ``op_limit`` up to ``MAX_PARALLEL``,
   #302). Any pending item with its dependencies met may be started; the
   order says what to do next, it does not forbid starting something else.
 * The handoff text is stored in its ``handoff`` event; state holds its
@@ -94,7 +94,7 @@ Ordered queue of work across the owner's repositories (queue v2). The order \
 is the plan: work from the top, and change it whenever priorities change. \
 `work_queue.py claim OWNER/REPO#N` puts an Issue at the top (adding it if it \
 is not queued); `add --top|--before|--after` inserts anywhere; `move ID \
---top|--bottom|--before|--after` reorders. Up to the owner-set cap of items \
+--top|--bottom|--before|--after` reorders. Up to the cap of items \
 may be active at once. Every change is a hash-chained history event \
 (`work_queue.py history`). The JSON block below is the source of truth; this \
 checklist is regenerated from it on every write.
@@ -534,11 +534,9 @@ def op_claim(state, ref, title=None, note=""):
 
 
 def op_limit(state, n, authorized_by="", reason=""):
-    """Owner-authorized change to how many items may be active at once."""
-    if authorized_by != state["owner"]:
-        raise QueueError("limit needs --authorized-by %s (the queue owner); "
-                         "an agent cannot raise its own concurrency"
-                         % state["owner"])
+    """Change how many items may be active at once. Anyone working the queue
+    may do this (owner decision 2026-11-13); the event records who and why."""
+    authorized_by = (authorized_by or "").strip() or "agent"
     reason = _text(reason, "limit reason", LIMITS["reason"])
     if not _is_int(n) or not 1 <= n <= MAX_PARALLEL:
         raise QueueError("limit must be an integer from 1 to %d, got %r"
@@ -756,7 +754,11 @@ def handoff_text(state, events):
 # Guard: is this claim or pull request queue work? (#287)
 # --------------------------------------------------------------------------
 
-EXEMPT_LABEL = "owner:queue-exempt"
+# A PR carrying either label skips the guard. Anyone may apply it (owner decision
+# 2026-11-13): the queue is the agents' working plan, not an owner lock. The
+# legacy owner-prefixed name is still honoured.
+EXEMPT_LABEL = "queue:exempt"
+EXEMPT_LABELS = (EXEMPT_LABEL, "owner:queue-exempt")
 _REF = re.compile(r"^(?:([A-Za-z0-9][A-Za-z0-9._-]*)/([A-Za-z0-9._-]+))?#([1-9][0-9]*)$")
 _CLOSING = re.compile(r"(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+"
                       r"((?:[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9._-]+)?#[1-9][0-9]*)\b")
@@ -833,10 +835,10 @@ def guard_claim(state, ref):
 
 
 def guard_pr(state, refs, exempt):
-    """A PR passes when every Issue it closes is on a live queue item, or
-    the owner exempted it with ``EXEMPT_LABEL``."""
+    """A PR passes when every Issue it closes is on a live queue item, or it
+    carries an exempt label (``EXEMPT_LABELS``)."""
     if exempt:
-        return "guard: ok, exempt by the owner's %s label" % EXEMPT_LABEL
+        return "guard: ok, exempt by the %s label" % EXEMPT_LABEL
     if not refs:
         raise QueueError("guard: this PR closes no Issue, so it cannot be matched "
                          "to the queue")
@@ -860,8 +862,8 @@ def render_markdown(state):
     """Human checklist followed by the marker and the JSON source of truth."""
     lines = [HEADER]
     if max_active(state) > 1:
-        lines.append("**Parallel: up to %d active (%d active now).** The owner "
-                     "sets this with `work_queue.py limit`.\n"
+        lines.append("**Parallel: up to %d active (%d active now).** Any agent "
+                     "changes this with `work_queue.py limit`.\n"
                      % (max_active(state), len(active_items(state))))
     following = upcoming(state)
     for item in state["items"]:

@@ -92,8 +92,9 @@ jobs:
         if: github.event_name == 'pull_request'
         run: python3 tools/conventions.py check-pr --event "$GITHUB_EVENT_PATH"
       # Queue v2 guard (#287, #331): every Issue this PR closes must be on the
-      # owner's execution queue (#277) in any live status, unless the owner
-      # applied owner:queue-exempt. Read-only; fails closed. Fix a refusal with
+      # execution queue (#277) in any live status, unless the PR carries the
+      # queue:exempt label, which any agent may apply (owner decision
+      # 2026-11-13). Read-only; fails closed. Fix a refusal with
       # `python3 tools/work_queue.py claim OWNER/REPO#N`.
       - name: Policy · Work matches the execution queue
         if: github.event_name == 'pull_request'

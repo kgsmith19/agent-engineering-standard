@@ -68,7 +68,7 @@ class CapStateTests(unittest.TestCase):
 
 
 class LimitOpTests(unittest.TestCase):
-    """AC2: only the owner sets the cap, with a reason, and it is logged."""
+    """Anyone sets the cap, with a reason, and it is logged (owner decision 2026-11-13)."""
 
     def test_owner_sets_cap_and_history_records_it(self):
         """AC2: the limit event names from, to, the authorizer and the reason, chained like every other event."""
@@ -81,12 +81,13 @@ class LimitOpTests(unittest.TestCase):
         self.assertEqual(events[0]["reason"], "parallel PRs")
         core.validate(new)
 
-    def test_non_owner_cannot_set_cap(self):
-        """AC2: an agent raising its own concurrency is exactly what the owner gate prevents."""
+    def test_any_agent_sets_cap_and_is_recorded(self):
+        """Owner decision 2026-11-13: agents may change the cap; history records who."""
         state = build(("a", "pending", []))
-        for who in ("someone", "", "KGSMITH19"):
-            with self.assertRaises(core.QueueError):
-                core.op_limit(state, 5, who, "reason")
+        for who, recorded in (("someone", "someone"), ("", "agent"), ("  ", "agent")):
+            new, events = run(state, core.op_limit(state, 3, who, "reason"))
+            self.assertEqual(new["max_active"], 3)
+            self.assertEqual(events[0]["to"]["authorized_by"], recorded)
 
     def test_reason_required(self):
         """AC2: an unexplained cap change is unauditable."""
@@ -268,20 +269,18 @@ class SchemaAndRenderTests(unittest.TestCase):
 class CliTests(unittest.TestCase):
     """AC2/AC5 through work_queue.py."""
 
-    def test_limit_command_owner_only_and_logged(self):
-        """AC2: `limit` refuses a non-owner, records the owner's change, and start then honors it."""
+    def test_limit_command_any_agent_and_logged(self):
+        """`limit` works for any agent (owner decision 2026-11-13), is logged, and start honors it."""
         adapter = seeded("a", "b", "c")
-        code, _, _ = cli_run("limit", "3", "--authorized-by", "someone",
-                             "--reason", "r", adapter=adapter)
-        self.assertEqual(code, cli.EXIT_REFUSED)
-        code, out, _ = cli_run("limit", "3", "--authorized-by", "kgsmith19",
-                               "--reason", "owner authorized parallel PRs", adapter=adapter)
+        code, out, _ = cli_run("limit", "3", "--reason", "parallel PRs", adapter=adapter)
         self.assertEqual(code, 0, out)
+        code, _, _ = cli_run("limit", "3", "--reason", "same value", adapter=adapter)
+        self.assertEqual(code, cli.EXIT_REFUSED)  # a no-op change is still refused
         for item in ("Q01", "Q02", "Q03"):
             self.assertEqual(cli_run("start", item, adapter=adapter)[0], 0)
         _, out, _ = cli_run("history", adapter=adapter)
         self.assertIn("limit", out)
-        self.assertIn("owner authorized parallel PRs", out)
+        self.assertIn("parallel PRs", out)
 
     def test_show_reports_cap_and_next_skips_active(self):
         """AC5: `show` states the cap; `next` names the next item to start, not one already running."""

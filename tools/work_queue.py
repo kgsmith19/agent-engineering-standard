@@ -41,7 +41,7 @@ Subcommands
 ``guard --claim OWNER/REPO#N`` / ``guard --pr-event PATH``
                                read-only: exit 1 when the Issue (or an Issue
                                the PR closes) is not on the queue at all
-                               (owner:queue-exempt aside); fix with ``claim``
+                               (queue:exempt aside); fix with ``claim``
 
 History records who (``AES_QUEUE_ACTOR``, else ``GITHUB_ACTOR``/``USER``),
 when, the harness (``AES_QUEUE_HARNESS``, else detected) and the provider
@@ -414,10 +414,11 @@ def build_parser(env=None):
     move.add_argument("--authorized-by", default="",
                       help="optional: who asked for the move")
     move.add_argument("--reason", default="", help="optional")
-    limit = sub.add_parser("limit", help="owner-authorized cap on parallel "
+    limit = sub.add_parser("limit", help="cap on parallel (any agent; logged) "
                            "active items, 1-%d (logged)" % core.MAX_PARALLEL)
     limit.add_argument("n", type=int)
-    limit.add_argument("--authorized-by", required=True)
+    limit.add_argument("--authorized-by", default="",
+                       help="who is changing it (recorded; defaults to 'agent')")
     limit.add_argument("--reason", required=True)
     hist = sub.add_parser("history", help="print the hash-chained history")
     hist.add_argument("id", nargs="?")
@@ -658,15 +659,8 @@ def _run_guard(args, adapter, http):
         head_ref = (pr.get("head") or {}).get("ref") or ""
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
         raise core.FormatError("not a readable pull_request event: %s" % exc)
-    exempt = False
-    if core.EXEMPT_LABEL in labels:
-        exempt = core.owner_label_authorized(
-            _timeline(http or getattr(adapter, "http", None) or queue_store._default_http(),
-                      repo, number), core.EXEMPT_LABEL, state["owner"])
-        if not exempt:
-            print("guard: the %s label is present but was not applied by the owner "
-                  "(%s); it is ignored" % (core.EXEMPT_LABEL, state["owner"]),
-                  file=sys.stderr)
+    # Anyone may exempt a PR (owner decision 2026-11-13); no provenance check.
+    exempt = any(label in core.EXEMPT_LABELS for label in labels)
     refs = core.closing_refs(pr.get("body"), repo)
     if not refs and conventions is not None:
         # #333: an Issue derivable from the branch or title counts; the Merge
