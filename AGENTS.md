@@ -16,6 +16,11 @@ standard assumes: skills, plugins, MCP wiring, and the continuity capsule. It is
   `curl -fsSL https://raw.githubusercontent.com/kgsmith19/agent-extensions/main/bootstrap.sh | bash`
 - **Check at session bootstrap:** if `~/.agents/skills` is missing or empty, or
   the continuity adapter is absent, provision before starting work.
+- **Know your environment first:** read `~/.agents/inventory.md` (names-only
+  credentials, secret-store entries and CLIs, written at session start by
+  `ae inventory`) before the first task. Use secrets through `ae secret-run`, and
+  never report one unavailable without checking it
+  ([AGENTS/BOOTSTRAP.md](./AGENTS/BOOTSTRAP.md)).
 - **Extension plane:** a capability is a **CLI first** — it works in every
   harness, including those without MCP. MCP is an optional adapter: bridge with
   `mcporter` (MCP→CLI) or `any-cli-mcp-server` (CLI→MCP).
